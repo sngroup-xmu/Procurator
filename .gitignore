@@ -13,7 +13,7 @@ doc/
 meeting/
 Procurator/argo/code/run_*
 # Generated verification artifacts / tool workspaces (huge, not source)
-Procurator/argo/code/results/
+# NOTE: user wants to keep results tracked, so do NOT ignore results/ here.
 Procurator/argo/code/**/ultimate-ws/
 Procurator/argo/code/**/.metadata/
 Procurator/argo/code/**/.settings/
@@ -26,3 +26,30 @@ UGemCutter-linux/
 .tmp/
 .venv/
 .cursor/
+tmp/
+**/build-host/
+
+# Common build artifacts (safe to ignore)
+**/*.o
+**/*.obj
+**/*.a
+**/*.so
+**/*.so.*
+**/*.dylib
+**/*.dll
+**/*.exe
+**/*.class
+**/*.jar
+**/*.war
+**/*.zip
+**/*.tar
+**/*.tar.gz
+**/*.tgz
+
+# Common build/output directories
+**/dist/
+**/out/
+**/bin/
+**/obj/
+**/target/
+**/bazel-*/
