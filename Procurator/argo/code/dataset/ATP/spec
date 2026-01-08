@@ -1,0 +1,13 @@
+import s1 from "/mnt/d/work/P4-verification/code/dataset/ATP/p4src/p4ml_lc_16.p4" entries "/mnt/d/work/P4-verification/code/dataset/ATP/p4src/atp/flow.txt";
+
+topology {
+  link s1 -> w1 1;
+  link s1 -> w2 2;
+  link s1 -> ps 3;
+}
+
+node s1 {
+}
+
+global {
+}

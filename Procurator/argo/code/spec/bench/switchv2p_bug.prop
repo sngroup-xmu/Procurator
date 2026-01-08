@@ -1,0 +1,59 @@
+// switchv2p (max-env): egress_port sanity per node + reachability proxy.
+
+import core1  from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/core/CORE1.txt";
+import core2  from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/core/CORE2.txt";
+import spine1 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/spine/SPINE1.txt";
+import spine2 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/spine/SPINE2.txt";
+import spine3 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/spine/SPINE3.txt";
+import spine4 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/spine/GW_SPINE.txt";
+import tor1   from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/tor/TOR1.txt";
+import tor2   from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/tor/TOR2.txt";
+import tor3   from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/tor/TOR3.txt";
+import tor4   from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/tor/GW_TOR.txt";
+
+topology {
+  link core1 -> spine1 1; link core1 -> spine3 2; link core1 -> core1 68;
+  link core2 -> spine2 1; link core2 -> spine4 2; link core2 -> core2 68;
+
+  link spine1 -> core1 1; link spine1 -> tor1 2; link spine1 -> tor2 3; link spine1 -> spine1 68;
+  link spine2 -> core2 1; link spine2 -> tor1 2; link spine2 -> tor2 3; link spine2 -> spine2 68;
+  link spine3 -> core1 1; link spine3 -> tor3 2; link spine3 -> tor4 3; link spine3 -> spine3 68;
+  link spine4 -> core2 1; link spine4 -> tor3 2; link spine4 -> tor4 3; link spine4 -> spine4 68;
+
+  link tor1 -> spine1 1; link tor1 -> spine2 2; link tor1 -> tor1 68;
+  link tor2 -> spine1 1; link tor2 -> spine2 2; link tor2 -> tor2 68;
+  link tor3 -> spine3 1; link tor3 -> spine4 2; link tor3 -> tor3 68;
+  link tor4 -> spine3 1; link tor4 -> spine4 2; link tor4 -> tor4 68;
+}
+
+node tor1 { external_input = true; }
+node tor2 { external_input = true; }
+node tor3 { external_input = true; }
+node tor4 { external_input = true; }
+node core1 {}
+node core2 {}
+node spine1 {}
+node spine2 {}
+node spine3 {}
+node spine4 {}
+
+global {
+  queue_capacity = 3;
+  // Symmetry breaking for identical roles (same program class).
+  symmetry(core1, core2);
+  symmetry(spine1, spine2);
+  symmetry(tor1, tor2);
+  // Egress ports stay within configured range for each node (0 = drop/none).
+  assert {
+    ((((core1_ig_intr_tm_md.ucast_egress_port == 0) || (core1_ig_intr_tm_md.ucast_egress_port == 1)) || (core1_ig_intr_tm_md.ucast_egress_port == 2)) || (core1_ig_intr_tm_md.ucast_egress_port == 68));
+    ((((core2_ig_intr_tm_md.ucast_egress_port == 0) || (core2_ig_intr_tm_md.ucast_egress_port == 1)) || (core2_ig_intr_tm_md.ucast_egress_port == 2)) || (core2_ig_intr_tm_md.ucast_egress_port == 68));
+    (((((spine1_ig_intr_tm_md.ucast_egress_port == 0) || (spine1_ig_intr_tm_md.ucast_egress_port == 1)) || (spine1_ig_intr_tm_md.ucast_egress_port == 2)) || (spine1_ig_intr_tm_md.ucast_egress_port == 3)) || (spine1_ig_intr_tm_md.ucast_egress_port == 68));
+    (((((spine2_ig_intr_tm_md.ucast_egress_port == 0) || (spine2_ig_intr_tm_md.ucast_egress_port == 1)) || (spine2_ig_intr_tm_md.ucast_egress_port == 2)) || (spine2_ig_intr_tm_md.ucast_egress_port == 3)) || (spine2_ig_intr_tm_md.ucast_egress_port == 68));
+    (((((spine3_ig_intr_tm_md.ucast_egress_port == 0) || (spine3_ig_intr_tm_md.ucast_egress_port == 1)) || (spine3_ig_intr_tm_md.ucast_egress_port == 2)) || (spine3_ig_intr_tm_md.ucast_egress_port == 3)) || (spine3_ig_intr_tm_md.ucast_egress_port == 68));
+    (((((spine4_ig_intr_tm_md.ucast_egress_port == 0) || (spine4_ig_intr_tm_md.ucast_egress_port == 1)) || (spine4_ig_intr_tm_md.ucast_egress_port == 2)) || (spine4_ig_intr_tm_md.ucast_egress_port == 3)) || (spine4_ig_intr_tm_md.ucast_egress_port == 68));
+    ((((tor1_ig_intr_tm_md.ucast_egress_port == 0) || (tor1_ig_intr_tm_md.ucast_egress_port == 1)) || (tor1_ig_intr_tm_md.ucast_egress_port == 2)) || (tor1_ig_intr_tm_md.ucast_egress_port == 68));
+    ((((tor2_ig_intr_tm_md.ucast_egress_port == 0) || (tor2_ig_intr_tm_md.ucast_egress_port == 1)) || (tor2_ig_intr_tm_md.ucast_egress_port == 2)) || (tor2_ig_intr_tm_md.ucast_egress_port == 68));
+    ((((tor3_ig_intr_tm_md.ucast_egress_port == 0) || (tor3_ig_intr_tm_md.ucast_egress_port == 1)) || (tor3_ig_intr_tm_md.ucast_egress_port == 2)) || (tor3_ig_intr_tm_md.ucast_egress_port == 68));
+    ((((tor4_ig_intr_tm_md.ucast_egress_port == 0) || (tor4_ig_intr_tm_md.ucast_egress_port == 1)) || (tor4_ig_intr_tm_md.ucast_egress_port == 2)) || (tor4_ig_intr_tm_md.ucast_egress_port == 68));
+  };
+}

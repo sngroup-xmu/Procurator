@@ -1,0 +1,10 @@
+receive pkt from user
+    record ((pkt.albion.address_h,pkt.albion.address_l),user)
+    pkt.albion.operation = 1
+    send pkt to p4
+reveive pkt from p4
+    if pkt.albion.operation == 34:
+        user = find(pkt.albion.address_h,pkt.albion.address_l)//找这个地址是谁写的
+        send pkt to user
+    if pkt.albion.operation == 35:
+        remove (pkt.albion.address_h,pkt.albion.address_l)

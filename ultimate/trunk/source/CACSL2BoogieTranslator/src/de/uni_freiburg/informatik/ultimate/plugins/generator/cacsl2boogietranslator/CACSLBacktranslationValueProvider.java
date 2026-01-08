@@ -1,0 +1,169 @@
+/*
+ * Copyright (C) 2014-2015 Daniel Dietsch (dietsch@informatik.uni-freiburg.de)
+ * Copyright (C) 2015 University of Freiburg
+ *
+ * This file is part of the ULTIMATE CACSL2BoogieTranslator plug-in.
+ *
+ * The ULTIMATE CACSL2BoogieTranslator plug-in is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * The ULTIMATE CACSL2BoogieTranslator plug-in is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with the ULTIMATE CACSL2BoogieTranslator plug-in. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Additional permission under GNU GPL version 3 section 7:
+ * If you modify the ULTIMATE CACSL2BoogieTranslator plug-in, or any covered work, by linking
+ * or combining it with Eclipse RCP (or a modified version of Eclipse RCP),
+ * containing parts covered by the terms of the Eclipse Public License, the
+ * licensors of the ULTIMATE CACSL2BoogieTranslator plug-in grant you additional permission
+ * to convey the resulting work.
+ */
+package de.uni_freiburg.informatik.ultimate.plugins.generator.cacsl2boogietranslator;
+
+import java.util.EnumSet;
+
+import org.eclipse.cdt.core.dom.ast.IASTExpressionStatement;
+import org.eclipse.cdt.core.dom.ast.IASTFunctionCallExpression;
+import org.eclipse.cdt.core.dom.ast.IASTIdExpression;
+import org.eclipse.cdt.core.dom.ast.IASTIfStatement;
+import org.eclipse.cdt.core.dom.ast.IASTNode;
+import org.eclipse.cdt.core.dom.ast.IASTSimpleDeclaration;
+import org.eclipse.cdt.core.dom.ast.IASTStatement;
+import org.eclipse.cdt.core.dom.ast.IPointerType;
+
+import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.ACSLLocation;
+import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.CACSLLocation;
+import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.CLocation;
+import de.uni_freiburg.informatik.ultimate.core.model.translation.AtomicTraceElement;
+import de.uni_freiburg.informatik.ultimate.core.model.translation.AtomicTraceElement.StepInfo;
+import de.uni_freiburg.informatik.ultimate.core.model.translation.IBacktranslationValueProvider;
+import de.uni_freiburg.informatik.ultimate.model.acsl.ACSLPrettyPrinter;
+
+/**
+ *
+ * @author dietsch@informatik.uni-freiburg.de
+ *
+ */
+public class CACSLBacktranslationValueProvider
+		implements IBacktranslationValueProvider<CACSLLocation, BacktranslatedACSLValue> {
+
+	@Override
+	public int getStartLineNumberFromStep(final CACSLLocation step) {
+		return step.getStartLine();
+	}
+
+	@Override
+	public int getEndLineNumberFromStep(final CACSLLocation step) {
+		return step.getEndLine();
+	}
+
+	@Override
+	public int getLineNumberFromStep(final CACSLLocation step, final EnumSet<AtomicTraceElement.StepInfo> stepInfo) {
+		if (stepInfo.contains(StepInfo.PROC_CALL) || stepInfo.contains(StepInfo.PROC_RETURN)) {
+			// Use the end location (should be the location of the closing parenthesis)
+			return step.getEndLine();
+		}
+		if ((stepInfo.contains(StepInfo.CONDITION_EVAL_TRUE) || stepInfo.contains(StepInfo.CONDITION_EVAL_FALSE))
+				&& step instanceof CLocation) {
+			// Use the starting location of the parent (should be the corresponding if/while)
+			final CLocation parent = ((CLocation) step).getParent();
+			return parent != null ? parent.getStartLine() : -1;
+		}
+		return step.getStartLine();
+	}
+
+	@Override
+	public int getColumnNumberFromStep(final CACSLLocation step, final EnumSet<AtomicTraceElement.StepInfo> stepInfo) {
+		if (stepInfo.contains(StepInfo.PROC_CALL) || stepInfo.contains(StepInfo.PROC_RETURN)) {
+			// Use the end location (should be the location of the closing parenthesis)
+			return step.getEndColumn() - 1;
+		}
+		if ((stepInfo.contains(StepInfo.CONDITION_EVAL_TRUE) || stepInfo.contains(StepInfo.CONDITION_EVAL_FALSE))
+				&& step instanceof final CLocation cloc) {
+			// Use the starting location of the parent (should be the corresponding if/while)
+			final CLocation parent = cloc.getParent();
+			return parent == null ? -1 : parent.getStartColumn();
+		}
+		return step.getStartColumn();
+	}
+
+	@Override
+	public String getFunctionFromStep(final CACSLLocation step) {
+		return step.getFunction();
+	}
+
+	@Override
+	public String getStringFromStep(final CACSLLocation step) {
+		if (step instanceof CLocation) {
+			return getStringFromIASTNode(((CLocation) step).getNode());
+		} else if (step instanceof ACSLLocation) {
+			return ACSLPrettyPrinter.print(((ACSLLocation) step).getNode());
+		} else {
+			throw new UnsupportedOperationException();
+		}
+	}
+
+	@Override
+	public String getStringFromTraceElement(final CACSLLocation traceelement) {
+		return getStringFromStep(traceelement);
+	}
+
+	@Override
+	public String getStringFromExpression(final BacktranslatedACSLValue expression) {
+		// Both BacktranslatedExpression and FakePointer have suitable toString() implementations.
+		return expression.toString();
+	}
+
+	private String getStringFromIASTNode(final IASTNode currentStepNode) {
+		String str = currentStepNode.getRawSignature();
+		if (currentStepNode instanceof IASTIdExpression) {
+			final IASTIdExpression id = (IASTIdExpression) currentStepNode;
+			if (id.getExpressionType() instanceof IPointerType) {
+				str = "\\read(" + getPointerStars((IPointerType) id.getExpressionType()) + str + ")";
+			} else {
+				str = "\\read(" + str + ")";
+			}
+		}
+		return str;
+	}
+
+	private String getPointerStars(final IPointerType type) {
+		if (type.getType() instanceof IPointerType) {
+			return "*" + getPointerStars((IPointerType) type.getType());
+		}
+		return "*";
+	}
+
+	@Override
+	public String getFileNameFromStep(final CACSLLocation step) {
+		return step.getFileName();
+	}
+
+	@Override
+	public String getOriginFileNameFromStep(final CACSLLocation step) {
+		return step.getFileName();
+	}
+
+	@Override
+	public boolean isValidAssumptionLocation(final CACSLLocation traceElement) {
+		if (traceElement instanceof CLocation) {
+			final IASTNode node = ((CLocation) traceElement).getNode();
+			if (node instanceof IASTFunctionCallExpression) {
+				// For now we omit assumptions at function calls, as they might point to the wrong location.
+				return false;
+			}
+			// "assumption: The location has to point to the beginning of a statement or a declaration inside a compound
+			// statement."
+			return node instanceof IASTStatement || node instanceof IASTSimpleDeclaration
+					|| node.getParent() instanceof IASTExpressionStatement
+					|| node.getParent() instanceof IASTIfStatement;
+		}
+		return false;
+	}
+}

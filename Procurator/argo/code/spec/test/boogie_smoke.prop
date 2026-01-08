@@ -1,0 +1,35 @@
+// Minimal Boogie E2E smoke spec (DSL -> P4->Boogie -> concurrent harness).
+//
+// Notes:
+// - Uses a repo-shipped P4_16 program (`dataset/ipv4/basic.p4`) for each node.
+// - Intended to be compiled with:
+//     python -m Procurator.argo.code.spec.prop_compile.dslc.compiler \
+//       --backend boogie \
+//       --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
+//       --out /tmp/boogie_smoke.bpl \
+//       --p4b-bin <path-to-P4B-Translator/build-host/backends/verify/p4c-translator>
+//
+
+import s1 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/ipv4/basic.p4";
+import s2 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/ipv4/basic.p4";
+
+topology {
+  link s1 -> s2;
+  link s2 -> s1;
+}
+
+node s1 {
+  external_input = true;
+  assert {
+    s1_inbox_count >= 0;
+  };
+}
+
+node s2 {
+}
+
+global {
+  queue_capacity = 2;
+}
+
+

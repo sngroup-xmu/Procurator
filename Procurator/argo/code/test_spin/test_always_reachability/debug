@@ -1,0 +1,22 @@
+  6:	proc  4 (h3:1) 1.pml:92 Send 3	-> queue 1 (middle_ch)
+  8:	proc  4 (h3:1) 1.pml:92 Send 3	-> queue 1 (middle_ch)
+ 10:	proc  2 (middle:1) 1.pml:65 Recv 3	<- queue 1 (middle_ch)
+ 11:	proc  4 (h3:1) 1.pml:92 Send 3	-> queue 1 (middle_ch)
+ 13:	proc  2 (middle:1) 1.pml:67 Send 3	-> queue 2 (ch2)
+ 14:	proc  3 (h2:1) 1.pml:47 Recv 3	<- queue 2 (ch2)
+spin: trail ends after 14 steps
+#processes: 5
+		queue 2 (ch2): 
+		queue 1 (middle_ch): [3][3]
+		cnt1 = 0
+		cnt2 = 0
+ 14:	proc  4 (h3:1) 1.pml:91 (state 4)
+		h3(4):cnt3 = 3
+ 14:	proc  3 (h2:1) 1.pml:47 (state 10)
+		h2(3):flag = 3
+ 14:	proc  2 (middle:1) 1.pml:64 (state 4)
+		middle(2):flag = 3
+ 14:	proc  1 (h1:1) 1.pml:13 (state 5)
+		h1(1):flag = 0
+ 14:	proc  0 (:init::1) 1.pml:116 (state 6) <valid end state>
+5 processes created

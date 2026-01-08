@@ -1,0 +1,30 @@
+pan:1: acceptance cycle (at depth 956)
+pan: wrote 1.pml.trail
+
+(Spin Version 6.5.2 -- 21 June 2024)
+Warning: Search not completed
+	+ Partial Order Reduction
+
+Full statespace search for:
+	never claim         	+ (a)
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness enabled)
+	invalid end states	- (disabled by never claim)
+
+State-vector 96 byte, depth reached 957, errors: 1
+      402 states, stored (404 visited)
+        1 states, matched
+      405 transitions (= visited+matched)
+      152 atomic steps
+hash conflicts:         0 (resolved)
+
+Stats on memory usage (in Megabytes):
+    0.048	equivalent memory usage for states (stored*(State-vector + overhead))
+    0.287	actual memory usage for states
+  128.000	memory used for hash table (-w24)
+    5.341	memory used for DFS stack (-m100000)
+  133.536	total actual memory usage
+
+
+
+pan: elapsed time 0 seconds

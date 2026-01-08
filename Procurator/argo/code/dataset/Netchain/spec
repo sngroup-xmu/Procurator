@@ -1,0 +1,26 @@
+import s1 from "/mnt/d/work/P4-verification/code/dataset/Netchain/netchain_16.p4" entries "/mnt/d/work/P4-verification/code/dataset/Netchain/commands_1.txt";
+import s2 from "/mnt/d/work/P4-verification/code/dataset/Netchain/netchain_16.p4" entries "/mnt/d/work/P4-verification/code/dataset/Netchain/commands_2.txt";
+import s3 from "/mnt/d/work/P4-verification/code/dataset/Netchain/netchain_16.p4" entries "/mnt/d/work/P4-verification/code/dataset/Netchain/commands_3.txt";
+
+topology {
+  link s1 -> s2 ALL;
+  link s2 -> s3 ALL;
+}
+
+node s1 {
+
+}
+
+node s2{}
+
+node s3{}
+
+global {
+    ltl a {
+        [] {((s1.sequence_reg[0] >= s2.sequence_reg[0]) && (s2.sequence_reg[0] >= s3.sequence_reg[0]))};
+    };
+}
+
+../../Translator/build/p4c-translator  /mnt/d/work/P4-verification/code/dataset/Netchain/netchain_16.p4
+--switchID s1 --bmv2cmds /mnt/d/work/P4-verification/code/dataset/Netchain/commands_1.txt
+--slicing-vars sequence_reg[0] --port_dst ALL:s2 -o /mnt/d/work/P4-verification/code/run_7/s1/s1.pml

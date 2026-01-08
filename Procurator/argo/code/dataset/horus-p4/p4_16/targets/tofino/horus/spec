@@ -1,0 +1,17 @@
+
+import s1 from "/home/shenhuan/P4-verification/code/dataset/horus-p4/p4_16/targets/tofino/horus/spine-ir.json" entries "/home/shenhuan/P4-verification/code/dataset/test_tofino/1.txt";
+import s2 from "/home/shenhuan/P4-verification/code/dataset/horus-p4/p4_16/targets/tofino/horus/leaf-ir.json" entries "/home/shenhuan/P4-verification/code/dataset/test_tofino/1.txt";
+
+topology {
+  link s1 -> s2 ALL;
+}
+
+node s1 {
+    
+}
+
+node s2{}
+
+
+global {
+}

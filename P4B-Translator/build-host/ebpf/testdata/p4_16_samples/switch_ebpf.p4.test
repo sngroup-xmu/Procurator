@@ -1,0 +1,5 @@
+#! /usr/bin/env bash
+# Generated file, modify with care
+
+cd /mnt/e/p4-verify/P4B-Translator/build-host
+/mnt/e/p4-verify/P4B-Translator/backends/ebpf/run-ebpf-test.py -t test -c "/mnt/e/p4-verify/P4B-Translator/build-host/p4c-ebpf" /mnt/e/p4-verify/P4B-Translator  "$@" /mnt/e/p4-verify/P4B-Translator/testdata/p4_16_samples/switch_ebpf.p4

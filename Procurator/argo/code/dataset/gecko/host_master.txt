@@ -1,0 +1,37 @@
+receive pkt from p4
+    if pkt.albion.operation == 1:
+        pkt.albion.operation = 10
+        pkt.albion.CS_id_1 = 1
+        pkt.albion.CS_id_2 = 2
+        pkt.albion.CS_id_3 = 3
+        send pkt to p4
+    if pkt.albion.operation == 100:  //这里是说意味着有写请求超时了
+        //下面这一坨对着state_0/1/2/3都要写一遍，是根据state_0/1/2/3来检查谁写失败了
+        if pkt.albion_timer.state_0 != 0:
+            if (pkt.albion_timer.state_0 && 1) != 0:
+                pkt_temp = ETH/ALBION/ALBION_DATA
+                pkt.albion.operation = 70
+                pkt_temp.albion.request_id_high = pkt.albion_timer.address_high_0
+                pkt_temp.albion.request_id_low = pkt.albion_timer.address_low_0
+                pkt_temp.albion.CS_id_1 = 1
+                pkt_temp.albion.CS_id_2 = 10
+                pkt_temp.albion.CS_id_3 = 10
+                send pkt_temp to p4
+            if (pkt.albion_timer.state_0 && 2) != 0:
+                pkt_temp = ETH/ALBION/ALBION_DATA
+                pkt.albion.operation = 70
+                pkt_temp.albion.request_id_high = pkt.albion_timer.address_high_0
+                pkt_temp.albion.request_id_low = pkt.albion_timer.address_low_0
+                pkt_temp.albion.CS_id_1 = 2
+                pkt_temp.albion.CS_id_2 = 10
+                pkt_temp.albion.CS_id_3 = 10
+                send pkt_temp to p4
+            if (pkt.albion_timer.state_0 && 4) != 0:
+                pkt_temp = ETH/ALBION/ALBION_DATA
+                pkt.albion.operation = 70
+                pkt_temp.albion.request_id_high = pkt.albion_timer.address_high_0
+                pkt_temp.albion.request_id_low = pkt.albion_timer.address_low_0
+                pkt_temp.albion.CS_id_1 = 3
+                pkt_temp.albion.CS_id_2 = 10
+                pkt_temp.albion.CS_id_3 = 10
+                send pkt_temp to p4

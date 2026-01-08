@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feature
+      id="BA_FeatureWebBackend"
+      label="BA_FeatureWebBackend"
+      version="0.3.1"
+      provider-name="Ultimate Program Analysis Team"
+      arch="x86_64">
+
+   <requires>
+      <import feature="BA_FeatureDependenciesCommon" version="0.0.0"/>
+   </requires>
+
+   <plugin
+         id="org.eclipse.jetty.http"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.eclipse.jetty.io"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.eclipse.jetty.security"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.eclipse.jetty.server"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.eclipse.jetty.util"
+         version="0.0.0"/>
+
+   <plugin
+         id="org.eclipse.jetty.servlet-api"
+         version="0.0.0"/>
+
+   <plugin
+         id="de.uni_freiburg.informatik.ultimate.web.backend"
+         version="0.0.0"/>
+
+</feature>

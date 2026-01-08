@@ -1,0 +1,74 @@
+/*
+ * Copyright (C) 2018 Daniel Dietsch (dietsch@informatik.uni-freiburg.de)
+ * Copyright (C) 2018 University of Freiburg
+ *
+ * This file is part of the ULTIMATE PEAtoBoogie plug-in.
+ *
+ * The ULTIMATE PEAtoBoogie plug-in is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * The ULTIMATE PEAtoBoogie plug-in is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with the ULTIMATE PEAtoBoogie plug-in. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Additional permission under GNU GPL version 3 section 7:
+ * If you modify the ULTIMATE PEAtoBoogie plug-in, or any covered work, by linking
+ * or combining it with Eclipse RCP (or a modified version of Eclipse RCP),
+ * containing parts covered by the terms of the Eclipse Public License, the
+ * licensors of the ULTIMATE PEAtoBoogie plug-in grant you additional permission
+ * to convey the resulting work.
+ */
+package de.uni_freiburg.informatik.ultimate.pea2boogie.generator;
+
+import java.util.function.Function;
+
+import de.uni_freiburg.informatik.ultimate.lib.modelcheckerutils.cfg.variables.IProgramFunction;
+import de.uni_freiburg.informatik.ultimate.lib.modelcheckerutils.cfg.variables.IProgramVar;
+import de.uni_freiburg.informatik.ultimate.lib.modelcheckerutils.smt.predicates.BasicPredicate;
+import de.uni_freiburg.informatik.ultimate.lib.modelcheckerutils.smt.predicates.TermVarsFuns;
+import de.uni_freiburg.informatik.ultimate.lib.smtlibutils.ManagedScript;
+import de.uni_freiburg.informatik.ultimate.logic.FunctionSymbol;
+import de.uni_freiburg.informatik.ultimate.logic.Term;
+import de.uni_freiburg.informatik.ultimate.logic.TermVariable;
+
+/**
+ *
+ * @author Daniel Dietsch (dietsch@informatik.uni-freiburg.de)
+ *
+ */
+public class SimplePredicateFactory {
+
+	private final ManagedScript mMgdScript;
+	private final Function<TermVariable, IProgramVar> mFunTermVar2ProgVar;
+
+	private int mId;
+
+	public SimplePredicateFactory(final ManagedScript mgdScript,
+			final Function<TermVariable, IProgramVar> funTermVar2ProgVar) {
+		mMgdScript = mgdScript;
+		mFunTermVar2ProgVar = funTermVar2ProgVar;
+	}
+
+	public BasicPredicate newPredicate(final Term term) {
+		final TermVarsFuns termVarsProc = constructTermVarsProc(term);
+		return new BasicPredicate(constructFreshSerialNumber(), termVarsProc.getFormula(), termVarsProc.getVars(),
+				termVarsProc.getFuns(), termVarsProc.getClosedFormula());
+	}
+
+	private int constructFreshSerialNumber() {
+		mId++;
+		return mId;
+	}
+
+	private TermVarsFuns constructTermVarsProc(final Term term) {
+		final Function<FunctionSymbol, IProgramFunction> funcSymb2ProgramFunc = (x -> null);
+		return TermVarsFuns.computeTermVarsProc(term, mMgdScript, mFunTermVar2ProgVar, funcSymb2ProgramFunc);
+	}
+
+}

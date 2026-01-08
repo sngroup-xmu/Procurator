@@ -1,0 +1,10 @@
+reveive pkt from p4
+    if pkt.albion.operation == 10:
+        if my_id == pkt.albion.CS_id_1:
+            pkt.albion.operation = 30
+        if my_id == pkt.albion.CS_id_2:
+            pkt.albion.operation = 31
+        if my_id == pkt.albion.CS_id_3:
+            pkt.albion.operation = 32
+        record pkt.albion_data
+        send pkt to p4

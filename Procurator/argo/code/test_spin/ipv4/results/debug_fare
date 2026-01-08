@@ -1,0 +1,386 @@
+ltl reachability: [] (! (goast_b))
+starting claim 8
+Never claim moves to line 4	[(1)]
+ 11:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+ 13:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+ 29:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+ 31:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+ 47:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+ 49:	proc  4 (s1_mainProcedure:1) s1.pml:139 Recv 1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674	<- queue 3 (s4_2)
+ 65:	proc  4 (s1_mainProcedure:1) s1.pml:78 Send 1,546,256,2048,1,0,0,0,0,0,0,0spin: s1.pml:79, Error: value (509->253 (8)) truncated in assignment
+,253,0,0,167772931,167772674	-> queue 4 (s1_2)
+ 68:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+ 70:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+ 86:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+ 88:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+104:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+106:	proc  4 (s1_mainProcedure:1) s1.pml:139 Recv 1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674	<- queue 3 (s4_2)
+122:	proc  4 (s1_mainProcedure:1) s1.pml:78 Send 1,546,256,2048,1,0,0,0,0,0,0,0spin: s1.pml:79, Error: value (509->253 (8)) truncated in assignment
+,253,0,0,167772931,167772674	-> queue 4 (s1_2)
+125:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+127:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+143:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+145:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+161:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+163:	proc  4 (s1_mainProcedure:1) s1.pml:139 Recv 1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674	<- queue 3 (s4_2)
+181:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+183:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+199:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+201:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+217:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+220:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+222:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+238:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+240:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+256:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+259:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+261:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+277:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+279:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+297:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+299:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+315:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+318:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+320:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+336:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+339:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+341:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+359:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+362:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+366:	proc  2 (host2:1) main.pml:39 Recv 1,546,256,2048,1,0,0,0,0,0,0,0,253,0,0,167772931,167772674	<- queue 4 (s1_2)
+368:	proc  4 (s1_mainProcedure:1) s1.pml:78 Send 1,546,256,2048,1,0,0,0,0,0,0,0spin: s1.pml:79, Error: value (509->253 (8)) truncated in assignment
+,253,0,0,167772931,167772674	-> queue 4 (s1_2)
+370:	proc  4 (s1_mainProcedure:1) s1.pml:139 Recv 1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674	<- queue 3 (s4_2)
+372:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+374:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+391:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+393:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+425:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+              got a packet, 167772931, 167772674
+435:	proc  1 (host1:1) main.pml:23 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772417,167772674	-> queue 5 (h1)
+437:	proc  2 (host2:1) main.pml:39 Recv 1,546,256,2048,1,0,0,0,0,0,0,0,253,0,0,167772931,167772674	<- queue 4 (s1_2)
+439:	proc  4 (s1_mainProcedure:1) s1.pml:78 Send 1,546,256,2048,1,0,0,0,0,0,0,0spin: s1.pml:79, Error: value (509->253 (8)) truncated in assignment
+,253,0,0,167772931,167772674	-> queue 4 (s1_2)
+441:	proc  4 (s1_mainProcedure:1) s1.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772417,167772674	<- queue 5 (h1)
+              got a packet, 167772931, 167772674
+463:	proc  2 (host2:1) main.pml:39 Recv 1,546,256,2048,1,0,0,0,0,0,0,0,253,0,0,167772931,167772674	<- queue 4 (s1_2)
+465:	proc  4 (s1_mainProcedure:1) s1.pml:78 Send 1,546,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772417,167772674	-> queue 4 (s1_2)
+467:	proc  4 (s1_mainProcedure:1) s1.pml:139 Recv 1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674	<- queue 3 (s4_2)
+469:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+471:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+488:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+490:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+522:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+              got a packet, 167772931, 167772674
+531:	proc  2 (host2:1) main.pml:39 Recv 1,546,256,2048,1,0,0,0,0,0,0,0,253,0,0,167772931,167772674	<- queue 4 (s1_2)
+533:	proc  4 (s1_mainProcedure:1) s1.pml:78 Send 1,546,256,2048,1,0,0,0,0,0,0,0spin: s1.pml:79, Error: value (509->253 (8)) truncated in assignment
+,253,0,0,167772931,167772674	-> queue 4 (s1_2)
+535:	proc  4 (s1_mainProcedure:1) s1.pml:139 Recv 1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674	<- queue 3 (s4_2)
+537:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+539:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+556:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+558:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+590:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+              got a packet, 167772931, 167772674
+599:	proc  2 (host2:1) main.pml:39 Recv 1,546,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772417,167772674	<- queue 4 (s1_2)
+601:	proc  4 (s1_mainProcedure:1) s1.pml:78 Send 1,546,256,2048,1,0,0,0,0,0,0,0spin: s1.pml:79, Error: value (509->253 (8)) truncated in assignment
+,253,0,0,167772931,167772674	-> queue 4 (s1_2)
+603:	proc  4 (s1_mainProcedure:1) s1.pml:139 Recv 1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674	<- queue 3 (s4_2)
+605:	proc  7 (s4_mainProcedure:1) s4.pml:78 Send 1,256,1024,2048,1,0,0,0,0,0,0,0spin: s4.pml:79, Error: value (510->254 (8)) truncated in assignment
+,254,0,0,167772931,167772674	-> queue 3 (s4_2)
+607:	proc  7 (s4_mainProcedure:1) s4.pml:136 Recv 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	<- queue 2 (s2_3)
+624:	proc  5 (s2_mainProcedure:1) s2.pml:80 Send 1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674	-> queue 2 (s2_3)
+626:	proc  5 (s2_mainProcedure:1) s2.pml:123 Recv 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	<- queue 1 (h3)
+658:	proc  3 (host3:1) main.pml:68 Send 0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674	-> queue 1 (h3)
+              got a packet, 167772417, 167772674
+spin: _spin_nvr.tmp:3, Error: assertion violated
+spin: text of failed assertion: assert(!(!(!(goast_b))))
+Never claim moves to line 3	[assert(!(!(!(goast_b))))]
+spin: trail ends after 665 steps
+#processes: 8
+		s1__forward = 1
+		s1__drop = 0
+		s1_packet_extract_accept = 1
+		s2__forward = 1
+		s2__drop = 0
+		s2_packet_extract_accept = 1
+		s3__forward = 0
+		s3__drop = 0
+		s3_packet_extract_accept = 0
+		s4__forward = 1
+		s4__drop = 0
+		s4_packet_extract_accept = 1
+		queue 4 (s1_2): [1,546,256,2048,1,0,0,0,0,0,0,0,253,0,0,167772931,167772674][1,546,256,2048,1,0,0,0,0,0,0,0,253,0,0,167772931,167772674]
+		queue 2 (s2_3): [1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674][1,1024,0,2048,1,0,0,0,0,0,0,0,255,0,0,167772931,167772674]
+		queue 3 (s4_2): [1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674][1,256,1024,2048,1,0,0,0,0,0,0,0,254,0,0,167772931,167772674]
+		queue 5 (h1): 
+		queue 1 (h3): [0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674][0,0,0,2048,0,0,0,0,0,0,0,0,0,0,0,167772931,167772674]
+		s1_standard_metadata.ingress_port = 0
+		s1_standard_metadata.egress_spec = 2
+		s1_standard_metadata.egress_port = 2
+		s1_standard_metadata.instance_type = 0
+		s1_standard_metadata.packet_length = 0
+		s1_standard_metadata.enq_timestamp = 0
+		s1_standard_metadata.enq_qdepth = 0
+		s1_standard_metadata.deq_timedelta = 0
+		s1_standard_metadata.deq_qdepth = 0
+		s1_standard_metadata.ingress_global_timestamp = 0
+		s1_standard_metadata.egress_global_timestamp = 0
+		s1_standard_metadata.mcast_grp = 0
+		s1_standard_metadata.egress_rid = 0
+		s1_standard_metadata.checksum_error = 0
+		s1_standard_metadata.parser_error = 0
+		s1_standard_metadata._priority = 0
+		s1_hdr.ethernet.valid = 1
+		s1_hdr.ethernet.dstAddr = 546
+		s1_hdr.ethernet.srcAddr = 256
+		s1_hdr.ethernet.etherType = 2048
+		s1_hdr.ipv4.valid = 1
+		s1_hdr.ipv4.version = 0
+		s1_hdr.ipv4.ihl = 0
+		s1_hdr.ipv4.diffserv = 0
+		s1_hdr.ipv4.totalLen = 0
+		s1_hdr.ipv4.identification = 0
+		s1_hdr.ipv4.flags = 0
+		s1_hdr.ipv4.fragOffset = 0
+		s1_hdr.ipv4.ttl = 509
+		s1_hdr.ipv4.protocol = 0
+		s1_hdr.ipv4.hdrChecksum = 0
+		s1_hdr.ipv4.srcAddr = 167772931
+		s1_hdr.ipv4.dstAddr = 167772674
+		s1_ipv4_lpm_0_s1_ipv4_forward_s1_dstAddr = 0
+		s1_ipv4_lpm_0_s1_ipv4_forward_s1_port = 0
+		s1_ipv4_lpm_0_action_run = 0
+		s1_ipv4_lpm_0_hit = 0
+		s2_standard_metadata.ingress_port = 0
+		s2_standard_metadata.egress_spec = 3
+		s2_standard_metadata.egress_port = 3
+		s2_standard_metadata.instance_type = 0
+		s2_standard_metadata.packet_length = 0
+		s2_standard_metadata.enq_timestamp = 0
+		s2_standard_metadata.enq_qdepth = 0
+		s2_standard_metadata.deq_timedelta = 0
+		s2_standard_metadata.deq_qdepth = 0
+		s2_standard_metadata.ingress_global_timestamp = 0
+		s2_standard_metadata.egress_global_timestamp = 0
+		s2_standard_metadata.mcast_grp = 0
+		s2_standard_metadata.egress_rid = 0
+		s2_standard_metadata.checksum_error = 0
+		s2_standard_metadata.parser_error = 0
+		s2_standard_metadata._priority = 0
+		s2_hdr.ethernet.valid = 1
+		s2_hdr.ethernet.dstAddr = 1024
+		s2_hdr.ethernet.srcAddr = 0
+		s2_hdr.ethernet.etherType = 2048
+		s2_hdr.ipv4.valid = 1
+		s2_hdr.ipv4.version = 0
+		s2_hdr.ipv4.ihl = 0
+		s2_hdr.ipv4.diffserv = 0
+		s2_hdr.ipv4.totalLen = 0
+		s2_hdr.ipv4.identification = 0
+		s2_hdr.ipv4.flags = 0
+		s2_hdr.ipv4.fragOffset = 0
+		s2_hdr.ipv4.ttl = 255
+		s2_hdr.ipv4.protocol = 0
+		s2_hdr.ipv4.hdrChecksum = 0
+		s2_hdr.ipv4.srcAddr = 167772931
+		s2_hdr.ipv4.dstAddr = 167772674
+		s2_ipv4_lpm_0_s2_ipv4_forward_s2_dstAddr = 0
+		s2_ipv4_lpm_0_s2_ipv4_forward_s2_port = 0
+		s2_ipv4_lpm_0_action_run = 0
+		s2_ipv4_lpm_0_hit = 0
+		s3_standard_metadata.ingress_port = 0
+		s3_standard_metadata.egress_spec = 0
+		s3_standard_metadata.egress_port = 0
+		s3_standard_metadata.instance_type = 0
+		s3_standard_metadata.packet_length = 0
+		s3_standard_metadata.enq_timestamp = 0
+		s3_standard_metadata.enq_qdepth = 0
+		s3_standard_metadata.deq_timedelta = 0
+		s3_standard_metadata.deq_qdepth = 0
+		s3_standard_metadata.ingress_global_timestamp = 0
+		s3_standard_metadata.egress_global_timestamp = 0
+		s3_standard_metadata.mcast_grp = 0
+		s3_standard_metadata.egress_rid = 0
+		s3_standard_metadata.checksum_error = 0
+		s3_standard_metadata.parser_error = 0
+		s3_standard_metadata._priority = 0
+		s3_hdr.ethernet.valid = 0
+		s3_hdr.ethernet.dstAddr = 0
+		s3_hdr.ethernet.srcAddr = 0
+		s3_hdr.ethernet.etherType = 0
+		s3_hdr.ipv4.valid = 0
+		s3_hdr.ipv4.version = 0
+		s3_hdr.ipv4.ihl = 0
+		s3_hdr.ipv4.diffserv = 0
+		s3_hdr.ipv4.totalLen = 0
+		s3_hdr.ipv4.identification = 0
+		s3_hdr.ipv4.flags = 0
+		s3_hdr.ipv4.fragOffset = 0
+		s3_hdr.ipv4.ttl = 0
+		s3_hdr.ipv4.protocol = 0
+		s3_hdr.ipv4.hdrChecksum = 0
+		s3_hdr.ipv4.srcAddr = 0
+		s3_hdr.ipv4.dstAddr = 0
+		s3_ipv4_lpm_0_s3_ipv4_forward_s3_dstAddr = 0
+		s3_ipv4_lpm_0_s3_ipv4_forward_s3_port = 0
+		s3_ipv4_lpm_0_action_run = 0
+		s3_ipv4_lpm_0_hit = 0
+		s4_standard_metadata.ingress_port = 0
+		s4_standard_metadata.egress_spec = 2
+		s4_standard_metadata.egress_port = 2
+		s4_standard_metadata.instance_type = 0
+		s4_standard_metadata.packet_length = 0
+		s4_standard_metadata.enq_timestamp = 0
+		s4_standard_metadata.enq_qdepth = 0
+		s4_standard_metadata.deq_timedelta = 0
+		s4_standard_metadata.deq_qdepth = 0
+		s4_standard_metadata.ingress_global_timestamp = 0
+		s4_standard_metadata.egress_global_timestamp = 0
+		s4_standard_metadata.mcast_grp = 0
+		s4_standard_metadata.egress_rid = 0
+		s4_standard_metadata.checksum_error = 0
+		s4_standard_metadata.parser_error = 0
+		s4_standard_metadata._priority = 0
+		s4_hdr.ethernet.valid = 1
+		s4_hdr.ethernet.dstAddr = 256
+		s4_hdr.ethernet.srcAddr = 1024
+		s4_hdr.ethernet.etherType = 2048
+		s4_hdr.ipv4.valid = 1
+		s4_hdr.ipv4.version = 0
+		s4_hdr.ipv4.ihl = 0
+		s4_hdr.ipv4.diffserv = 0
+		s4_hdr.ipv4.totalLen = 0
+		s4_hdr.ipv4.identification = 0
+		s4_hdr.ipv4.flags = 0
+		s4_hdr.ipv4.fragOffset = 0
+		s4_hdr.ipv4.ttl = 510
+		s4_hdr.ipv4.protocol = 0
+		s4_hdr.ipv4.hdrChecksum = 0
+		s4_hdr.ipv4.srcAddr = 167772931
+		s4_hdr.ipv4.dstAddr = 167772674
+		s4_ipv4_lpm_0_s4_ipv4_forward_s4_dstAddr = 0
+		s4_ipv4_lpm_0_s4_ipv4_forward_s4_port = 0
+		s4_ipv4_lpm_0_action_run = 0
+		s4_ipv4_lpm_0_hit = 0
+		host1_hdr_send.ethernet.valid = 0
+		host1_hdr_send.ethernet.dstAddr = 0
+		host1_hdr_send.ethernet.srcAddr = 0
+		host1_hdr_send.ethernet.etherType = 2048
+		host1_hdr_send.ipv4.valid = 0
+		host1_hdr_send.ipv4.version = 0
+		host1_hdr_send.ipv4.ihl = 0
+		host1_hdr_send.ipv4.diffserv = 0
+		host1_hdr_send.ipv4.totalLen = 0
+		host1_hdr_send.ipv4.identification = 0
+		host1_hdr_send.ipv4.flags = 0
+		host1_hdr_send.ipv4.fragOffset = 0
+		host1_hdr_send.ipv4.ttl = 0
+		host1_hdr_send.ipv4.protocol = 0
+		host1_hdr_send.ipv4.hdrChecksum = 0
+		host1_hdr_send.ipv4.srcAddr = 167772417
+		host1_hdr_send.ipv4.dstAddr = 167772674
+		host1_hdr_recv.ethernet.valid = 0
+		host1_hdr_recv.ethernet.dstAddr = 0
+		host1_hdr_recv.ethernet.srcAddr = 0
+		host1_hdr_recv.ethernet.etherType = 0
+		host1_hdr_recv.ipv4.valid = 0
+		host1_hdr_recv.ipv4.version = 0
+		host1_hdr_recv.ipv4.ihl = 0
+		host1_hdr_recv.ipv4.diffserv = 0
+		host1_hdr_recv.ipv4.totalLen = 0
+		host1_hdr_recv.ipv4.identification = 0
+		host1_hdr_recv.ipv4.flags = 0
+		host1_hdr_recv.ipv4.fragOffset = 0
+		host1_hdr_recv.ipv4.ttl = 0
+		host1_hdr_recv.ipv4.protocol = 0
+		host1_hdr_recv.ipv4.hdrChecksum = 0
+		host1_hdr_recv.ipv4.srcAddr = 0
+		host1_hdr_recv.ipv4.dstAddr = 0
+		host2_hdr_send.ethernet.valid = 0
+		host2_hdr_send.ethernet.dstAddr = 0
+		host2_hdr_send.ethernet.srcAddr = 0
+		host2_hdr_send.ethernet.etherType = 0
+		host2_hdr_send.ipv4.valid = 0
+		host2_hdr_send.ipv4.version = 0
+		host2_hdr_send.ipv4.ihl = 0
+		host2_hdr_send.ipv4.diffserv = 0
+		host2_hdr_send.ipv4.totalLen = 0
+		host2_hdr_send.ipv4.identification = 0
+		host2_hdr_send.ipv4.flags = 0
+		host2_hdr_send.ipv4.fragOffset = 0
+		host2_hdr_send.ipv4.ttl = 0
+		host2_hdr_send.ipv4.protocol = 0
+		host2_hdr_send.ipv4.hdrChecksum = 0
+		host2_hdr_send.ipv4.srcAddr = 0
+		host2_hdr_send.ipv4.dstAddr = 0
+		host2_hdr_recv.ethernet.valid = 1
+		host2_hdr_recv.ethernet.dstAddr = 546
+		host2_hdr_recv.ethernet.srcAddr = 0
+		host2_hdr_recv.ethernet.etherType = 2048
+		host2_hdr_recv.ipv4.valid = 1
+		host2_hdr_recv.ipv4.version = 0
+		host2_hdr_recv.ipv4.ihl = 0
+		host2_hdr_recv.ipv4.diffserv = 0
+		host2_hdr_recv.ipv4.totalLen = 0
+		host2_hdr_recv.ipv4.identification = 0
+		host2_hdr_recv.ipv4.flags = 0
+		host2_hdr_recv.ipv4.fragOffset = 0
+		host2_hdr_recv.ipv4.ttl = 255
+		host2_hdr_recv.ipv4.protocol = 0
+		host2_hdr_recv.ipv4.hdrChecksum = 0
+		host2_hdr_recv.ipv4.srcAddr = 167772417
+		host2_hdr_recv.ipv4.dstAddr = 167772674
+		goast_b = 1
+		host3_hdr_send.ethernet.valid = 0
+		host3_hdr_send.ethernet.dstAddr = 0
+		host3_hdr_send.ethernet.srcAddr = 0
+		host3_hdr_send.ethernet.etherType = 2048
+		host3_hdr_send.ipv4.valid = 0
+		host3_hdr_send.ipv4.version = 0
+		host3_hdr_send.ipv4.ihl = 0
+		host3_hdr_send.ipv4.diffserv = 0
+		host3_hdr_send.ipv4.totalLen = 0
+		host3_hdr_send.ipv4.identification = 0
+		host3_hdr_send.ipv4.flags = 0
+		host3_hdr_send.ipv4.fragOffset = 0
+		host3_hdr_send.ipv4.ttl = 0
+		host3_hdr_send.ipv4.protocol = 0
+		host3_hdr_send.ipv4.hdrChecksum = 0
+		host3_hdr_send.ipv4.srcAddr = 167772931
+		host3_hdr_send.ipv4.dstAddr = 167772674
+		host3_hdr_recv.ethernet.valid = 0
+		host3_hdr_recv.ethernet.dstAddr = 0
+		host3_hdr_recv.ethernet.srcAddr = 0
+		host3_hdr_recv.ethernet.etherType = 0
+		host3_hdr_recv.ipv4.valid = 0
+		host3_hdr_recv.ipv4.version = 0
+		host3_hdr_recv.ipv4.ihl = 0
+		host3_hdr_recv.ipv4.diffserv = 0
+		host3_hdr_recv.ipv4.totalLen = 0
+		host3_hdr_recv.ipv4.identification = 0
+		host3_hdr_recv.ipv4.flags = 0
+		host3_hdr_recv.ipv4.fragOffset = 0
+		host3_hdr_recv.ipv4.ttl = 0
+		host3_hdr_recv.ipv4.protocol = 0
+		host3_hdr_recv.ipv4.hdrChecksum = 0
+		host3_hdr_recv.ipv4.srcAddr = 0
+		host3_hdr_recv.ipv4.dstAddr = 0
+665:	proc  7 (s4_mainProcedure:1) s4.pml:78 (state 158)
+665:	proc  6 (s3_mainProcedure:1) s3.pml:111 (state 83)
+665:	proc  5 (s2_mainProcedure:1) s2.pml:80 (state 74)
+665:	proc  4 (s1_mainProcedure:1) s1.pml:78 (state 162)
+665:	proc  3 (host3:1) main.pml:68 (state 4)
+665:	proc  2 (host2:1) main.pml:38 (state 11)
+665:	proc  1 (host1:1) main.pml:16 (state 9)
+665:	proc  0 (:init::1) main.pml:89 (state 9) <valid end state>
+665:	proc  - (reachability:1) _spin_nvr.tmp:2 (state 6)
+8 processes created

@@ -1,0 +1,22 @@
+Manifest-Version: 1.0
+Bundle-ManifestVersion: 2
+Bundle-Name: Library-TreeAutomizer
+Bundle-SymbolicName: de.uni_freiburg.informatik.ultimate.lib.chc
+Bundle-Vendor: Ultimate Program Analysis Team
+Bundle-Version: 0.3.1
+Bundle-RequiredExecutionEnvironment: JavaSE-21
+Require-Bundle: de.uni_freiburg.informatik.ultimate.lib.smtlibutils,
+ de.uni_freiburg.informatik.ultimate.lib.modelcheckerutils,
+ de.uni_freiburg.informatik.ultimate.core,
+ de.uni_freiburg.informatik.ultimate.lib.util,
+ de.uni_freiburg.informatik.ultimate.lib.smtlib,
+ de.uni_freiburg.informatik.ultimate.lib.automata,
+ de.uni_freiburg.informatik.ultimate.lib.boogieast,
+ de.uni_freiburg.informatik.ultimate.smtsolver.external,
+ wrapped.io.github.uuverifiers.eldarica_2.12,
+ wrapped.io.github.uuverifiers.princess_2.12,
+ org.scala-lang.scala-library
+Export-Package: de.uni_freiburg.informatik.ultimate.lib.chc,
+ de.uni_freiburg.informatik.ultimate.lib.chc.eldarica,
+ de.uni_freiburg.informatik.ultimate.lib.chc.results
+Automatic-Module-Name: de.uni.freiburg.informatik.ultimate.lib.chc

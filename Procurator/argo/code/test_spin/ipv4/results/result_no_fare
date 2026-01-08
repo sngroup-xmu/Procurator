@@ -1,0 +1,35 @@
+Depth=    1799 States=    1e+06 Transitions= 3.76e+06 Memory=   271.604	t=     34.5 R=   3e+04
+Depth=   15921 States=    2e+06 Transitions= 7.96e+06 Memory=   434.494	t=       73 R=   3e+04
+Depth=   32196 States=    3e+06 Transitions= 1.24e+07 Memory=   582.932	t=      114 R=   3e+04
+pan:1: acceptance cycle (at depth 24769)
+pan: wrote main.pml.trail
+
+(Spin Version 6.5.2 -- 21 June 2024)
+Warning: Search not completed
+
+Full statespace search for:
+	never claim         	+ (reachability)
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness enabled)
+	invalid end states	- (disabled by never claim)
+
+State-vector 2100 byte, depth reached 81703, errors: 1
+   270838 states, stored (3.62562e+06 visited)
+ 11758229 states, matched
+ 15383850 transitions (= visited+matched)
+ 58927382 atomic steps
+hash conflicts:     80244 (resolved)
+
+Stats on memory usage (in Megabytes):
+  549.644	equivalent memory usage for states (stored*(State-vector + overhead))
+  524.945	actual memory usage for states (compression: 95.51%)
+         	state-vector as stored = 2004 byte + 28 byte overhead
+  128.000	memory used for hash table (-w24)
+    6.104	memory used for DFS stack (-m100000)
+    2.680	memory lost to fragmentation
+  656.369	total actual memory usage
+
+
+
+pan: elapsed time 141 seconds
+pan: rate 25717.272 states/second

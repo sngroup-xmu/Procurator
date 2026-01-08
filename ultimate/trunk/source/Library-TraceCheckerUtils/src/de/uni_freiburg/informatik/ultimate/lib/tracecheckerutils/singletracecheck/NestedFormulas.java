@@ -1,0 +1,182 @@
+/*
+ * Copyright (C) 2013-2015 Matthias Heizmann (heizmann@informatik.uni-freiburg.de)
+ * Copyright (C) 2015 University of Freiburg
+ *
+ * This file is part of the ULTIMATE TraceCheckerUtils Library.
+ *
+ * The ULTIMATE TraceCheckerUtils Library is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * The ULTIMATE TraceCheckerUtils Library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with the ULTIMATE TraceCheckerUtils Library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Additional permission under GNU GPL version 3 section 7:
+ * If you modify the ULTIMATE TraceCheckerUtils Library, or any covered work, by linking
+ * or combining it with Eclipse RCP (or a modified version of Eclipse RCP),
+ * containing parts covered by the terms of the Eclipse Public License, the
+ * licensors of the ULTIMATE TraceCheckerUtils Library grant you additional permission
+ * to convey the resulting work.
+ */
+package de.uni_freiburg.informatik.ultimate.lib.tracecheckerutils.singletracecheck;
+
+import java.util.List;
+import java.util.Set;
+import java.util.SortedMap;
+
+import de.uni_freiburg.informatik.ultimate.automata.nestedword.NestedWord;
+import de.uni_freiburg.informatik.ultimate.lib.modelcheckerutils.cfg.structure.IAction;
+import de.uni_freiburg.informatik.ultimate.lib.tracecheckerutils.Counterexample;
+
+/**
+ * Class that represents a sequence of formulas (of type F) along a trace (given by a NestedWord<CodeBlock>). At
+ * position that is neither a call position nor a pending return position there is one formula. At each call position
+ * and each pending return position there are three formulas
+ * <ul>
+ * <li>one that represents an assignment of certain local variables namely the (input) parameters of the called
+ * procedure,
+ * <li>one that represents an assignment of all global variables that may be modified by the called procedure, and
+ * <li>one that represents an assignment of all oldvars of global variables that may be modified by the called
+ * procedure. The class uses assertions to check that indices for all public getters of this class are valid. Subclasses
+ * have to override the methods with the <i>FromValidPos</i> suffix and may assume that validity of the index was
+ * checked (in case assertions are enabled)
+ *
+ * @author Matthias Heizmann
+ *
+ * @param <TF>
+ *            Type of the formulas along the trace.
+ */
+public abstract class NestedFormulas<L extends IAction, TF, SF> {
+
+	private final Counterexample<L> mCounterexample;
+	private SF mPrecondition;
+	private SF mPostcondition;
+	private final SortedMap<Integer, SF> mPendingContexts;
+
+	public NestedFormulas(final Counterexample<L> counterexample, final SortedMap<Integer, SF> pendingContexts) {
+		mCounterexample = counterexample;
+		assert pendingContexts != null;
+		mPendingContexts = pendingContexts;
+	}
+
+	public final NestedWord<L> getTrace() {
+		return mCounterexample.getWord();
+	}
+
+	public final Counterexample<L> getCounterexample() {
+		return mCounterexample;
+	}
+
+	public final List<Object> getControlConfigurations() {
+		return mCounterexample.getControlConfigurations();
+	}
+
+	public final SF getPrecondition() {
+		return mPrecondition;
+	}
+
+	public void setPrecondition(final SF sf) {
+		assert mPrecondition == null : "already set";
+		mPrecondition = sf;
+	}
+
+	public final SF getPostcondition() {
+		return mPostcondition;
+	}
+
+	public void setPostcondition(final SF sf) {
+		assert mPostcondition == null : "already set";
+		mPostcondition = sf;
+	}
+
+	public SF getPendingContext(final int i) {
+		assert getTrace().isPendingReturn(i) : "no pending return";
+		return mPendingContexts.get(i);
+	}
+
+	public void setPendingContext(final int i, final SF sf) {
+		assert !mPendingContexts.containsKey(i) : "already set";
+		assert getTrace().isPendingReturn(i) : "no pending return";
+		mPendingContexts.put(i, sf);
+	}
+
+	public final Set<Integer> callPositions() {
+		return getTrace().getCallPositions();
+	}
+
+	public final TF getFormulaFromNonCallPos(final int i) {
+		assert i >= 0 && i < getTrace().length() : "out of range";
+		assert !getTrace().isCallPosition(i) : "call position";
+		return getFormulaFromValidNonCallPos(i);
+	}
+
+	protected abstract TF getFormulaFromValidNonCallPos(int i);
+
+	public TF getLocalVarAssignment(final int i) {
+		assert i >= 0 && i < getTrace().length() : "out of range";
+		assert callPositions().contains(i) || getTrace().isPendingReturn(i)
+				: "neither call nor pending return position";
+		assert getTrace().isCallPosition(i) || getTrace().isPendingReturn(i)
+				: "neither call nor pending return position";
+		return getLocalVarAssignmentFromValidPos(i);
+	}
+
+	protected abstract TF getLocalVarAssignmentFromValidPos(int i);
+
+	public TF getGlobalVarAssignment(final int i) {
+		assert i >= 0 && i < getTrace().length() : "out of range";
+		assert callPositions().contains(i) : "no call position";
+		assert getTrace().isCallPosition(i) : "no call position";
+		return getGlobalVarAssignmentFromValidPos(i);
+	}
+
+	protected abstract TF getGlobalVarAssignmentFromValidPos(int i);
+
+	public TF getOldVarAssignment(final int i) {
+		assert i >= 0 && i < getTrace().length() : "out of range";
+		assert callPositions().contains(i) || getTrace().isPendingReturn(i)
+				: "neither call nor pending return position";
+		assert getTrace().isCallPosition(i) || getTrace().isPendingReturn(i)
+				: "neither call nor pending return position";
+		return getOldVarAssignmentFromValidPos(i);
+	}
+
+	protected abstract TF getOldVarAssignmentFromValidPos(int i);
+
+	@Override
+	public String toString() {
+		final StringBuilder sb = new StringBuilder();
+		for (int i = 0; i < getTrace().length(); i++) {
+			if (getTrace().isCallPosition(i)) {
+				sb.append("Position " + i + " (call): ");
+				final TF localVarAssignment = getLocalVarAssignment(i);
+				sb.append(localVarAssignment);
+				sb.append(System.lineSeparator());
+				sb.append("\t GlobalVarAssignment: ");
+				final TF globalVarAssignment = getGlobalVarAssignment(i);
+				sb.append(globalVarAssignment);
+				sb.append(System.lineSeparator());
+				sb.append("\t OldVarAssignment: ");
+				final TF oldVarAssignment = getOldVarAssignment(i);
+				sb.append(oldVarAssignment);
+			} else if (getTrace().isReturnPosition(i)) {
+				sb.append("Position " + i + " (return): ");
+				final TF returnAssignment = getFormulaFromNonCallPos(i);
+				sb.append(returnAssignment);
+			} else {
+				sb.append("Position " + i + " (internal): ");
+				final TF tf = getFormulaFromNonCallPos(i);
+				sb.append(tf);
+			}
+			sb.append(System.lineSeparator());
+		}
+		return sb.toString();
+	}
+
+}

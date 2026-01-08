@@ -1,0 +1,62 @@
+Depth=    1356 States=    1e+06 Transitions= 3.25e+06 Memory=   210.587	t=     2.43 R=   4e+05
+Depth=    1356 States=    2e+06 Transitions= 6.31e+06 Memory=   286.466	t=     4.72 R=   4e+05
+Depth=    1356 States=    3e+06 Transitions= 9.41e+06 Memory=   363.907	t=     7.06 R=   4e+05
+Depth=    1356 States=    4e+06 Transitions= 1.25e+07 Memory=   442.813	t=     9.45 R=   4e+05
+Depth=    1356 States=    5e+06 Transitions= 1.56e+07 Memory=   518.692	t=     11.8 R=   4e+05
+Depth=    1356 States=    6e+06 Transitions= 1.87e+07 Memory=   597.306	t=     14.2 R=   4e+05
+Depth=    1356 States=    7e+06 Transitions= 2.18e+07 Memory=   674.942	t=     16.6 R=   4e+05
+Depth=    1356 States=    8e+06 Transitions= 2.49e+07 Memory=   750.821	t=     18.9 R=   4e+05
+Depth=    1356 States=    9e+06 Transitions= 2.81e+07 Memory=   830.704	t=     21.4 R=   4e+05
+Depth=    1356 States=    1e+07 Transitions= 3.11e+07 Memory=   907.169	t=     23.8 R=   4e+05
+Depth=    1356 States=  1.1e+07 Transitions= 3.42e+07 Memory=   983.536	t=     26.2 R=   4e+05
+
+(Spin Version 6.5.2 -- 21 June 2024)
+	+ Partial Order Reduction
+
+Full statespace search for:
+	never claim         	+ (a)
+	assertion violations	+ (if within scope of claim)
+	acceptance   cycles 	+ (fairness disabled)
+	invalid end states	- (disabled by never claim)
+
+State-vector 136 byte, depth reached 1356, errors: 0
+  7494659 states, stored (1.10708e+07 visited)
+ 23434479 states, matched
+ 34505259 transitions (= visited+matched)
+  7764553 atomic steps
+hash conflicts:   3128548 (resolved)
+
+Stats on memory usage (in Megabytes):
+ 1172.184	equivalent memory usage for states (stored*(State-vector + overhead))
+  858.824	actual memory usage for states (compression: 73.27%)
+         	state-vector as stored = 92 byte + 28 byte overhead
+  128.000	memory used for hash table (-w24)
+    5.341	memory used for DFS stack (-m100000)
+  991.642	total actual memory usage
+
+
+unreached in proctype h1
+	1.pml:40, state 9, "-end-"
+	(1 of 9 states)
+unreached in proctype h2
+	1.pml:59, state 14, "-end-"
+	(1 of 14 states)
+unreached in proctype middle
+	1.pml:73, state 7, "-end-"
+	(1 of 7 states)
+unreached in proctype middle2
+	1.pml:80, state 3, "ch2!flag"
+	1.pml:79, state 4, "middle2_ch?flag"
+	1.pml:83, state 7, "-end-"
+	(3 of 7 states)
+unreached in proctype h3
+	1.pml:104, state 8, "-end-"
+	(1 of 8 states)
+unreached in init
+	(0 of 6 states)
+unreached in claim a
+	_spin_nvr.tmp:10, state 13, "-end-"
+	(1 of 13 states)
+
+pan: elapsed time 26.4 seconds
+pan: rate 418871.74 states/second

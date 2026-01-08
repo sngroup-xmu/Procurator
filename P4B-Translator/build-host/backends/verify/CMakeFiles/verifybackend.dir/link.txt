@@ -1,0 +1,2 @@
+/usr/bin/ar qc libverifybackend.a CMakeFiles/verifybackend.dir/unified_p4verify_backend_translate_srcs_1.cpp.o CMakeFiles/verifybackend.dir/unified_p4verify_backend_translate_srcs_2.cpp.o
+/usr/bin/ranlib libverifybackend.a

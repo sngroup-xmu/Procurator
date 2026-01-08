@@ -1,0 +1,6 @@
+table_add dmac dmac_forward_and_set_dataIndex 65537 => 1
+table_add dmac dmac_forward 65538 => 2 0x112233445566
+table_add dmac dmac_forward 131073 => 3 0xaabbccddeeff
+table_add appid_seq_route_dmac appid_seq_route_dmac_forward_and_set_dataIndex_0 65537 => 1
+table_add appid_seq_route_dmac appid_seq_route_dmac_forward_0 65538 => 2 0x112233445566
+table_add appid_seq_route_dmac appid_seq_route_dmac_forward_0 131073 => 3 0xaabbccddeeff

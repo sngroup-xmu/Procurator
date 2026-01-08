@@ -1,0 +1,8 @@
+error: max search depth too small
+Depth=    9999 States=    1e+06 Transitions= 6.81e+06 Memory=  2569.406	t=     86.7 R=   1e+04
+Depth=    9999 States=    2e+06 Transitions= 1.37e+07 Memory=  4934.519	t=      182 R=   1e+04
+Depth=    9999 States=    3e+06 Transitions= 2.08e+07 Memory=  7223.337	t=      288 R=   1e+04
+Depth=    9999 States=    4e+06 Transitions= 2.78e+07 Memory=  9588.449	t=      396 R=   1e+04
+Depth=    9999 States=    5e+06 Transitions=  3.5e+07 Memory= 11877.268	t=      516 R=   1e+04
+Depth=    9999 States=    6e+06 Transitions= 4.18e+07 Memory= 14242.380	t=      634 R=   9e+03
+Depth=    9999 States=    7e+06 Transitions= 4.92e+07 Memory= 16531.198	t=      787 R=   9e+03

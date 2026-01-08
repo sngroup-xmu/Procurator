@@ -1,0 +1,34 @@
+#--------------------------------------
+table_add table_dst_cs_70 action_dst_cs_1 1 =>
+table_add table_dst_cs_70 action_dst_cs_2 2 =>
+table_add table_dst_cs_70 action_dst_cs_3 3 =>
+table_add table_dst_cs_70 action_dst_cs_4 4 =>
+table_add table_dst_cs_70 action_dst_cs_4 10 =>
+table_set_default table_dst_cs_70 action_dst_cs_1
+
+table_add table_dst_cs_1 action_dst_cs_1 1 =>
+table_add table_dst_cs_1 action_dst_cs_2 2 =>
+table_add table_dst_cs_1 action_dst_cs_3 3 =>
+table_add table_dst_cs_1 action_dst_cs_4 4 =>
+table_add table_dst_cs_1 action_dst_cs_4 10 =>
+table_set_default table_dst_cs_1 action_dst_cs_1
+
+table_add table_dst_cs_2 action_dst_cs_1 1 =>
+table_add table_dst_cs_2 action_dst_cs_2 2 =>
+table_add table_dst_cs_2 action_dst_cs_3 3 =>
+table_add table_dst_cs_2 action_dst_cs_4 4 =>
+table_add table_dst_cs_2 action_dst_cs_4 10 =>
+table_set_default table_dst_cs_2 action_dst_cs_1
+
+
+
+
+
+
+
+
+
+
+
+
+

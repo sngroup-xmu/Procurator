@@ -1,0 +1,27 @@
+
+table_set_default switch_config set_config 0 3
+table_add match_gw set_to_gw 66.0.0.100 => 1
+
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.100 => 2
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.1 => 1
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.2 => 1
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.3 => 1
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.4 => 3
+
+
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.10.7 => 1
+
+table_add switch_id_to_dst set_dest 1 => 66.0.10.1
+table_add switch_id_to_dst set_dest 2 => 66.0.10.2
+table_add switch_id_to_dst set_dest 3 => 66.0.10.3
+table_add switch_id_to_dst set_dest 4 => 66.0.10.4
+table_add switch_id_to_dst set_dest 5 => 66.0.10.5
+table_add switch_id_to_dst set_dest 6 => 66.0.10.6
+table_add switch_id_to_dst set_dest 7 => 66.0.10.7
+table_add switch_id_to_dst set_dest 8 => 66.0.10.8
+table_add switch_id_to_dst set_dest 9 => 66.0.10.9
+table_add switch_id_to_dst set_dest 10 => 66.0.10.10
+
+table_add cache_check_misdelivered cache_set_misdelivered_0 66.0.0.1 => 1
+table_add cache_check_misdelivered cache_set_misdelivered_0 66.0.0.2 => 1
+table_add cache_check_misdelivered cache_set_misdelivered_0 66.0.0.3 => 1

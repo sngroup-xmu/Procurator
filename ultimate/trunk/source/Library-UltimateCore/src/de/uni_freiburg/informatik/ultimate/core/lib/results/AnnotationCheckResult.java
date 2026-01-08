@@ -1,0 +1,296 @@
+/*
+ * Copyright (C) 2018 Matthias Heizmann (heizmann@informatik.uni-freiburg.de)
+ * Copyright (C) 2018 University of Freiburg
+ *
+ * This file is part of the ULTIMATE Core.
+ *
+ * The ULTIMATE Core is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * The ULTIMATE Core is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with the ULTIMATE Core. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Additional permission under GNU GPL version 3 section 7:
+ * If you modify the ULTIMATE Core, or any covered work, by linking
+ * or combining it with Eclipse RCP (or a modified version of Eclipse RCP),
+ * containing parts covered by the terms of the Eclipse Public License, the
+ * licensors of the ULTIMATE Core grant you additional permission
+ * to convey the resulting work.
+ */
+package de.uni_freiburg.informatik.ultimate.core.lib.results;
+
+import java.util.List;
+
+import de.uni_freiburg.informatik.ultimate.core.lib.models.annotation.Check;
+import de.uni_freiburg.informatik.ultimate.core.model.models.IElement;
+import de.uni_freiburg.informatik.ultimate.core.model.models.ILocation;
+import de.uni_freiburg.informatik.ultimate.core.model.results.IResultWithSeverity;
+import de.uni_freiburg.informatik.ultimate.core.model.services.IBacktranslationService;
+import de.uni_freiburg.informatik.ultimate.core.model.services.IUltimateServiceProvider;
+import de.uni_freiburg.informatik.ultimate.core.model.translation.IProgramExecution.ProgramState;
+import de.uni_freiburg.informatik.ultimate.util.datastructures.relation.Pair;
+
+/**
+ *
+ * @author Matthias Heizmann (heizmann@informatik.uni-freiburg.de)
+ * @param <ELEM>
+ *            Type of position
+ * @param <EXPR>
+ *            Type of expression
+ */
+public class AnnotationCheckResult<ELEM extends IElement, EXPR> extends AbstractResult implements IResultWithSeverity {
+
+	public enum AnnotationState {
+		VALID, UNKNOWN, INVALID
+	}
+
+	final IBacktranslationService mTranslatorSequence;
+
+	private final List<LoopFreeSegment<ELEM>> mSegmentsValid;
+	private final List<LoopFreeSegment<ELEM>> mSegmentsUnknown;
+	private final List<LoopFreeSegmentWithStatePair<ELEM, EXPR>> mSegmentsInvalid;
+	private final List<Pair<CategorizedProgramPoint, CategorizedProgramPoint>> mNonCycleFreeSubgraphs;
+	private final List<CategorizedProgramPoint> mLoopLocationsWithoutInvariant;
+
+	private final AnnotationState mAnnotationState;
+
+	/**
+	 * @param plugin
+	 *            Which plugin (PluginId) found the error location=
+	 * @param translatorSequence
+	 *            The current backtranslator service (obtained from {@link IUltimateServiceProvider}).
+	 */
+	public AnnotationCheckResult(final String plugin, final IBacktranslationService translatorSequence,
+			final List<LoopFreeSegment<ELEM>> segmentsValid, final List<LoopFreeSegment<ELEM>> segmentsUnknown,
+			final List<LoopFreeSegmentWithStatePair<ELEM, EXPR>> segmentsInvalid,
+			final List<Pair<CategorizedProgramPoint, CategorizedProgramPoint>> nonCycleFreeSubgraphs,
+			final List<CategorizedProgramPoint> loopLocationsWithoutInvariant) {
+		super(plugin);
+		mTranslatorSequence = translatorSequence;
+		mSegmentsValid = segmentsValid;
+		mSegmentsUnknown = segmentsUnknown;
+		mSegmentsInvalid = segmentsInvalid;
+		mNonCycleFreeSubgraphs = nonCycleFreeSubgraphs;
+		mLoopLocationsWithoutInvariant = loopLocationsWithoutInvariant;
+		mAnnotationState = determineAnnotationState(segmentsValid, segmentsUnknown, segmentsInvalid,
+				nonCycleFreeSubgraphs, loopLocationsWithoutInvariant);
+	}
+
+	private AnnotationState determineAnnotationState(final List<LoopFreeSegment<ELEM>> segmentsValid,
+			final List<LoopFreeSegment<ELEM>> segmentsUnknown,
+			final List<LoopFreeSegmentWithStatePair<ELEM, EXPR>> segmentsInvalid,
+			final List<Pair<CategorizedProgramPoint, CategorizedProgramPoint>> nonCycleFreeSubgraphs,
+			final List<CategorizedProgramPoint> loopLocationsWithoutInvariant) {
+		final AnnotationState result;
+		if (segmentsInvalid.isEmpty() && nonCycleFreeSubgraphs.isEmpty() && loopLocationsWithoutInvariant.isEmpty()) {
+			if (segmentsUnknown.isEmpty()) {
+				result = AnnotationState.VALID;
+			} else {
+				result = AnnotationState.UNKNOWN;
+			}
+		} else {
+			result = AnnotationState.INVALID;
+		}
+		return result;
+	}
+
+	public AnnotationState getAnnotationState() {
+		return mAnnotationState;
+	}
+
+	@Override
+	public Severity getSeverity() {
+		return switch (mAnnotationState) {
+		case VALID -> Severity.INFO;
+		case INVALID, UNKNOWN -> Severity.ERROR;
+		};
+	}
+
+	@Override
+	public String getShortDescription() {
+		return switch (mAnnotationState) {
+		case INVALID -> "Annotation is not a valid proof of correctness.";
+		case UNKNOWN -> "Insufficient resources for checking whether annotation is a valid proof of correctness.";
+		case VALID -> "Annotation is a valid proof of correctness.";
+		};
+	}
+
+	@Override
+	public String getLongDescription() {
+		final StringBuilder sb = new StringBuilder();
+		sb.append(getShortDescription());
+		sb.append(System.lineSeparator());
+		for (final CategorizedProgramPoint pp : mLoopLocationsWithoutInvariant) {
+			sb.append(loopLocationsWithoutInvariantToString(pp, mTranslatorSequence));
+			sb.append(System.lineSeparator());
+		}
+		for (final Pair<CategorizedProgramPoint, CategorizedProgramPoint> nonCycleFree : mNonCycleFreeSubgraphs) {
+			sb.append(nonCycleFreeSubgraphToString(nonCycleFree, mTranslatorSequence));
+			sb.append(System.lineSeparator());
+		}
+		for (final LoopFreeSegmentWithStatePair<ELEM, EXPR> segment : mSegmentsInvalid) {
+			sb.append(invalidSegmentToString(segment, mTranslatorSequence));
+			sb.append(System.lineSeparator());
+		}
+		for (final LoopFreeSegment<ELEM> segment : mSegmentsUnknown) {
+			sb.append(unknownSegmentToString(segment));
+			sb.append(System.lineSeparator());
+		}
+		for (final LoopFreeSegment<ELEM> segment : mSegmentsValid) {
+			sb.append(validSegmentToString(segment));
+			sb.append(System.lineSeparator());
+		}
+		return sb.toString();
+	}
+
+	private String loopLocationsWithoutInvariantToString(final CategorizedProgramPoint pp,
+			final IBacktranslationService translatorSequence) {
+		return "Missing invariants at " + pp + ".";
+	}
+
+	private String nonCycleFreeSubgraphToString(
+			final Pair<CategorizedProgramPoint, CategorizedProgramPoint> nonCycleFree,
+			final IBacktranslationService translatorSequence) {
+		return "Not cycle-free: Subgraph between " + nonCycleFree.getFirst() + " and " + nonCycleFree.getSecond() + ".";
+	}
+
+	public static <E> String validSegmentToString(final LoopFreeSegment<E> segment) {
+		return "Annotation is valid for " + segment + ".";
+	}
+
+	public static <E> String unknownSegmentToString(final LoopFreeSegment<E> segment) {
+		return "Insufficient resources for checking whether annotation is valid for " + segment + ".";
+	}
+
+	public static <ELEM, E> String invalidSegmentToString(final LoopFreeSegmentWithStatePair<ELEM, E> segment,
+			final IBacktranslationService translation) {
+		return "Annotation is not valid for " + segment + ". One counterexample starts in "
+				+ translation.translateProgramStateToString(segment.getStateBefore()) + " and ends in "
+				+ translation.translateProgramStateToString(segment.getStateAfter()) + ".";
+	}
+
+	public static class LoopFreeSegment<E> {
+		final CategorizedProgramPoint mCppBefore;
+		final CategorizedProgramPoint mCppAfter;
+
+		public LoopFreeSegment(final CategorizedProgramPoint cppBefore, final CategorizedProgramPoint cppAfter) {
+			mCppBefore = cppBefore;
+			mCppAfter = cppAfter;
+		}
+
+		@Override
+		public String toString() {
+			return "all loop-free paths from " + mCppBefore + " to " + mCppAfter;
+		}
+	}
+
+	public static class LoopFreeSegmentWithStatePair<ELEM, E> extends LoopFreeSegment<ELEM> {
+		final ProgramState<E> mStateBefore;
+		final ProgramState<E> mStateAfter;
+
+		public LoopFreeSegmentWithStatePair(final CategorizedProgramPoint cppBefore,
+				final CategorizedProgramPoint cppAfter, final ProgramState<E> stateBefore,
+				final ProgramState<E> stateAfter) {
+			super(cppBefore, cppAfter);
+			mStateBefore = stateBefore;
+			mStateAfter = stateAfter;
+		}
+
+		public ProgramState<E> getStateBefore() {
+			return mStateBefore;
+		}
+
+		public ProgramState<E> getStateAfter() {
+			return mStateAfter;
+		}
+	}
+
+	public static abstract class CategorizedProgramPoint {
+		private final ILocation mLocation;
+
+		public CategorizedProgramPoint(final ILocation location) {
+			mLocation = location;
+		}
+
+		protected ILocation getLocation() {
+			return mLocation;
+		}
+	}
+
+	public static class LoopHead extends CategorizedProgramPoint {
+
+		public LoopHead(final ILocation location) {
+			super(location);
+		}
+
+		@Override
+		public String toString() {
+			return "loop head at line " + getLocation().getStartLine();
+		}
+	}
+
+	public static class Label extends CategorizedProgramPoint {
+
+		public Label(final ILocation location) {
+			super(location);
+		}
+
+		@Override
+		public String toString() {
+			return "label at line " + getLocation().getStartLine();
+		}
+	}
+
+	public static class ProcedureEntry extends CategorizedProgramPoint {
+
+		final String mProcedureName;
+
+		public ProcedureEntry(final ILocation location, final String procedureName) {
+			super(location);
+			mProcedureName = procedureName;
+		}
+
+		@Override
+		public String toString() {
+			return "entry of procedure " + mProcedureName;
+		}
+	}
+
+	public static class ProcedureExit extends CategorizedProgramPoint {
+
+		final String mProcedureName;
+
+		public ProcedureExit(final ILocation location, final String procedureName) {
+			super(location);
+			mProcedureName = procedureName;
+		}
+
+		@Override
+		public String toString() {
+			return "exit of procedure " + mProcedureName;
+		}
+	}
+
+	public static class CheckPoint extends CategorizedProgramPoint {
+
+		final Check mCheck;
+
+		public CheckPoint(final ILocation location, final Check check) {
+			super(location);
+			mCheck = check;
+		}
+
+		@Override
+		public String toString() {
+			return "check that " + mCheck.getPositiveMessage() + " at line " + getLocation().getStartLine();
+		}
+	}
+
+}
