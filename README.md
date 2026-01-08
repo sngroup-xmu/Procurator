@@ -34,7 +34,7 @@ sudo apt-get install -y \
   libboost-dev libboost-iostreams-dev libboost-graph-dev llvm pkg-config \
   python3 python3-pip python3-ply python3-scapy \
   protobuf-compiler libprotobuf-dev \
-  openjdk-21-jre-headless
+  openjdk-21-jdk
 ```
 
 ## Python Environment (DSL Compiler)
@@ -66,6 +66,29 @@ Binary path:
 ## Ultimate/GemCutter Setup (Boogie Backend)
 
 Ultimate requires Java 21. The bundled Z3 is inside the Ultimate folder.
+
+**[Build](https://github.com/ultimate-pa/ultimate/wiki/Usage#build) all Ultimate tools (including GemCutter):**
+```bash
+cd ultimate/releaseScripts/default
+./makeFresh.sh
+```
+
+**Build only GemCutter (faster, for incremental builds):**
+```bash
+cd ultimate/releaseScripts/default
+# Ensure Maven build is up to date first
+cd ../../trunk/source/BA_MavenParentUltimate
+mvn -T 1C install -Pmaterialize
+# Then create GemCutter zip
+cd ../../../releaseScripts/default
+bash makeZip.sh GemCutter linux \
+  AutomizerCInline_IcfgBuilder_WitnessPrinter.xml \
+  NONE \
+  AutomizerCInline_IcfgBuilder.xml \
+  AutomizerCInline_IcfgBuilder_WitnessPrinter.xml \
+  NONE \
+  NONE
+```
 
 ```bash
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
@@ -288,7 +311,7 @@ Gecko (Tofino JSON, use --no-slicing):
 ## Troubleshooting
 
 - Java version errors (class file version 65/69):
-  - Use Java 21 (`openjdk-21-jre-headless`) and ensure `JAVA_HOME` points to it.
+  - Use Java 21 JDK (`openjdk-21-jdk`) and ensure `JAVA_HOME` points to it. Note: JDK (not JRE) is required for building Ultimate from source as it includes the `javac` compiler.
 - Z3 not found:
   - Add Ultimate folder to `PATH`:
     `/mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux`
