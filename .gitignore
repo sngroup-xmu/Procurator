@@ -53,3 +53,5 @@ tmp/
 **/obj/
 **/target/
 **/bazel-*/
+
+**/build-host/
