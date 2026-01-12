@@ -3,10 +3,8 @@
 
 #include <algorithm>
 #include <cctype>
-#include <deque>
 #include <fstream>
 #include <limits>
-#include <sstream>
 #include <sys/stat.h>
 
 #include "ir/ir.h"
@@ -612,14 +610,26 @@ static void collectStmtUsesDefs(const IR::Statement* stmt,
             }
             handled = true;
         } else if (methodName == "read") {
+            // Model register-like read(outVar, idx):
+            // - receiver is read (use)
+            // - first argument is written (def)
+            // - remaining arguments are read (use)
             if (receiver) {
                 collectExprKeys(receiver, out.uses, typeMap);
             }
             if (mce->arguments) {
+                int argIdx = 0;
                 for (auto arg : *mce->arguments) {
-                    if (arg && arg->expression) {
+                    if (!arg || !arg->expression) {
+                        argIdx++;
+                        continue;
+                    }
+                    if (argIdx == 0) {
+                        collectExprKeys(arg->expression, out.defs, typeMap);
+                    } else {
                         collectExprKeys(arg->expression, out.uses, typeMap);
                     }
+                    argIdx++;
                 }
             }
             handled = true;
@@ -819,14 +829,26 @@ static void fillNodeUsesDefs(NodeInfo& node,
                 }
                 handled = true;
             } else if (methodName == "read") {
+                // Model register-like read(outVar, idx):
+                // - receiver is read (use)
+                // - first argument is written (def)
+                // - remaining arguments are read (use)
                 if (receiver) {
                     collectExprKeys(receiver, node.uses, typeMap);
                 }
                 if (expr && expr->arguments) {
+                    int argIdx = 0;
                     for (auto arg : *expr->arguments) {
-                        if (arg && arg->expression) {
+                        if (!arg || !arg->expression) {
+                            argIdx++;
+                            continue;
+                        }
+                        if (argIdx == 0) {
+                            collectExprKeys(arg->expression, node.defs, typeMap);
+                        } else {
                             collectExprKeys(arg->expression, node.uses, typeMap);
                         }
+                        argIdx++;
                     }
                 }
                 handled = true;
@@ -1300,10 +1322,10 @@ class RegisterIndexCollector : public Inspector {
         return true;
     }
 
-    bool preorder(const IR::MethodCallExpression* mce) override {
-        if (!mce || !mce->method) {
-            return false;
-        }
+	    bool preorder(const IR::MethodCallExpression* mce) override {
+	        if (!mce || !mce->method) {
+	            return false;
+	        }
         auto member = mce->method->to<IR::Member>();
         if (!member) {
             return false;
@@ -1313,12 +1335,12 @@ class RegisterIndexCollector : public Inspector {
             return false;
         }
         auto name = member->member.toString();
-        if (name != "read" && name != "write") {
-            return false;
-        }
-        if (!mce->arguments || mce->arguments->empty()) {
-            return false;
-        }
+	        if (name != "read" && name != "write") {
+	            return false;
+	        }
+	        if (!mce->arguments || mce->arguments->empty()) {
+	            return false;
+	        }
         std::string regName = base->path->name.toString().c_str();
         if (regNames && !regNames->empty()) {
             std::string norm;
@@ -1330,13 +1352,27 @@ class RegisterIndexCollector : public Inspector {
             if (norm.empty()) {
                 return false;
             }
-            regName = norm;
-        }
-        const IR::Expression* idxExpr = (*mce->arguments)[0]->expression;
-        int idx = -1;
-        if (extractConstIndex(idxExpr, idx, refMap)) {
-            auto it = maxIndex.find(regName);
-            if (it == maxIndex.end() || idx > it->second) {
+	            regName = norm;
+	        }
+	        const IR::Expression* idxExpr = nullptr;
+	        if (name == "write") {
+	            idxExpr = (*mce->arguments)[0]->expression;
+	        } else {
+	            // P4_16 register signature: read(out value, index)
+	            // P4_14/bmv2 register signature: read(index) returns value
+	            if (mce->arguments->size() >= 2) {
+	                idxExpr = (*mce->arguments)[1]->expression;
+	            } else {
+	                idxExpr = (*mce->arguments)[0]->expression;
+	            }
+	        }
+	        if (!idxExpr) {
+	            return false;
+	        }
+	        int idx = -1;
+	        if (extractConstIndex(idxExpr, idx, refMap)) {
+	            auto it = maxIndex.find(regName);
+	            if (it == maxIndex.end() || idx > it->second) {
                 maxIndex[regName] = idx;
             }
         } else {
@@ -1443,6 +1479,57 @@ class RegisterDeclCollector : public Inspector {
         }
         if (extLower.find("register") != std::string::npos) {
             regs.insert(inst->name.name.c_str());
+        }
+        return false;
+    }
+
+ private:
+    static bool lookupExternName(const IR::Type* type, std::string& out) {
+        if (!type) {
+            return false;
+        }
+        if (auto ext = type->to<IR::Type_Extern>()) {
+            out = ext->name.name.c_str();
+            return true;
+        }
+        if (auto spec = type->to<IR::Type_Specialized>()) {
+            return lookupExternName(spec->baseType, out);
+        }
+        if (auto name = type->to<IR::Type_Name>()) {
+            if (name->path) {
+                out = name->path->name.name.c_str();
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+class StatefulDeclCollector : public Inspector {
+ public:
+    std::set<std::string> objects;
+
+    bool preorder(const IR::Declaration_Instance* inst) override {
+        if (!inst || !inst->type) {
+            return false;
+        }
+        std::string extName;
+        if (!lookupExternName(inst->type, extName)) {
+            return false;
+        }
+        std::string extLower;
+        extLower.reserve(extName.size());
+        for (char c : extName) {
+            if (c >= 'A' && c <= 'Z') {
+                extLower.push_back(static_cast<char>(c - 'A' + 'a'));
+            } else {
+                extLower.push_back(c);
+            }
+        }
+        if (extLower.find("register") != std::string::npos ||
+            extLower.find("counter") != std::string::npos ||
+            extLower.find("meter") != std::string::npos) {
+            objects.insert(inst->name.name.c_str());
         }
         return false;
     }
@@ -1778,7 +1865,8 @@ Slicer::Slicer(const IR::P4Program* program, P4::ReferenceMap* refMap, P4::TypeM
 
 SliceResult Slicer::run(const SliceOptions& opts) {
     SliceResult result;
-    if (!opts.enable || opts.seedVars.empty()) {
+    bool doSlicing = opts.enable && !opts.seedVars.empty();
+    if (!doSlicing && !opts.collectRw) {
         return result;
     }
 
@@ -1863,6 +1951,87 @@ SliceResult Slicer::run(const SliceOptions& opts) {
             }
         }
         tableUsesDefs.emplace(kv.first, std::move(ud));
+    }
+
+    StatefulDeclCollector statefulDeclCollector;
+    program->apply(statefulDeclCollector);
+
+    if (opts.collectRw) {
+        UsesDefs rw;
+        for (auto obj : program->objects) {
+            if (auto control = obj->to<IR::P4Control>()) {
+                collectStmtUsesDefs(control->body, rw, typeMap, &regActionUsesDefs);
+            }
+        }
+        std::set<std::string> reads;
+        std::set<std::string> writes;
+        auto canonicalizeStateful = [&](const VarKey& v, VarKey& out) -> bool {
+            out = v;
+            if (statefulDeclCollector.objects.count(v.base)) {
+                return true;
+            }
+            std::string base = v.base.c_str();
+            std::string withSuffix = base + "_0";
+            if (statefulDeclCollector.objects.count(withSuffix)) {
+                out.base = withSuffix.c_str();
+                return true;
+            }
+            if (base.size() > 2 && base.rfind("_0") == base.size() - 2) {
+                std::string trimmed = base.substr(0, base.size() - 2);
+                if (statefulDeclCollector.objects.count(trimmed)) {
+                    out.base = trimmed.c_str();
+                    return true;
+                }
+            }
+            return false;
+        };
+        for (const auto& v : rw.uses) {
+            VarKey canon;
+            if (canonicalizeStateful(v, canon)) {
+                reads.insert(varKeyToString(canon));
+            }
+        }
+        for (const auto& v : rw.defs) {
+            VarKey canon;
+            if (canonicalizeStateful(v, canon)) {
+                writes.insert(varKeyToString(canon));
+            }
+        }
+        std::set<std::string> touchedObjs;
+        auto markTouched = [&](const std::string& s) {
+            auto pos = s.find('.');
+            if (pos == std::string::npos) {
+                touchedObjs.insert(s);
+            } else {
+                touchedObjs.insert(s.substr(0, pos));
+            }
+        };
+        for (const auto& v : reads) {
+            markTouched(v);
+        }
+        for (const auto& v : writes) {
+            markTouched(v);
+        }
+        for (const auto& obj : statefulDeclCollector.objects) {
+            std::string name = obj.c_str();
+            if (!touchedObjs.count(name)) {
+                reads.insert(name);
+                writes.insert(name);
+            }
+        }
+        for (const auto& v : reads) {
+            result.rwReads.push_back(cstring(v.c_str()));
+        }
+        for (const auto& v : writes) {
+            result.rwWrites.push_back(cstring(v.c_str()));
+        }
+        for (const auto& obj : statefulDeclCollector.objects) {
+            result.rwStatefulObjects.push_back(cstring(obj.c_str()));
+        }
+    }
+
+    if (!doSlicing) {
+        return result;
     }
 
     CFGBuilder cfg(refMap, typeMap);
@@ -2425,6 +2594,18 @@ SliceResult Slicer::run(const SliceOptions& opts) {
 
     std::unordered_map<cstring, std::unordered_set<int>> actionSliceStmtIds;
     std::unordered_set<cstring> slicedActions;
+    // When slicing action bodies, we must preserve statements that compute values
+    // needed by the (already sliced) control program. Using only the original
+    // seed variables here can incorrectly drop required defs (e.g., a register
+    // read that feeds a later branch).
+    std::set<VarKey, VarKeyLess> actionRelevant = seedVars;
+    for (const auto& kv : cfg.nodes) {
+        if (!keepNodes.count(kv.first)) {
+            continue;
+        }
+        mergeVarSets(actionRelevant, kv.second.uses);
+        mergeVarSets(actionRelevant, kv.second.defs);
+    }
     for (const auto& act : keepActions) {
         auto ait = collector.actions.find(act);
         if (ait == collector.actions.end()) {
@@ -2436,12 +2617,12 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         }
         std::set<VarKey, VarKeyLess> actionSeeds;
         for (const auto& v : uit->second.uses) {
-            if (seedVars.count(v)) {
+            if (actionRelevant.count(v)) {
                 insertVarKey(actionSeeds, v);
             }
         }
         for (const auto& v : uit->second.defs) {
-            if (seedVars.count(v)) {
+            if (actionRelevant.count(v)) {
                 insertVarKey(actionSeeds, v);
             }
         }

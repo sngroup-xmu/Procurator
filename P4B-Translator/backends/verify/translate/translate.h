@@ -77,6 +77,7 @@ private:
 	bool getStructFieldRangeByName(const cstring &baseName, const cstring &structName,
 	                               const cstring &field, int &totalBits, int &hi, int &lo);
 	bool getParamStructName(const cstring &baseName, cstring &structName) const;
+	const IR::Type_Header* resolveHeaderType(const IR::Type* type) const;
 
 	struct RegisterActionInfo {
 		cstring regName;

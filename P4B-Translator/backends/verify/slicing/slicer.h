@@ -17,6 +17,7 @@ namespace P4Verify {
 struct SliceOptions {
     std::vector<cstring> seedVars;
     bool enable = false;
+    bool collectRw = false;
     bool debug = false;
     std::string dotDir;
 };
@@ -28,6 +29,9 @@ struct SliceResult {
     std::map<cstring, int> regMaxIndex;
     std::set<cstring> regHasNonConst;
     bool hasRecirculation = false;
+    std::vector<cstring> rwReads;
+    std::vector<cstring> rwWrites;
+    std::vector<cstring> rwStatefulObjects;
 };
 
 class Slicer {

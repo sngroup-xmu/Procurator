@@ -50,6 +50,10 @@ class P4VerifyOptions : public CompilerOptions {
     std::set<cstring> slicingRegHasNonConst;
     bool slicingRegPrune = true;
 
+    std::vector<cstring> rwReads;
+    std::vector<cstring> rwWrites;
+    std::vector<cstring> rwStatefulObjects;
+
     P4VerifyOptions() {
         registerOption("--translate-only", nullptr,
                        [this](const char*) {

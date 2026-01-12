@@ -540,6 +540,38 @@ cstring Translator::remapName(cstring name) const {
     return name;
 }
 
+const IR::Type_Header* Translator::resolveHeaderType(const IR::Type* type) const {
+    if (type == nullptr) {
+        return nullptr;
+    }
+    if (auto typeHeader = type->to<IR::Type_Header>()) {
+        return typeHeader;
+    }
+    if (auto typeName = type->to<IR::Type_Name>()) {
+        cstring rawName = typeName->path->name;
+        auto it = headers.find(rawName);
+        if (it != headers.end()) {
+            return it->second;
+        }
+        cstring remapped = remapName(rawName);
+        it = headers.find(remapped);
+        if (it != headers.end()) {
+            return it->second;
+        }
+        return nullptr;
+    }
+    if (auto typeTypedef = type->to<IR::Type_Typedef>()) {
+        return resolveHeaderType(typeTypedef->type);
+    }
+    if (auto typeSpec = type->to<IR::Type_Specialized>()) {
+        return resolveHeaderType(typeSpec->baseType);
+    }
+    if (auto typeSpec = type->to<IR::Type_SpecializedCanonical>()) {
+        return resolveHeaderType(typeSpec->baseType);
+    }
+    return nullptr;
+}
+
 cstring Translator::translate(IR::ID id){
     return remapName(id.name);
 }
@@ -1235,6 +1267,24 @@ static std::string jsonEscape(const std::string &s) {
     return out;
 }
 
+static void writeJsonStringArray(std::ostream &out,
+                                 const std::string &key,
+                                 const std::vector<cstring> &items,
+                                 const std::string &indent) {
+    out << indent << "\"" << key << "\": [";
+    if (!items.empty()) {
+        out << "\n";
+        for (size_t i = 0; i < items.size(); ++i) {
+            if (i > 0) {
+                out << ",\n";
+            }
+            out << indent << "  \"" << jsonEscape(items[i].c_str()) << "\"";
+        }
+        out << "\n" << indent;
+    }
+    out << "]";
+}
+
 void Translator::writeMetaToFile(std::ostream &metaOut) const {
     // Minimal contract v1:
     // - globalVariables: list of Boogie globals
@@ -1276,6 +1326,15 @@ void Translator::writeMetaToFile(std::ostream &metaOut) const {
         first = false;
         metaOut << "    \"" << jsonEscape(kv.first.c_str()) << "\": " << kv.second;
     }
+    metaOut << "\n  },\n";
+
+    // rw
+    metaOut << "  \"rw\": {\n";
+    writeJsonStringArray(metaOut, "stateful", options.rwStatefulObjects, "    ");
+    metaOut << ",\n";
+    writeJsonStringArray(metaOut, "reads", options.rwReads, "    ");
+    metaOut << ",\n";
+    writeJsonStringArray(metaOut, "writes", options.rwWrites, "    ");
     metaOut << "\n  },\n";
 
     metaOut << "  \"max_bitvector_size\": " << maxBitvectorSize << "\n";
@@ -1701,6 +1760,66 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
                 currentProcedure->addModifiedGlobalVariables("p4b_recirculate");
                 return "";
             }
+        }
+        if (member->member == IR::Type_Stack::pop_front) {
+            auto typeStack = member->expr->type->to<IR::Type_Stack>();
+            if (typeStack == nullptr) {
+                return getIndent()+"// pop_front (unsupported type)\n";
+            }
+            int popCount = 1;
+            if (methodCallStatement->methodCall->arguments->size() > 0) {
+                auto argExpr = (*methodCallStatement->methodCall->arguments)[0]->expression;
+                if (auto constant = argExpr->to<IR::Constant>()) {
+                    std::stringstream ss;
+                    ss << constant->value;
+                    ss >> popCount;
+                } else {
+                    return getIndent()+"// pop_front (non-constant)\n";
+                }
+            }
+            if (popCount <= 0) {
+                return getIndent()+"// pop_front (noop)\n";
+            }
+            int stackSize = 0;
+            if (auto constant = typeStack->size->to<IR::Constant>()) {
+                std::stringstream ss;
+                ss << constant->value;
+                ss >> stackSize;
+            } else {
+                return getIndent()+"// pop_front (unknown stack size)\n";
+            }
+            if (stackSize <= 0) {
+                return getIndent()+"// pop_front (empty stack)\n";
+            }
+            const IR::Type_Header* typeHeader = resolveHeaderType(typeStack->elementType);
+            if (typeHeader == nullptr) {
+                return getIndent()+"// pop_front (unknown element type)\n";
+            }
+            cstring base = translate(member->expr);
+            currentProcedure->addStatement(getIndent()+"// pop_front\n");
+            for (int i = 0; i < stackSize; i++) {
+                int srcIndex = i + popCount;
+                cstring dstRef = base + "." + cstring::to_cstring(i);
+                if (srcIndex < stackSize) {
+                    cstring srcRef = base + "." + cstring::to_cstring(srcIndex);
+                    for (const IR::StructField* field : typeHeader->fields) {
+                        cstring dstField = dstRef + "." + field->name;
+                        cstring srcField = srcRef + "." + field->name;
+                        currentProcedure->addStatement(getIndent()+dstField+" := "+srcField+";\n");
+                        currentProcedure->addModifiedGlobalVariables(dstField);
+                    }
+                    currentProcedure->addStatement(getIndent()+dstRef+".valid := "+srcRef+".valid;\n");
+                    currentProcedure->addModifiedGlobalVariables(dstRef+".valid");
+                    currentProcedure->addStatement(getIndent()+"isValid["+dstRef+"] := isValid["+srcRef+"];\n");
+                    currentProcedure->addModifiedGlobalVariables("isValid");
+                } else {
+                    currentProcedure->addStatement(getIndent()+dstRef+".valid := false;\n");
+                    currentProcedure->addModifiedGlobalVariables(dstRef+".valid");
+                    currentProcedure->addStatement(getIndent()+"isValid["+dstRef+"] := false;\n");
+                    currentProcedure->addModifiedGlobalVariables("isValid");
+                }
+            }
+            return "";
         }
     }
     if(expr.find("verify_checksum") != nullptr){
@@ -2129,7 +2248,8 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     cstring res = "";
     cstring method = translate(methodCallExpression->method);
 
-    auto regIndexBound = [&](const std::string& regName, const IR::Expression* idxExpr) -> std::string {
+    auto regIndexAssume = [&](const std::string& regName, const IR::Expression* idxExpr,
+                              const std::string& idxStr) -> std::string {
         if (!options.slicingEnabled || !options.slicingRegPrune) {
             return "";
         }
@@ -2150,11 +2270,16 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             return "";
         }
         std::string typeName = translate(idxExpr->type).c_str();
-        std::string bound = std::to_string(maxIndex + 1);
-        if (typeName.rfind("bv", 0) == 0) {
-            bound += typeName;
+        if (typeName == "int") {
+            return "(" + idxStr + " <= " + std::to_string(maxIndex) + ")";
         }
-        return bound;
+        if (typeName.rfind("bv", 0) == 0) {
+            std::string lit = std::to_string(maxIndex) + typeName;
+            std::string fn = "bvule." + typeName + "$builtin";
+            return fn + "(" + idxStr + ", " + lit + ")";
+        }
+        // Unknown index type; skip pruning rather than emitting ill-typed Boogie.
+        return "";
     };
 
     if (auto member = methodCallExpression->method->to<IR::Member>()) {
@@ -2238,9 +2363,9 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         if((*methodCallExpression->arguments).size() == 1) {
             const auto *idxExpr = (*methodCallExpression->arguments)[0]->expression;
             cstring arg1 = translate((*methodCallExpression->arguments)[0]);
-            std::string bound = regIndexBound(reg.c_str(), idxExpr);
-            if (!bound.empty() && currentProcedure != nullptr) {
-                currentProcedure->addStatement(getIndent() + "assume (" + arg1 + " < " + bound + ");\n");
+            std::string assumeExpr = regIndexAssume(reg.c_str(), idxExpr, arg1.c_str());
+            if (!assumeExpr.empty() && currentProcedure != nullptr) {
+                currentProcedure->addStatement(getIndent() + "assume (" + assumeExpr + ");\n");
             }
             res += method + "(" + reg + ", " + arg1 + ")";
             return res;
@@ -2251,9 +2376,9 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         currentProcedure->addModifiedGlobalVariables(arg0);
         const auto *idxExpr = (*methodCallExpression->arguments)[1]->expression;
         cstring arg1 = translate((*methodCallExpression->arguments)[1]);  // index
-        std::string bound = regIndexBound(reg.c_str(), idxExpr);
-        if (!bound.empty()) {
-            res += getIndent() + "assume (" + arg1 + " < " + bound + ");\n";
+        std::string assumeExpr = regIndexAssume(reg.c_str(), idxExpr, arg1.c_str());
+        if (!assumeExpr.empty()) {
+            res += getIndent() + "assume (" + assumeExpr + ");\n";
         }
         res += arg0 + " := " + method + "(";
         res += reg + ", " + arg1 + ")";
@@ -2269,9 +2394,9 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         if (methodCallExpression->arguments && methodCallExpression->arguments->size() >= 1) {
             const auto *idxExpr = (*methodCallExpression->arguments)[0]->expression;
             cstring arg0 = translate((*methodCallExpression->arguments)[0]);
-            std::string bound = regIndexBound(reg.c_str(), idxExpr);
-            if (!bound.empty() && currentProcedure != nullptr) {
-                currentProcedure->addStatement(getIndent() + "assume (" + arg0 + " < " + bound + ");\n");
+            std::string assumeExpr = regIndexAssume(reg.c_str(), idxExpr, arg0.c_str());
+            if (!assumeExpr.empty() && currentProcedure != nullptr) {
+                currentProcedure->addStatement(getIndent() + "assume (" + assumeExpr + ");\n");
             }
         }
     }
@@ -3187,7 +3312,7 @@ cstring Translator::translate(const IR::Type_Name *typeName){
 }
 
 cstring Translator::translate(const IR::Type_Stack *typeStack, cstring arg){
-    const IR::Type_Header* typeHeader = headers[translate(typeStack->elementType)];
+    const IR::Type_Header* typeHeader = resolveHeaderType(typeStack->elementType);
     if(typeHeader!=nullptr && stacks.find(arg)==stacks.end()){
         stacks.insert(arg);
         translate(typeHeader, arg+".last");
@@ -5530,79 +5655,75 @@ void Translator::translate(const IR::P4Table *p4Table){
 
                 // no table rules
                 if(bMV2CmdsAnalyzer== nullptr || !bMV2CmdsAnalyzer->hasTableAddCmds(name)){
-                    int cnt = actionList->actionList.size();
-
-                    // goto statement
-                    if(options.gotoOrIf){
-                        bool firstAction = true;
+                    bool handledDefault = false;
+                    TableSetDefault* defaultCmd = nullptr;
+                    if(bMV2CmdsAnalyzer != nullptr){
+                        defaultCmd = bMV2CmdsAnalyzer->getTableSetDefaultCmd(name);
+                    }
+                    if(defaultCmd != nullptr){
+                        cstring actionName = defaultCmd->action;
+                        cstring resolvedAction = nullptr;
                         for(auto actionElement:actionList->actionList){
                             if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
-                                // NoAction should not be considered
-                                cnt--;
-                                if(cnt == 0)
+                                cstring candidate = translate(actionCallExpr->method);
+                                if(isSame(candidate, actionName)){
+                                    resolvedAction = candidate;
                                     break;
-
-                                cstring actionName = translate(actionCallExpr->method);
-                                if(!firstAction) gotoStmt += ", ";
-                                else firstAction = false;
-                                gotoStmt += "action_"; gotoStmt += actionName;
+                                }
                             }
                         }
-                        if(!firstAction){
-                            gotoStmt += ";\n";
-                            table.addStatement(gotoStmt);
-                        } else {
-                            table.addStatement(getIndent()+"goto Exit;\n");
-                        }
-                    }
-
-                    cnt = actionList->actionList.size();
-                    bool firstAction = true;
-                    // std::cout << tableName << " " << cnt << std::endl;
-                    for(auto actionElement:actionList->actionList){
-                        // if(actionList->actionList.size()!=1){
-                        //     table.addStatement(getIndent()+"assume(");
-                        // }
-                        
-                        // NoAction should not be considered
-                        cnt--;
-                        // if(cnt == 0)
-                        //     break;
-                        // std::cout << "action: " << actionElement->expression->toString() << std::endl;
-                        if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
-                            cstring actionName = translate(actionCallExpr->method);
-                            // std::cout << "action: " << actionName << std::endl;
-                            std::string label("\n"+getIndent());
-                            label += "action_"; label += actionName; label += ":\n";
+                        if(resolvedAction != nullptr && actions.find(resolvedAction) != actions.end()){
+                            actionName = resolvedAction;
                             if(options.gotoOrIf){
-                                table.addStatement(label);
-                            }
-
-                            if(actionList->actionList.size()!=1){
-                                // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
-                                    // +actionName+");\n");
-                            }
-
-                            if(options.gotoOrIf){
-                                table.addStatement(getIndent()+"assume "+name+".action_run == "+
+                                table.addStatement(getIndent()+name+".action_run := "+
                                     name+".action."+actionName+";\n");
                                 table.addModifiedGlobalVariables(name+".action_run");
                             }
-                            else{
-                                if(firstAction){
-                                    hasIfChain = true;
-                                    table.addStatement(getIndent()+"if("+name+".action_run == "+
-                                        name+".action."+actionName+"){\n");
-                                    firstAction = false;
+                            const IR::P4Action* action = actions[actionName];
+                            int ruleParamCount = defaultCmd->parameters.size();
+                            int paramIndex = 0;
+                            for(auto parameter:action->parameters->parameters){
+                                if(paramIndex >= ruleParamCount){
+                                    paramIndex++;
+                                    continue;
+                                }
+                                cstring raw = defaultCmd->parameters[paramIndex];
+                                if(options.ultimateAutomizer && options.bitBlasting &&
+                                    parameter->type->to<IR::Type_Bits>()){
+                                    auto typeBits = parameter->type->to<IR::Type_Bits>();
+                                    cstring num = str2num(raw);
+                                    uint64_t value = strtoull(num.c_str(), nullptr, 10);
+                                    if(typeBits->size <= 64){
+                                        for(int i = 0; i < typeBits->size; i++){
+                                            cstring bitVar = connect(actionName+"."+translate(parameter->name), i);
+                                            cstring bitVal = ((value >> i) & 1ULL) ? "true" : "false";
+                                            table.addStatement(getIndent()+bitVar+" := "+bitVal+";\n");
+                                        }
+                                    }
                                 }
                                 else{
-                                    table.addStatement(getIndent()+"else if("+name+".action_run == "+
-                                        name+".action."+actionName+"){\n");
+                                    cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
+                                    cstring value = str2num(raw);
+                                    if(auto typeBits = parameter->type->to<IR::Type_Bits>()){
+                                        value = value + "bv" + cstring::to_cstring(typeBits->size);
+                                    }
+                                    else if(auto typeName = parameter->type->to<IR::Type_Name>()){
+                                        cstring typeAlias = translate(typeName->path);
+                                        if(typeDefs.find(typeAlias) != typeDefs.end()){
+                                            value = value + "bv" + cstring::to_cstring(typeDefs[typeAlias]);
+                                        }
+                                    }
+                                    else if(parameter->type->is<IR::Type_Boolean>()){
+                                        std::string s = value.c_str();
+                                        if(s == "0") value = "false";
+                                        else if(s == "1") value = "true";
+                                    }
+                                    table.addStatement(getIndent()+parameterName+" := "+value+";\n");
+                                    table.addModifiedGlobalVariables(parameterName);
                                 }
-                                incIndent();
+                                paramIndex++;
                             }
-                            
-                            const IR::P4Action* action = actions[actionName];
+
                             table.addStatement(getIndent()+"call "+actionName+"(");
                             table.addSucc(actionName);
                             addPred(actionName, tableName);
@@ -5630,11 +5751,117 @@ void Translator::translate(const IR::P4Table *p4Table){
                             if(options.gotoOrIf){
                                 table.addStatement(getIndent()+"goto Exit;\n");
                             }
-                            else{
-                                decIndent();
-                                table.addStatement(getIndent()+"}\n");
+                            handledDefault = true;
+                        }
+                    }
+
+                    if(!handledDefault){
+                        int cnt = actionList->actionList.size();
+
+                        // goto statement
+                        if(options.gotoOrIf){
+                            bool firstAction = true;
+                            for(auto actionElement:actionList->actionList){
+                                if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                                    // NoAction should not be considered
+                                    cnt--;
+                                    if(cnt == 0)
+                                        break;
+
+                                    cstring actionName = translate(actionCallExpr->method);
+                                    if(!firstAction) gotoStmt += ", ";
+                                    else firstAction = false;
+                                    gotoStmt += "action_"; gotoStmt += actionName;
+                                }
                             }
-                            // decIndent();
+                            if(!firstAction){
+                                gotoStmt += ";\n";
+                                table.addStatement(gotoStmt);
+                            } else {
+                                table.addStatement(getIndent()+"goto Exit;\n");
+                            }
+                        }
+
+                        cnt = actionList->actionList.size();
+                        bool firstAction = true;
+                        // std::cout << tableName << " " << cnt << std::endl;
+                        for(auto actionElement:actionList->actionList){
+                            // if(actionList->actionList.size()!=1){
+                            //     table.addStatement(getIndent()+"assume(");
+                            // }
+                            
+                            // NoAction should not be considered
+                            cnt--;
+                            // if(cnt == 0)
+                            //     break;
+                            // std::cout << "action: " << actionElement->expression->toString() << std::endl;
+                            if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+                                cstring actionName = translate(actionCallExpr->method);
+                                // std::cout << "action: " << actionName << std::endl;
+                                std::string label("\n"+getIndent());
+                                label += "action_"; label += actionName; label += ":\n";
+                                if(options.gotoOrIf){
+                                    table.addStatement(label);
+                                }
+
+                                if(actionList->actionList.size()!=1){
+                                    // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
+                                        // +actionName+");\n");
+                                }
+
+                                if(options.gotoOrIf){
+                                    table.addStatement(getIndent()+"assume "+name+".action_run == "+
+                                        name+".action."+actionName+";\n");
+                                    table.addModifiedGlobalVariables(name+".action_run");
+                                }
+                                else{
+                                    if(firstAction){
+                                        hasIfChain = true;
+                                        table.addStatement(getIndent()+"if("+name+".action_run == "+
+                                            name+".action."+actionName+"){\n");
+                                        firstAction = false;
+                                    }
+                                    else{
+                                        table.addStatement(getIndent()+"else if("+name+".action_run == "+
+                                            name+".action."+actionName+"){\n");
+                                    }
+                                    incIndent();
+                                }
+                                
+                                const IR::P4Action* action = actions[actionName];
+                                table.addStatement(getIndent()+"call "+actionName+"(");
+                                table.addSucc(actionName);
+                                addPred(actionName, tableName);
+                                int cnt2 = action->parameters->parameters.size();
+                                for(auto parameter:action->parameters->parameters){
+                                    cnt2--;
+                                    if(options.ultimateAutomizer && options.bitBlasting && 
+                                        parameter->type->to<IR::Type_Bits>()){
+                                        auto typeBits = parameter->type->to<IR::Type_Bits>();
+                                        cstring stmt = "";
+                                        for(int i = 0; i < typeBits->size; i++){
+                                            stmt += connect(actionName+"."+translate(parameter->name), i);
+                                            if(i < typeBits->size-1) stmt += ", ";
+                                        }
+                                        table.addStatement(stmt);
+                                    }
+                                    else{
+                                        cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
+                                        table.addStatement(parameterName);
+                                    }
+                                    if(cnt2 != 0)
+                                        table.addStatement(", ");
+                                }
+                                table.addStatement(");\n");
+                                if(options.gotoOrIf){
+                                    table.addStatement(getIndent()+"goto Exit;\n");
+                                }
+                                else{
+                                    decIndent();
+                                    table.addStatement(getIndent()+"}\n");
+                                }
+                                // decIndent();
+                            }
                         }
                     }
                     // add action declaration

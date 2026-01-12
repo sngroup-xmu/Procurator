@@ -14,7 +14,8 @@ BMV2CmdsAnalyzer::BMV2CmdsAnalyzer(std::ifstream* fin){
 
 		}
 		else if(label == TABLE_SET_DEFAULT){
-
+			BMV2Cmd* cmd = new TableSetDefault(s);
+			cmds.push_back(cmd);
 		}
 		else if(label == REGISTER_WRITE){
 			// std::cout << BMV2Cmd::splitFirst(s) << std::endl;
@@ -65,6 +66,18 @@ bool BMV2CmdsAnalyzer::hasTableAddCmds(cstring table){
 	return false;
 }
 
+TableSetDefault* BMV2CmdsAnalyzer::getTableSetDefaultCmd(cstring table){
+	for(auto cmd:cmds){
+		if(cmd->cmdType == NAME_TABLE_SET_DEFAULT){
+			TableSetDefault* tableSet = (TableSetDefault*)cmd;
+			if(isSame(table, tableSet->table)){
+				return tableSet;
+			}
+		}
+	}
+	return nullptr;
+}
+
 std::vector<cstring> BMV2Cmd::split(cstring str){
 	return split(std::string(str.c_str()));
 }
@@ -111,7 +124,7 @@ std::vector<cstring> BMV2Cmd::split(std::string str){
 		}
 	}
 
-	if(idx1 != str.length()-1){
+	if(idx1 < str.length()){
 		std::string token = trimToken(str.substr(idx1));
 		if(!token.empty()){
 			res.push_back(token);
@@ -151,9 +164,9 @@ TableAdd::TableAdd(cstring _cont){
 	action = getName(vec[2].c_str());
 
 	int idx = 3;
-	while(idx < cont.size() && vec[idx] != TABLE_MATCH_SYMBOL) idx++;
+	while(idx < static_cast<int>(vec.size()) && vec[idx] != TABLE_MATCH_SYMBOL) idx++;
 
-	if(idx == cont.size()){
+	if(idx >= static_cast<int>(vec.size())){
 		std::cerr << "ERROR_INFO: " << cont << std::endl;
 		throw "ERROR: Illegal table_add command!!!\nUsage: table_add <table name> <action name> <match fields> => <action parameters> [priority]";
 	}
@@ -185,6 +198,15 @@ TableSetDefault::TableSetDefault(cstring _cont){
 	cont = _cont;
 	cmdType = NAME_TABLE_SET_DEFAULT;
 	std::vector<cstring> vec = split(_cont);
+	if(vec.size() < 3){
+		std::cerr << "ERROR_INFO: " << cont << std::endl;
+		throw "ERROR: Illegal table_set_default command!!!\nUsage: table_set_default <table name> <action name> <action parameters>";
+	}
+	table = getName(vec[1].c_str());
+	action = getName(vec[2].c_str());
+	for(size_t i = 3; i < vec.size(); i++){
+		parameters.push_back(vec[i]);
+	}
 }
 
 RegisterWrite::RegisterWrite(cstring _cont){

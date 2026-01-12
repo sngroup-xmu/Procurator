@@ -22,7 +22,7 @@
 
 const cstring TABLE_ADD = "table_add";
 const cstring TABLE_DELETE = "table_delete";
-const cstring TABLE_SET_DEFAULT = "table_set_dfault";
+const cstring TABLE_SET_DEFAULT = "table_set_default";
 const cstring REGISTER_WRITE = "register_write";
 
 const cstring NAME_BMV2_CMD = "BMV2Cmd";
@@ -93,6 +93,7 @@ public:
 	void analyzeSingleCommand();
 	std::vector<TableAdd*> getTableAddCmds(cstring table);
 	bool hasTableAddCmds(cstring table);
+	TableSetDefault* getTableSetDefaultCmd(cstring table);
 	// std::vector<TableDelete*> getTableDeleteCmds();
 };
 

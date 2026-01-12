@@ -217,41 +217,51 @@ int main(int argc, char *const argv[]) {
         }
     }
 
-    if (options.slicingEnabled && !options.slicingVarNames.empty()) {
+    const bool doSlicing = options.slicingEnabled && !options.slicingVarNames.empty();
+    const bool needRw = options.outputMetaFile != nullptr;
+    if (doSlicing || needRw) {
         P4Verify::SliceOptions sopts;
         sopts.seedVars = options.slicingVarNames;
-        sopts.enable = true;
+        sopts.enable = doSlicing;
+        sopts.collectRw = needRw;
         sopts.debug = options.slicingDebug;
         if (options.slicingDotDir) {
             sopts.dotDir = options.slicingDotDir.c_str();
         }
         P4Verify::Slicer slicer(program, &refMap, &typeMap);
         auto sres = slicer.run(sopts);
-        if (!sres.keepStatementIds.empty()) {
-            if (!options.loadIRFromJson) {
-                program = P4Verify::applySlice(program, sres.keepStatementIds);
-            } else if (options.slicingDebug) {
-                std::cerr << "[slicer] skipping statement pruning for JSON IR\n";
+        if (doSlicing) {
+            if (!sres.keepStatementIds.empty()) {
+                if (!options.loadIRFromJson) {
+                    program = P4Verify::applySlice(program, sres.keepStatementIds);
+                } else if (options.slicingDebug) {
+                    std::cerr << "[slicer] skipping statement pruning for JSON IR\n";
+                }
+            }
+            if (!sres.keepVarNames.empty()) {
+                options.slicingKeepVars = sres.keepVarNames;
+            }
+            if (!sres.keepTables.empty()) {
+                options.slicingKeepTables = sres.keepTables;
+            }
+            if (!sres.regMaxIndex.empty()) {
+                options.slicingRegMaxIndex = sres.regMaxIndex;
+            }
+            if (!sres.regHasNonConst.empty()) {
+                options.slicingRegHasNonConst = sres.regHasNonConst;
+            }
+            if (options.loadIRFromJson) {
+                if (options.slicingDebug) {
+                    std::cerr << "[slicer] json-safe: disabling var/table filtering\n";
+                }
+                options.slicingKeepVars.clear();
+                options.slicingKeepTables.clear();
             }
         }
-        if (!sres.keepVarNames.empty()) {
-            options.slicingKeepVars = sres.keepVarNames;
-        }
-        if (!sres.keepTables.empty()) {
-            options.slicingKeepTables = sres.keepTables;
-        }
-        if (!sres.regMaxIndex.empty()) {
-            options.slicingRegMaxIndex = sres.regMaxIndex;
-        }
-        if (!sres.regHasNonConst.empty()) {
-            options.slicingRegHasNonConst = sres.regHasNonConst;
-        }
-        if (options.loadIRFromJson) {
-            if (options.slicingDebug) {
-                std::cerr << "[slicer] json-safe: disabling var/table filtering\n";
-            }
-            options.slicingKeepVars.clear();
-            options.slicingKeepTables.clear();
+        if (needRw) {
+            options.rwReads = sres.rwReads;
+            options.rwWrites = sres.rwWrites;
+            options.rwStatefulObjects = sres.rwStatefulObjects;
         }
     }
 
