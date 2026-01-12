@@ -11,6 +11,8 @@ _DSL_CONFIG_DIRECTIVES: Set[str] = {
     "external_input",
     # Global directive
     "queue_capacity",
+    "max_steps",
+    "deterministic_scheduler",
     "env_thread",
     "host_eager",
 }

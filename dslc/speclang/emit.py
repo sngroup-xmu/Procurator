@@ -128,6 +128,12 @@ def emit_spec_text(
     lines.append("global {")
     if spec.global_decl.queue_capacity is not None:
         lines.append(f"  queue_capacity = {spec.global_decl.queue_capacity};")
+    if spec.global_decl.max_steps is not None:
+        lines.append(f"  max_steps = {spec.global_decl.max_steps};")
+    if spec.global_decl.deterministic_scheduler is not None:
+        lines.append(
+            f"  deterministic_scheduler = {'true' if spec.global_decl.deterministic_scheduler else 'false'};"
+        )
     if spec.global_decl.env_thread is not None:
         lines.append(f"  env_thread = {'true' if spec.global_decl.env_thread else 'false'};")
     if spec.global_decl.host_eager is not None:

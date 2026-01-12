@@ -12,7 +12,14 @@ class SpecParseError(ValueError):
     pass
 
 
-_DSL_CONFIG_DIRECTIVES = {"external_input", "queue_capacity", "env_thread", "host_eager"}
+_DSL_CONFIG_DIRECTIVES = {
+    "external_input",
+    "queue_capacity",
+    "max_steps",
+    "deterministic_scheduler",
+    "env_thread",
+    "host_eager",
+}
 
 
 def parse_tree(spec_text: str) -> Tree:
@@ -170,6 +177,18 @@ def parse_model(spec_text: str) -> SpecModel:
                         if rhs_num is None:
                             raise SpecParseError("queue_capacity must be an integer literal")
                         gd.queue_capacity = rhs_num
+                        continue
+                    if var_name == "max_steps":
+                        rhs_num = _int_literal(rhs_tree)
+                        if rhs_num is None:
+                            raise SpecParseError("max_steps must be an integer literal")
+                        gd.max_steps = rhs_num
+                        continue
+                    if var_name == "deterministic_scheduler":
+                        rhs_val = _bool_literal(rhs_tree)
+                        if rhs_val is None:
+                            raise SpecParseError("deterministic_scheduler must be true/false")
+                        gd.deterministic_scheduler = rhs_val
                         continue
                     if var_name == "env_thread":
                         rhs_val = _bool_literal(rhs_tree)

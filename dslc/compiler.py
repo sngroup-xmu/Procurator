@@ -32,6 +32,13 @@ def compile_spec_text(
     run_semantics: bool = True,
     max_env_inputs: bool = False,
     enable_slicing: bool = True,
+    prune_env_inputs: bool = True,
+    por_enabled: bool = False,
+    por_guard_enabled: bool = True,
+    boogie_harness: str = "concurrent",
+    pipeline_two_stage: bool = True,
+    feasibility_check: bool = False,
+    refine_trace: bool = False,
 ) -> CompileOutput:
     """
     Compile a DSL spec into a backend artifact.
@@ -64,6 +71,9 @@ def compile_spec_text(
 
     # 4) backend compile
     if backend == "boogie":
+        boogie_harness = boogie_harness.lower().strip()
+        if boogie_harness not in {"concurrent", "sequential"}:
+            raise CompileError(f"unsupported boogie harness: {boogie_harness}")
         out_bpl = out
         if out_bpl.suffix != ".bpl":
             raise CompileError(f"--out must end with .bpl for boogie backend, got: {out_bpl}")
@@ -75,6 +85,13 @@ def compile_spec_text(
             work_dir=work_dir,
             max_env_inputs=max_env_inputs,
             enable_slicing=enable_slicing,
+            prune_env_inputs=prune_env_inputs,
+            por_enabled=por_enabled,
+            por_guard_enabled=por_guard_enabled,
+            boogie_harness=boogie_harness,
+            pipeline_two_stage=pipeline_two_stage,
+            feasibility_check=feasibility_check,
+            refine_trace=refine_trace,
         )
         return CompileOutput(backend="boogie", artifacts={"bpl": out_path})
 
@@ -98,6 +115,13 @@ def compile_spec_file(
     run_semantics: bool = True,
     max_env_inputs: bool = False,
     enable_slicing: bool = True,
+    prune_env_inputs: bool = True,
+    por_enabled: bool = False,
+    por_guard_enabled: bool = True,
+    boogie_harness: str = "concurrent",
+    pipeline_two_stage: bool = True,
+    feasibility_check: bool = False,
+    refine_trace: bool = False,
 ) -> CompileOutput:
     spec_text = spec_path.read_text(encoding="utf-8")
     return compile_spec_text(
@@ -111,6 +135,13 @@ def compile_spec_file(
         run_semantics=run_semantics,
         max_env_inputs=max_env_inputs,
         enable_slicing=enable_slicing,
+        prune_env_inputs=prune_env_inputs,
+        por_enabled=por_enabled,
+        por_guard_enabled=por_guard_enabled,
+        boogie_harness=boogie_harness,
+        pipeline_two_stage=pipeline_two_stage,
+        feasibility_check=feasibility_check,
+        refine_trace=refine_trace,
     )
 
 
@@ -136,6 +167,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--no-semantics", action="store_true", help="Skip semantic analysis (debug)")
     ap.add_argument("--no-slicing", action="store_true", help="Disable P4 slicing/pruning (Boogie backend)")
     ap.add_argument(
+        "--no-env-prune",
+        action="store_true",
+        help="Disable env input pruning based on sliced Boogie usage (Boogie backend)",
+    )
+    ap.add_argument("--por", action="store_true", help="Enable commutativity-based POR (Boogie backend)")
+    ap.add_argument(
+        "--no-por-guard",
+        action="store_true",
+        help="Disable POR guards even when --por is enabled (Boogie backend)",
+    )
+    ap.add_argument(
+        "--boogie-harness",
+        choices=["concurrent", "sequential"],
+        default="concurrent",
+        help="Boogie harness style: 'concurrent' uses fork/atomic threads; 'sequential' emits a single-thread nondet scheduler.",
+    )
+    ap.add_argument(
+        "--no-two-stage",
+        action="store_true",
+        help="Disable two-stage ingress/egress scheduling when it can be inferred (Boogie backend)",
+    )
+    ap.add_argument(
         "--env",
         choices=["spec", "max"],
         default="spec",
@@ -158,6 +211,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     run_semantics = not args.no_semantics
     max_env_inputs = args.env == "max"
     enable_slicing = not args.no_slicing
+    prune_env_inputs = not args.no_env_prune
+    por_enabled = args.por
+    por_guard_enabled = not args.no_por_guard
+    boogie_harness = args.boogie_harness
+    pipeline_two_stage = not args.no_two_stage
 
     p4c_bin = Path(args.p4c_translator_bin) if args.p4c_translator_bin else None
     # Prefer docker wrapper by default (works once the p4b docker image is built).
@@ -176,6 +234,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             run_semantics=run_semantics,
             max_env_inputs=max_env_inputs,
             enable_slicing=enable_slicing,
+            prune_env_inputs=prune_env_inputs,
+            por_enabled=por_enabled,
+            por_guard_enabled=por_guard_enabled,
+            boogie_harness=boogie_harness,
+            pipeline_two_stage=pipeline_two_stage,
         )
     except Exception as e:
         raise SystemExit(f"[ERR] {e}") from e

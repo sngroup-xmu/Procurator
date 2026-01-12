@@ -46,15 +46,36 @@ def _extract_result(log_text: str) -> Optional[str]:
     return None
 
 
+def _is_unsafe(log_text: str) -> bool:
+    result = _extract_result(log_text)
+    if result:
+        low = result.lower()
+        if "incorrect" in low or "unsafe" in low:
+            return True
+        if "correct" in low or "safe" in low:
+            return False
+    low = log_text.lower()
+    return "proved your program to be incorrect" in low or "result: unsafe" in low
+
+
 def _run_one(
     *,
     job: _ComposeJob,
     p4b_bin: Optional[Path],
     max_env_inputs: bool,
     enable_slicing: bool,
+    prune_env_inputs: bool,
+    por_enabled: bool,
+    por_guard_enabled: bool,
+    boogie_harness: str,
+    pipeline_two_stage: bool,
+    feasibility_check: bool,
+    refine_trace: bool,
     ultimate: Optional[Path],
     toolchain: Path,
     settings: Path,
+    ultimate_async: bool,
+    ultimate_timeout_seconds: int,
 ) -> int:
     compile_spec_file(
         spec_path=job.spec_path,
@@ -64,6 +85,13 @@ def _run_one(
         work_dir=job.work_dir,
         max_env_inputs=max_env_inputs,
         enable_slicing=enable_slicing,
+        prune_env_inputs=prune_env_inputs,
+        por_enabled=por_enabled,
+        por_guard_enabled=por_guard_enabled,
+        boogie_harness=boogie_harness,
+        pipeline_two_stage=pipeline_two_stage,
+        feasibility_check=feasibility_check,
+        refine_trace=refine_trace,
     )
     print(f"[OK] bpl: {job.out_bpl}")
 
@@ -71,14 +99,29 @@ def _run_one(
         print("[NOTE] --ultimate not provided; skipping Ultimate run.")
         return 0
 
-    cmd = [str(ultimate), "-tc", str(toolchain), "-s", str(settings), "-i", str(job.out_bpl)]
+    cmd = [
+        str(ultimate),
+        f"--core.toolchain.timeout.in.seconds={ultimate_timeout_seconds}",
+        "-tc",
+        str(toolchain),
+        "-s",
+        str(settings),
+        "-i",
+        str(job.out_bpl),
+    ]
     print("[RUN] " + " ".join(cmd))
     job.ultimate_home.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ)
     env["HOME"] = str(job.ultimate_home)
     env["JAVA_TOOL_OPTIONS"] = f"-Duser.home={job.ultimate_home}"
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
     job.log_path.parent.mkdir(parents=True, exist_ok=True)
+    if ultimate_async:
+        with job.log_path.open("w", encoding="utf-8") as log_file:
+            proc = subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, text=True, env=env)
+        print(f"[RUN] Ultimate running in background (pid={proc.pid}).")
+        print(f"[LOG] {job.log_path}")
+        return 0
+    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
     job.log_path.write_text(proc.stdout, encoding="utf-8")
 
     result_line = _extract_result(proc.stdout)
@@ -103,6 +146,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Environment model: 'spec' applies assume constraints, 'max' makes inputs fully nondet",
     )
     ap.add_argument("--no-slicing", action="store_true", help="Disable P4 slicing/pruning")
+    ap.add_argument(
+        "--no-env-prune",
+        action="store_true",
+        help="Disable env input pruning based on sliced Boogie usage",
+    )
+    ap.add_argument("--por", action="store_true", help="Enable commutativity-based POR")
+    ap.add_argument(
+        "--no-por-guard",
+        action="store_true",
+        help="Disable POR guards even when --por is enabled",
+    )
+    ap.add_argument(
+        "--boogie-harness",
+        choices=["concurrent", "sequential"],
+        default="concurrent",
+        help="Boogie harness style: 'concurrent' uses fork/atomic threads; 'sequential' emits a single-thread nondet scheduler.",
+    )
+    ap.add_argument(
+        "--no-two-stage",
+        action="store_true",
+        help="Disable two-stage ingress/egress scheduling when it can be inferred",
+    )
     ap.add_argument("--compose", action="store_true", help="Decompose global asserts into local specs and run in parallel")
     ap.add_argument("--compose-max-nodes", type=int, default=2, help="Max nodes per decomposed property (default: 2)")
     ap.add_argument("--compose-jobs", type=int, default=2, help="Parallel jobs for compose mode (default: 2)")
@@ -111,7 +176,28 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="For single-node sub-specs, allow direct external input and drop topology (over-approx)",
     )
+    ap.add_argument(
+        "--feasibility-check",
+        action="store_true",
+        help="After UNSAFE, re-run with assume(!P); assert false to test reachability of the negated property.",
+    )
+    ap.add_argument(
+        "--refine-trace",
+        action="store_true",
+        help="Enable trace-guided refinement (force enqueued packets to be scheduled for ingress next).",
+    )
+    ap.add_argument(
+        "--ultimate-async",
+        action="store_true",
+        help="Run Ultimate in the background and return immediately (log file will continue to update).",
+    )
     ap.add_argument("--ultimate", default="", help="Path to Ultimate CLI executable")
+    ap.add_argument(
+        "--ultimate-timeout-seconds",
+        type=int,
+        default=0,
+        help="Ultimate toolchain timeout in seconds (0 disables timeout).",
+    )
     ap.add_argument(
         "--ultimate-home",
         default="",
@@ -162,6 +248,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     max_env_inputs = args.env == "max"
     enable_slicing = not args.no_slicing
+    prune_env_inputs = not args.no_env_prune
+    por_enabled = args.por
+    por_guard_enabled = not args.no_por_guard
+    boogie_harness = args.boogie_harness
+    pipeline_two_stage = not args.no_two_stage
 
     ultimate = Path(args.ultimate).resolve() if args.ultimate else None
     if ultimate and not ultimate.exists():
@@ -170,6 +261,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         raise SystemExit(f"[ERR] Toolchain not found: {toolchain}")
     if not settings.exists():
         raise SystemExit(f"[ERR] Settings not found: {settings}")
+
+    if por_enabled:
+        no_por = settings.with_name(settings.stem + "-no-por" + settings.suffix)
+        if "-no-por" not in settings.name and no_por.exists():
+            print(f"[NOTE] --por enabled; Ultimate POR is still on. Consider --settings {no_por}")
 
     if not args.compose:
         job = _ComposeJob(
@@ -181,15 +277,59 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if args.ultimate_home
             else _repo_root() / ".tmp" / "ultimate-home",
         )
-        return _run_one(
+        rc = _run_one(
             job=job,
             p4b_bin=p4b_bin,
             max_env_inputs=max_env_inputs,
             enable_slicing=enable_slicing,
+            prune_env_inputs=prune_env_inputs,
+            por_enabled=por_enabled,
+            por_guard_enabled=por_guard_enabled,
+            boogie_harness=boogie_harness,
+            pipeline_two_stage=pipeline_two_stage,
+            feasibility_check=False,
+            refine_trace=args.refine_trace,
             ultimate=ultimate,
             toolchain=toolchain,
             settings=settings,
+            ultimate_async=args.ultimate_async,
+            ultimate_timeout_seconds=args.ultimate_timeout_seconds,
         )
+        if args.feasibility_check and ultimate:
+            try:
+                log_text = log_path.read_text(encoding="utf-8")
+            except Exception:
+                log_text = ""
+            if _is_unsafe(log_text):
+                feas_bpl = out_bpl.with_suffix(".feas.bpl")
+                feas_log = log_path.with_suffix(".feas.log")
+                feas_job = _ComposeJob(
+                    spec_path=spec_path,
+                    out_bpl=feas_bpl,
+                    work_dir=work_dir,
+                    log_path=feas_log,
+                    ultimate_home=job.ultimate_home,
+                )
+                print("[FEAS] Re-running with feasibility-check assertions...")
+                _run_one(
+                    job=feas_job,
+                    p4b_bin=p4b_bin,
+                    max_env_inputs=max_env_inputs,
+                    enable_slicing=enable_slicing,
+                    prune_env_inputs=prune_env_inputs,
+                    por_enabled=por_enabled,
+                    por_guard_enabled=por_guard_enabled,
+                    boogie_harness=boogie_harness,
+                    pipeline_two_stage=pipeline_two_stage,
+                    feasibility_check=True,
+                    refine_trace=args.refine_trace,
+                    ultimate=ultimate,
+                    toolchain=toolchain,
+                    settings=settings,
+                    ultimate_async=args.ultimate_async,
+                    ultimate_timeout_seconds=args.ultimate_timeout_seconds,
+                )
+        return rc
 
     # Compose mode: split global asserts into local specs and run in parallel.
     spec_text = spec_path.read_text(encoding="utf-8")
@@ -236,9 +376,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 p4b_bin=p4b_bin,
                 max_env_inputs=max_env_inputs,
                 enable_slicing=enable_slicing,
+                prune_env_inputs=prune_env_inputs,
+                por_enabled=por_enabled,
+                por_guard_enabled=por_guard_enabled,
+                boogie_harness=boogie_harness,
+                pipeline_two_stage=pipeline_two_stage,
+                feasibility_check=False,
+                refine_trace=args.refine_trace,
                 ultimate=ultimate,
                 toolchain=toolchain,
                 settings=settings,
+                ultimate_async=args.ultimate_async,
+                ultimate_timeout_seconds=args.ultimate_timeout_seconds,
             ): job
             for job in jobs
         }

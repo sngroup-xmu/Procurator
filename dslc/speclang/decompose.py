@@ -164,6 +164,8 @@ def _sub_spec(spec: SpecModel, keep_nodes: Set[str], asserts: List[Tree]) -> Spe
 
     g = GlobalDecl(
         queue_capacity=spec.global_decl.queue_capacity,
+        max_steps=spec.global_decl.max_steps,
+        deterministic_scheduler=spec.global_decl.deterministic_scheduler,
         env_thread=spec.global_decl.env_thread,
         host_eager=spec.global_decl.host_eager,
         assume_exprs=assumes,

@@ -25,7 +25,7 @@ class P4BTranslator:
     """
     Wrapper for a P4->Boogie translator (e.g., external P4B-Translator).
 
-    IMPORTANT: The translator invoked here MUST output Boogie (.bpl), not Promela (.pml).
+    IMPORTANT: The translator invoked here MUST output Boogie (.bpl).
     """
 
     def __init__(self, p4b_bin: str, *, include_paths: Optional[Sequence[str]] = None):
@@ -132,6 +132,7 @@ class BoogiePrefixer:
     _IDENT_CHARS = r"A-Za-z0-9_\.\$"
     _IDENT_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_\.\$]*\b")
     _BV_TYPE_RE = re.compile(r"^bv\d+$")
+    _BV_BUILTIN_RE = re.compile(r"^bv[A-Za-z0-9_]*\.bv\d+(?:\$builtin)?$")
     _TYPE_RE = re.compile(r"^\s*type\s+(?P<name>[A-Za-z0-9_\.\$]+)\s*(?:=|;)", re.MULTILINE)
     _VAR_RE = re.compile(r"^\s*var\s+(?P<name>[A-Za-z0-9_\.\$]+)\s*:", re.MULTILINE)
     _CONST_RE = re.compile(r"^\s*const(?:\s+unique)?\s+(?P<name>[A-Za-z0-9_\.\$]+)\s*:", re.MULTILINE)
@@ -189,6 +190,8 @@ class BoogiePrefixer:
                 continue
             if self._BV_TYPE_RE.match(name):
                 continue
+            if self._BV_BUILTIN_RE.match(name):
+                continue
             names.append(name)
         return names
 
@@ -240,7 +243,19 @@ _BOOGIE_KEYWORDS = {
     "var",
     "while",
     "bvbuiltin",
+    "inline",
 }
+
+_SKIP_INPUT_VARS = {
+    "standard_metadata.egress_port",
+    "ig_intr_tm_md.ucast_egress_port",
+    "ig_tm_md.ucast_egress_port",
+    "eg_intr_md.egress_port",
+}
+
+
+def _is_skipped_input_var(name: str) -> bool:
+    return name in _SKIP_INPUT_VARS or name.endswith(".ucast_egress_port") or name.endswith(".egress_port")
 
 
 def _normalize_bvbuiltin_attrs(bpl: str, prefix: str) -> str:
@@ -270,6 +285,20 @@ def _dedup_bvbuiltin_decls(bpl: str, seen: set[str]) -> str:
         out.append(line)
     return "".join(out)
 
+
+_ULTIMATE_BVB_BUILTIN_ATTR_RE = re.compile(r"\{:\s*bvbuiltin\b")
+
+
+def _ultimate_rewrite_bvbuiltin_attrs(bpl: str) -> str:
+    """
+    Ultimate does not interpret Boogie-style `{:bvbuiltin "..."}`
+    attributes, which makes bitvector ops uninterpreted and yields spurious
+    counterexamples. Rewrite them to Ultimate's `{:builtin "..."}`
+    attributes.
+    """
+    return _ULTIMATE_BVB_BUILTIN_ATTR_RE.sub("{:builtin", bpl)
+
+
 @dataclass(frozen=True)
 class _BoogieNodeInfo:
     raw_bpl: str
@@ -280,6 +309,12 @@ class _BoogieNodeInfo:
     var_types: Dict[str, str]
     type_defs: Dict[str, str]
     meta: Optional[dict]
+
+
+@dataclass(frozen=True)
+class _RwKey:
+    obj: str
+    key: Optional[str] = None
 
 
 def _looks_like_bpl(text: str) -> bool:
@@ -316,12 +351,6 @@ def _collect_input_vars_and_egress_type(
         type_defs[m.group(1)] = m.group(2).strip()
 
     var_decl_re = re.compile(r"^\s*var\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$", re.MULTILINE)
-    skip_inputs = {
-        "standard_metadata.egress_port",
-        "ig_intr_tm_md.ucast_egress_port",
-        "ig_tm_md.ucast_egress_port",
-        "eg_intr_md.egress_port",
-    }
     for m in var_decl_re.finditer(raw_bpl):
         name = m.group(1)
         typ = m.group(2).strip()
@@ -336,7 +365,7 @@ def _collect_input_vars_and_egress_type(
         if name.startswith(("hdr.", "meta.", "standard_metadata.")) or "_md." in name:
             if typ == "Ref" or typ.endswith("Ref"):
                 continue
-            if name in skip_inputs or name.endswith(".ucast_egress_port") or name.endswith(".egress_port"):
+            if _is_skipped_input_var(name):
                 continue
             input_vars.append(name)
 
@@ -353,15 +382,84 @@ def _is_packet_var(name: str) -> bool:
     return name.startswith(("hdr.", "meta.", "standard_metadata.")) or "_md." in name
 
 
-def _filter_input_vars_by_usage(raw_bpl: str, input_vars: Sequence[str]) -> List[str]:
+def _filter_input_vars_by_usage(
+    raw_bpl: str,
+    input_vars: Sequence[str],
+    *,
+    force_keep: Optional[Sequence[str]] = None,
+) -> List[str]:
     # Drop vars that only appear in declarations; this keeps env inputs aligned with the sliced program.
     stripped = re.sub(r"^\s*var\s+[^;]+;\s*$", "", raw_bpl, flags=re.MULTILINE)
     kept: List[str] = []
+    force = set(force_keep or [])
     for v in input_vars:
         pat = r"\b" + re.escape(v) + r"\b"
-        if re.search(pat, stripped):
+        if v in force or re.search(pat, stripped):
+            kept.append(v)
+    for v in force:
+        if v not in kept:
             kept.append(v)
     return kept
+
+
+_P4_VAR_REF_RE = re.compile(
+    r"\b(?:hdr|hdr_eg|meta|standard_metadata|[A-Za-z0-9_]+_md)\.[A-Za-z0-9_\.\$]+\b"
+)
+
+
+def _infer_missing_var_type(name: str, raw_bpl: str, meta: Optional[dict]) -> str:
+    if isinstance(meta, dict):
+        vt = meta.get("var_types")
+        if isinstance(vt, dict):
+            t = vt.get(name)
+            if isinstance(t, str) and t.strip():
+                return t.strip()
+        sizes = meta.get("sizes")
+        if isinstance(sizes, dict) and name in sizes:
+            try:
+                sz = int(sizes[name])
+                if sz == 0:
+                    return "bool"
+                return f"bv{sz}"
+            except Exception:
+                pass
+    m = re.search(re.escape(name) + r"[^\n]*?\bbv(\d+)\b", raw_bpl)
+    if m:
+        return f"bv{m.group(1)}"
+    return "bv32"
+
+
+def _patch_missing_var_decls(
+    raw_bpl: str,
+    *,
+    meta: Optional[dict],
+    required_vars: Optional[Sequence[str]] = None,
+) -> str:
+    var_decl_re = re.compile(r"^\s*var\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$", re.MULTILINE)
+    const_decl_re = re.compile(
+        r"^\s*const(?:\s+unique)?\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$",
+        re.MULTILINE,
+    )
+    declared = {m.group(1) for m in var_decl_re.finditer(raw_bpl)}
+    declared.update(m.group(1) for m in const_decl_re.finditer(raw_bpl))
+    referenced = {m.group(0) for m in _P4_VAR_REF_RE.finditer(raw_bpl)}
+    required = {v for v in (required_vars or []) if _is_packet_var(v) and not _is_skipped_input_var(v)}
+    missing = sorted((referenced | required) - declared)
+    if not missing:
+        return raw_bpl
+    decls: List[str] = []
+    for name in missing:
+        typ = _infer_missing_var_type(name, raw_bpl, meta)
+        if not typ:
+            continue
+        decls.append(f"var {name}: {typ};\n")
+    if not decls:
+        return raw_bpl
+    insert = re.search(r"^\s*procedure\b", raw_bpl, re.MULTILINE)
+    block = "".join(decls)
+    if insert:
+        return raw_bpl[: insert.start()] + block + raw_bpl[insert.start() :]
+    return raw_bpl + "\n" + block
 
 
 def _extract_mainprocedure_modifies(prefixed_bpl: str, alias: str) -> set[str]:
@@ -379,10 +477,307 @@ def _extract_mainprocedure_modifies(prefixed_bpl: str, alias: str) -> set[str]:
     return {x for x in items if x}
 
 
+def _collect_register_arrays(prefixed_bpl: str, alias: str) -> Dict[str, tuple[str, str]]:
+    """
+    Collect register arrays from prefixed Boogie text.
+
+    We identify P4 registers via P4B's emitted comment marker:
+      // <alias>_Register <name>
+    and then locate the corresponding array declaration:
+      var <name>:[<idx>] <elem>;
+    """
+    reg_names: List[str] = []
+    comment_re = re.compile(
+        rf"^\s*//\s*{re.escape(alias)}_Register\s+(?P<name>[A-Za-z0-9_\.\$]+)\s*$",
+        re.MULTILINE,
+    )
+    for m in comment_re.finditer(prefixed_bpl):
+        reg_names.append(m.group("name"))
+    if not reg_names:
+        return {}
+    reg_types: Dict[str, tuple[str, str]] = {}
+    for name in reg_names:
+        var_re = re.compile(
+            rf"^\s*var\s+{re.escape(name)}\s*:\s*\[(?P<idx>[^\]]+)\]\s*(?P<elem>[A-Za-z0-9_\.\$]+)\s*;",
+            re.MULTILINE,
+        )
+        m = var_re.search(prefixed_bpl)
+        if not m:
+            continue
+        idx = m.group("idx").strip()
+        elem = m.group("elem").strip()
+        reg_types[name] = (idx, elem)
+    return reg_types
+
+
+def _render_zero_literal(var_type: str) -> str:
+    var_type = var_type.strip()
+    if var_type == "bool":
+        return "false"
+    if var_type.startswith("bv") and var_type[2:].isdigit():
+        return f"0{var_type}"
+    return "0"
+
+
+def _find_procedure_body_span(bpl: str, proc_name: str) -> Optional[tuple[int, int]]:
+    proc_re = re.compile(
+        rf"^\s*procedure(?:\s*\{{:[^}}]+\}}\s*)*\s+{re.escape(proc_name)}\b",
+        re.MULTILINE,
+    )
+    m = proc_re.search(bpl)
+    if not m:
+        return None
+    brace_start = bpl.find("{", m.end())
+    if brace_start == -1:
+        return None
+    depth = 0
+    body_start = None
+    body_end = None
+    for idx in range(brace_start, len(bpl)):
+        ch = bpl[idx]
+        if ch == "{":
+            depth += 1
+            if depth == 1:
+                body_start = idx + 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                body_end = idx
+                break
+    if body_start is None or body_end is None:
+        return None
+    return body_start, body_end
+
+
+def _instrument_register_writes(
+    prefixed_bpl: str, reg_types: Dict[str, tuple[str, str]]
+) -> str:
+    if not reg_types:
+        return prefixed_bpl
+
+    def register_aux_decls(reg_name: str, idx_type: str, elem_type: str, indent: str) -> str:
+        return (
+            f"{indent}var {reg_name}__last_index: {idx_type};\n"
+            f"{indent}var {reg_name}__last_value: {elem_type};\n"
+            f"{indent}var {reg_name}__wrote_index0: bool;\n"
+            f"{indent}var {reg_name}__last0_value: {elem_type};\n"
+        )
+
+    out = prefixed_bpl
+
+    # Inject auxiliary register-tracking globals next to each register array.
+    for reg_name, (idx_type, elem_type) in reg_types.items():
+        var_re = re.compile(
+            rf"^(\s*var\s+{re.escape(reg_name)}\s*:\s*\[[^\]]+\]\s*[^;]+;\s*)$",
+            re.MULTILINE,
+        )
+
+        def _var_repl(m: re.Match[str]) -> str:
+            indent = re.match(r"^(\s*)", m.group(1)).group(1)
+            return m.group(1) + "\n" + register_aux_decls(reg_name, idx_type, elem_type, indent)
+
+        out, _ = var_re.subn(_var_repl, out, count=1)
+
+    # Extend modifies clauses that already mention the register array.
+    mod_re = re.compile(r"^(\s*)modifies\s+([^;]+);", re.MULTILINE)
+
+    def _mod_repl(m: re.Match[str]) -> str:
+        indent = m.group(1)
+        clause = m.group(2)
+        items = [x.strip() for x in clause.split(",") if x.strip()]
+        items_set = set(items)
+        for reg_name in reg_types.keys():
+            if reg_name in items_set:
+                extras = [
+                    f"{reg_name}__last_index",
+                    f"{reg_name}__last_value",
+                    f"{reg_name}__wrote_index0",
+                    f"{reg_name}__last0_value",
+                ]
+                for extra in extras:
+                    if extra not in items_set:
+                        items.append(extra)
+                        items_set.add(extra)
+        return f"{indent}modifies {', '.join(items)};"
+
+    out = mod_re.sub(_mod_repl, out)
+
+    # Extract register sizes when available (e.g., axiom reg.size == 1bv32).
+    reg_sizes: Dict[str, int] = {}
+    for reg_name in reg_types.keys():
+        size_re = re.compile(
+            rf"^\s*axiom\s+{re.escape(reg_name)}\.size\s*==\s*(\d+)bv\d+\s*;",
+            re.MULTILINE,
+        )
+        m = size_re.search(out)
+        if m:
+            try:
+                reg_sizes[reg_name] = int(m.group(1))
+            except Exception:
+                pass
+
+    # Instrument each register.write procedure to record last write + index-0 writes.
+    for reg_name, (idx_type, _) in reg_types.items():
+        proc_name = f"{reg_name}.write"
+        span = _find_procedure_body_span(out, proc_name)
+        if not span:
+            continue
+        body_start, body_end = span
+        body = out[body_start:body_end]
+        assign_re = re.compile(
+            rf"^\s*{re.escape(reg_name)}\s*\[(?P<idx>[^\]]+)\]\s*:=\s*(?P<val>[^;]+);",
+            re.MULTILINE,
+        )
+        m = assign_re.search(body)
+        if not m:
+            continue
+        line = m.group(0)
+        indent = re.match(r"^(\s*)", line).group(1)
+        idx_expr = m.group("idx").strip()
+        val_expr = m.group("val").strip()
+        idx_zero = _render_zero_literal(idx_type)
+        assume_idx = ""
+        if reg_sizes.get(reg_name) == 1 or reg_name.endswith("sequence_reg"):
+            assume_idx = f"{indent}assume {idx_expr} == {idx_zero};\n"
+        extra = "\n".join(
+            [
+                f"{indent}{reg_name}__last_index := {idx_expr};",
+                f"{indent}{reg_name}__last_value := {val_expr};",
+                f"{indent}if ({idx_expr} == {idx_zero}) {{",
+                f"{indent}  {reg_name}__wrote_index0 := true;",
+                f"{indent}  {reg_name}__last0_value := {val_expr};",
+                f"{indent}}}",
+            ]
+        )
+        replacement = assume_idx + line + "\n" + extra
+        new_body = body[: m.start()] + replacement + body[m.end() :]
+        out = out[:body_start] + new_body + out[body_end:]
+
+    return out
+
+@dataclass(frozen=True)
+class _PipelineStages:
+    ingress_lines: List[str]
+    egress_lines: List[str]
+
+
+_CALL_RE = re.compile(r"^\s*call\s+(?:[^:]*:=\s*)?([A-Za-z0-9_\.\$]+)\s*\(")
+
+
+def _extract_call_target(line: str) -> Optional[str]:
+    m = _CALL_RE.match(line)
+    if not m:
+        return None
+    return m.group(1)
+
+
+def _extract_procedure_body_lines(bpl: str, proc_name: str) -> Optional[List[str]]:
+    proc_re = re.compile(
+        rf"^\s*procedure(?:\s*\{{:[^}}]+\}}\s*)*\s+{re.escape(proc_name)}\b",
+        re.MULTILINE,
+    )
+    m = proc_re.search(bpl)
+    if not m:
+        return None
+    brace_start = bpl.find("{", m.end())
+    if brace_start == -1:
+        return None
+    depth = 0
+    body_start = None
+    body_end = None
+    for idx in range(brace_start, len(bpl)):
+        ch = bpl[idx]
+        if ch == "{":
+            depth += 1
+            if depth == 1:
+                body_start = idx + 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                body_end = idx
+                break
+    if body_start is None or body_end is None:
+        return None
+    body = bpl[body_start:body_end]
+    return body.splitlines()
+
+
+def _normalize_body_lines(lines: List[str]) -> List[str]:
+    if not lines:
+        return []
+    # Trim leading/trailing blank lines.
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if not lines:
+        return []
+    min_indent = None
+    for line in lines:
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip(" "))
+        if min_indent is None or indent < min_indent:
+            min_indent = indent
+    if min_indent is None:
+        return lines
+    return [line[min_indent:] if len(line) >= min_indent else line for line in lines]
+
+
+def _first_egress_call_index(lines: List[str]) -> Optional[int]:
+    for idx, line in enumerate(lines):
+        callee = _extract_call_target(line)
+        if not callee:
+            continue
+        if re.search(r"egress", callee, re.IGNORECASE):
+            return idx
+    return None
+
+
+def _split_pipeline_stages(prefixed_bpl: str, alias: str) -> Optional[_PipelineStages]:
+    main_name = f"{alias}_main"
+    main_body = _extract_procedure_body_lines(prefixed_bpl, main_name)
+    if not main_body:
+        return None
+
+    pipe_call_idx: Optional[int] = None
+    pipe_callee: Optional[str] = None
+    for idx, line in enumerate(main_body):
+        callee = _extract_call_target(line)
+        if not callee:
+            continue
+        if callee.startswith(f"{alias}_pipe"):
+            pipe_call_idx = idx
+            pipe_callee = callee
+            break
+
+    if pipe_callee:
+        pipe_body = _extract_procedure_body_lines(prefixed_bpl, pipe_callee)
+        if not pipe_body:
+            return None
+        split_idx = _first_egress_call_index(pipe_body)
+        if split_idx is None:
+            return None
+        ingress_lines = list(main_body[:pipe_call_idx]) + list(pipe_body[:split_idx])
+        egress_lines = list(pipe_body[split_idx:]) + list(main_body[pipe_call_idx + 1 :])
+    else:
+        split_idx = _first_egress_call_index(main_body)
+        if split_idx is None:
+            return None
+        ingress_lines = list(main_body[:split_idx])
+        egress_lines = list(main_body[split_idx:])
+
+    ingress_lines = _normalize_body_lines(ingress_lines)
+    egress_lines = _normalize_body_lines(egress_lines)
+    if not ingress_lines and not egress_lines:
+        return None
+    return _PipelineStages(ingress_lines=ingress_lines, egress_lines=egress_lines)
+
+
 class BoogieHarnessEmitter:
     """
     Emit a concurrent Boogie harness for Ultimate/GemCutter based on:
-      - pass-atomic semantics
+      - pass-atomic semantics (or two-stage ingress/egress when inferred)
       - bag(K) queue abstraction using inbox_count per node
       - environment thread injecting external inputs into nodes with external_input=true
     """
@@ -395,6 +790,8 @@ class BoogieHarnessEmitter:
         node_egress_port_var: Dict[str, str],
         node_declared_vars: Dict[str, set[str]],
         node_mainprocedure_modifies: Dict[str, set[str]],
+        node_register_arrays: Optional[Dict[str, Dict[str, tuple[str, str]]]] = None,
+        node_pipeline_stages: Optional[Dict[str, _PipelineStages]] = None,
         node_var_types: Optional[Dict[str, Dict[str, str]]] = None,
         node_type_defs: Optional[Dict[str, Dict[str, str]]] = None,
         node_meta: Optional[Dict[str, Optional[dict]]] = None,
@@ -403,6 +800,12 @@ class BoogieHarnessEmitter:
         host_var_types: Optional[Dict[str, Dict[str, str]]] = None,
         *,
         max_env_inputs: bool = False,
+        por_enabled: bool = False,
+        por_guard_enabled: bool = True,
+        harness_mode: str = "concurrent",
+        pipeline_two_stage: bool = True,
+        feasibility_check: bool = False,
+        refine_trace: bool = False,
     ):
         self._spec = spec
         self._node_input_vars = node_input_vars  # alias -> raw var names (no prefix)
@@ -410,6 +813,8 @@ class BoogieHarnessEmitter:
         self._node_egress_port_var = node_egress_port_var  # alias -> raw var name
         self._node_declared_vars = node_declared_vars  # alias -> set(raw var name)
         self._node_mainprocedure_modifies = node_mainprocedure_modifies  # alias -> set(prefixed var name)
+        self._node_register_arrays = node_register_arrays or {}
+        self._node_pipeline_stages = node_pipeline_stages or {}
         self._node_meta = node_meta or {}
         self._node_var_types = node_var_types or {}
         self._node_type_defs = node_type_defs or {}
@@ -420,6 +825,20 @@ class BoogieHarnessEmitter:
             h: set(self._host_input_vars.get(h, [])) for h in self._host_to_node.keys()
         }
         self._max_env_inputs = max_env_inputs
+        self._por_enabled = por_enabled
+        self._por_guard_enabled = por_guard_enabled
+        harness_mode = harness_mode.lower().strip()
+        if harness_mode not in {"concurrent", "sequential"}:
+            raise ValueError(f"unsupported harness_mode: {harness_mode}")
+        self._harness_mode = harness_mode
+        self._pipeline_two_stage = pipeline_two_stage
+        self._feasibility_check = feasibility_check
+        self._refine_trace = refine_trace
+        self._node_ids: Dict[str, int] = {n: i + 1 for i, n in enumerate(spec.imports.keys())}
+        self._two_stage_nodes = (
+            set(self._node_pipeline_stages.keys()) if self._pipeline_two_stage else set()
+        )
+        self._por_guards: Dict[str, List[str]] = {}
         self._dsl_global_vars: Dict[str, str] = {}  # name -> boogie type
         self._dsl_node_vars: Dict[str, Dict[str, str]] = {}  # node -> (name -> boogie type)
         self._dsl_host_vars: Dict[str, Dict[str, str]] = {}  # host -> (name -> boogie type)
@@ -445,6 +864,16 @@ class BoogieHarnessEmitter:
                 self._meta_sizes[n] = out_sz
         self._tofino_recirculate_ports = self._infer_tofino_recirculate_ports()
 
+    def _collect_expr_reads(self, expr: Tree, *, current_node: str) -> set[_RwKey]:
+        reads: set[_RwKey] = set()
+        for dv in expr.find_data("dotted_var"):
+            if not isinstance(dv, Tree):
+                continue
+            name = self._dotted_var_to_boogie(dv, current_node=current_node)
+            if name:
+                reads.add(_RwKey(obj=name))
+        return reads
+
     def _infer_tofino_recirculate_ports(self) -> List[int]:
         ports: set[int] = set()
         for imp in self._spec.imports.values():
@@ -453,6 +882,132 @@ class BoogieHarnessEmitter:
                 ports.update({68, 196})
                 break
         return sorted(ports)
+
+    def _parse_stateful_rw(self, node: str) -> tuple[set[_RwKey], set[_RwKey]]:
+        meta = self._node_meta.get(node)
+        if not isinstance(meta, dict):
+            return set(), set()
+        rw = meta.get("rw")
+        if not isinstance(rw, dict):
+            return set(), set()
+        stateful = {str(x) for x in rw.get("stateful", [])}
+        reads_raw = rw.get("reads", []) if isinstance(rw.get("reads"), list) else []
+        writes_raw = rw.get("writes", []) if isinstance(rw.get("writes"), list) else []
+
+        def parse_key(s: str) -> Optional[_RwKey]:
+            if not s:
+                return None
+            parts = s.split(".")
+            base = parts[0]
+            if base not in stateful:
+                return None
+            key: Optional[str] = None
+            if len(parts) > 1:
+                tail = parts[1]
+                m = re.match(r"^([0-9]+)(?:bv[0-9]+)?$", tail)
+                if m:
+                    key = m.group(1)
+            obj = f"{node}_{base}"
+            return _RwKey(obj=obj, key=key)
+
+        reads: set[_RwKey] = set()
+        writes: set[_RwKey] = set()
+        for item in reads_raw:
+            k = parse_key(str(item))
+            if k is not None:
+                reads.add(k)
+        for item in writes_raw:
+            k = parse_key(str(item))
+            if k is not None:
+                writes.add(k)
+        return reads, writes
+
+    @staticmethod
+    def _rw_index(keys: set[_RwKey]) -> Dict[str, tuple[bool, set[str]]]:
+        indexed: Dict[str, tuple[bool, set[str]]] = {}
+        for k in keys:
+            if k.obj not in indexed:
+                indexed[k.obj] = (False, set())
+            wild, vals = indexed[k.obj]
+            if k.key is None:
+                indexed[k.obj] = (True, vals)
+            else:
+                vals.add(k.key)
+                indexed[k.obj] = (wild, vals)
+        return indexed
+
+    @classmethod
+    def _rw_conflicts(cls, writes: set[_RwKey], reads: set[_RwKey]) -> bool:
+        widx = cls._rw_index(writes)
+        ridx = cls._rw_index(reads)
+        for obj, (wwild, wkeys) in widx.items():
+            if obj not in ridx:
+                continue
+            rwild, rkeys = ridx[obj]
+            if wwild or rwild:
+                return True
+            if wkeys.intersection(rkeys):
+                return True
+        return False
+
+    def _build_node_rw(self, node: str) -> tuple[set[_RwKey], set[_RwKey]]:
+        reads: set[_RwKey] = set()
+        writes: set[_RwKey] = set()
+
+        reads.add(_RwKey(obj=f"{node}_inbox_count"))
+        writes.add(_RwKey(obj=f"{node}_inbox_count"))
+        writes.add(_RwKey(obj=f"{node}_pkt_external"))
+
+        for v in self._node_input_vars.get(node, []):
+            reads.add(_RwKey(obj=f"{node}_{v}"))
+            writes.add(_RwKey(obj=f"{node}_{v}"))
+
+        meta_reads, meta_writes = self._parse_stateful_rw(node)
+        reads.update(meta_reads)
+        writes.update(meta_writes)
+
+        nd = self._spec.nodes.get(node)
+        if nd:
+            for expr in list(nd.assume_exprs) + list(nd.assert_exprs):
+                reads.update(self._collect_expr_reads(expr, current_node=node))
+        for expr in list(self._spec.global_decl.assume_exprs) + list(self._spec.global_decl.assert_exprs):
+            reads.update(self._collect_expr_reads(expr, current_node=node))
+
+        for name in self._dsl_global_vars.keys():
+            key = _RwKey(obj=f"dsl_{name}")
+            reads.add(key)
+            writes.add(key)
+
+        for l in self._spec.links:
+            if l.src != node:
+                continue
+            dst = l.dst
+            writes.add(_RwKey(obj=f"{dst}_inbox_count"))
+            writes.add(_RwKey(obj=f"{dst}_pkt_external"))
+            src_decl = self._node_declared_vars.get(node, set())
+            dst_decl = self._get_declared_vars(dst)
+            for v in self._node_input_vars.get(node, []):
+                if v in src_decl and v in dst_decl:
+                    writes.add(_RwKey(obj=f"{dst}_{v}"))
+
+        return reads, writes
+
+    def _compute_por_guards(self, node_aliases: List[str]) -> Dict[str, List[str]]:
+        guards: Dict[str, List[str]] = {n: [] for n in node_aliases}
+        if len(node_aliases) < 2:
+            return guards
+        rw: Dict[str, tuple[set[_RwKey], set[_RwKey]]] = {}
+        for n in node_aliases:
+            rw[n] = self._build_node_rw(n)
+        for i, node in enumerate(node_aliases):
+            for j in range(i):
+                other = node_aliases[j]
+                r1, w1 = rw[node]
+                r2, w2 = rw[other]
+                conflict = self._rw_conflicts(w1, r2 | w2) or self._rw_conflicts(w2, r1 | w1)
+                if not conflict:
+                    guards[node].append(other)
+        return guards
 
     def _analyze_dsl_state_vars(self) -> None:
         """
@@ -520,8 +1075,124 @@ class BoogieHarnessEmitter:
 
         node_aliases = list(self._spec.imports.keys())
         host_aliases = list(self._spec.hosts.keys())
-        lines: List[str] = []
-        lines.append("// Auto-generated by Procurator (DSL -> Boogie harness for GemCutter)\n")
+        if self._por_enabled and self._por_guard_enabled:
+            self._por_guards = self._compute_por_guards(node_aliases)
+        else:
+            self._por_guards = {}
+
+        if self._harness_mode == "concurrent":
+            lines: List[str] = []
+            lines.append("// Auto-generated by Procurator (DSL -> Boogie harness for GemCutter)\n")
+            if self._por_enabled and self._por_guard_enabled:
+                lines.append("// POR enabled: commutativity-based guards\n")
+            lines.append(
+                f"// Message abstraction: Bag(K={k}) using inbox_count per node; single-slot mailbox for packet fields\n\n"
+            )
+
+            if emit_helpers:
+                lines.append(self._emit_bitvector_helpers())
+
+            # A global lock to realize pass-atomic semantics without large atomic blocks.
+            # We keep atomic blocks minimal (lock acquire/release only), to avoid Ultimate's atomic composition issues.
+            lines.append("var procurator_lock: int;\n\n")
+            if self._refine_trace:
+                lines.append("var refine_force_node: int;\n\n")
+
+            # DSL locals as globals
+            if (
+                self._dsl_global_vars
+                or any(self._dsl_node_vars.get(a) for a in node_aliases)
+                or any(self._dsl_host_vars.get(h) for h in host_aliases)
+            ):
+                lines.append("// DSL state variables (modeled as Boogie globals)\n")
+                for name, typ in sorted(self._dsl_global_vars.items()):
+                    lines.append(f"var dsl_{name}: {typ};\n")
+                for n in node_aliases:
+                    for name, typ in sorted(self._dsl_node_vars.get(n, {}).items()):
+                        lines.append(f"var {n}_dsl_{name}: {typ};\n")
+                for h in host_aliases:
+                    for name, typ in sorted(self._dsl_host_vars.get(h, {}).items()):
+                        lines.append(f"var {h}_dsl_{name}: {typ};\n")
+                lines.append("\n")
+
+            reg_debug_decls = self._emit_register_debug_decls(node_aliases)
+            if reg_debug_decls:
+                lines.append("// Register debug snapshots (for trace inspection)\n")
+                lines.append(reg_debug_decls)
+                lines.append("\n")
+
+            # Inbox counters
+            for a in node_aliases + host_aliases:
+                lines.append(f"var {a}_inbox_count: int;\n")
+            lines.append("\n")
+
+            if self._two_stage_nodes:
+                lines.append("// Two-stage pipeline: pending egress events per node\n")
+                for a in node_aliases:
+                    if self._is_two_stage_node(a):
+                        lines.append(f"var {a}_egress_count: int;\n")
+                lines.append("\n")
+
+            # Single-slot mailbox classification: whether the currently-stored packet fields originated from Env injection.
+            # This lets us avoid havoc'ing forwarded packets (otherwise forwarding copy is immediately overwritten).
+            for a in node_aliases + host_aliases:
+                lines.append(f"var {a}_pkt_external: bool;\n")
+            lines.append("\n")
+
+            # Host packet fields (mirror the connected node's packet/metadata vars).
+            if host_aliases:
+                lines.append("// Host packet fields (mirrors connected node symbols)\n")
+                seen: set[str] = set()
+                for h in host_aliases:
+                    for v in self._host_input_vars.get(h, []):
+                        name = f"{h}_{v}"
+                        if name in seen:
+                            continue
+                        seen.add(name)
+                        typ = self._host_var_types.get(h, {}).get(v, "bv32")
+                        if typ == "Ref" or typ.endswith("Ref"):
+                            continue
+                        lines.append(f"var {name}: {typ};\n")
+                lines.append("\n")
+
+            # Forward procedures
+            lines.append("// Forwarding (derived from DSL topology)\n")
+            for src in node_aliases:
+                lines.append(self._emit_forward_proc(src, k))
+                lines.append("\n")
+
+            # Two-stage wrappers (if enabled)
+            stage_procs = self._emit_pipeline_stage_procs()
+            if stage_procs:
+                lines.append(stage_procs)
+
+            # Env thread (optional)
+            env_thread_enabled = self._spec.global_decl.env_thread is not False
+            if env_thread_enabled:
+                lines.append(self._emit_env_thread(k))
+                lines.append("\n")
+
+            # Node threads
+            for a in node_aliases:
+                lines.append(self._emit_node_thread(a, k))
+                lines.append("\n")
+
+            # Host threads
+            for h in host_aliases:
+                lines.append(self._emit_host_thread(h, k))
+                lines.append("\n")
+
+            # ULTIMATE.start
+            lines.append(self._emit_ultimate_start(node_aliases, host_aliases, env_thread_enabled=env_thread_enabled))
+            lines.append("\n")
+
+            return "".join(lines)
+
+        # Sequential harness: single-thread scheduler (no fork/atomic).
+        lines = []
+        lines.append("// Auto-generated by Procurator (DSL -> Boogie harness: sequential scheduler)\n")
+        if self._por_enabled and self._por_guard_enabled:
+            lines.append("// POR enabled: commutativity-based guards\n")
         lines.append(
             f"// Message abstraction: Bag(K={k}) using inbox_count per node; single-slot mailbox for packet fields\n\n"
         )
@@ -529,9 +1200,18 @@ class BoogieHarnessEmitter:
         if emit_helpers:
             lines.append(self._emit_bitvector_helpers())
 
-        # A global lock to realize pass-atomic semantics without large atomic blocks.
-        # We keep atomic blocks minimal (lock acquire/release only), to avoid Ultimate's atomic composition issues.
-        lines.append("var procurator_lock: int;\n\n")
+        # Bounded exploration (debug/benchmark): limit the number of scheduler steps.
+        max_steps = self._spec.global_decl.max_steps
+        if max_steps is None:
+            max_steps = 8
+        if max_steps <= 0:
+            raise ValueError(f"global.max_steps must be > 0, got: {max_steps}")
+        lines.append("const procurator_max_steps: int;\n")
+        lines.append(f"axiom procurator_max_steps == {max_steps};\n")
+        lines.append("var procurator_step: int;\n")
+        if self._refine_trace:
+            lines.append("var refine_force_node: int;\n")
+        lines.append("\n")
 
         # DSL locals as globals
         if (
@@ -550,13 +1230,31 @@ class BoogieHarnessEmitter:
                     lines.append(f"var {h}_dsl_{name}: {typ};\n")
             lines.append("\n")
 
+        reg_debug_decls = self._emit_register_debug_decls(node_aliases)
+        if reg_debug_decls:
+            lines.append("// Register debug snapshots (for trace inspection)\n")
+            lines.append(reg_debug_decls)
+            lines.append("\n")
+
+        trace_decls = self._emit_trace_decls(node_aliases)
+        if trace_decls:
+            lines.append("// Trace arrays (indexed by procurator_step)\n")
+            lines.append(trace_decls)
+            lines.append("\n")
+
         # Inbox counters
         for a in node_aliases + host_aliases:
             lines.append(f"var {a}_inbox_count: int;\n")
         lines.append("\n")
 
+        if self._two_stage_nodes:
+            lines.append("// Two-stage pipeline: pending egress events per node\n")
+            for a in node_aliases:
+                if self._is_two_stage_node(a):
+                    lines.append(f"var {a}_egress_count: int;\n")
+            lines.append("\n")
+
         # Single-slot mailbox classification: whether the currently-stored packet fields originated from Env injection.
-        # This lets us avoid havoc'ing forwarded packets (otherwise forwarding copy is immediately overwritten).
         for a in node_aliases + host_aliases:
             lines.append(f"var {a}_pkt_external: bool;\n")
         lines.append("\n")
@@ -564,7 +1262,7 @@ class BoogieHarnessEmitter:
         # Host packet fields (mirror the connected node's packet/metadata vars).
         if host_aliases:
             lines.append("// Host packet fields (mirrors connected node symbols)\n")
-            seen: set[str] = set()
+            seen = set()
             for h in host_aliases:
                 for v in self._host_input_vars.get(h, []):
                     name = f"{h}_{v}"
@@ -583,24 +1281,15 @@ class BoogieHarnessEmitter:
             lines.append(self._emit_forward_proc(src, k))
             lines.append("\n")
 
-        # Env thread (optional)
+        # Two-stage wrappers (if enabled)
+        stage_procs = self._emit_pipeline_stage_procs()
+        if stage_procs:
+            lines.append(stage_procs)
+
         env_thread_enabled = self._spec.global_decl.env_thread is not False
-        if env_thread_enabled:
-            lines.append(self._emit_env_thread(k))
-            lines.append("\n")
-
-        # Node threads
-        for a in node_aliases:
-            lines.append(self._emit_node_thread(a, k))
-            lines.append("\n")
-
-        # Host threads
-        for h in host_aliases:
-            lines.append(self._emit_host_thread(h, k))
-            lines.append("\n")
-
-        # ULTIMATE.start
-        lines.append(self._emit_ultimate_start(node_aliases, host_aliases, env_thread_enabled=env_thread_enabled))
+        lines.append(self._emit_sequential_main(node_aliases, host_aliases, k=k, env_thread_enabled=env_thread_enabled))
+        lines.append("\n")
+        lines.append(self._emit_sequential_start(node_aliases, host_aliases))
         lines.append("\n")
 
         return "".join(lines)
@@ -634,6 +1323,8 @@ class BoogieHarnessEmitter:
         # (Ultimate checks modifies-transitivity for calls/fork).
         dsts = sorted(set(port_map.values()) | ({wildcard_dst} if wildcard_dst else set()))
         modifies: List[str] = []
+        emit_trace = self._harness_mode == "sequential"
+        trace_types = self._trace_field_types(src) if emit_trace else {}
         for dst in dsts:
             modifies.append(f"{dst}_inbox_count")
             modifies.append(f"{dst}_pkt_external")
@@ -643,6 +1334,16 @@ class BoogieHarnessEmitter:
             for v in self._node_input_vars.get(src, []):
                 if v in src_decl and v in dst_decl:
                     modifies.append(f"{dst}_{v}")
+            if emit_trace:
+                modifies.append(self._trace_enqueue_exec_name(src, dst))
+                if "seq" in trace_types:
+                    modifies.append(self._trace_enqueue_seq_name(src, dst))
+                if "op" in trace_types:
+                    modifies.append(self._trace_enqueue_op_name(src, dst))
+                if "key" in trace_types:
+                    modifies.append(self._trace_enqueue_key_name(src, dst))
+        if self._refine_trace:
+            modifies.append("refine_force_node")
         if self._tofino_recirculate_ports:
             modifies.append(f"{src}_inbox_count")
             modifies.append(f"{src}_pkt_external")
@@ -704,6 +1405,18 @@ class BoogieHarnessEmitter:
         out.append(f"procedure {src}__enqueue_{dst}() returns()\n")
         mod: List[str] = [f"{dst}_inbox_count", f"{dst}_pkt_external"]
         mod.extend(f"{dst}_{v}" for v in copy_vars)
+        if self._refine_trace:
+            mod.append("refine_force_node")
+        emit_trace = self._harness_mode == "sequential"
+        trace_types = self._trace_field_types(src) if emit_trace else {}
+        if emit_trace:
+            mod.append(self._trace_enqueue_exec_name(src, dst))
+            if "seq" in trace_types:
+                mod.append(self._trace_enqueue_seq_name(src, dst))
+            if "op" in trace_types:
+                mod.append(self._trace_enqueue_op_name(src, dst))
+            if "key" in trace_types:
+                mod.append(self._trace_enqueue_key_name(src, dst))
         out.append("  modifies " + ", ".join(sorted(set(mod))) + ";\n")
         out.append("{\n")
         out.append(f"  assume {dst}_inbox_count < {k};\n")
@@ -712,6 +1425,17 @@ class BoogieHarnessEmitter:
             out.append(f"  {dst}_{v} := {src}_{v};\n")
         out.append(f"  {dst}_pkt_external := false;\n")
         out.append(f"  {dst}_inbox_count := {dst}_inbox_count + 1;\n")
+        if self._refine_trace:
+            node_id = self._node_ids.get(dst, 0)
+            out.append(f"  refine_force_node := {node_id};\n")
+        if emit_trace:
+            out.append(f"  {self._trace_enqueue_exec_name(src, dst)}[procurator_step] := true;\n")
+            if "seq" in trace_types:
+                out.append(f"  {self._trace_enqueue_seq_name(src, dst)}[procurator_step] := {src}_hdr.nc_hdr.seq;\n")
+            if "op" in trace_types:
+                out.append(f"  {self._trace_enqueue_op_name(src, dst)}[procurator_step] := {src}_hdr.nc_hdr.op;\n")
+            if "key" in trace_types:
+                out.append(f"  {self._trace_enqueue_key_name(src, dst)}[procurator_step] := {src}_hdr.nc_hdr.key;\n")
         out.append("}\n")
         return "".join(out)
 
@@ -719,6 +1443,15 @@ class BoogieHarnessEmitter:
         if name in self._host_declared_vars:
             return self._host_declared_vars.get(name, set())
         return self._node_declared_vars.get(name, set())
+
+    def _is_two_stage_node(self, node: str) -> bool:
+        return node in self._two_stage_nodes
+
+    def _ingress_proc_name(self, node: str) -> str:
+        return f"{node}__procurator_ingress"
+
+    def _egress_proc_name(self, node: str) -> str:
+        return f"{node}__procurator_egress"
 
     def _emit_env_thread(self, k: int) -> str:
         # Determine which nodes can receive external inputs.
@@ -757,15 +1490,136 @@ class BoogieHarnessEmitter:
         out.append("}\n")
         return "".join(out)
 
+    def _emit_pipeline_stage_procs(self) -> str:
+        if not self._two_stage_nodes:
+            return ""
+        out: List[str] = []
+        out.append("// Two-stage pipeline wrappers (split ingress/egress)\n")
+        for node in sorted(self._two_stage_nodes):
+            stages = self._node_pipeline_stages.get(node)
+            if not stages:
+                continue
+            mod = ", ".join(sorted(self._node_mainprocedure_modifies.get(node, set())))
+            ingress_name = self._ingress_proc_name(node)
+            egress_name = self._egress_proc_name(node)
+            out.append(f"procedure {ingress_name}() returns()\n")
+            if mod:
+                out.append(f"  modifies {mod};\n")
+            out.append("{\n")
+            for line in stages.ingress_lines:
+                out.append(f"  {line}\n")
+            out.append("}\n\n")
+            out.append(f"procedure {egress_name}() returns()\n")
+            if mod:
+                out.append(f"  modifies {mod};\n")
+            out.append("{\n")
+            for line in stages.egress_lines:
+                out.append(f"  {line}\n")
+            out.append("}\n\n")
+        return "".join(out)
+
+    def _emit_ingress_stage_body(
+        self,
+        node: str,
+        k: int,
+        *,
+        indent: str,
+        dsl_stmt_lines: str,
+        clone_flags: List[str],
+    ) -> str:
+        out: List[str] = []
+        if clone_flags:
+            out.append(f"{indent}// Reset clone/recirculate flags for this ingress pass.\n")
+            for flag in clone_flags:
+                out.append(f"{indent}{node}_{flag} := false;\n")
+        if dsl_stmt_lines:
+            out.append(f"{indent}// DSL statements (per-pass instrumentation)\n")
+            out.append(dsl_stmt_lines)
+        out.append(f"{indent}call {self._ingress_proc_name(node)}();\n")
+        out.append(f"{indent}// Schedule egress for the original packet.\n")
+        out.append(f"{indent}assume {node}_egress_count < {k};\n")
+        out.append(f"{indent}{node}_egress_count := {node}_egress_count + 1;\n")
+        if "p4b_clone_i2e" in clone_flags:
+            out.append(f"{indent}if ({node}_p4b_clone_i2e) {{\n")
+            out.append(f"{indent}  assume {node}_egress_count < {k};\n")
+            out.append(f"{indent}  {node}_egress_count := {node}_egress_count + 1;\n")
+            out.append(f"{indent}}}\n")
+        if "p4b_clone_i2i" in clone_flags:
+            out.append(f"{indent}if ({node}_p4b_clone_i2i) {{\n")
+            out.append(self._emit_internal_enqueue_stmt(node, k, indent=indent + "  "))
+            out.append(f"{indent}}}\n")
+        for flag in ("p4b_clone_i2e", "p4b_clone_i2i"):
+            if flag in clone_flags:
+                out.append(f"{indent}{node}_{flag} := false;\n")
+        return "".join(out)
+
+    def _emit_egress_stage_body(
+        self,
+        node: str,
+        k: int,
+        *,
+        indent: str,
+        assert_lines: str,
+        clone_flags: List[str],
+    ) -> str:
+        out: List[str] = []
+        out.append(f"{indent}call {self._egress_proc_name(node)}();\n")
+        if "p4b_clone_e2e" in clone_flags:
+            out.append(f"{indent}if ({node}_p4b_clone_e2e) {{\n")
+            out.append(f"{indent}  assume {node}_egress_count < {k};\n")
+            out.append(f"{indent}  {node}_egress_count := {node}_egress_count + 1;\n")
+            out.append(f"{indent}}}\n")
+        if "p4b_recirculate" in clone_flags:
+            out.append(f"{indent}if ({node}_p4b_recirculate) {{\n")
+            out.append(self._emit_internal_enqueue_stmt(node, k, indent=indent + "  "))
+            out.append(f"{indent}}}\n")
+        if clone_flags:
+            out.append(f"{indent}// Clear clone/recirculate flags after egress.\n")
+            for flag in clone_flags:
+                out.append(f"{indent}{node}_{flag} := false;\n")
+        out.append(f"{indent}call {node}_Forward();\n")
+        trace_lines = self._emit_trace_assignments(node, indent=indent, stage_id=2)
+        dbg_needed = bool(assert_lines or trace_lines)
+        if dbg_needed:
+            dbg = self._emit_register_debug_assignments(indent=indent)
+            if dbg:
+                out.append(f"{indent}// Register debug snapshot\n")
+                out.append(dbg)
+        if trace_lines:
+            out.append(f"{indent}// Trace snapshot\n")
+            out.append(trace_lines)
+        if assert_lines:
+            guard = self._emit_register_write_guard()
+            if guard:
+                out.append(f"{indent}if ({guard}) {{\n")
+                if self._refine_trace:
+                    out.append(f"{indent}  assume refine_force_node == 0;\n")
+                out.append(f"{indent}  // DSL assertions\n")
+                out.append(assert_lines)
+                out.append(f"{indent}}}\n")
+            else:
+                if self._refine_trace:
+                    out.append(f"{indent}assume refine_force_node == 0;\n")
+                out.append(f"{indent}// DSL assertions\n")
+                out.append(assert_lines)
+        return "".join(out)
+
     def _emit_node_thread(self, node: str, k: int) -> str:
         input_vars = self._node_input_vars.get(node, [])
 
         assert_lines = "".join(
-            f"      assert {self._expr_to_boogie(expr, current_node=node)};\n"
-            for expr in self._spec.nodes.get(node, NodeDecl(name=node)).assert_exprs
-        )
-        assert_lines += "".join(
-            f"      assert {self._expr_to_boogie(expr, current_node=node)};\n" for expr in self._spec.global_decl.assert_exprs
+            [
+                self._emit_assert_lines(
+                    self._spec.nodes.get(node, NodeDecl(name=node)).assert_exprs,
+                    indent="      ",
+                    current_node=node,
+                ),
+                self._emit_assert_lines(
+                    self._spec.global_decl.assert_exprs,
+                    indent="      ",
+                    current_node=node,
+                ),
+            ]
         )
 
         dsl_stmt_lines = self._emit_node_pass_statements(node, indent="      ")
@@ -780,12 +1634,25 @@ class BoogieHarnessEmitter:
         # DSL locals are modeled as globals and may be modified by node statements.
         modifies_set.update(f"{node}_dsl_{name}" for name in self._dsl_node_vars.get(node, {}).keys())
         modifies_set.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
+        modifies_set.update(self._collect_dsl_modified_boogie_vars(node))
+        for regs in self._node_register_arrays.values():
+            for name, (_idx_type, elem_type) in regs.items():
+                if elem_type == "Ref" or elem_type.endswith("Ref"):
+                    continue
+                modifies_set.add(self._register_debug_var_name(name))
+                modifies_set.add(self._register_last_index_dbg_name(name))
+                modifies_set.add(self._register_last_value_dbg_name(name))
+                modifies_set.add(self._register_wrote_index0_dbg_name(name))
+                modifies_set.add(self._register_last0_value_dbg_name(name))
         declared = self._node_declared_vars.get(node, set())
         clone_flags = []
         for flag in ("p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i", "p4b_recirculate"):
             if flag in declared:
                 clone_flags.append(flag)
                 modifies_set.add(f"{node}_{flag}")
+        two_stage = self._is_two_stage_node(node)
+        if two_stage:
+            modifies_set.add(f"{node}_egress_count")
         for l in self._spec.links:
             if l.src == node:
                 modifies_set.add(f"{l.dst}_inbox_count")
@@ -801,45 +1668,107 @@ class BoogieHarnessEmitter:
         out.append("  modifies " + ", ".join(sorted(modifies_set)) + ";\n")
         out.append("{\n")
         out.append("  while (true) {\n")
-        out.append("    if (*) {\n")
-        out.append("      atomic {\n")
-        out.append("        assume procurator_lock == 0;\n")
-        out.append(f"        assume {node}_inbox_count > 0;\n")
-        out.append("        procurator_lock := 1;\n")
-        out.append("      }\n")
-        out.append(f"      {node}_inbox_count := {node}_inbox_count - 1;\n")
-        if dsl_stmt_lines:
-            out.append("      // DSL statements (per-pass instrumentation)\n")
-            out.append(dsl_stmt_lines)
-        out.append(f"      call {node}_mainProcedure();\n")
-        if clone_flags:
-            out.append("      // Handle clone/recirculate flags emitted by P4B extern modeling.\n")
-            if "p4b_clone_i2e" in clone_flags:
-                out.append(f"      if ({node}_p4b_clone_i2e) {{\n")
-                out.append(f"        call {node}_Forward();\n")
-                out.append("      }\n")
-            if "p4b_clone_e2e" in clone_flags:
-                out.append(f"      if ({node}_p4b_clone_e2e) {{\n")
-                out.append(f"        call {node}_Forward();\n")
-                out.append("      }\n")
-            if "p4b_clone_i2i" in clone_flags:
-                out.append(f"      if ({node}_p4b_clone_i2i) {{\n")
-                out.append(self._emit_internal_enqueue_stmt(node, k, indent="        "))
-                out.append("      }\n")
-            if "p4b_recirculate" in clone_flags:
-                out.append(f"      if ({node}_p4b_recirculate) {{\n")
-                out.append(self._emit_internal_enqueue_stmt(node, k, indent="        "))
-                out.append("      }\n")
-            for flag in clone_flags:
-                out.append(f"      {node}_{flag} := false;\n")
-        out.append(f"      call {node}_Forward();\n")
-        if assert_lines:
-            out.append("      // DSL assertions\n")
-            out.append(assert_lines)
-        out.append("      atomic {\n")
-        out.append("        procurator_lock := 0;\n")
-        out.append("      }\n")
-        out.append("    }\n")
+        if not two_stage:
+            out.append("    if (*) {\n")
+            out.append("      atomic {\n")
+            out.append("        assume procurator_lock == 0;\n")
+            out.append(f"        assume {node}_inbox_count > 0;\n")
+            if self._por_enabled and self._por_guard_enabled:
+                guards = self._por_guards.get(node, [])
+                if guards:
+                    out.append("        // POR: prefer lower-id commuting nodes when they are ready.\n")
+                    for other in guards:
+                        out.append(f"        assume {other}_inbox_count == 0;\n")
+            out.append("        procurator_lock := 1;\n")
+            out.append("      }\n")
+            out.append(f"      {node}_inbox_count := {node}_inbox_count - 1;\n")
+            if dsl_stmt_lines:
+                out.append("      // DSL statements (per-pass instrumentation)\n")
+                out.append(dsl_stmt_lines)
+            out.append(f"      call {node}_mainProcedure();\n")
+            if clone_flags:
+                out.append("      // Handle clone/recirculate flags emitted by P4B extern modeling.\n")
+                if "p4b_clone_i2e" in clone_flags:
+                    out.append(f"      if ({node}_p4b_clone_i2e) {{\n")
+                    out.append(f"        call {node}_Forward();\n")
+                    out.append("      }\n")
+                if "p4b_clone_e2e" in clone_flags:
+                    out.append(f"      if ({node}_p4b_clone_e2e) {{\n")
+                    out.append(f"        call {node}_Forward();\n")
+                    out.append("      }\n")
+                if "p4b_clone_i2i" in clone_flags:
+                    out.append(f"      if ({node}_p4b_clone_i2i) {{\n")
+                    out.append(self._emit_internal_enqueue_stmt(node, k, indent="        "))
+                    out.append("      }\n")
+                if "p4b_recirculate" in clone_flags:
+                    out.append(f"      if ({node}_p4b_recirculate) {{\n")
+                    out.append(self._emit_internal_enqueue_stmt(node, k, indent="        "))
+                    out.append("      }\n")
+                for flag in clone_flags:
+                    out.append(f"      {node}_{flag} := false;\n")
+            out.append(f"      call {node}_Forward();\n")
+            if assert_lines:
+                dbg = self._emit_register_debug_assignments(indent="      ")
+                if dbg:
+                    out.append("      // Register debug snapshot\n")
+                    out.append(dbg)
+                if self._refine_trace:
+                    out.append("      assume refine_force_node == 0;\n")
+                out.append("      // DSL assertions\n")
+                out.append(assert_lines)
+            out.append("      atomic {\n")
+            out.append("        procurator_lock := 0;\n")
+            out.append("      }\n")
+            out.append("    }\n")
+        else:
+            # Ingress stage
+            out.append("    if (*) {\n")
+            out.append("      atomic {\n")
+            out.append("        assume procurator_lock == 0;\n")
+            out.append(f"        assume {node}_inbox_count > 0;\n")
+            if self._por_enabled and self._por_guard_enabled:
+                guards = self._por_guards.get(node, [])
+                if guards:
+                    out.append("        // POR: prefer lower-id commuting nodes when they are ready.\n")
+                    for other in guards:
+                        out.append(f"        assume {other}_inbox_count == 0;\n")
+            out.append("        procurator_lock := 1;\n")
+            out.append("      }\n")
+            out.append(f"      {node}_inbox_count := {node}_inbox_count - 1;\n")
+            out.append(
+                self._emit_ingress_stage_body(
+                    node,
+                    k,
+                    indent="      ",
+                    dsl_stmt_lines=dsl_stmt_lines,
+                    clone_flags=clone_flags,
+                )
+            )
+            out.append("      atomic {\n")
+            out.append("        procurator_lock := 0;\n")
+            out.append("      }\n")
+            out.append("    }\n")
+            # Egress stage
+            out.append("    if (*) {\n")
+            out.append("      atomic {\n")
+            out.append("        assume procurator_lock == 0;\n")
+            out.append(f"        assume {node}_egress_count > 0;\n")
+            out.append("        procurator_lock := 1;\n")
+            out.append("      }\n")
+            out.append(f"      {node}_egress_count := {node}_egress_count - 1;\n")
+            out.append(
+                self._emit_egress_stage_body(
+                    node,
+                    k,
+                    indent="      ",
+                    assert_lines=assert_lines,
+                    clone_flags=clone_flags,
+                )
+            )
+            out.append("      atomic {\n")
+            out.append("        procurator_lock := 0;\n")
+            out.append("      }\n")
+            out.append("    }\n")
         out.append("  }\n")
         out.append("}\n")
         return "".join(out)
@@ -899,8 +1828,9 @@ class BoogieHarnessEmitter:
         out.append("    if (*) {\n")
         out.append(f"      if ({host}_inbox_count > 0) {{\n")
         hd = self._spec.hosts.get(host, HostDecl(name=host))
-        for expr in hd.assert_exprs:
-            out.append(f"        assert {self._expr_to_boogie(expr, current_node=host)};\n")
+        out.append(
+            self._emit_assert_lines(hd.assert_exprs, indent="        ", current_node=host)
+        )
         out.append(f"        {host}_inbox_count := {host}_inbox_count - 1;\n")
         out.append("      }\n")
         out.append("    }\n")
@@ -919,14 +1849,31 @@ class BoogieHarnessEmitter:
         #  - variables that may be modified by forked procedures (fork behaves like a call wrt modifies checks).
         start_modifies: set[str] = set()
         start_modifies.add("procurator_lock")
+        if self._refine_trace:
+            start_modifies.add("refine_force_node")
         start_modifies.update(f"{a}_inbox_count" for a in node_aliases + host_aliases)
         start_modifies.update(f"{a}_pkt_external" for a in node_aliases + host_aliases)
+        for a in node_aliases:
+            if self._is_two_stage_node(a):
+                start_modifies.add(f"{a}_egress_count")
         # DSL locals are globals and may be initialized here.
         start_modifies.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
         for a in node_aliases:
             start_modifies.update(f"{a}_dsl_{name}" for name in self._dsl_node_vars.get(a, {}).keys())
         for h in host_aliases:
             start_modifies.update(f"{h}_dsl_{name}" for name in self._dsl_host_vars.get(h, {}).keys())
+        for a in node_aliases:
+            regs = self._node_register_arrays.get(a, {})
+            for name in regs.keys():
+                start_modifies.add(self._register_debug_var_name(name))
+                start_modifies.add(self._register_last_index_dbg_name(name))
+                start_modifies.add(self._register_last_value_dbg_name(name))
+                start_modifies.add(self._register_wrote_index0_dbg_name(name))
+                start_modifies.add(self._register_last0_value_dbg_name(name))
+                start_modifies.add(self._register_last_index_name(name))
+                start_modifies.add(self._register_last_value_name(name))
+                start_modifies.add(self._register_wrote_index0_name(name))
+                start_modifies.add(self._register_last0_value_name(name))
         for a in node_aliases:
             start_modifies.update(self._node_mainprocedure_modifies.get(a, set()))
             start_modifies.update(f"{a}_{v}" for v in self._node_input_vars.get(a, []))
@@ -948,6 +1895,11 @@ class BoogieHarnessEmitter:
         for a in node_aliases + host_aliases:
             out.append(f"  {a}_inbox_count := 0;\n")
             out.append(f"  {a}_pkt_external := false;\n")
+        for a in node_aliases:
+            if self._is_two_stage_node(a):
+                out.append(f"  {a}_egress_count := 0;\n")
+        if self._refine_trace:
+            out.append("  refine_force_node := 0;\n")
         if self._spec.global_decl.symmetry_groups:
             out.append("\n")
             out.append("  // Symmetry breaking: ordered inbox counts for equivalent nodes.\n")
@@ -962,6 +1914,14 @@ class BoogieHarnessEmitter:
         if init_lines:
             out.append("  // initialize DSL state\n")
             out.append(init_lines)
+        reg_init = self._emit_register_init_assumes(node_aliases)
+        if reg_init:
+            out.append("  // initialize P4 registers (default 0)\n")
+            out.append(reg_init)
+        reg_dbg_init = self._emit_register_write_debug_init(node_aliases)
+        if reg_dbg_init:
+            out.append("  // initialize register write tracking (debug)\n")
+            out.append(reg_dbg_init)
         out.append("\n")
         out.append("  // spawn threads\n")
         # GemCutter's Boogie concurrency syntax requires an explicit thread id:
@@ -977,6 +1937,709 @@ class BoogieHarnessEmitter:
             out.append(f"  fork {thread_id} {h}Thread();\n")
             thread_id += 1
         out.append("}\n")
+        return "".join(out)
+
+    def _compute_harness_modifies(
+        self,
+        node_aliases: List[str],
+        host_aliases: List[str],
+        *,
+        include_lock: bool,
+    ) -> set[str]:
+        mods: set[str] = set()
+        if include_lock:
+            mods.add("procurator_lock")
+        mods.update(f"{a}_inbox_count" for a in node_aliases + host_aliases)
+        mods.update(f"{a}_pkt_external" for a in node_aliases + host_aliases)
+        if self._refine_trace:
+            mods.add("refine_force_node")
+        for a in node_aliases:
+            if self._is_two_stage_node(a):
+                mods.add(f"{a}_egress_count")
+
+        mods.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
+        for a in node_aliases:
+            mods.update(f"{a}_dsl_{name}" for name in self._dsl_node_vars.get(a, {}).keys())
+        for h in host_aliases:
+            mods.update(f"{h}_dsl_{name}" for name in self._dsl_host_vars.get(h, {}).keys())
+        for a in node_aliases:
+            regs = self._node_register_arrays.get(a, {})
+            for name in regs.keys():
+                mods.add(self._register_debug_var_name(name))
+                mods.add(self._register_last_index_dbg_name(name))
+                mods.add(self._register_last_value_dbg_name(name))
+                mods.add(self._register_wrote_index0_dbg_name(name))
+                mods.add(self._register_last0_value_dbg_name(name))
+                mods.add(self._register_last_index_name(name))
+                mods.add(self._register_last_value_name(name))
+                mods.add(self._register_wrote_index0_name(name))
+                mods.add(self._register_last0_value_name(name))
+
+        if node_aliases:
+            mods.add("trace_node_id")
+            mods.add("trace_stage")
+            for node in node_aliases:
+                mods.add(self._trace_node_exec_name(node))
+                types = self._trace_field_types(node)
+                if "seq" in types:
+                    mods.add(self._trace_node_seq_name(node))
+                if "op" in types:
+                    mods.add(self._trace_node_op_name(node))
+                if "key" in types:
+                    mods.add(self._trace_node_key_name(node))
+            for regs in self._node_register_arrays.values():
+                for name in regs.keys():
+                    mods.add(self._trace_reg_dbg0_name(name))
+                    mods.add(self._trace_reg_wrote_index0_name(name))
+                    mods.add(self._trace_reg_last0_value_name(name))
+            for link in self._spec.links:
+                mods.add(self._trace_enqueue_exec_name(link.src, link.dst))
+                types = self._trace_field_types(link.src)
+                if "seq" in types:
+                    mods.add(self._trace_enqueue_seq_name(link.src, link.dst))
+                if "op" in types:
+                    mods.add(self._trace_enqueue_op_name(link.src, link.dst))
+                if "key" in types:
+                    mods.add(self._trace_enqueue_key_name(link.src, link.dst))
+
+        for a in node_aliases:
+            mods.update(self._node_mainprocedure_modifies.get(a, set()))
+            mods.update(f"{a}_{v}" for v in self._node_input_vars.get(a, []))
+        for h in host_aliases:
+            mods.update(f"{h}_{v}" for v in self._host_input_vars.get(h, []))
+
+        for l in self._spec.links:
+            mods.add(f"{l.dst}_inbox_count")
+            mods.add(f"{l.dst}_pkt_external")
+            dst_decl = self._get_declared_vars(l.dst)
+            for v in self._node_input_vars.get(l.src, []):
+                if v in self._node_declared_vars.get(l.src, set()) and v in dst_decl:
+                    mods.add(f"{l.dst}_{v}")
+
+        return mods
+
+    def _emit_register_init_assumes(self, node_aliases: List[str]) -> str:
+        out: List[str] = []
+        for node in node_aliases:
+            regs = self._node_register_arrays.get(node, {})
+            for name, (idx_type, elem_type) in sorted(regs.items()):
+                if elem_type == "bool":
+                    zero = "false"
+                elif elem_type.startswith("bv") and elem_type[2:].isdigit():
+                    zero = f"0{elem_type}"
+                else:
+                    zero = "0"
+                out.append(f"  assume (forall i:{idx_type} :: {name}[i] == {zero});\n")
+                idx_zero = self._render_index_zero(idx_type)
+                out.append(f"  assume {name}[{idx_zero}] == {zero};\n")
+        return "".join(out)
+
+    @staticmethod
+    def _register_debug_var_name(reg_name: str) -> str:
+        return f"{reg_name}__dbg0"
+
+    @staticmethod
+    def _register_last_index_name(reg_name: str) -> str:
+        return f"{reg_name}__last_index"
+
+    @staticmethod
+    def _register_last_value_name(reg_name: str) -> str:
+        return f"{reg_name}__last_value"
+
+    @staticmethod
+    def _register_wrote_index0_name(reg_name: str) -> str:
+        return f"{reg_name}__wrote_index0"
+
+    @staticmethod
+    def _register_last0_value_name(reg_name: str) -> str:
+        return f"{reg_name}__last0_value"
+
+    @staticmethod
+    def _register_last_index_dbg_name(reg_name: str) -> str:
+        return f"{reg_name}__last_index__dbg"
+
+    @staticmethod
+    def _register_last_value_dbg_name(reg_name: str) -> str:
+        return f"{reg_name}__last_value__dbg"
+
+    @staticmethod
+    def _register_wrote_index0_dbg_name(reg_name: str) -> str:
+        return f"{reg_name}__wrote_index0__dbg"
+
+    @staticmethod
+    def _register_last0_value_dbg_name(reg_name: str) -> str:
+        return f"{reg_name}__last0_value__dbg"
+
+    @staticmethod
+    def _trace_node_exec_name(node: str) -> str:
+        return f"trace_{node}_exec"
+
+    @staticmethod
+    def _trace_node_seq_name(node: str) -> str:
+        return f"trace_{node}_seq"
+
+    @staticmethod
+    def _trace_node_op_name(node: str) -> str:
+        return f"trace_{node}_op"
+
+    @staticmethod
+    def _trace_node_key_name(node: str) -> str:
+        return f"trace_{node}_key"
+
+    @staticmethod
+    def _trace_reg_dbg0_name(reg_name: str) -> str:
+        return f"trace_{reg_name}__dbg0"
+
+    @staticmethod
+    def _trace_reg_wrote_index0_name(reg_name: str) -> str:
+        return f"trace_{reg_name}__wrote_index0"
+
+    @staticmethod
+    def _trace_reg_last0_value_name(reg_name: str) -> str:
+        return f"trace_{reg_name}__last0_value"
+
+    @staticmethod
+    def _trace_enqueue_exec_name(src: str, dst: str) -> str:
+        return f"trace_enq_{src}_{dst}_exec"
+
+    @staticmethod
+    def _trace_enqueue_seq_name(src: str, dst: str) -> str:
+        return f"trace_enq_{src}_{dst}_seq"
+
+    @staticmethod
+    def _trace_enqueue_op_name(src: str, dst: str) -> str:
+        return f"trace_enq_{src}_{dst}_op"
+
+    @staticmethod
+    def _trace_enqueue_key_name(src: str, dst: str) -> str:
+        return f"trace_enq_{src}_{dst}_key"
+
+    def _trace_field_types(self, node: str) -> Dict[str, str]:
+        fields = {
+            "seq": "hdr.nc_hdr.seq",
+            "op": "hdr.nc_hdr.op",
+            "key": "hdr.nc_hdr.key",
+        }
+        out: Dict[str, str] = {}
+        for label, base in fields.items():
+            width = self._infer_bv_width_for_node(node, base)
+            if width is None:
+                continue
+            out[label] = f"bv{width}"
+        return out
+
+    def _emit_trace_decls(self, node_aliases: List[str]) -> str:
+        out: List[str] = []
+        if not node_aliases:
+            return ""
+        out.append("var trace_node_id: [int]int;\n")
+        out.append("var trace_stage: [int]int;\n")
+        for node in node_aliases:
+            out.append(f"var {self._trace_node_exec_name(node)}: [int]bool;\n")
+            types = self._trace_field_types(node)
+            if "seq" in types:
+                out.append(f"var {self._trace_node_seq_name(node)}: [int]{types['seq']};\n")
+            if "op" in types:
+                out.append(f"var {self._trace_node_op_name(node)}: [int]{types['op']};\n")
+            if "key" in types:
+                out.append(f"var {self._trace_node_key_name(node)}: [int]{types['key']};\n")
+        for regs in self._node_register_arrays.values():
+            for name, (_, elem_type) in sorted(regs.items()):
+                out.append(f"var {self._trace_reg_dbg0_name(name)}: [int]{elem_type};\n")
+                out.append(f"var {self._trace_reg_wrote_index0_name(name)}: [int]bool;\n")
+                out.append(f"var {self._trace_reg_last0_value_name(name)}: [int]{elem_type};\n")
+        for link in self._spec.links:
+            types = self._trace_field_types(link.src)
+            out.append(f"var {self._trace_enqueue_exec_name(link.src, link.dst)}: [int]bool;\n")
+            if "seq" in types:
+                out.append(f"var {self._trace_enqueue_seq_name(link.src, link.dst)}: [int]{types['seq']};\n")
+            if "op" in types:
+                out.append(f"var {self._trace_enqueue_op_name(link.src, link.dst)}: [int]{types['op']};\n")
+            if "key" in types:
+                out.append(f"var {self._trace_enqueue_key_name(link.src, link.dst)}: [int]{types['key']};\n")
+        return "".join(out)
+
+    def _emit_trace_step_reset(self, node_aliases: List[str], *, indent: str) -> str:
+        if not node_aliases:
+            return ""
+        out: List[str] = []
+        out.append(f"{indent}trace_node_id[procurator_step] := 0;\n")
+        out.append(f"{indent}trace_stage[procurator_step] := 0;\n")
+        for node in node_aliases:
+            out.append(f"{indent}{self._trace_node_exec_name(node)}[procurator_step] := false;\n")
+        for link in self._spec.links:
+            out.append(
+                f"{indent}{self._trace_enqueue_exec_name(link.src, link.dst)}[procurator_step] := false;\n"
+            )
+        return "".join(out)
+
+    def _emit_trace_assignments(self, node: str, *, indent: str, stage_id: int) -> str:
+        if self._harness_mode != "sequential":
+            return ""
+        if not node:
+            return ""
+        out: List[str] = []
+        node_id = getattr(self, "_trace_node_ids", {}).get(node, 0)
+        out.append(f"{indent}trace_node_id[procurator_step] := {node_id};\n")
+        out.append(f"{indent}trace_stage[procurator_step] := {stage_id};\n")
+        out.append(f"{indent}{self._trace_node_exec_name(node)}[procurator_step] := true;\n")
+        types = self._trace_field_types(node)
+        if "seq" in types:
+            out.append(f"{indent}{self._trace_node_seq_name(node)}[procurator_step] := {node}_hdr.nc_hdr.seq;\n")
+        if "op" in types:
+            out.append(f"{indent}{self._trace_node_op_name(node)}[procurator_step] := {node}_hdr.nc_hdr.op;\n")
+        if "key" in types:
+            out.append(f"{indent}{self._trace_node_key_name(node)}[procurator_step] := {node}_hdr.nc_hdr.key;\n")
+        regs = self._node_register_arrays.get(node, {})
+        for name in sorted(regs.keys()):
+            out.append(
+                f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {self._register_debug_var_name(name)};\n"
+            )
+            out.append(
+                f"{indent}{self._trace_reg_wrote_index0_name(name)}[procurator_step] := {self._register_wrote_index0_name(name)};\n"
+            )
+            out.append(
+                f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {self._register_last0_value_name(name)};\n"
+            )
+        return "".join(out)
+
+    def _render_index_zero(self, idx_type: str) -> str:
+        idx_type = idx_type.strip()
+        if idx_type.startswith("bv") and idx_type[2:].isdigit():
+            return f"0{idx_type}"
+        return "0"
+
+    def _render_value_zero(self, elem_type: str) -> str:
+        elem_type = elem_type.strip()
+        if elem_type == "bool":
+            return "false"
+        if elem_type.startswith("bv") and elem_type[2:].isdigit():
+            return f"0{elem_type}"
+        return "0"
+
+    def _emit_register_debug_decls(self, node_aliases: List[str]) -> str:
+        out: List[str] = []
+        for node in node_aliases:
+            regs = self._node_register_arrays.get(node, {})
+            for name, (idx_type, elem_type) in sorted(regs.items()):
+                if elem_type == "Ref" or elem_type.endswith("Ref"):
+                    continue
+                dbg = self._register_debug_var_name(name)
+                out.append(f"var {dbg}: {elem_type};\n")
+                out.append(f"var {self._register_last_index_dbg_name(name)}: {idx_type};\n")
+                out.append(f"var {self._register_last_value_dbg_name(name)}: {elem_type};\n")
+                out.append(f"var {self._register_wrote_index0_dbg_name(name)}: bool;\n")
+                out.append(f"var {self._register_last0_value_dbg_name(name)}: {elem_type};\n")
+        return "".join(out)
+
+    def _emit_register_debug_assignments(self, *, indent: str) -> str:
+        out: List[str] = []
+        for regs in self._node_register_arrays.values():
+            for name, (idx_type, elem_type) in sorted(regs.items()):
+                if elem_type == "Ref" or elem_type.endswith("Ref"):
+                    continue
+                dbg = self._register_debug_var_name(name)
+                idx_zero = self._render_index_zero(idx_type)
+                out.append(f"{indent}{dbg} := {name}[{idx_zero}];\n")
+                out.append(f"{indent}{self._register_last_index_dbg_name(name)} := {self._register_last_index_name(name)};\n")
+                out.append(f"{indent}{self._register_last_value_dbg_name(name)} := {self._register_last_value_name(name)};\n")
+                out.append(f"{indent}{self._register_wrote_index0_dbg_name(name)} := {self._register_wrote_index0_name(name)};\n")
+                out.append(f"{indent}{self._register_last0_value_dbg_name(name)} := {self._register_last0_value_name(name)};\n")
+        return "".join(out)
+
+    def _emit_register_write_debug_init(self, node_aliases: List[str]) -> str:
+        out: List[str] = []
+        for node in node_aliases:
+            regs = self._node_register_arrays.get(node, {})
+            for name, (idx_type, elem_type) in sorted(regs.items()):
+                idx_zero = self._render_index_zero(idx_type)
+                val_zero = self._render_value_zero(elem_type)
+                out.append(f"  {self._register_last_index_name(name)} := {idx_zero};\n")
+                out.append(f"  {self._register_last_value_name(name)} := {val_zero};\n")
+                out.append(f"  {self._register_wrote_index0_name(name)} := false;\n")
+                out.append(f"  {self._register_last0_value_name(name)} := {val_zero};\n")
+        return "".join(out)
+
+    def _emit_register_write_guard(self) -> Optional[str]:
+        guards: List[str] = []
+        for regs in self._node_register_arrays.values():
+            for name in sorted(regs.keys()):
+                guards.append(self._register_wrote_index0_name(name))
+        if not guards:
+            return None
+        return " || ".join(guards)
+
+    def _emit_assert_lines(self, exprs: Sequence[Tree], *, indent: str, current_node: str) -> str:
+        out: List[str] = []
+        for expr in exprs:
+            bpl = self._expr_to_boogie(expr, current_node=current_node, prefer_reg_dbg=True)
+            if self._feasibility_check:
+                out.append(f"{indent}assume !({bpl});\n")
+                out.append(f"{indent}assert false;\n")
+            else:
+                out.append(f"{indent}assert {bpl};\n")
+        return "".join(out)
+
+    def _emit_sequential_main(
+        self,
+        node_aliases: List[str],
+        host_aliases: List[str],
+        *,
+        k: int,
+        env_thread_enabled: bool,
+    ) -> str:
+        """
+        Emit a single-thread scheduler as:
+          - `main()` performs exactly one atomic step (one env injection / one node pass / one host action / idle).
+          - `mainProcedure()` initializes state once, then loops forever calling `main()`.
+
+        This is intended to be compatible with sequential Ultimate toolchains (no fork/atomic).
+        """
+        self._trace_node_ids = {n: i + 1 for i, n in enumerate(node_aliases)}
+        mods = self._compute_harness_modifies(node_aliases, host_aliases, include_lock=False)
+        mods.add("procurator_step")
+
+        actions: List[tuple[str, str]] = []
+        if env_thread_enabled:
+            nodes = list(self._spec.imports.keys())
+            marked = [n for n in nodes if self._spec.nodes.get(n, NodeDecl(name=n)).external_input is True]
+            inject_targets = marked if marked else nodes  # compatibility fallback
+            for n in inject_targets:
+                actions.append(("env_inject", n))
+        for h in host_aliases:
+            actions.append(("host_send", h))
+        for h in host_aliases:
+            actions.append(("host_recv", h))
+        for n in node_aliases:
+            if self._is_two_stage_node(n):
+                actions.append(("node_ingress", n))
+                actions.append(("node_egress", n))
+            else:
+                actions.append(("node_pass", n))
+
+        out: List[str] = []
+
+        out.append("procedure main() returns()\n")
+        if mods:
+            out.append("  modifies " + ", ".join(sorted(mods)) + ";\n")
+        out.append("{\n")
+        out.append("  // One scheduler step: pick exactly one action.\n")
+        if self._spec.global_decl.deterministic_scheduler is True:
+            out.append("  // Scheduler: deterministic round-robin over the action list.\n")
+
+        indent = "    "
+        trace_reset = self._emit_trace_step_reset(node_aliases, indent=indent)
+        if trace_reset:
+            out.append(f"{indent}// Reset trace flags for this step.\n")
+            out.append(trace_reset)
+
+        deterministic = self._spec.global_decl.deterministic_scheduler is True
+        period = len(actions) if actions else 0
+        for i, (kind, name) in enumerate(actions):
+            if deterministic:
+                cond = f"(procurator_step % {period} == {i})"
+                head = f"if {cond}" if i == 0 else f"}} else if {cond}"
+            else:
+                head = "if (*)" if i == 0 else "} else if (*)"
+            out.append("  " + head + " {\n")
+            if self._refine_trace:
+                if kind in {"node_pass", "node_ingress"}:
+                    node_id = self._node_ids.get(name, 0)
+                    out.append(f"{indent}if (refine_force_node != 0) {{\n")
+                    out.append(f"{indent}  assume refine_force_node == {node_id};\n")
+                    out.append(f"{indent}  refine_force_node := 0;\n")
+                    out.append(f"{indent}}}\n")
+                else:
+                    out.append(f"{indent}if (refine_force_node != 0) {{\n")
+                    out.append(f"{indent}  assume false;\n")
+                    out.append(f"{indent}}}\n")
+            if kind == "env_inject":
+                out.append(f"{indent}// env inject -> {name}\n")
+                out.append(self._emit_external_enqueue_stmt(name, k, indent=indent))
+            elif kind == "host_send":
+                out.append(f"{indent}// host send -> {name}\n")
+                out.append(self._emit_sequential_host_send_step(name, k=k, indent=indent))
+            elif kind == "host_recv":
+                out.append(f"{indent}// host recv -> {name}\n")
+                out.append(self._emit_sequential_host_recv_step(name, indent=indent))
+            elif kind == "node_pass":
+                out.append(f"{indent}// node pass -> {name}\n")
+                out.append(self._emit_sequential_node_pass_step(name, k=k, indent=indent))
+            elif kind == "node_ingress":
+                out.append(f"{indent}// node ingress -> {name}\n")
+                out.append(self._emit_sequential_node_ingress_step(name, k=k, indent=indent))
+            elif kind == "node_egress":
+                out.append(f"{indent}// node egress -> {name}\n")
+                out.append(self._emit_sequential_node_egress_step(name, k=k, indent=indent))
+            else:
+                raise AssertionError(f"unhandled sequential action: {kind}")
+
+        if actions:
+            out.append("  } else {\n")
+            if deterministic:
+                out.append(f"{indent}assume false;\n")
+            else:
+                out.append(f"{indent}// idle\n")
+            out.append("  }\n")
+
+        out.append("}\n")
+        out.append("\n")
+
+        # mainProcedure: one-time init + infinite loop
+        out.append("procedure mainProcedure() returns()\n")
+        if mods:
+            out.append("  modifies " + ", ".join(sorted(mods)) + ";\n")
+        out.append("{\n")
+        out.append("  // initialize inboxes\n")
+        for a in node_aliases + host_aliases:
+            out.append(f"  {a}_inbox_count := 0;\n")
+            out.append(f"  {a}_pkt_external := false;\n")
+        if self._two_stage_nodes:
+            out.append("  // initialize pending egress counters\n")
+            for a in node_aliases:
+                if self._is_two_stage_node(a):
+                    out.append(f"  {a}_egress_count := 0;\n")
+        if self._spec.global_decl.symmetry_groups:
+            out.append("\n")
+            out.append("  // Symmetry breaking: ordered inbox counts for equivalent nodes.\n")
+            for group in self._spec.global_decl.symmetry_groups:
+                if len(group) < 2:
+                    continue
+                for left, right in zip(group, group[1:]):
+                    out.append(f"  assume {left}_inbox_count <= {right}_inbox_count;\n")
+        out.append("\n")
+
+        init_lines = self._emit_global_init_statements(node_aliases)
+        if init_lines:
+            out.append("  // initialize DSL state\n")
+            out.append(init_lines)
+        reg_init = self._emit_register_init_assumes(node_aliases)
+        if reg_init:
+            out.append("  // initialize P4 registers (default 0)\n")
+            out.append(reg_init)
+        reg_dbg_init = self._emit_register_write_debug_init(node_aliases)
+        if reg_dbg_init:
+            out.append("  // initialize register write tracking (debug)\n")
+            out.append(reg_dbg_init)
+        out.append("\n")
+
+        out.append("  procurator_step := 0;\n")
+        if self._refine_trace:
+            out.append("  refine_force_node := 0;\n")
+        out.append("  while (procurator_step < procurator_max_steps) {\n")
+        out.append("    call main();\n")
+        out.append("    procurator_step := procurator_step + 1;\n")
+        out.append("  }\n")
+        out.append("}\n")
+
+        return "".join(out)
+
+    def _emit_sequential_start(
+        self,
+        node_aliases: List[str],
+        host_aliases: List[str],
+    ) -> str:
+        # Keep ULTIMATE.start as entry for existing scripts/toolchains; the real init happens in mainProcedure.
+        mods = self._compute_harness_modifies(node_aliases, host_aliases, include_lock=False)
+        mods.add("procurator_step")
+        out: List[str] = []
+        out.append("procedure ULTIMATE.start() returns()\n")
+        if mods:
+            out.append("  modifies " + ", ".join(sorted(mods)) + ";\n")
+        out.append("{\n")
+        out.append("  call mainProcedure();\n")
+        out.append("}\n")
+        return "".join(out)
+
+    def _emit_sequential_host_send_step(self, host: str, *, k: int, indent: str) -> str:
+        target = self._host_to_node.get(host)
+        if not target:
+            return f"{indent}assume false;\n"
+
+        host_vars = self._host_input_vars.get(host, [])
+        host_decl = self._host_declared_vars.get(host, set())
+        target_decl = self._node_declared_vars.get(target, set())
+        copy_vars: List[str] = [v for v in host_vars if v in host_decl and v in target_decl]
+
+        out: List[str] = []
+        out.append(f"{indent}assume {target}_inbox_count < {k};\n")
+        # Create a fresh packet for this host send.
+        for v in host_vars:
+            out.append(f"{indent}havoc {host}_{v};\n")
+        if not self._max_env_inputs:
+            env_lines = self._emit_host_env_inject_statements(host, indent=indent)
+            if env_lines:
+                out.append(env_lines)
+            hd = self._spec.hosts.get(host, HostDecl(name=host))
+            for expr in hd.assume_exprs:
+                out.append(f"{indent}assume {self._expr_to_boogie(expr, current_node=host)};\n")
+            for expr in self._spec.global_decl.assume_exprs:
+                out.append(f"{indent}assume {self._expr_to_boogie(expr, current_node=host)};\n")
+        for v in copy_vars:
+            out.append(f"{indent}{target}_{v} := {host}_{v};\n")
+        out.append(f"{indent}{target}_pkt_external := true;\n")
+        out.append(f"{indent}{target}_inbox_count := {target}_inbox_count + 1;\n")
+        return "".join(out)
+
+    def _emit_sequential_host_recv_step(self, host: str, *, indent: str) -> str:
+        out: List[str] = []
+        out.append(f"{indent}assume {host}_inbox_count > 0;\n")
+        hd = self._spec.hosts.get(host, HostDecl(name=host))
+        out.append(self._emit_assert_lines(hd.assert_exprs, indent=indent, current_node=host))
+        out.append(f"{indent}{host}_inbox_count := {host}_inbox_count - 1;\n")
+        return "".join(out)
+
+    def _emit_sequential_node_pass_step(self, node: str, *, k: int, indent: str) -> str:
+        input_vars = self._node_input_vars.get(node, [])
+
+        assert_lines = "".join(
+            [
+                self._emit_assert_lines(
+                    self._spec.nodes.get(node, NodeDecl(name=node)).assert_exprs,
+                    indent=indent,
+                    current_node=node,
+                ),
+                self._emit_assert_lines(
+                    self._spec.global_decl.assert_exprs,
+                    indent=indent,
+                    current_node=node,
+                ),
+            ]
+        )
+
+        dsl_stmt_lines = self._emit_node_pass_statements(node, indent=indent)
+
+        declared = self._node_declared_vars.get(node, set())
+        clone_flags = []
+        for flag in ("p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i", "p4b_recirculate"):
+            if flag in declared:
+                clone_flags.append(flag)
+
+        out: List[str] = []
+        out.append(f"{indent}assume {node}_inbox_count > 0;\n")
+        if self._por_enabled and self._por_guard_enabled:
+            guards = self._por_guards.get(node, [])
+            if guards:
+                out.append(f"{indent}// POR: prefer lower-id commuting nodes when they are ready.\n")
+                for other in guards:
+                    out.append(f"{indent}assume {other}_inbox_count == 0;\n")
+        out.append(f"{indent}{node}_inbox_count := {node}_inbox_count - 1;\n")
+        if dsl_stmt_lines:
+            out.append(f"{indent}// DSL statements (per-pass instrumentation)\n")
+            out.append(dsl_stmt_lines)
+        out.append(f"{indent}call {node}_mainProcedure();\n")
+        if clone_flags:
+            out.append(f"{indent}// Handle clone/recirculate flags emitted by P4B extern modeling.\n")
+            if "p4b_clone_i2e" in clone_flags:
+                out.append(f"{indent}if ({node}_p4b_clone_i2e) {{\n")
+                out.append(f"{indent}  call {node}_Forward();\n")
+                out.append(f"{indent}}}\n")
+            if "p4b_clone_e2e" in clone_flags:
+                out.append(f"{indent}if ({node}_p4b_clone_e2e) {{\n")
+                out.append(f"{indent}  call {node}_Forward();\n")
+                out.append(f"{indent}}}\n")
+            if "p4b_clone_i2i" in clone_flags:
+                out.append(f"{indent}if ({node}_p4b_clone_i2i) {{\n")
+                out.append(self._emit_internal_enqueue_stmt(node, k, indent=indent + "  "))
+                out.append(f"{indent}}}\n")
+            if "p4b_recirculate" in clone_flags:
+                out.append(f"{indent}if ({node}_p4b_recirculate) {{\n")
+                out.append(self._emit_internal_enqueue_stmt(node, k, indent=indent + "  "))
+                out.append(f"{indent}}}\n")
+            for flag in clone_flags:
+                out.append(f"{indent}{node}_{flag} := false;\n")
+        out.append(f"{indent}call {node}_Forward();\n")
+        trace_lines = self._emit_trace_assignments(node, indent=indent, stage_id=3)
+        dbg_needed = bool(assert_lines or trace_lines)
+        if dbg_needed:
+            dbg = self._emit_register_debug_assignments(indent=indent)
+            if dbg:
+                out.append(f"{indent}// Register debug snapshot\n")
+                out.append(dbg)
+        if trace_lines:
+            out.append(f"{indent}// Trace snapshot\n")
+            out.append(trace_lines)
+        if assert_lines:
+            guard = self._emit_register_write_guard()
+            if guard:
+                out.append(f"{indent}if ({guard}) {{\n")
+                if self._refine_trace:
+                    out.append(f"{indent}  assume refine_force_node == 0;\n")
+                out.append(f"{indent}  // DSL assertions\n")
+                out.append(assert_lines)
+                out.append(f"{indent}}}\n")
+            else:
+                if self._refine_trace:
+                    out.append(f"{indent}assume refine_force_node == 0;\n")
+                out.append(f"{indent}// DSL assertions\n")
+                out.append(assert_lines)
+        return "".join(out)
+
+    def _emit_sequential_node_ingress_step(self, node: str, *, k: int, indent: str) -> str:
+        dsl_stmt_lines = self._emit_node_pass_statements(node, indent=indent)
+        declared = self._node_declared_vars.get(node, set())
+        clone_flags = [f for f in ("p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i", "p4b_recirculate") if f in declared]
+
+        out: List[str] = []
+        out.append(f"{indent}assume {node}_inbox_count > 0;\n")
+        if self._por_enabled and self._por_guard_enabled:
+            guards = self._por_guards.get(node, [])
+            if guards:
+                out.append(f"{indent}// POR: prefer lower-id commuting nodes when they are ready.\n")
+                for other in guards:
+                    out.append(f"{indent}assume {other}_inbox_count == 0;\n")
+        out.append(f"{indent}{node}_inbox_count := {node}_inbox_count - 1;\n")
+        out.append(
+            self._emit_ingress_stage_body(
+                node,
+                k,
+                indent=indent,
+                dsl_stmt_lines=dsl_stmt_lines,
+                clone_flags=clone_flags,
+            )
+        )
+        trace_lines = self._emit_trace_assignments(node, indent=indent, stage_id=1)
+        dbg_needed = bool(trace_lines)
+        if dbg_needed:
+            dbg = self._emit_register_debug_assignments(indent=indent)
+            if dbg:
+                out.append(f"{indent}// Register debug snapshot\n")
+                out.append(dbg)
+        if trace_lines:
+            out.append(f"{indent}// Trace snapshot\n")
+            out.append(trace_lines)
+        return "".join(out)
+
+    def _emit_sequential_node_egress_step(self, node: str, *, k: int, indent: str) -> str:
+        assert_lines = "".join(
+            [
+                self._emit_assert_lines(
+                    self._spec.nodes.get(node, NodeDecl(name=node)).assert_exprs,
+                    indent=indent,
+                    current_node=node,
+                ),
+                self._emit_assert_lines(
+                    self._spec.global_decl.assert_exprs,
+                    indent=indent,
+                    current_node=node,
+                ),
+            ]
+        )
+        declared = self._node_declared_vars.get(node, set())
+        clone_flags = [f for f in ("p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i", "p4b_recirculate") if f in declared]
+
+        out: List[str] = []
+        out.append(f"{indent}assume {node}_egress_count > 0;\n")
+        out.append(f"{indent}{node}_egress_count := {node}_egress_count - 1;\n")
+        out.append(
+            self._emit_egress_stage_body(
+                node,
+                k,
+                indent=indent,
+                assert_lines=assert_lines,
+                clone_flags=clone_flags,
+            )
+        )
         return "".join(out)
 
     def _emit_external_enqueue_stmt(self, dst: str, k: int, indent: str) -> str:
@@ -1012,7 +2675,7 @@ class BoogieHarnessEmitter:
             return f"{port}bv{m.group(1)}"
         return port
 
-    def _expr_to_boogie(self, expr: Tree, current_node: str) -> str:
+    def _expr_to_boogie(self, expr: Tree, current_node: str, *, prefer_reg_dbg: bool = False) -> str:
         """
         Translate a DSL boolean/arithmetic expression Tree to Boogie.
         This is intentionally minimal (enough for assume/assert constraints).
@@ -1027,9 +2690,14 @@ class BoogieHarnessEmitter:
         if t == "false":
             return "false"
         if t == "var":
-            return self._expr_to_boogie(ch[0], current_node=current_node)
+            return self._expr_to_boogie(ch[0], current_node=current_node, prefer_reg_dbg=prefer_reg_dbg)
         if t == "dotted_var":
-            return self._dotted_var_to_boogie(expr, current_node=current_node)
+            name = self._dotted_var_to_boogie(expr, current_node=current_node)
+            if prefer_reg_dbg:
+                mapped = self._map_register_zero_to_dbg(name)
+                if mapped is not None:
+                    return mapped
+            return name
 
         op_map = {
             "add": "+",
@@ -1049,7 +2717,7 @@ class BoogieHarnessEmitter:
             # Lark may include operator tokens; ignore non-Tree children.
             expr_children = [c for c in ch if isinstance(c, Tree)]
             if t in {"and_op", "or_op"} and len(expr_children) >= 2:
-                rendered = [self._expr_to_boogie(e, current_node) for e in expr_children]
+                rendered = [self._expr_to_boogie(e, current_node, prefer_reg_dbg=prefer_reg_dbg) for e in expr_children]
                 joiner = f" {op_map[t]} "
                 return f"({joiner.join(rendered)})"
             if len(expr_children) == 2:
@@ -1064,8 +2732,8 @@ class BoogieHarnessEmitter:
 
                 ul = unwrap_var(lhs) if isinstance(lhs, Tree) else lhs
                 ur = unwrap_var(rhs) if isinstance(rhs, Tree) else rhs
-                lhs_render = self._expr_to_boogie(lhs, current_node)
-                rhs_render = self._expr_to_boogie(rhs, current_node)
+                lhs_render = self._expr_to_boogie(lhs, current_node, prefer_reg_dbg=prefer_reg_dbg)
+                rhs_render = self._expr_to_boogie(rhs, current_node, prefer_reg_dbg=prefer_reg_dbg)
                 if t in {"eq", "neq", "less", "less_eq", "greater", "greater_eq"}:
                     if (
                         isinstance(ul, Tree)
@@ -1113,7 +2781,7 @@ class BoogieHarnessEmitter:
                     if (wl, wr) in {(16, 16), (32, 32)}:
                         a = lhs_render
                         b = rhs_render
-                        le_fn = f"bvule.bv{wl}"
+                        le_fn = f"bvule.bv{wl}$builtin"
                         if t == "greater_eq":
                             return f"{le_fn}({b}, {a})"
                         if t == "greater":
@@ -1127,11 +2795,11 @@ class BoogieHarnessEmitter:
         if t == "not_op":
             expr_children = [c for c in ch if isinstance(c, Tree)]
             if len(expr_children) == 1:
-                return f"!({self._expr_to_boogie(expr_children[0], current_node)})"
+                return f"!({self._expr_to_boogie(expr_children[0], current_node, prefer_reg_dbg=prefer_reg_dbg)})"
 
         # LTL unary ops may appear in assume/assert blocks in some specs; keep best-effort
         if t in {"always_op", "eventually_op"} and len(ch) >= 1:
-            return self._expr_to_boogie(ch[-1], current_node=current_node)
+            return self._expr_to_boogie(ch[-1], current_node=current_node, prefer_reg_dbg=prefer_reg_dbg)
 
         return "true"
 
@@ -1174,6 +2842,24 @@ class BoogieHarnessEmitter:
 
         base = resolve_declared(node_name, base)
         return f"{node_name}_{base}" if not cur.startswith(f"{node_name}_") else f"{node_name}_{base}"
+
+    def _map_register_zero_to_dbg(self, name: str) -> Optional[str]:
+        """
+        If the expression refers to a register array element at index 0, map it to the
+        debug snapshot variable to avoid heavy array reasoning in assertions.
+        """
+        if "[" not in name or not name.endswith("]"):
+            return None
+        base, idx = name.split("[", 1)
+        idx = idx.rstrip("]")
+        idx_norm = idx.strip()
+        if idx_norm not in {"0", "0bv32", "0bv16"}:
+            return None
+        for regs in self._node_register_arrays.values():
+            for reg_name in regs.keys():
+                if base == reg_name:
+                    return self._register_debug_var_name(reg_name)
+        return None
 
     def _emit_global_init_statements(self, node_aliases: List[str]) -> str:
         """
@@ -1290,6 +2976,56 @@ class BoogieHarnessEmitter:
                 emit_stmt(stmt, indent)
 
         return "".join(out)
+
+    def _collect_dsl_modified_boogie_vars(self, node: str) -> set[str]:
+        """
+        Collect Boogie globals that may be modified by per-pass DSL statements in `node`.
+
+        This is used to conservatively populate `modifies` clauses for node threads, so
+        Ultimate's Boogie type checker accepts cross-node instrumentation like:
+          node s1 { if (...) { s2_sequence_reg_0[0] = 65535; } }
+        """
+        nd = self._spec.nodes.get(node, NodeDecl(name=node))
+        out: set[str] = set()
+
+        def add_lhs(lhs_tree: Tree) -> None:
+            lhs_name = self._dotted_var_to_str(lhs_tree)
+            if _dsl_is_simple_local_name(lhs_name) and lhs_name in self._dsl_node_vars.get(node, {}):
+                out.add(f"{node}_dsl_{lhs_name}")
+                return
+            if _dsl_is_simple_local_name(lhs_name) and lhs_name in self._dsl_global_vars:
+                out.add(f"dsl_{lhs_name}")
+                return
+            lhs = self._dotted_var_to_boogie(lhs_tree, current_node=node)
+            base = lhs.split("[", 1)[0] if "[" in lhs else lhs
+            out.add(base)
+
+        def visit(stmt: Tree) -> None:
+            st = str(stmt.data)
+            if st == "var_decl":
+                return
+            if st == "assignment":
+                lhs_tree = stmt.children[0]
+                if isinstance(lhs_tree, Tree):
+                    add_lhs(lhs_tree)
+                return
+            if st == "if_statement":
+                for child in stmt.children[1:]:
+                    if not isinstance(child, Tree):
+                        continue
+                    if str(child.data) == "else_block":
+                        for nested in child.children:
+                            if isinstance(nested, Tree):
+                                visit(nested)
+                    else:
+                        visit(child)
+                return
+
+        for stmt in nd.statements:
+            if isinstance(stmt, Tree):
+                visit(stmt)
+
+        return out
 
     def _emit_env_inject_statements(self, node: str, indent: str) -> str:
         """
@@ -1646,7 +3382,17 @@ class BoogieBackend:
         *,
         max_env_inputs: bool = False,
         enable_slicing: bool = True,
+        prune_env_inputs: bool = True,
+        por_enabled: bool = False,
+        por_guard_enabled: bool = True,
+        boogie_harness: str = "concurrent",
+        pipeline_two_stage: bool = True,
+        feasibility_check: bool = False,
+        refine_trace: bool = False,
     ) -> Path:
+        boogie_harness = boogie_harness.lower().strip()
+        if boogie_harness not in {"concurrent", "sequential"}:
+            raise BoogieBackendError(f"unsupported boogie harness: {boogie_harness}")
         work_dir = work_dir or Path(str(out_bpl) + ".work")
         work_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1657,8 +3403,31 @@ class BoogieBackend:
             seeds: Dict[str, set[str]] = {a: set() for a in spec.imports.keys()}
 
             def add_seed(node: str, name: str) -> None:
-                if node in seeds:
-                    seeds[node].add(name)
+                if node not in seeds:
+                    return
+
+                seeds[node].add(name)
+
+                # Also add the base without any `[idx]` suffix so the slicer can keep the
+                # underlying variable, while preserving indexed forms so P4B can infer
+                # register max-index bounds from seeds like `sequence_reg[0]`.
+                base = name
+                idx_suffix = ""
+                if "[" in name:
+                    base = name.split("[", 1)[0]
+                    idx_suffix = name[len(base) :]
+                    seeds[node].add(base)
+
+                if base.endswith("_0"):
+                    stripped = base[:-2]
+                    seeds[node].add(stripped)
+                    if idx_suffix:
+                        seeds[node].add(stripped + idx_suffix)
+                else:
+                    with_suffix = base + "_0"
+                    seeds[node].add(with_suffix)
+                    if idx_suffix:
+                        seeds[node].add(with_suffix + idx_suffix)
 
             # Node-local assumes/asserts and DSL statements (including env blocks).
             for node, nd in spec.nodes.items():
@@ -1727,7 +3496,13 @@ class BoogieBackend:
                         changed = True
             return {k: sorted(v) for k, v in work.items()}
 
-        node_seed_vars = collect_slice_seeds() if enable_slicing else {}
+        seed_vars = collect_slice_seeds()
+        forced_inputs: Dict[str, List[str]] = {}
+        for node, vars_ in seed_vars.items():
+            forced_inputs[node] = sorted(
+                v for v in vars_ if _is_packet_var(v) and not _is_skipped_input_var(v)
+            )
+        node_seed_vars = seed_vars if enable_slicing else {}
         if enable_slicing and spec.links:
             node_seed_vars = propagate_packet_seeds(node_seed_vars)
         for alias, imp in spec.imports.items():
@@ -1735,6 +3510,18 @@ class BoogieBackend:
             if src_path.endswith(".bpl"):
                 raw_text = Path(src_path).read_text(encoding="utf-8", errors="replace")
                 meta_obj: Optional[dict] = None
+                meta_candidates: List[Path] = []
+                src = Path(src_path)
+                meta_candidates.append(src.with_suffix(".meta.json"))
+                if src.name.endswith(".raw.bpl"):
+                    meta_candidates.append(src.with_name(src.name.replace(".raw.bpl", ".meta.json")))
+                for cand in meta_candidates:
+                    if cand.exists():
+                        try:
+                            meta_obj = json.loads(cand.read_text(encoding="utf-8"))
+                        except Exception:
+                            meta_obj = None
+                        break
             else:
                 if not self._p4b_bin:
                     raise BoogieBackendError(
@@ -1758,6 +3545,12 @@ class BoogieBackend:
                 except Exception:
                     meta_obj = None
 
+            raw_text = _patch_missing_var_decls(
+                raw_text,
+                meta=meta_obj,
+                required_vars=forced_inputs.get(alias),
+            )
+
             # Generated Boogie should be valid as-is; P4B-Translator handles sanitization.
 
             if not _looks_like_bpl(raw_text):
@@ -1769,8 +3562,12 @@ class BoogieBackend:
             input_vars, egress_t, declared, var_types, egress_var, type_defs = _collect_input_vars_and_egress_type(
                 raw_text
             )
-            if enable_slicing:
-                input_vars = _filter_input_vars_by_usage(raw_text, input_vars)
+            if enable_slicing and prune_env_inputs:
+                input_vars = _filter_input_vars_by_usage(
+                    raw_text,
+                    input_vars,
+                    force_keep=forced_inputs.get(alias),
+                )
             node_info[alias] = _BoogieNodeInfo(
                 raw_bpl=raw_text,
                 input_vars=input_vars,
@@ -1785,10 +3582,21 @@ class BoogieBackend:
         # 2) Prefix each Boogie unit to avoid collisions
         node_prefixed: Dict[str, str] = {}
         node_main_modifies: Dict[str, set[str]] = {}
+        node_register_arrays: Dict[str, Dict[str, tuple[str, str]]] = {}
         for alias, info in node_info.items():
             prefixed = BoogiePrefixer(alias).prefix_content(info.raw_bpl)
+            regs = _collect_register_arrays(prefixed, alias)
+            prefixed = _instrument_register_writes(prefixed, regs)
             node_prefixed[alias] = prefixed
+            node_register_arrays[alias] = regs
             node_main_modifies[alias] = _extract_mainprocedure_modifies(prefixed, alias)
+
+        node_pipeline_stages: Dict[str, _PipelineStages] = {}
+        if pipeline_two_stage:
+            for alias, prefixed in node_prefixed.items():
+                stages = _split_pipeline_stages(prefixed, alias)
+                if stages:
+                    node_pipeline_stages[alias] = stages
 
         host_to_node: Dict[str, str] = {}
         host_input_vars: Dict[str, List[str]] = {}
@@ -1816,7 +3624,7 @@ class BoogieBackend:
                 k: _prefix_host_type(hd.connect_to, v) for k, v in node_info[hd.connect_to].var_types.items()
             }
 
-        # 3) Emit concurrent harness
+        # 3) Emit harness
         emitter = BoogieHarnessEmitter(
             spec,
             node_input_vars={a: info.input_vars for a, info in node_info.items()},
@@ -1824,6 +3632,8 @@ class BoogieBackend:
             node_egress_port_var={a: info.egress_port_var for a, info in node_info.items()},
             node_declared_vars={a: info.declared_vars for a, info in node_info.items()},
             node_mainprocedure_modifies=node_main_modifies,
+            node_register_arrays=node_register_arrays,
+            node_pipeline_stages=node_pipeline_stages,
             node_var_types={a: info.var_types for a, info in node_info.items()},
             node_type_defs={a: info.type_defs for a, info in node_info.items()},
             node_meta={a: info.meta for a, info in node_info.items()},
@@ -1831,6 +3641,12 @@ class BoogieBackend:
             host_input_vars=host_input_vars,
             host_var_types=host_var_types,
             max_env_inputs=max_env_inputs,
+            por_enabled=por_enabled,
+            por_guard_enabled=por_guard_enabled,
+            harness_mode=boogie_harness,
+            pipeline_two_stage=pipeline_two_stage,
+            feasibility_check=feasibility_check,
+            refine_trace=refine_trace,
         )
         helpers = emitter.emit_helpers()
         harness = emitter.emit(emit_helpers=False)
@@ -1864,5 +3680,6 @@ class BoogieBackend:
         merged.append(harness)
         merged.append("// ===== END HARNESS =====\n")
 
-        out_bpl.write_text("".join(merged), encoding="utf-8")
+        merged_text = _ultimate_rewrite_bvbuiltin_attrs("".join(merged))
+        out_bpl.write_text(merged_text, encoding="utf-8")
         return out_bpl

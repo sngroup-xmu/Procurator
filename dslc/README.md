@@ -9,6 +9,7 @@ PYTHONPATH=/mnt/e/p4-verify /mnt/e/p4-verify/.venv/bin/python -m dslc.compiler \
   --backend boogie \
   --spec <spec.prop> \
   --out <out>.bpl \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
+  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-linux/backends/verify/p4c-translator \
+  --boogie-harness concurrent \
   --work-dir <work_dir>
 ```

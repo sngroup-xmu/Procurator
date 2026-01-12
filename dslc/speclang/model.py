@@ -46,6 +46,11 @@ class GlobalDecl:
     # None means "not specified in DSL" (backend may apply its own default)
     queue_capacity: Optional[int] = None
     # None means "not specified in DSL" (backend may apply its own default)
+    max_steps: Optional[int] = None
+    # None means "not specified in DSL" (backend may apply its own default)
+    # When true, sequential harness uses a deterministic round-robin scheduler instead of nondet action choice.
+    deterministic_scheduler: Optional[bool] = None
+    # None means "not specified in DSL" (backend may apply its own default)
     env_thread: Optional[bool] = None
     # None means "not specified in DSL" (backend may apply its own default)
     host_eager: Optional[bool] = None
