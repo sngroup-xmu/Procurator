@@ -9,9 +9,8 @@ from dslc.compiler import compile_spec_text
 class TestBoogieBackendSmoke(unittest.TestCase):
     def test_boogie_harness_smoke(self) -> None:
         # Use a repo-shipped .bpl as input to avoid depending on building a translator here.
-        bpl = Path(
-            "/mnt/e/p4-verify/Procurator/argo/code/Translator/feature-testcases/bool/out.bpl"
-        )
+        repo_root = Path(__file__).resolve().parents[2]
+        bpl = repo_root / "Procurator" / "argo" / "code" / "Translator" / "feature-testcases" / "bool" / "out.bpl"
         self.assertTrue(bpl.exists())
 
         spec = f"""
@@ -51,4 +50,3 @@ global {{
 
 if __name__ == "__main__":
     unittest.main()
-

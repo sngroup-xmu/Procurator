@@ -7,10 +7,10 @@
 //
 // NOTE: This is not a control-plane initialization; it is a *reachability cut*.
 // It is useful to sanity-check that the translated semantics can exhibit the
-// expected wrap-around bug, and to ensure slicing vs. no-slicing agree on UNSAFE.
+// expected wrap-around bug, and to ensure prune vs. no-prune agree on UNSAFE.
 
-import s1 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/netchain_16.p4" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/commands_1.txt";
-import s2 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/netchain_16.p4" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/commands_2.txt";
+import s1 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_1.txt";
+import s2 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_2.txt";
 
 topology {
   link s1 -> s2 ALL;

@@ -66,11 +66,8 @@ def _run_one(
     enable_slicing: bool,
     prune_env_inputs: bool,
     por_enabled: bool,
-    por_guard_enabled: bool,
     boogie_harness: str,
     pipeline_two_stage: bool,
-    feasibility_check: bool,
-    refine_trace: bool,
     ultimate: Optional[Path],
     toolchain: Path,
     settings: Path,
@@ -87,11 +84,9 @@ def _run_one(
         enable_slicing=enable_slicing,
         prune_env_inputs=prune_env_inputs,
         por_enabled=por_enabled,
-        por_guard_enabled=por_guard_enabled,
+        por_guard_enabled=True,
         boogie_harness=boogie_harness,
         pipeline_two_stage=pipeline_two_stage,
-        feasibility_check=feasibility_check,
-        refine_trace=refine_trace,
     )
     print(f"[OK] bpl: {job.out_bpl}")
 
@@ -145,18 +140,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default="spec",
         help="Environment model: 'spec' applies assume constraints, 'max' makes inputs fully nondet",
     )
-    ap.add_argument("--no-slicing", action="store_true", help="Disable P4 slicing/pruning")
     ap.add_argument(
-        "--no-env-prune",
+        "--no-prune",
         action="store_true",
-        help="Disable env input pruning based on sliced Boogie usage",
+        help="Disable DAG-based slicing and env-input pruning",
     )
     ap.add_argument("--por", action="store_true", help="Enable commutativity-based POR")
-    ap.add_argument(
-        "--no-por-guard",
-        action="store_true",
-        help="Disable POR guards even when --por is enabled",
-    )
     ap.add_argument(
         "--boogie-harness",
         choices=["concurrent", "sequential"],
@@ -175,16 +164,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--compose-local-inputs",
         action="store_true",
         help="For single-node sub-specs, allow direct external input and drop topology (over-approx)",
-    )
-    ap.add_argument(
-        "--feasibility-check",
-        action="store_true",
-        help="After UNSAFE, re-run with assume(!P); assert false to test reachability of the negated property.",
-    )
-    ap.add_argument(
-        "--refine-trace",
-        action="store_true",
-        help="Enable trace-guided refinement (force enqueued packets to be scheduled for ingress next).",
     )
     ap.add_argument(
         "--ultimate-async",
@@ -247,10 +226,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p4b_bin = Path(args.p4b_bin).resolve() if args.p4b_bin else None
 
     max_env_inputs = args.env == "max"
-    enable_slicing = not args.no_slicing
-    prune_env_inputs = not args.no_env_prune
+    prune = not args.no_prune
+    enable_slicing = prune
+    prune_env_inputs = prune
     por_enabled = args.por
-    por_guard_enabled = not args.no_por_guard
     boogie_harness = args.boogie_harness
     pipeline_two_stage = not args.no_two_stage
 
@@ -284,51 +263,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             enable_slicing=enable_slicing,
             prune_env_inputs=prune_env_inputs,
             por_enabled=por_enabled,
-            por_guard_enabled=por_guard_enabled,
             boogie_harness=boogie_harness,
             pipeline_two_stage=pipeline_two_stage,
-            feasibility_check=False,
-            refine_trace=args.refine_trace,
             ultimate=ultimate,
             toolchain=toolchain,
             settings=settings,
             ultimate_async=args.ultimate_async,
             ultimate_timeout_seconds=args.ultimate_timeout_seconds,
         )
-        if args.feasibility_check and ultimate:
-            try:
-                log_text = log_path.read_text(encoding="utf-8")
-            except Exception:
-                log_text = ""
-            if _is_unsafe(log_text):
-                feas_bpl = out_bpl.with_suffix(".feas.bpl")
-                feas_log = log_path.with_suffix(".feas.log")
-                feas_job = _ComposeJob(
-                    spec_path=spec_path,
-                    out_bpl=feas_bpl,
-                    work_dir=work_dir,
-                    log_path=feas_log,
-                    ultimate_home=job.ultimate_home,
-                )
-                print("[FEAS] Re-running with feasibility-check assertions...")
-                _run_one(
-                    job=feas_job,
-                    p4b_bin=p4b_bin,
-                    max_env_inputs=max_env_inputs,
-                    enable_slicing=enable_slicing,
-                    prune_env_inputs=prune_env_inputs,
-                    por_enabled=por_enabled,
-                    por_guard_enabled=por_guard_enabled,
-                    boogie_harness=boogie_harness,
-                    pipeline_two_stage=pipeline_two_stage,
-                    feasibility_check=True,
-                    refine_trace=args.refine_trace,
-                    ultimate=ultimate,
-                    toolchain=toolchain,
-                    settings=settings,
-                    ultimate_async=args.ultimate_async,
-                    ultimate_timeout_seconds=args.ultimate_timeout_seconds,
-                )
         return rc
 
     # Compose mode: split global asserts into local specs and run in parallel.
@@ -378,11 +320,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 enable_slicing=enable_slicing,
                 prune_env_inputs=prune_env_inputs,
                 por_enabled=por_enabled,
-                por_guard_enabled=por_guard_enabled,
                 boogie_harness=boogie_harness,
                 pipeline_two_stage=pipeline_two_stage,
-                feasibility_check=False,
-                refine_trace=args.refine_trace,
                 ultimate=ultimate,
                 toolchain=toolchain,
                 settings=settings,

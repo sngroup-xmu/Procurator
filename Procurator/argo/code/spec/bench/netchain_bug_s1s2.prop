@@ -5,10 +5,10 @@
 //   [](s1_sequence_reg_0[0] >= s2_sequence_reg_0[0])
 //
 // This spec matches the Promela host shape (dstAddr=167797761 / s1) but removes
-// s3 to reduce state and make slicing vs. no-slicing comparisons easier.
+// s3 to reduce state and make prune vs. no-prune comparisons easier.
 
-import s1 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/netchain_16.p4" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/commands_1.txt";
-import s2 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/netchain_16.p4" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/commands_2.txt";
+import s1 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_1.txt";
+import s2 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_2.txt";
 
 topology {
   link s1 -> s2 ALL;
@@ -68,4 +68,3 @@ global {
     s1_sequence_reg_0[0] >= s2_sequence_reg_0[0];
   };
 }
-

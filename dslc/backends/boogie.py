@@ -258,6 +258,17 @@ def _is_skipped_input_var(name: str) -> bool:
     return name in _SKIP_INPUT_VARS or name.endswith(".ucast_egress_port") or name.endswith(".egress_port")
 
 
+def _is_on_wire_packet_var(name: str) -> bool:
+    """
+    Vars that should be preserved across *network forwarding*.
+
+    In P4, only packet headers are transmitted across links. Per-packet `meta.*`
+    and `standard_metadata.*` are local to each switch instance and must not be
+    copied from one node to another.
+    """
+    return name.startswith("hdr.")
+
+
 def _normalize_bvbuiltin_attrs(bpl: str, prefix: str) -> str:
     """
     Undo accidental prefixing of {:bvbuiltin "..."} attributes.
@@ -804,8 +815,6 @@ class BoogieHarnessEmitter:
         por_guard_enabled: bool = True,
         harness_mode: str = "concurrent",
         pipeline_two_stage: bool = True,
-        feasibility_check: bool = False,
-        refine_trace: bool = False,
     ):
         self._spec = spec
         self._node_input_vars = node_input_vars  # alias -> raw var names (no prefix)
@@ -825,6 +834,8 @@ class BoogieHarnessEmitter:
             h: set(self._host_input_vars.get(h, [])) for h in self._host_to_node.keys()
         }
         self._max_env_inputs = max_env_inputs
+        # Step-indexed trace maps are intentionally disabled by default since they make loop proofs harder.
+        self._emit_trace = False
         self._por_enabled = por_enabled
         self._por_guard_enabled = por_guard_enabled
         harness_mode = harness_mode.lower().strip()
@@ -832,8 +843,6 @@ class BoogieHarnessEmitter:
             raise ValueError(f"unsupported harness_mode: {harness_mode}")
         self._harness_mode = harness_mode
         self._pipeline_two_stage = pipeline_two_stage
-        self._feasibility_check = feasibility_check
-        self._refine_trace = refine_trace
         self._node_ids: Dict[str, int] = {n: i + 1 for i, n in enumerate(spec.imports.keys())}
         self._two_stage_nodes = (
             set(self._node_pipeline_stages.keys()) if self._pipeline_two_stage else set()
@@ -1095,8 +1104,6 @@ class BoogieHarnessEmitter:
             # A global lock to realize pass-atomic semantics without large atomic blocks.
             # We keep atomic blocks minimal (lock acquire/release only), to avoid Ultimate's atomic composition issues.
             lines.append("var procurator_lock: int;\n\n")
-            if self._refine_trace:
-                lines.append("var refine_force_node: int;\n\n")
 
             # DSL locals as globals
             if (
@@ -1200,17 +1207,12 @@ class BoogieHarnessEmitter:
         if emit_helpers:
             lines.append(self._emit_bitvector_helpers())
 
-        # Bounded exploration (debug/benchmark): limit the number of scheduler steps.
-        max_steps = self._spec.global_decl.max_steps
-        if max_steps is None:
-            max_steps = 8
-        if max_steps <= 0:
-            raise ValueError(f"global.max_steps must be > 0, got: {max_steps}")
-        lines.append("const procurator_max_steps: int;\n")
-        lines.append(f"axiom procurator_max_steps == {max_steps};\n")
+        # Note: we intentionally keep the sequential harness unbounded (Ultimate can reason about loops).
+        # global.max_steps is ignored here; use it only in bounded/BMC workflows outside this backend.
         lines.append("var procurator_step: int;\n")
-        if self._refine_trace:
-            lines.append("var refine_force_node: int;\n")
+        if self._spec.global_decl.deterministic_scheduler is True:
+            # Avoid integer modulo in the scheduler encoding (helps Ultimate on deep loops).
+            lines.append("var procurator_phase: int;\n")
         lines.append("\n")
 
         # DSL locals as globals
@@ -1323,16 +1325,16 @@ class BoogieHarnessEmitter:
         # (Ultimate checks modifies-transitivity for calls/fork).
         dsts = sorted(set(port_map.values()) | ({wildcard_dst} if wildcard_dst else set()))
         modifies: List[str] = []
-        emit_trace = self._harness_mode == "sequential"
+        emit_trace = self._emit_trace and self._harness_mode == "sequential"
         trace_types = self._trace_field_types(src) if emit_trace else {}
         for dst in dsts:
             modifies.append(f"{dst}_inbox_count")
             modifies.append(f"{dst}_pkt_external")
-            # enqueue copies packet fields (best-effort intersection on declared vars)
+            # Enqueue preserves on-wire packet fields (headers only).
             src_decl = self._node_declared_vars.get(src, set())
             dst_decl = self._get_declared_vars(dst)
             for v in self._node_input_vars.get(src, []):
-                if v in src_decl and v in dst_decl:
+                if _is_on_wire_packet_var(v) and v in src_decl and v in dst_decl:
                     modifies.append(f"{dst}_{v}")
             if emit_trace:
                 modifies.append(self._trace_enqueue_exec_name(src, dst))
@@ -1342,8 +1344,6 @@ class BoogieHarnessEmitter:
                     modifies.append(self._trace_enqueue_op_name(src, dst))
                 if "key" in trace_types:
                     modifies.append(self._trace_enqueue_key_name(src, dst))
-        if self._refine_trace:
-            modifies.append("refine_force_node")
         if self._tofino_recirculate_ports:
             modifies.append(f"{src}_inbox_count")
             modifies.append(f"{src}_pkt_external")
@@ -1393,21 +1393,19 @@ class BoogieHarnessEmitter:
 
     def _emit_enqueue_proc(self, src: str, dst: str, k: int) -> str:
         # Copy packet fields from src to dst (single-slot mailbox).
-        # We only copy variables that are declared in both nodes (best-effort).
+        # We only copy on-wire packet vars (best-effort intersection on declared vars).
         src_decl = self._node_declared_vars.get(src, set())
         dst_decl = self._get_declared_vars(dst)
         copy_vars: List[str] = []
         for v in self._node_input_vars.get(src, []):
-            if v in src_decl and v in dst_decl:
+            if _is_on_wire_packet_var(v) and v in src_decl and v in dst_decl:
                 copy_vars.append(v)
 
         out: List[str] = []
         out.append(f"procedure {src}__enqueue_{dst}() returns()\n")
         mod: List[str] = [f"{dst}_inbox_count", f"{dst}_pkt_external"]
         mod.extend(f"{dst}_{v}" for v in copy_vars)
-        if self._refine_trace:
-            mod.append("refine_force_node")
-        emit_trace = self._harness_mode == "sequential"
+        emit_trace = self._emit_trace and self._harness_mode == "sequential"
         trace_types = self._trace_field_types(src) if emit_trace else {}
         if emit_trace:
             mod.append(self._trace_enqueue_exec_name(src, dst))
@@ -1425,9 +1423,6 @@ class BoogieHarnessEmitter:
             out.append(f"  {dst}_{v} := {src}_{v};\n")
         out.append(f"  {dst}_pkt_external := false;\n")
         out.append(f"  {dst}_inbox_count := {dst}_inbox_count + 1;\n")
-        if self._refine_trace:
-            node_id = self._node_ids.get(dst, 0)
-            out.append(f"  refine_force_node := {node_id};\n")
         if emit_trace:
             out.append(f"  {self._trace_enqueue_exec_name(src, dst)}[procurator_step] := true;\n")
             if "seq" in trace_types:
@@ -1592,14 +1587,10 @@ class BoogieHarnessEmitter:
             guard = self._emit_register_write_guard()
             if guard:
                 out.append(f"{indent}if ({guard}) {{\n")
-                if self._refine_trace:
-                    out.append(f"{indent}  assume refine_force_node == 0;\n")
                 out.append(f"{indent}  // DSL assertions\n")
                 out.append(assert_lines)
                 out.append(f"{indent}}}\n")
             else:
-                if self._refine_trace:
-                    out.append(f"{indent}assume refine_force_node == 0;\n")
                 out.append(f"{indent}// DSL assertions\n")
                 out.append(assert_lines)
         return "".join(out)
@@ -1712,8 +1703,6 @@ class BoogieHarnessEmitter:
                 if dbg:
                     out.append("      // Register debug snapshot\n")
                     out.append(dbg)
-                if self._refine_trace:
-                    out.append("      assume refine_force_node == 0;\n")
                 out.append("      // DSL assertions\n")
                 out.append(assert_lines)
             out.append("      atomic {\n")
@@ -1849,8 +1838,6 @@ class BoogieHarnessEmitter:
         #  - variables that may be modified by forked procedures (fork behaves like a call wrt modifies checks).
         start_modifies: set[str] = set()
         start_modifies.add("procurator_lock")
-        if self._refine_trace:
-            start_modifies.add("refine_force_node")
         start_modifies.update(f"{a}_inbox_count" for a in node_aliases + host_aliases)
         start_modifies.update(f"{a}_pkt_external" for a in node_aliases + host_aliases)
         for a in node_aliases:
@@ -1898,8 +1885,6 @@ class BoogieHarnessEmitter:
         for a in node_aliases:
             if self._is_two_stage_node(a):
                 out.append(f"  {a}_egress_count := 0;\n")
-        if self._refine_trace:
-            out.append("  refine_force_node := 0;\n")
         if self._spec.global_decl.symmetry_groups:
             out.append("\n")
             out.append("  // Symmetry breaking: ordered inbox counts for equivalent nodes.\n")
@@ -1951,8 +1936,6 @@ class BoogieHarnessEmitter:
             mods.add("procurator_lock")
         mods.update(f"{a}_inbox_count" for a in node_aliases + host_aliases)
         mods.update(f"{a}_pkt_external" for a in node_aliases + host_aliases)
-        if self._refine_trace:
-            mods.add("refine_force_node")
         for a in node_aliases:
             if self._is_two_stage_node(a):
                 mods.add(f"{a}_egress_count")
@@ -1975,7 +1958,7 @@ class BoogieHarnessEmitter:
                 mods.add(self._register_wrote_index0_name(name))
                 mods.add(self._register_last0_value_name(name))
 
-        if node_aliases:
+        if self._emit_trace and node_aliases:
             mods.add("trace_node_id")
             mods.add("trace_stage")
             for node in node_aliases:
@@ -2130,7 +2113,7 @@ class BoogieHarnessEmitter:
 
     def _emit_trace_decls(self, node_aliases: List[str]) -> str:
         out: List[str] = []
-        if not node_aliases:
+        if not self._emit_trace or not node_aliases:
             return ""
         out.append("var trace_node_id: [int]int;\n")
         out.append("var trace_stage: [int]int;\n")
@@ -2160,7 +2143,7 @@ class BoogieHarnessEmitter:
         return "".join(out)
 
     def _emit_trace_step_reset(self, node_aliases: List[str], *, indent: str) -> str:
-        if not node_aliases:
+        if not self._emit_trace or not node_aliases:
             return ""
         out: List[str] = []
         out.append(f"{indent}trace_node_id[procurator_step] := 0;\n")
@@ -2174,7 +2157,7 @@ class BoogieHarnessEmitter:
         return "".join(out)
 
     def _emit_trace_assignments(self, node: str, *, indent: str, stage_id: int) -> str:
-        if self._harness_mode != "sequential":
+        if not self._emit_trace or self._harness_mode != "sequential":
             return ""
         if not node:
             return ""
@@ -2273,11 +2256,7 @@ class BoogieHarnessEmitter:
         out: List[str] = []
         for expr in exprs:
             bpl = self._expr_to_boogie(expr, current_node=current_node, prefer_reg_dbg=True)
-            if self._feasibility_check:
-                out.append(f"{indent}assume !({bpl});\n")
-                out.append(f"{indent}assert false;\n")
-            else:
-                out.append(f"{indent}assert {bpl};\n")
+            out.append(f"{indent}assert {bpl};\n")
         return "".join(out)
 
     def _emit_sequential_main(
@@ -2296,8 +2275,11 @@ class BoogieHarnessEmitter:
         This is intended to be compatible with sequential Ultimate toolchains (no fork/atomic).
         """
         self._trace_node_ids = {n: i + 1 for i, n in enumerate(node_aliases)}
+        deterministic = self._spec.global_decl.deterministic_scheduler is True
         mods = self._compute_harness_modifies(node_aliases, host_aliases, include_lock=False)
         mods.add("procurator_step")
+        if deterministic:
+            mods.add("procurator_phase")
 
         actions: List[tuple[str, str]] = []
         if env_thread_enabled:
@@ -2333,26 +2315,14 @@ class BoogieHarnessEmitter:
             out.append(f"{indent}// Reset trace flags for this step.\n")
             out.append(trace_reset)
 
-        deterministic = self._spec.global_decl.deterministic_scheduler is True
         period = len(actions) if actions else 0
         for i, (kind, name) in enumerate(actions):
             if deterministic:
-                cond = f"(procurator_step % {period} == {i})"
+                cond = f"(procurator_phase == {i})"
                 head = f"if {cond}" if i == 0 else f"}} else if {cond}"
             else:
                 head = "if (*)" if i == 0 else "} else if (*)"
             out.append("  " + head + " {\n")
-            if self._refine_trace:
-                if kind in {"node_pass", "node_ingress"}:
-                    node_id = self._node_ids.get(name, 0)
-                    out.append(f"{indent}if (refine_force_node != 0) {{\n")
-                    out.append(f"{indent}  assume refine_force_node == {node_id};\n")
-                    out.append(f"{indent}  refine_force_node := 0;\n")
-                    out.append(f"{indent}}}\n")
-                else:
-                    out.append(f"{indent}if (refine_force_node != 0) {{\n")
-                    out.append(f"{indent}  assume false;\n")
-                    out.append(f"{indent}}}\n")
             if kind == "env_inject":
                 out.append(f"{indent}// env inject -> {name}\n")
                 out.append(self._emit_external_enqueue_stmt(name, k, indent=indent))
@@ -2381,6 +2351,14 @@ class BoogieHarnessEmitter:
             else:
                 out.append(f"{indent}// idle\n")
             out.append("  }\n")
+
+        if deterministic:
+            # Next action in the fixed round-robin schedule.
+            out.append(f"{indent}if (procurator_phase == {period - 1}) {{\n")
+            out.append(f"{indent}  procurator_phase := 0;\n")
+            out.append(f"{indent}}} else {{\n")
+            out.append(f"{indent}  procurator_phase := procurator_phase + 1;\n")
+            out.append(f"{indent}}}\n")
 
         out.append("}\n")
         out.append("\n")
@@ -2424,9 +2402,9 @@ class BoogieHarnessEmitter:
         out.append("\n")
 
         out.append("  procurator_step := 0;\n")
-        if self._refine_trace:
-            out.append("  refine_force_node := 0;\n")
-        out.append("  while (procurator_step < procurator_max_steps) {\n")
+        if deterministic:
+            out.append("  procurator_phase := 0;\n")
+        out.append("  while (true) {\n")
         out.append("    call main();\n")
         out.append("    procurator_step := procurator_step + 1;\n")
         out.append("  }\n")
@@ -2442,6 +2420,8 @@ class BoogieHarnessEmitter:
         # Keep ULTIMATE.start as entry for existing scripts/toolchains; the real init happens in mainProcedure.
         mods = self._compute_harness_modifies(node_aliases, host_aliases, include_lock=False)
         mods.add("procurator_step")
+        if self._spec.global_decl.deterministic_scheduler is True:
+            mods.add("procurator_phase")
         out: List[str] = []
         out.append("procedure ULTIMATE.start() returns()\n")
         if mods:
@@ -2563,14 +2543,10 @@ class BoogieHarnessEmitter:
             guard = self._emit_register_write_guard()
             if guard:
                 out.append(f"{indent}if ({guard}) {{\n")
-                if self._refine_trace:
-                    out.append(f"{indent}  assume refine_force_node == 0;\n")
                 out.append(f"{indent}  // DSL assertions\n")
                 out.append(assert_lines)
                 out.append(f"{indent}}}\n")
             else:
-                if self._refine_trace:
-                    out.append(f"{indent}assume refine_force_node == 0;\n")
                 out.append(f"{indent}// DSL assertions\n")
                 out.append(assert_lines)
         return "".join(out)
@@ -3387,8 +3363,6 @@ class BoogieBackend:
         por_guard_enabled: bool = True,
         boogie_harness: str = "concurrent",
         pipeline_two_stage: bool = True,
-        feasibility_check: bool = False,
-        refine_trace: bool = False,
     ) -> Path:
         boogie_harness = boogie_harness.lower().strip()
         if boogie_harness not in {"concurrent", "sequential"}:
@@ -3645,8 +3619,6 @@ class BoogieBackend:
             por_guard_enabled=por_guard_enabled,
             harness_mode=boogie_harness,
             pipeline_two_stage=pipeline_two_stage,
-            feasibility_check=feasibility_check,
-            refine_trace=refine_trace,
         )
         helpers = emitter.emit_helpers()
         harness = emitter.emit(emit_helpers=False)

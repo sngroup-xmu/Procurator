@@ -248,7 +248,12 @@ add_subdirectory (ir)
 
 # component libraries: must be defined before being used in the
 # backend executables
-set (P4C_LIBRARIES controlplane midend frontend ir p4ctoolkit)
+option(ENABLE_CONTROL_PLANE "Build the control-plane (P4Runtime) library" OFF)
+if (ENABLE_CONTROL_PLANE)
+  set (P4C_LIBRARIES controlplane midend frontend ir p4ctoolkit)
+else()
+  set (P4C_LIBRARIES midend frontend ir p4ctoolkit)
+endif()
 
 # add extensions - before the frontends as they produce IR and extra frontend sources
 set(EXTENSION_FRONTEND_SOURCES)
@@ -285,7 +290,9 @@ endif ()
 
 add_subdirectory (frontends)
 add_subdirectory (midend)
-add_subdirectory (control-plane)
+if (ENABLE_CONTROL_PLANE)
+  add_subdirectory (control-plane)
+endif()
 
 if (ENABLE_BMV2)
     add_subdirectory (backends/bmv2)

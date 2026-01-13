@@ -145,11 +145,11 @@ mkdir -p /mnt/e/p4-verify/.tmp/gecko_run
   --out /mnt/e/p4-verify/.tmp/gecko_run/gecko.bpl \
   --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
   --work-dir /mnt/e/p4-verify/.tmp/gecko_run/work \
-  --no-slicing
+  --no-prune
 ```
 
-> 说明：Gecko 的 JSON IR 中存在大量 Tofino 特定 metadata，当前 P4B slicing 仍可能过度裁剪。
-> 若要验证语义正确性，建议先 `--no-slicing`，待剪枝稳定后再打开。若采用 host 输入建模，
+> 说明：Gecko 的 JSON IR 中存在大量 Tofino 特定 metadata，当前 slicing/pruning 仍可能过度裁剪。
+> 若要验证语义正确性，建议先 `--no-prune`，待剪枝稳定后再打开。若采用 host 输入建模，
 > 建议在 `global` 中设置 `env_thread = false` 以避免 EnvThread 造成重复输入，并用 `host_eager = true`
 > 触发稳定的 Host 注入序列。
 
@@ -205,7 +205,7 @@ JAVA_TOOL_OPTIONS=-Duser.home=/mnt/e/p4-verify/.tmp/ultimate_home \
 rg -n "RESULT|AllSpecificationsHoldResult|Exception|TypeError" /mnt/e/p4-verify/.tmp/gecko_run/gecko.gemcutter.log | tail -n 50
 ```
 
-补充：对照 slicing vs no-slicing 时，建议用 `run_gemcutter.py` 的 `--out/--work-dir/--log`
+补充：对照 prune vs no-prune（slicing+env prune 开关）时，建议用 `run_gemcutter.py` 的 `--out/--work-dir/--log`
 指定不同路径，避免覆盖同一份 `.bpl/.log/.graphml`。
 
 #### 1.6 故障排查与“真证明”确认

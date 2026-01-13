@@ -226,7 +226,7 @@ Runtime knobs:
 
 - `run_gemcutter.py --env max` ignores `assume` on external inputs and uses
   fully nondeterministic packets.
-- `--no-slicing` disables P4 slicing; required for Gecko/DistCache in this repo.
+- `--no-prune` disables pruning (DAG-based slicing + env-input pruning); useful for Gecko/DistCache in this repo.
 
 ## Benchmark Runs (Max-Env)
 
@@ -280,7 +280,7 @@ P4XOS:
   --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
-DistCache (use --no-slicing to avoid missing header fields):
+DistCache (use --no-prune to avoid missing header fields):
 
 ```bash
 /mnt/e/p4-verify/.venv/bin/python \
@@ -289,12 +289,12 @@ DistCache (use --no-slicing to avoid missing header fields):
   --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
   --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
   --env max \
-  --no-slicing \
+  --no-prune \
   --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
   --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
-Gecko (Tofino JSON, use --no-slicing):
+Gecko (Tofino JSON, use --no-prune):
 
 ```bash
 /mnt/e/p4-verify/.venv/bin/python \
@@ -303,7 +303,7 @@ Gecko (Tofino JSON, use --no-slicing):
   --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
   --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
   --env max \
-  --no-slicing \
+  --no-prune \
   --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
   --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
@@ -318,4 +318,4 @@ Gecko (Tofino JSON, use --no-slicing):
 - Gold linker crashes:
   - Configure P4B-Translator with `-DP4C_USE_GOLD=OFF`.
 - Undeclared identifiers in Boogie for DistCache:
-  - Re-run with `--no-slicing`.
+  - Re-run with `--no-prune`.

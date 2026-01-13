@@ -19,11 +19,27 @@ if ! command -v docker >/dev/null 2>&1; then
   exit 127
 fi
 
-# Mount /mnt for workspace paths (WSL) and /tmp for intermediate outputs.
+# Mount common host paths so input/output paths work regardless of repo location.
+#
+# - /mnt: WSL drive mounts (legacy)
+# - /tmp: intermediate outputs
+# - /root,/home: Linux filesystem workspaces
+#
+# We mount to the same paths inside the container so the translator can consume
+# the exact CLI arguments we pass in.
+MOUNTS=(-v /tmp:/tmp)
+if [[ -d /mnt ]]; then
+  MOUNTS+=(-v /mnt:/mnt)
+fi
+if [[ -d /root ]]; then
+  MOUNTS+=(-v /root:/root)
+fi
+if [[ -d /home ]]; then
+  MOUNTS+=(-v /home:/home)
+fi
+
 exec docker run --rm \
-  -v /mnt:/mnt \
-  -v /tmp:/tmp \
+  "${MOUNTS[@]}" \
   "${IMAGE}" \
   p4c-translator "$@"
-
 

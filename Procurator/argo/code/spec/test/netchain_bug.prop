@@ -7,9 +7,9 @@
 //
 // NOTE: Our current Boogie backend encodes safety checks as `assert` evaluated on every pass.
 
-import s1 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/netchain_16.p4" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/commands_1.txt";
-import s2 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/netchain_16.p4" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/commands_2.txt";
-import s3 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/netchain_16.p4" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/Netchain/commands_3.txt";
+import s1 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_1.txt";
+import s2 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_2.txt";
+import s3 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_3.txt";
 
 topology {
   link s1 -> s2 ALL;

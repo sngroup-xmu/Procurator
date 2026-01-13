@@ -9,7 +9,6 @@ pan*
 .idea
 cmake-build-debug/
 __pycache__/
-doc/
 meeting/
 Procurator/argo/code/run_*
 # Generated verification artifacts / tool workspaces (huge, not source)

@@ -196,7 +196,7 @@ global {
 运行选项：
 
 - `run_gemcutter.py --env max`：忽略 `assume`，使用完全非确定输入。
-- `--no-slicing`：关闭 slicing。Gecko/DistCache 在本仓库默认需要关闭。
+- `--no-prune`：关闭剪枝（DAG-based slicing + env 输入剪枝）。Gecko/DistCache 在本仓库可能需要关闭以对齐语义。
 
 ## Benchmark 运行（Max-Env）
 
@@ -247,7 +247,7 @@ P4XOS：
   --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
-DistCache（建议 `--no-slicing`）：
+DistCache（建议 `--no-prune`）：
 
 ```bash
 /mnt/e/p4-verify/.venv/bin/python \
@@ -256,12 +256,12 @@ DistCache（建议 `--no-slicing`）：
   --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
   --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
   --env max \
-  --no-slicing \
+  --no-prune \
   --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
   --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
-Gecko（Tofino JSON，建议 `--no-slicing`）：
+Gecko（Tofino JSON，建议 `--no-prune`）：
 
 ```bash
 /mnt/e/p4-verify/.venv/bin/python \
@@ -270,7 +270,7 @@ Gecko（Tofino JSON，建议 `--no-slicing`）：
   --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
   --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
   --env max \
-  --no-slicing \
+  --no-prune \
   --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
   --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
@@ -285,4 +285,4 @@ Gecko（Tofino JSON，建议 `--no-slicing`）：
 - gold linker 崩溃：
   - 使用 `-DP4C_USE_GOLD=OFF` 重新配置 P4B-Translator。
 - DistCache 的 Boogie 字段缺失：
-  - 用 `--no-slicing` 运行。
+  - 用 `--no-prune` 运行。

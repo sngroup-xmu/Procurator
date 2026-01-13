@@ -129,11 +129,11 @@ PYTHONPATH=/mnt/e/p4-verify /mnt/e/p4-verify/.venv/bin/python \
   --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
   --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
   --env max \
-  --no-slicing \
+  --no-prune \
   --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
   --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf
 
-Slicing (default on, no `--no-slicing`) with internal SMTInterpol:
+Pruning (default on, disable with `--no-prune`) with internal SMTInterpol:
 
 ```
 PYTHONPATH=/mnt/e/p4-verify /mnt/e/p4-verify/.venv/bin/python \
@@ -232,7 +232,7 @@ Times are extracted from GemCutter logs ("Toolchain (without parser) took X ms")
 SwitchV2P (slicing): timeout at 600s; see `Procurator/argo/code/results/benchmarks_gemcutter/max_env_slicing/switchv2p/switchv2p_bug.slicing.gemcutter.log`
 
 Full summary: `Procurator/argo/code/results/benchmarks_gemcutter/max_env_slicing/RESULTS.md`
-Baseline (no-slicing, internal SMTInterpol): `Procurator/argo/code/results/benchmarks_gemcutter/max_env_internal/`
+Baseline (no-prune, internal SMTInterpol): `Procurator/argo/code/results/benchmarks_gemcutter/max_env_internal/`
 
 Latest internal SMTInterpol re-runs (2026-01-07, slicer fix for RegisterAction/execute):
 - P4XOS: base OverallTime 98.4s, slicing OverallTime 79.2s, same assert line in witness.
