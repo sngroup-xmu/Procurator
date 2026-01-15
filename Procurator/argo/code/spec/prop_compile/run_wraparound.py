@@ -468,7 +468,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     stage_settings = {
         "entry_check": Path(args.entry_check_settings).resolve()
         if args.entry_check_settings
-        else default_closure_settings,
+        else default_reach_settings,
         "closure_check": Path(args.closure_check_settings).resolve()
         if args.closure_check_settings
         else default_closure_settings,
