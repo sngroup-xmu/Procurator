@@ -1,6 +1,6 @@
 // ATP (max-env): bound check on aggregator index (from Promela's register size usage).
 
-import s1 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/ATP/p4src/p4ml_lc_16.p4" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/ATP/p4src/atp/flow.txt";
+import s1 from "../../dataset/ATP/p4src/p4ml_lc_16.p4" entries "../../dataset/ATP/p4src/atp/flow.txt";
 
 topology {}
 
@@ -8,6 +8,7 @@ node s1 { external_input = true; }
 
 global {
   queue_capacity = 3;
+  deterministic_scheduler = true;
   // PML uses agtr_time register size 20479; index should remain in bounds.
   assert {
     s1_hdr.p4ml_agtr_index.agtr < 20479;

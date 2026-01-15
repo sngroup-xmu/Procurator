@@ -1,0 +1,59 @@
+// DistCache (clientTrack-only): leafload_reg wrap-around bug demo.
+//
+// We force packets to take the `update_leaf_load` path (optype=0x2009) so the
+// 32-bit leafload counter is incremented once per round. When leafload_reg hits
+// 2^32-1, the next increment wraps to 0 and violates the assertion.
+
+import clientTrack from "../../dataset/distcache/clientrackswitch/partitionswitch.p4" entries "../../dataset/distcache/clientrackswitch/clienttrack_entries.txt";
+
+topology {}
+
+node clientTrack {
+  external_input = true;
+
+  // Keep inputs tight so the update path is the only intended behavior.
+  assume {
+    hdr.ethernet_hdr.valid == true;
+    hdr.ipv4_hdr.valid == true;
+    hdr.udp_hdr.valid == true;
+    hdr.op_hdr.valid == true;
+
+    // Ensure the parser reaches `parse_op` so op_hdr becomes valid
+    // (the ingress pipeline guards on `isValid[hdr.op_hdr]`).
+    hdr.ethernet_hdr.etherType == 2048;
+    hdr.ipv4_hdr.protocol == 17;
+    hdr.udp_hdr.dstPort == 5008;
+
+    // Drive poweroftwochoice_tbl -> update_leaf_load via control-plane entry:
+    //   table_add poweroftwochoice_tbl update_leaf_load 0x2009 =>
+    hdr.op_hdr.optype == 8201;
+
+    // Keep hash keys stable so meta.leafswitchidx stays constant.
+    hdr.op_hdr.keylolo == 0;
+    hdr.op_hdr.keylohi == 0;
+    hdr.op_hdr.keyhilo == 0;
+    hdr.op_hdr.keyhihilo == 0;
+    hdr.op_hdr.keyhihihi == 0;
+
+    // Avoid unintended forwarding matches; makes queue behavior simpler.
+    hdr.ipv4_hdr.dstAddr == 0;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+
+  // Stabilize the register index expression used by update_leaf_load.
+  // With the provided control-plane entries, leafswitchidx/spineswitchidx are constant.
+  assume {
+    clientTrack_meta.leafswitchidx == 2;
+    clientTrack_meta.spineswitchidx == 3;
+  };
+
+  // After wrap-around, leafload_0 becomes 0. Confirm stage gates assertions until
+  // the pump register leaves MAX, so this is only checked post-wrap.
+  assert {
+    clientTrack_leafload_0 != 0;
+  };
+}

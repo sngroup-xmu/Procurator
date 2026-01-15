@@ -1,9 +1,9 @@
 // DistCache (max-env): check power-of-two-choice consistency.
 // Uses internal P4 temporaries spineload_0 / leafload_0 computed in poweroftwochoice().
 
-import clientTrack from "/mnt/e/p4-verify/Procurator/argo/code/dataset/distcache/clientrackswitch/partitionswitch.p4";
-import leaf        from "/mnt/e/p4-verify/Procurator/argo/code/dataset/distcache/leafswitch/netcache.p4";
-import spine       from "/mnt/e/p4-verify/Procurator/argo/code/dataset/distcache/spineswitch/spineswitch.p4";
+import clientTrack from "../../dataset/distcache/clientrackswitch/partitionswitch.p4" entries "../../dataset/distcache/clientrackswitch/clienttrack_entries.txt";
+import leaf        from "../../dataset/distcache/leafswitch/netcache.p4" entries "../../dataset/distcache/leafswitch/flow_entries.txt";
+import spine       from "../../dataset/distcache/spineswitch/spineswitch.p4" entries "../../dataset/distcache/spineswitch/spine_entries.txt";
 
 topology {
   link clientTrack -> leaf 1;
@@ -20,6 +20,7 @@ node spine {}
 
 global {
   queue_capacity = 3;
+  deterministic_scheduler = true;
   // If leafload > spineload => choose spine (meta.is_spine == 1), else choose leaf (0).
   assert {
     ((clientTrack_leafload_0 <= clientTrack_spineload_0) || (clientTrack_meta.is_spine == 1));

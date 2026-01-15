@@ -295,16 +295,11 @@ v1 推荐路线 A：先把工程闭环跑通，再考虑路线 B 的“更语义
 
 ### 6.1 v0（1~2 周内目标）
 
-1) 在 `dslc/backends/boogie.py` 增加一个“wraparound 研究模式”（先不暴露太多开关）
-   - 生成 `pump-probe.bpl`：插入 §4.2 的 ghost 变量与断言
-   - 生成 `accel.bpl`：插入 §4.3 的加速块
-2) 在 `Procurator/argo/code/spec/prop_compile/` 增加一个外部编排脚本（例如 `run_wraparound.py`）：
-   - step A：编译 pump-probe 并跑 Ultimate（ReachSafety.xml + 现有 GemCutter settings）
-   - step B：根据 witness/手工配置生成 accel 版本并跑
-   - step C：触发 confirm 跑（默认 `--no-prune` + 更强 env）
-3) 在 Netchain（`netchain_bug_s1s2.prop`）上验证：
-   - pump-probe 能否在很短时间内找到 loop（预期：能）
-   - accel 能否比原始从 0 起跑显著更快找到翻转违规（预期：能）
+v0 在本仓库已经落地成“外部编排 + Boogie→Boogie 变换”的工作流（避免污染 `dslc/backends/boogie.py`，保持单一职责）：
+
+1) `dslc/transform/wraparound.py`：生成 `closure_check/confirm` 等阶段的变换版 `.bpl`
+2) `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：外部编排脚本（按阶段生成 `.bpl` + 跑 Ultimate）
+3) Netchain（`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`）作为最小可复现实验：在 minutes 级触发翻转反例
 
 ### 6.2 v1（2~6 周内目标）
 
@@ -340,3 +335,207 @@ v1 推荐路线 A：先把工程闭环跑通，再考虑路线 B 的“更语义
 - 现成 LTL toolchain（可选）：`ultimate/trunk/examples/toolchains/LTLAutomizer.xml`
 - PDR/Sifa/CHC 作为备选：`ultimate/trunk/examples/programs/regression/bpl/PdrAutomizerBpl.epf`、`ultimate/trunk/examples/toolchains/Sifa.xml`、`ultimate/trunk/examples/toolchains/BoogieToChcToTreeAutomizer.xml`
 - Netchain 的 V0-1 落地附录（closure pump 证明支撑 `Pre(wraparound)`）：`doc/ultimate_wraparound_v0_1_netchain.md`
+
+---
+
+## 9. v1（完整版本）设计：P4B 依赖分析 + 单调性筛选 + 闭包泵证明 + 加速确证
+
+> 目标：把目前 “Netchain 专用能跑通” 的 V0-1 提升为一个**可系统化应用于多种分布式 P4 系统**的版本：能自动发现哪些寄存器可能发生“翻转类深 bug”，并在 **soundness guard** 下进行闭包泵证明与加速确证，形成可复用产物（witness + proof artifact）。
+
+### 9.1 总体管线（用户视角）
+
+输入：
+
+- P4 程序 + 控制面表项 + 拓扑/部署
+- `.prop` 性质 + 环境收紧（你们 DSL）
+
+输出：
+
+- `UNSAFE`：witness（GraphML）+ 关键寄存器/槽位/翻转点 + 可重放的“包序列/事件序列”约束
+- `SAFE/UNKNOWN`：阶段性诊断（候选寄存器列表、闭包证明是否成功、失败原因）
+
+核心阶段：
+
+1) **Property-driven candidates**：用 P4B（meta + slicing）找出“影响性质的寄存器/槽位”，并做 counter-like/单调性筛选。
+2) **Closure pump proof**：对每个候选，证明存在一个可重复的“泵循环/轮次（round）”：
+   - 轮次执行 1 次净效应为 `reg[idx] := reg[idx] + 1 (mod 2^w)`
+   - 投影状态 `proj(s)` 闭包：执行完轮次后回到同一等价类，且下一轮仍然可重复（闭包/可重复性）
+3) **Accelerated confirm**：在通过闭包 guard 的前提下，把 `reg[idx]` 快进到 `MAX`（或 `MAX-1`），再用**全语义**快速验证翻转是否触发性质违反。
+
+> 备注：这里的“等价类划分”就是 `proj(s)`；闭包证明的本质是在证明 `proj` 上的归纳不变性 + 目标寄存器的进度（progress）。
+
+### 9.2 关键定义（工程可落地）
+
+把一个分布式 P4 系统在 Boogie harness 下抽象为：
+
+- 状态 `s`：所有节点寄存器数组、全局变量、队列计数、关键 meta 等
+- 单步 `Step(s, i) -> s'`：执行一个 pass（或一个调度选择下的 pipeline 片段）
+- 轮次 `Round`：一个固定的 step 序列（通常来自你们 deterministic scheduler 的一个 phase 周期），可看作 loop body
+
+我们要证明的闭包泵性质（对某个寄存器 `R[idx]`）是一个 Hoare triple：
+
+`{ C(s) }  Round  { C(s') ∧ R'[idx] = R[idx] + 1 (mod 2^w) }`
+
+其中：
+
+- `C(s)`：闭包条件（把“能进入泵循环且能重复执行”的必要条件写出来）
+- `proj(s)`：等价类投影（`C` 通常编码为 `proj(s)` 的域约束 + 轮次前后 `proj` 相等）
+
+### 9.3 候选寄存器筛选（P4B + 单调性）
+
+V1 的核心是让“闭包泵证明”只跑在少量真正相关的寄存器上。
+
+#### 9.3.1 从性质出发的依赖分析（P4B slicing）
+
+1) 从 `.prop` 的 global asserts/关系断言中提取 seed（涉及的状态变量）
+2) 用 P4B 的 slicing（或你们已有的 seed-driven slicing）把：
+   - 与 seed 无关的寄存器/元数据/表项逻辑剪掉
+   - env 的 `havoc` 也同步剪到仅影响 slice 的字段
+
+产物：
+
+- `relevant_registers`: 只保留会影响性质的寄存器对象集合
+- `relevant_inputs`: 会影响这些寄存器与性质的输入字段集合
+
+> 这一步的目标是把 “DistCache 里成百上千的计数器/索引” 缩到“性质相关的几十个以内”。
+
+#### 9.3.2 counter-like（单调性）语法筛选（Boogie 级，保守但便宜）
+
+在 slice 后的 Boogie 里对每个 `reg.write(idx, expr)` 做模式匹配，识别：
+
+- `expr == add.bvW(reg.read(idx), 1bvW)`（最优先：典型 wraparound counter）
+- `expr == add.bvW(reg.read(idx), cbvW)`（次优：步长为常数）
+- `expr == reg.read(idx)`（无效写，可忽略）
+
+并记录：
+
+- 候选寄存器对象 `R`、位宽 `W`、槽位表达式 `idx`
+- 更新步长 `delta`（通常是 `1`）
+- 该写点所在的 action/table/控制流位置（供闭包投影选择）
+
+> 这一步是“过滤器”而不是证明：它只做 cheap 的 syntactic screening，把明显不是计数器的寄存器丢掉。
+
+### 9.4 自动构造闭包条件 C(s) 与投影 proj(s)
+
+#### 9.4.1 投影的起点：最小集合（可闭合优先）
+
+`proj` 初始只包含三类信息：
+
+1) **能决定泵循环是否执行**的 guard 变量：
+   - role/mode、表命中（hit）、分支条件涉及的 meta/hdr 字段
+2) **能决定“写到哪个槽位”**的 index 相关变量：
+   - `idx` 的常量/表达式用到的字段（key/hash/显式 index）
+3) **会影响下一轮调度/可重复性**的系统级变量：
+   - `procurator_phase`（或你们的调度相位变量）
+   - inbox/queue 计数（简化版即可：只对会影响“是否有包可处理”的计数入投影）
+
+#### 9.4.2 投影精化：CEGAR 风格扩充（避免伪泵）
+
+闭包证明失败/出现伪加速反例时，按 witness 自动扩充投影：
+
+- 找 witness 中在轮次前后发生变化、且出现在：
+  - 泵 guard / idx / 性质断言 的 backward slice 上的变量
+- 把这些变量加入 `proj`，重跑闭包证明
+
+这一步是实现“既不太大、又不太小”的关键机制。
+
+### 9.5 闭包泵证明（Closure Check）的两部分
+
+为了避免“伪泵”（你之前担心的：看似能 +1，但实际上泵不可重复/会停），V1 把闭包证明拆成两个可验证目标：
+
+1) **Progress**：每轮确实发生目标更新（不会因为分支/guard 停止）
+   - 证明 `Round` 内一定执行到目标 `reg.write`，且写入值满足 `+delta`
+2) **Closure**：执行完 `Round` 后，保持 `proj` 不变，并且下一轮的 guard 仍成立（从而可无限重复）
+
+产物：
+
+- `closure_check.bpl`：一个 loop-free 或 “单轮次 + assert” 的证明任务（尽量让 Ultimate 在 minutes 内给 SAFE）
+- 失败诊断：哪条 guard 不闭合/哪变量破坏可重复性
+
+> 你们当前实现的 `closure_check` 可以视为这个思想的 V0-1 特化；V1 要把它参数化为“任意候选寄存器/任意投影集”。
+
+### 9.6 Reachability：从初态进入闭包集合 C(s)
+
+闭包证明只说明“进了循环就能一直泵”，但还需要证明“能进”：
+
+- `entry_check`: 在原模型（全语义/同 env 收紧）中找一个可达状态 `s0` 使得 `C(s0)` 成立
+- witness extraction: 从 GraphML 抽出 `proj(s0)` 的具体赋值（作为后续加速/确证的锚点）
+
+这一步让整个流程从“启发式快进”提升到“有 reachability 证据的快进”（更接近 sound）。
+
+### 9.7 加速确证（Accelerated Confirm）
+
+当 `entry_check` 与 `closure_check` 都通过后，我们可以构造一个**可达性等价**的快进：
+
+- 令 `R[idx]` 直接设置到 `target ∈ {MAX, MAX-1, ...}`
+- 保持 `proj` 的赋值为 witness 中的 `proj(s0)`
+- 然后在全语义 harness 下跑很短后缀，检查是否触发翻转违规
+
+并输出：
+
+- UNSAFE witness（bug 反例）
+- 一份 “proof artifact”：说明快进是由 `entry_check + closure_check` 支撑的（可写进论文的能力边界/条件）
+
+### 9.8 工程落点：代码模块与职责划分（保持单一职责）
+
+建议的模块分层（与当前仓库现状兼容）：
+
+- `P4B-Translator/`：只负责 P4→Boogie 与 slicing/meta（不做 wraparound 专用逻辑）
+- `dslc/compiler.py`：编译 `.prop`→base `.bpl`，并暴露“是否 slicing”一键开关
+- 新增 `dslc/analysis/`（只做分析，不改语义）：
+  - `deps.py`: seed→依赖闭包（基于 P4B meta 或 Boogie AST）
+  - `register_updates.py`: 扫描 `reg.read/write`，提取候选 `(+delta)` 写点与 idx
+  - `projection_cegar.py`: witness→投影精化策略
+- `dslc/transform/wraparound.py`：只做 Boogie→Boogie 语义保持的插桩/变换（closure_check/confirm/…）
+- `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：外部编排与实验脚本（批量跑、多候选并行、产物整理）
+
+### 9.9 里程碑（建议）
+
+- **V1.0（两周）**：自动从性质 slice 中找候选寄存器 + 生成参数化 `closure_check`，在 Netchain + 另一个系统上复现 wraparound bug（minutes 级）
+- **V1.1（四周）**：加入 `entry_check + witness extraction`，形成“带 reachability 证据的快进”，减少伪加速
+- **V1.2（六周）**：对 DistCache 类“多寄存器/多槽位”做批处理与汇总报告（候选排序、失败原因分类、成功触发的 bug 列表）
+
+### 9.10 “完整 sound”需要什么（以及为什么我们说目前只是接近 sound）
+
+这里的“sound”必须先说清楚 **相对于什么语义**：
+
+- 若你的 Boogie harness 本身做了抽象（例如 Bag 队列、有限容量、简化 extern/target 语义、收紧 env 输入空间），那么任何“soundness”首先都是 **相对于该模型**，而不是相对于真实交换机/网络实现。
+- 其次还要区分两类常见目标：
+  - **UNSAFE soundness（无伪反例）**：报告的 bug witness 在原模型里确实可达。
+  - **SAFE soundness（无漏报/可证明正确）**：报告 SAFE 意味着在原模型里确实不可能违规（这通常更难）。
+
+你质疑“目前只是接近 sound”，核心就是：我们在加速/快进里引入了一个“非原语义步骤”，如果它没有被证明为 reachability 等价（或至少是 under-approx），就可能产生伪反例。
+
+#### 9.10.1 让 `closure_check → confirm` 对 UNSAFE 变成“完全 sound”的最低条件
+
+要做到“发现的翻转反例一定是真实可达的”，至少要有三份可检查的证据（proof artifacts）：
+
+1) **Entry 可达性证据（`entry_check`）**
+   - 在 *原模型*（无加速）下，找一个具体可达状态 `s0`，使闭包条件 `C(s0)` 成立。
+   - 产物：witness（GraphML）+ 关键变量赋值（`proj(s0)` 及必要的 frame 变量）。
+
+2) **闭包/进度证据（`closure_check`）**
+   - 证明对所有满足 `C(s)` 的状态，执行一个 Round 后：
+     - 仍满足 `C(s')`（closure：下一轮仍可执行）
+     - 目标寄存器槽位满足净效应 `R'[idx] = R[idx] + delta (mod 2^w)`（progress）
+     - 以及必要的 **frame 条件**（哪些非目标变量保持不变 / 或至少保持在 `C` 允许的集合内）
+   - 这一步证明的是“泵不是伪的”：它不只是“存在一次 +1”，而是“可重复 + 每轮都有进度”。
+
+3) **k 次迭代可达性推导（加速合理性）**
+   - 一旦 (2) 成立，`k` 次迭代到达边界值是一个数学推导（可被单独检查）：
+     - 若 `delta=1`，则总能到达 `MAX`（对 bitvector 模加）
+     - 若 `delta≠1`，则需要 `gcd(delta, 2^w)` 的可达性判定（只能到达某个同余类）
+   - 产物：把 `k` 的取值与目标 `MAX/MAX-1` 的关系记录下来（可在论文里作为“可达性证据的一部分”）。
+
+满足上述 1)+2)+3) 后，`confirm` 里的“快进到 MAX”不再是启发式，而是一个有证据支撑的 summary（即：存在一条真实执行等价于“跑 k 轮然后到达同样的边界状态”）。
+
+#### 9.10.2 SAFE 怎么办：退化到 Ultimate 原生证明；本方案只承诺 UNSAFE soundness
+
+你说得对：本方案的工程目标是 **加速找“翻转类深反例”**，并把 `UNSAFE` 做到严谨（无伪反例）。
+
+因此我们建议把结论拆开承诺：
+
+- **UNSAFE（我们要严谨承诺）**：只有当 `entry_check` 与 `closure_check` 都通过，并且 `confirm` 给出违反 witness 时，我们才输出“certified UNSAFE”。此时的 `UNSAFE` 在你们的模型/假设下是 sound 的（证据链见 9.10.1）。
+- **SAFE（不在 wraparound 管线里做承诺）**：如果你需要证明 SAFE，就直接对 *原模型* 运行 Ultimate/GemCutter/Automizer 的原生证明流程（不启用任何快进/加速变换）。wraparound 管线的职责不是给出 SAFE 证明，而是给出 *sound UNSAFE* 与诊断信息。
+
+换句话说：wraparound 管线是一个 **bug-finding accelerator**；它不追求完备性（可能漏 bug），但追求“报 bug 必真”（在模型/假设下）。

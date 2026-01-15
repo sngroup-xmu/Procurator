@@ -13,6 +13,7 @@ class WraparoundStage(str, Enum):
     ACCEL_PROBE = "accel_probe"
     CONFIRM = "confirm"
     CLOSURE_CHECK = "closure_check"
+    ENTRY_CHECK = "entry_check"
 
 
 @dataclass(frozen=True)
@@ -26,14 +27,21 @@ class WraparoundTarget:
     index_width: int
     """Index bitwidth (e.g., 32 for `[bv32]...`)."""
 
-    index_value: int = 0
-    """Target index (v0-1 only supports constant index)."""
+    index_value: Optional[int] = 0
+    """Target index (v0-1 supports constant indices; v1 may leave this as None when using `index_expr_override`)."""
+
+    index_expr_override: Optional[str] = None
+    """Optional Boogie expression for the index (must have type `bv<index_width>`)."""
 
     use_last0_value: bool = False
     """Prefer scalar `<reg>__last0_value` over array select when available (dramatically reduces solver load)."""
 
     @property
     def index_expr(self) -> str:
+        if self.index_expr_override is not None:
+            return self.index_expr_override
+        if self.index_value is None:
+            raise ValueError("WraparoundTarget.index_value is None and no index_expr_override was provided")
         return f"{self.index_value}bv{self.index_width}"
 
     @property
@@ -76,6 +84,8 @@ _RE_CALL_MAIN = re.compile(r"^\s*call\s+main\(\)\s*;\s*$")
 
 _PUMP_ERROR_PROC = "__wraparound_pump_error"
 _PUMP_ASSERT_MARKER = "WRAPAROUND_PUMP_ASSERT"
+_ENTRY_ERROR_PROC = "__wraparound_entry_error"
+_ENTRY_ASSERT_MARKER = "WRAPAROUND_ENTRY_ASSERT"
 _ASSERT_WRAPPER_PROC = "__wraparound_assert"
 _CLOSURE_UNROLL_MARKER_PREFIX = "// UNROLLED"
 
@@ -347,6 +357,7 @@ def analyze_bpl_for_wraparound(
     pump_reg: str,
     accel_regs: Sequence[str],
     index_value: int = 0,
+    index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
     stage: WraparoundStage,
@@ -358,12 +369,14 @@ def analyze_bpl_for_wraparound(
     if decl is None:
         raise WraparoundTransformError(f"register not found: {pump_reg}")
     index_w, elem_w = decl
-    use_last0 = index_value == 0 and f"{pump_reg}__last0_value" in var_types
+    use_last0 = index_expr is None and index_value == 0 and f"{pump_reg}__last0_value" in var_types
+    idx_value: Optional[int] = None if index_expr is not None else index_value
     pump_target = WraparoundTarget(
         reg_var=pump_reg,
         elem_width=elem_w,
         index_width=index_w,
-        index_value=index_value,
+        index_value=idx_value,
+        index_expr_override=index_expr,
         use_last0_value=use_last0,
     )
 
@@ -382,8 +395,9 @@ def analyze_bpl_for_wraparound(
                 reg_var=r,
                 elem_width=el_w,
                 index_width=idx_w,
-                index_value=index_value,
-                use_last0_value=(index_value == 0 and f"{r}__last0_value" in var_types),
+                index_value=idx_value,
+                index_expr_override=index_expr,
+                use_last0_value=(index_expr is None and index_value == 0 and f"{r}__last0_value" in var_types),
             )
         )
 
@@ -577,6 +591,15 @@ def _emit_pump_error_proc() -> str:
     )
 
 
+def _emit_entry_error_proc() -> str:
+    return (
+        f"procedure {_ENTRY_ERROR_PROC}() returns()\n"
+        "{\n"
+        f"  assert false; // {_ENTRY_ASSERT_MARKER}\n"
+        "}\n\n"
+    )
+
+
 def _strip_other_asserts_for_pump(lines: List[str]) -> None:
     for i, line in enumerate(lines):
         if _PUMP_ASSERT_MARKER in line:
@@ -627,6 +650,33 @@ def _emit_assert_wrapper_proc() -> str:
         f"procedure {{:inline 1}} {_ASSERT_WRAPPER_PROC}(cond: bool) returns()\n"
         "{\n"
         "  assert cond;\n"
+        "}\n\n"
+    )
+
+
+def _emit_gated_assert_wrapper_proc(cfg: WraparoundConfig) -> str:
+    """
+    Emit a gated assert wrapper for confirm.
+
+    We only start checking DSL assertions once the pump target has *left* the
+    MAX boundary. This prevents "UNSAFE before flip" pseudo counterexamples
+    when we fast-forward the target to MAX at initialization.
+
+    Important: the guard is evaluated at the assertion site (inside `main()`),
+    so it becomes active even if the MAX->0 update occurs in the same step as
+    the assertion evaluation.
+    """
+
+    p = cfg.pump_target
+    target_read = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
+    return (
+        f"procedure {{:inline 1}} {_ASSERT_WRAPPER_PROC}(cond: bool) returns()\n"
+        "{\n"
+        f"  if ({target_read} != {p.max_elem_expr}) {{\n"
+        "    assert cond;\n"
+        "  } else {\n"
+        "    assume true;\n"
+        "  }\n"
         "}\n\n"
     )
 
@@ -688,12 +738,35 @@ def instrument_bpl_text(
     pump_reg: str,
     accel_regs: Sequence[str],
     index_value: int = 0,
+    index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
 ) -> str:
     lines = bpl_text.splitlines(keepends=True)
     no_nl_lines = [ln.rstrip("\n") for ln in lines]
     var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])
+
+    if stage == WraparoundStage.ENTRY_CHECK:
+        period = _infer_deterministic_scheduler_period(no_nl_lines)
+        if period is None:
+            raise WraparoundTransformError("entry_check requires deterministic scheduler (procurator_phase)")
+
+        unrolled = unroll_mainprocedure_loop_text(bpl_text=bpl_text, steps=period)
+        lines = unrolled.splitlines(keepends=True)
+        no_nl_lines = [ln.rstrip("\n") for ln in lines]
+
+        _strip_other_asserts_for_pump(lines)
+        _strip_debug_snapshot_for_pump(lines)
+        _strip_step_increments(lines)
+        _inline_deterministic_round_into_mainprocedure(lines, period)
+
+        no_nl_lines = [ln.rstrip("\n") for ln in lines]
+        _, _, body_close_idx = _find_procedure_block(no_nl_lines, _RE_PROC_MAIN)
+        close_indent = re.match(r"^(\s*)", lines[body_close_idx]).group(1)  # type: ignore[union-attr]
+        call_indent = close_indent + "  "
+        lines[body_close_idx:body_close_idx] = [f"{call_indent}call {_ENTRY_ERROR_PROC}();\n"]
+        lines.append(_emit_entry_error_proc())
+        return "".join(lines)
 
     if stage == WraparoundStage.CLOSURE_CHECK:
         period = _infer_deterministic_scheduler_period(no_nl_lines)
@@ -719,6 +792,7 @@ def instrument_bpl_text(
             pump_reg=pump_reg,
             accel_regs=accel_regs,
             index_value=index_value,
+            index_expr=index_expr,
             proj_vars=proj_vars,
             cutpoint_cond=cutpoint_cond,
             stage=stage,
@@ -789,6 +863,7 @@ def instrument_bpl_text(
         pump_reg=pump_reg,
         accel_regs=accel_regs,
         index_value=index_value,
+        index_expr=index_expr,
         proj_vars=proj_vars,
         cutpoint_cond=cutpoint_cond,
         stage=stage,
@@ -825,7 +900,7 @@ def instrument_bpl_text(
         confirm_block = _emit_confirm_init(cfg)
         lines.insert(while_idx, confirm_block)
         _rewrite_asserts_as_calls(lines)
-        lines.append(_emit_assert_wrapper_proc())
+        lines.append(_emit_gated_assert_wrapper_proc(cfg))
         return "".join(lines)
 
     # Insert local decls immediately after '{'.
@@ -891,6 +966,7 @@ def instrument_bpl_file(
     pump_reg: str,
     accel_regs: Sequence[str],
     index_value: int = 0,
+    index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
 ) -> None:
@@ -901,6 +977,7 @@ def instrument_bpl_file(
         pump_reg=pump_reg,
         accel_regs=accel_regs,
         index_value=index_value,
+        index_expr=index_expr,
         proj_vars=proj_vars,
         cutpoint_cond=cutpoint_cond,
     )

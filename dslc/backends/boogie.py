@@ -2246,8 +2246,13 @@ class BoogieHarnessEmitter:
     def _emit_register_write_guard(self) -> Optional[str]:
         guards: List[str] = []
         for regs in self._node_register_arrays.values():
-            for name in sorted(regs.keys()):
-                guards.append(self._register_wrote_index0_name(name))
+            for name, (idx_type, _elem_type) in sorted(regs.items()):
+                wrote0 = self._register_wrote_index0_name(name)
+                last_idx = self._register_last_index_name(name)
+                idx_zero = self._render_index_zero(idx_type)
+                # Be conservative but semantics-friendly: enable DSL assertions after we have
+                # observed at least one register write (any index).
+                guards.append(f"({wrote0} || {last_idx} != {idx_zero})")
         if not guards:
             return None
         return " || ".join(guards)
