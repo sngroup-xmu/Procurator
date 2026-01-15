@@ -1,6 +1,6 @@
 # Procurator：分布式有状态 P4 验证的实现报告（NSDI 风格技术报告）
 
-> 本文是面向本仓库“**当前代码实现**”的技术报告：用 NSDI 论文常见的组织方式（Abstract/Introduction/Design/Implementation/Evaluation/Limitations/Related Work）把系统讲清楚，并给出我们在 Netchain（寄存器翻转 bug）上的可复现实验结果。
+> 本文是面向本仓库“**当前代码实现**”的技术报告：用 NSDI 论文常见的组织方式（Abstract/Introduction/Design/Implementation/Evaluation/Limitations/Related Work）把系统讲清楚，并给出我们在 Netchain 与 DistCache（寄存器翻转 / wrap-around bug）上的可复现实验结果。
 >
 > 读者假设：你具备基本编程语言背景，但不要求熟悉 Boogie/Ultimate。
 
@@ -10,7 +10,7 @@
 
 我们实现了一个面向分布式有状态 P4 程序的验证原型 Procurator。系统输入为一个 DSL 规格（`.prop`），描述多交换机部署、拓扑、环境约束与 safety 断言；系统将每个 P4 节点通过 P4B 翻译为 Boogie，再生成分布式执行的 harness（pass-atomic、队列抽象、环境注入与调度），最后交由 Ultimate（GemCutter/TraceAbstraction）进行验证与反例生成。
 
-本报告重点讨论一个“**深反例（deep counterexample）**”场景：当 bug 依赖寄存器计数器发生 **bitvector 翻转（wrap-around）** 时，从初态（寄存器为 0）到达翻转前沿可能需要接近 `2^w` 次有效更新，使得常规的反例搜索在单机上很难在可接受时间给出 witness。我们在不修改 Ultimate 内核的前提下，实现了一个 Boogie→Boogie 的“**closure_check→confirm**”两段式加速管线：先生成一个 loop-free 的 `closure_check` 证明任务，证明在选定的 cutpoint/投影下，“执行一个 round”会对目标寄存器槽位产生净 `+1` 且回到同一投影类（闭包泵，closure pump）；再在全语义模型中从临界状态附近快速确证性质违反（confirm）。在 Netchain 的 2 节点复现实验中，`closure_check` 阶段用 400.2s 证明闭包泵成立，`confirm.unroll3` 阶段用 69.7s 找到真实性质反例，总计约 7.8 分钟产出可解释的 GraphML witness。
+本报告重点讨论一个“**深反例（deep counterexample）**”场景：当 bug 依赖寄存器计数器发生 **bitvector 翻转（wrap-around）** 时，从初态（寄存器为 0）到达翻转前沿可能需要接近 `2^w` 次有效更新，使得常规的反例搜索在单机上很难在可接受时间给出 witness。我们在不修改 Ultimate 内核的前提下，实现了一个 Boogie→Boogie 的“**entry_check + closure_check → confirm**”加速管线：先用 `entry_check` 排除“证明任务 vacuous（不可达导致的真）”；再用 loop-free 的 `closure_check` 证明在选定的 cutpoint/投影下，“执行一个 round”会对目标寄存器槽位产生净 `+1` 且回到同一投影类（闭包泵，closure pump）；最后在全语义模型中从临界状态附近快速确证性质违反（confirm），并通过“MAX 出发断言门控”避免翻转前的伪反例。我们在 Netchain（bv16）与 DistCache（bv32）上都能复现翻转类 UNSAFE，并产出可解释的 log + GraphML witness。
 
 ---
 
@@ -468,10 +468,11 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
   - 外部求解器：Z3（ALL）
   - 启用 WitnessPrinter：输出 `*.bpl-witness.graphml`
 
-`closure_check` 使用的配置为：
+`entry_check / closure_check` 使用的配置为：
 
-- toolchain：`Procurator/argo/code/spec/config/ClosureCheck-ReachSafety.xml`（不含 WitnessPrinter）
-- settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`
+- toolchain：`Procurator/argo/code/spec/config/ClosureCheck-ReachSafety.xml`（不含 WitnessPrinter，避免 correctness witness 的已知崩溃）
+- entry_check settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf`（更偏 bug-finding/可达性，避免在 Netchain 上出现病态长时间）
+- closure_check settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`
   - 关闭 per-query Z3 timeout（避免 UNKNOWN）
   - `HoareAnnotationPositions=None`（避免 SAFE 后的额外 simplify 卡顿）
   - 关闭并发 POR（sequential round proof 不需要）
@@ -493,14 +494,22 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 
 **基准与性质**
 
-- P4 程序：`Procurator/argo/code/dataset/Netchain/netchain_16.p4`
-- 控制面表项：
-  - s1：`Procurator/argo/code/dataset/Netchain/commands_1.txt`
-  - s2：`Procurator/argo/code/dataset/Netchain/commands_2.txt`
-- DSL spec：`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`
-  - 2 节点拓扑：`s1 -> s2`
-  - 收紧输入：只发 `NC_WRITE_REQUEST`，key 固定到 index 0，overlay terminator 固定等
-  - 性质（safety）：`assert { s1_sequence_reg_0[0] >= s2_sequence_reg_0[0]; }`
+- Netchain（bv16 wrap-around）
+  - P4 程序：`Procurator/argo/code/dataset/Netchain/netchain_16.p4`
+  - 控制面表项：
+    - s1：`Procurator/argo/code/dataset/Netchain/commands_1.txt`
+    - s2：`Procurator/argo/code/dataset/Netchain/commands_2.txt`
+  - DSL spec：`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`
+    - 2 节点拓扑：`s1 -> s2`
+    - 收紧输入：只发 `NC_WRITE_REQUEST`，key 固定到 index 0，overlay terminator 固定等
+    - 性质（safety）：`assert { s1_sequence_reg_0[0] >= s2_sequence_reg_0[0]; }`
+- DistCache（bv32 wrap-around，clientTrack-only demo）
+  - P4 程序：`Procurator/argo/code/dataset/distcache/clientrackswitch/partitionswitch.p4`
+  - 控制面表项：`Procurator/argo/code/dataset/distcache/clientrackswitch/clienttrack_entries.txt`
+  - DSL spec：`Procurator/argo/code/spec/bench/distcache_leafload_wraparound.prop`
+    - 强制走 `update_leaf_load` 更新路径（`optype=0x2009`），每个 round 自增一次 `leafload_reg`
+    - 固定 `clientTrack_meta.leafswitchidx == 2`（使被更新的寄存器槽位稳定）
+    - 性质（safety）：`assert { clientTrack_leafload_0 != 0; }`（翻转后变 0）
 
 **计时口径**
 
@@ -508,22 +517,21 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 
 ### 7.2 结果总览
 
-表 1：Netchain（wrap-around bug）在各阶段的结果（UNSAFE 代表找到 witness；pump/accel_probe/accel 的 UNSAFE 可能是“合成断言点”被触发，用于诊断/加速实验）。
+表 1：认证版 wrap-around 管线（entry_check + closure_check + confirm）的结果。
 
-| 运行 | 输入 BPL | 目的 | 结果 | OverallTime (s) | CFG 规模（procs/locs/edges） | witness 大小 |
-|---|---|---|---|---:|---|---:|
-| closure_check | `netchain_bug_s1s2.tight.seq.closure_check.bpl` | 证明闭包泵（round 闭包 + 净 `+1`） | SAFE | 400.2 | 27 / 279 / 442 | — |
-| confirm | `netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl` | 从临界点附近短后缀确证真实断言违反 | UNSAFE | 69.7 | 22 / 268 / 424 | 535,366 B |
-| pump（可选） | `netchain_bug_s1s2.tight.seq.pump.bpl` | 找到 `+1` 泵循环 witness（诊断/CEGAR） | UNSAFE | 318.9 | 20 / 262 / 411 | 488,826 B |
-| accel_probe（可选） | `netchain_bug_s1s2.tight.seq.accel_probe.bpl` | 只确认“加速触发条件可达”（诊断用） | UNSAFE | 324.1 | 20 / 262 / 411 | 493,933 B |
-| accel（可选） | `netchain_bug_s1s2.tight.seq.accel.bpl` | 在模型内执行快进写回（实验中） | UNSAFE | 592.2 | 21 / 267 / 379 | 894,690 B |
+| 基准 | 阶段 | 输入 BPL | 结果 | elapsed_s (s) | witness 大小 |
+|---|---|---|---|---:|---:|
+| Netchain | entry_check | `.tmp/dslc/netchain_bug_s1s2.entry_check.bpl` | UNSAFE | 355.4 | — |
+| Netchain | closure_check | `.tmp/dslc/netchain_bug_s1s2.s1_sequence_reg_idx0_global_asserts.closure_check.bpl` | SAFE | 507.4 | — |
+| Netchain | confirm.unroll3 | `.tmp/dslc/netchain_bug_s1s2.s1_sequence_reg_idx0_global_asserts.confirm.unroll3.bpl` | UNSAFE | 69.6 | 553,381 B |
+| DistCache | entry_check | `.tmp/dslc/distcache_leafload_wraparound.entry_check.bpl` | UNSAFE | 104.8 | — |
+| DistCache | closure_check | `.tmp/dslc/distcache_leafload_wraparound.clientTrack_partitionswitchIngress_leafload_reg_idx2_boogie_counter_write_clientTrack_leafload_0_idx_from_global_assume_2.closure_check.bpl` | SAFE | 79.9 | — |
+| DistCache | confirm.unroll3 | `.tmp/dslc/distcache_leafload_wraparound.clientTrack_partitionswitchIngress_leafload_reg_idx2_boogie_counter_write_clientTrack_leafload_0_idx_from_global_assume_2.confirm.unroll3.bpl` | UNSAFE | 57.2 | 511,951 B |
 
 **端到端结论（本次的主线）**
 
-- 我们把“从 0 推到翻转”这个深前缀问题，拆成了两个更可控的查询：
-  - `closure_check`：400.2s 证明闭包泵成立（round 闭包 + 净 `+1`）
-  - `confirm`：69.7s 得到翻转后缀导致的真实性质反例
-- 两段合计约 **470s（≈7.8 分钟）** 得到可解释的反例工件（log + GraphML witness）。
+- 对 Netchain（bv16），认证版三阶段总计约 **932s（≈15.5 分钟）** 得到可解释的反例工件（log + GraphML witness）。
+- 对 DistCache（bv32，clientTrack-only），认证版三阶段总计约 **242s（≈4.0 分钟）** 得到反例工件。
 
 ### 7.3 反例是否“符合预期”（语义 sanity check）
 
@@ -533,12 +541,19 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 call __wraparound_assert(bvule.bv16$builtin(s2_sequence_reg__dbg0, s1_sequence_reg__dbg0));
 ```
 
-即验证 `s2_seq <= s1_seq`（等价于 `s1_seq >= s2_seq`）。在触发点的 valuation（见 `netchain_bug_s1s2.tight.seq.confirm.unroll3.gemcutter.log`）包含：
+即验证 `s2_seq <= s1_seq`（等价于 `s1_seq >= s2_seq`）。在触发点的 valuation（见 `.tmp/dslc/netchain_bug_s1s2.s1_sequence_reg_idx0_global_asserts.confirm.unroll3.gemcutter.log`）包含：
 
 - `old(s1_sequence_reg__dbg0)=0bv16`
 - `s2_sequence_reg__dbg0=65535bv16`
 
 因此 `65535 <= 0` 为假，断言被真实违反，这与“翻转导致关系断裂”的预期一致。
+
+对 DistCache（clientTrack-only）同理：在触发点的 valuation（见 `.tmp/dslc/distcache_leafload_wraparound.clientTrack_partitionswitchIngress_leafload_reg_idx2_boogie_counter_write_clientTrack_leafload_0_idx_from_global_assume_2.confirm.unroll3.gemcutter.log`）包含：
+
+- `clientTrack_leafload_0=0bv32`
+- `clientTrack_partitionswitchIngress_leafload_reg__last_index=2bv32`
+
+与 spec 中的 `assert { clientTrack_leafload_0 != 0; }` 直接矛盾，说明翻转后缀确实进入了违反状态，而不是“MAX 初始值导致的翻转前伪反例”（confirm 阶段对 `MAX` 做了断言门控）。
 
 ---
 
@@ -572,25 +587,37 @@ call __wraparound_assert(bvule.bv16$builtin(s2_sequence_reg__dbg0, s1_sequence_r
 
 ## 9 复现（Artifact & Reproducibility）
 
-**直接复现本报告的 closure_check→confirm 结果（推荐）**
+**直接复现本报告的认证版（entry_check + closure_check → confirm）结果（推荐）**
 
-- 产物与日志位置：
-  - `.bpl`：`.tmp/dslc/netchain_bug_s1s2.tight.seq.*.bpl`
-  - log：`.tmp/dslc/netchain_bug_s1s2.tight.seq.*.gemcutter.log`
-  - witness：`.tmp/dslc/netchain_bug_s1s2.tight.seq.*.bpl-witness.graphml`
+- 产物与日志位置（Netchain / DistCache 都是 `.tmp/dslc/` 下）：
+  - `.bpl`：`.tmp/dslc/netchain_bug_s1s2*.bpl` 与 `.tmp/dslc/distcache_leafload_wraparound*.bpl`
+  - log：对应的 `*.gemcutter.log`
+  - witness：对应的 `*.bpl-witness.graphml`（主要看 confirm 阶段）
 
 **命令（示例）**
 
-使用 wraparound runner（会自动编译 base `.bpl`，然后跑 `closure_check/confirm`）：
+使用 wraparound runner（会自动编译 base `.bpl`，默认跑 `entry_check,closure_check,confirm`，并在满足 soundness gate 时输出 `[CERT] UNSAFE`）：
 
 ```
 python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop \
+  --p4b-bin P4B-Translator/build-host/backends/verify/p4c-translator \
+  --ultimate ./UGemCutter-linux/Ultimate \
   --boogie-harness sequential \
-  --stages closure_check,confirm \
+  --env spec \
   --unroll confirm=3 \
-  --require-closure \
-  --ultimate ./UGemCutter-linux/Ultimate
+  --rerun
+```
+
+```
+python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \
+  --spec Procurator/argo/code/spec/bench/distcache_leafload_wraparound.prop \
+  --p4b-bin P4B-Translator/build-host/backends/verify/p4c-translator \
+  --ultimate ./UGemCutter-linux/Ultimate \
+  --boogie-harness sequential \
+  --env spec \
+  --unroll confirm=3 \
+  --rerun
 ```
 
 > 如果你只想复跑 Ultimate 而不重新编译 base，可以先保留生成的 base `.bpl`，用 `--base-bpl` 指定它；并用 `--rerun` 控制是否复用 witness。
