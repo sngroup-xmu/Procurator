@@ -2429,22 +2429,10 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             }
         }
 
-        if(options.ultimateAutomizer){
-            // eg: bsge.bv8(left:int, right:int) : bool{left >= right}
-            cstring funcName = "bsge."+typeName;
-            cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : bool{"
-                + "left >= right" + "}\n";
-            addFunction(funcName, function);
-        }
-        else
-            addFunction("bsge", "bvsge", typeName, "bool");
-        // cstring right = translate(opBinary->right);
-        // if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
-            // right += returnType;
-        // return "bsge."+typeName+"("+translate(opBinary->left)+", "+right+")";
-
         res += "havoc "+arg0+";\n";
         if (!options.ultimateAutomizer && isBv) {
+            addFunction("buge", "bvuge", typeName, "bool");
+            addFunction("bule", "bvule", typeName, "bool");
             if (auto c = arg2Expr->to<IR::Constant>()) {
                 std::stringstream ss;
                 ss << c->value;
@@ -2455,8 +2443,9 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 ss << c->value;
                 arg4 = ss.str() + typeName;
             }
-            res += getIndent()+"assume(bsge."+typeName+"("+arg0+", "+arg2+
-                ") && bsge."+typeName+"("+arg4+", "+arg0+"));\n";
+            // Use unsigned comparisons: from <= result <= to.
+            res += getIndent()+"assume(buge."+typeName+"("+arg0+", "+arg2+
+                ") && bule."+typeName+"("+arg0+", "+arg4+"));\n";
         } else {
             res += getIndent()+"assume(("+arg0+" >= "+arg2+
                 ") && "+"("+arg4+" >= "+arg0+"));\n";
@@ -5909,9 +5898,9 @@ void Translator::translate(const IR::P4Table *p4Table){
                         table.addModifiedGlobalVariables(name+".hit");
                     }
 
-                    for(auto rule:rules){
-                        cstring actionName = rule->action;
-                        cstring resolvedAction = nullptr;
+	                    for(auto rule:rules){
+	                        cstring actionName = rule->action;
+	                        cstring resolvedAction = nullptr;
                         for(auto actionElement:actionList->actionList){
                             if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                                 cstring candidate = translate(actionCallExpr->method);
@@ -5925,13 +5914,42 @@ void Translator::translate(const IR::P4Table *p4Table){
                             continue;
                         }
                         actionName = resolvedAction;
-                        if(actions.find(actionName) == actions.end()){
-                            continue;
-                        }
-                        cstring condition = rule->getCondition(keyExprs, keyWidths);
-                        if(condition == ""){
-                            continue;
-                        }
+	                        if(actions.find(actionName) == actions.end()){
+	                            continue;
+	                        }
+	                        // bmv2 match expressions may require bitvector helpers (Ultimate Boogie parser
+	                        // does not accept the infix `&` operator, and comparison operators like <=/>=
+	                        // are not defined for bitvectors).
+	                        for (size_t fi = 0; fi < rule->fields.size(); ++fi) {
+	                            std::string field_str = rule->fields[fi].c_str();
+	                            const bool usesAnd =
+	                                field_str.find("/") != std::string::npos ||
+	                                field_str.find("&&&") != std::string::npos;
+	                            const bool usesRange =
+	                                field_str.find("->") != std::string::npos;
+	                            if (!usesAnd && !usesRange) {
+	                                continue;
+	                            }
+	                            int w = 32;
+	                            if (fi < keyWidths.size()) {
+	                                w = keyWidths[fi];
+	                            }
+	                            if (w <= 0) {
+	                                w = 32;
+	                            }
+	                            cstring bv = "bv" + cstring::to_cstring(w);
+	                            if (usesAnd) {
+	                                addFunction("band", "bvand", bv, bv);
+	                            }
+	                            if (usesRange) {
+	                                addFunction("buge", "bvuge", bv, "bool");
+	                                addFunction("bule", "bvule", bv, "bool");
+	                            }
+	                        }
+	                        cstring condition = rule->getCondition(keyExprs, keyWidths);
+	                        if(condition == ""){
+	                            continue;
+	                        }
                         if(firstRule){
                             table.addStatement(getIndent()+"if("+condition+"){\n");
                             firstRule = false;

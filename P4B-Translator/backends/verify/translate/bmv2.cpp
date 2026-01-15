@@ -254,11 +254,11 @@ cstring TableAdd::getCondition(const std::vector<cstring>& keys, const std::vect
 			condition += " && ";
 		}
 
-		if (field_str.find("/") != std::string::npos) { // lpm
-			std::string::size_type idx = field_str.find("/");
-			cstring ip = formatLiteral(field_value.substr(0, idx), width > 0 ? width : 32);
-			int bits = std::stoi(field_value.substr(idx + 1).c_str());
-			int maskWidth = (width > 0 ? width : 32);
+			if (field_str.find("/") != std::string::npos) { // lpm
+				std::string::size_type idx = field_str.find("/");
+				cstring ip = formatLiteral(field_value.substr(0, idx), width > 0 ? width : 32);
+				int bits = std::stoi(field_value.substr(idx + 1).c_str());
+				int maskWidth = (width > 0 ? width : 32);
 			uint64_t mask = 0;
 			if (bits > 0) {
 				if (bits >= maskWidth && maskWidth < 64) {
@@ -268,23 +268,28 @@ cstring TableAdd::getCondition(const std::vector<cstring>& keys, const std::vect
 				} else {
 					mask = ~0ULL;
 				}
+				}
+				cstring maskLit = formatLiteral(cstring::to_cstring(mask), maskWidth);
+				condition += "band.bv" + cstring::to_cstring(maskWidth) + "(" + key + ", " + maskLit + ") == " + ip;
+			} else if (field_str.find("&&&") != std::string::npos) { // ternary
+				std::string::size_type idx = field_str.find("&&&");
+				int maskWidth = (width > 0 ? width : 32);
+				cstring value = formatLiteral(field_value.substr(0, idx), maskWidth);
+				cstring mask = formatLiteral(field_value.substr(idx + 3), maskWidth);
+				cstring bandFun = "band.bv" + cstring::to_cstring(maskWidth);
+				condition += bandFun + "(" + key + ", " + mask + ") == " + bandFun + "(" + value + ", " + mask + ")";
+			} else if (field_str.find("->") != std::string::npos) { // range
+				std::string::size_type idx = field_str.find("->");
+				int rangeWidth = (width > 0 ? width : 32);
+				cstring min = formatLiteral(field_value.substr(0, idx), rangeWidth);
+				cstring max = formatLiteral(field_value.substr(idx + 2), rangeWidth);
+				cstring bugeFun = "buge.bv" + cstring::to_cstring(rangeWidth);
+				cstring buleFun = "bule.bv" + cstring::to_cstring(rangeWidth);
+				condition += "(" + bugeFun + "(" + key + ", " + min + ")) && (" + buleFun + "(" + key + ", " + max + "))";
+			} else { // exact
+				cstring value = formatLiteral(field_value, width);
+				condition += key + " == " + value;
 			}
-			cstring maskLit = formatLiteral(cstring::to_cstring(mask), maskWidth);
-			condition += key + " & " + maskLit + " == " + ip;
-		} else if (field_str.find("&&&") != std::string::npos) { // ternary
-			std::string::size_type idx = field_str.find("&&&");
-			cstring value = formatLiteral(field_value.substr(0, idx), width);
-			cstring mask = formatLiteral(field_value.substr(idx + 3), width);
-			condition += "(" + key + " & " + mask + ") == (" + value + " & " + mask + ")";
-		} else if (field_str.find("->") != std::string::npos) { // range
-			std::string::size_type idx = field_str.find("->");
-			cstring min = formatLiteral(field_value.substr(0, idx), width);
-			cstring max = formatLiteral(field_value.substr(idx + 2), width);
-			condition += "(" + key + " >= " + min + ") && (" + key + " <= " + max + ")";
-		} else { // exact
-			cstring value = formatLiteral(field_value, width);
-			condition += key + " == " + value;
-		}
 	}
 
 	if (condition == "") {
