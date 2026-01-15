@@ -1,0 +1,647 @@
+# Procurator：分布式有状态 P4 验证的实现报告（NSDI 风格技术报告）
+
+> 本文是面向本仓库“**当前代码实现**”的技术报告：用 NSDI 论文常见的组织方式（Abstract/Introduction/Design/Implementation/Evaluation/Limitations/Related Work）把系统讲清楚，并给出我们在 Netchain（寄存器翻转 bug）上的可复现实验结果。
+>
+> 读者假设：你具备基本编程语言背景，但不要求熟悉 Boogie/Ultimate。
+
+---
+
+## 摘要（Abstract）
+
+我们实现了一个面向分布式有状态 P4 程序的验证原型 Procurator。系统输入为一个 DSL 规格（`.prop`），描述多交换机部署、拓扑、环境约束与 safety 断言；系统将每个 P4 节点通过 P4B 翻译为 Boogie，再生成分布式执行的 harness（pass-atomic、队列抽象、环境注入与调度），最后交由 Ultimate（GemCutter/TraceAbstraction）进行验证与反例生成。
+
+本报告重点讨论一个“**深反例（deep counterexample）**”场景：当 bug 依赖寄存器计数器发生 **bitvector 翻转（wrap-around）** 时，从初态（寄存器为 0）到达翻转前沿可能需要接近 `2^w` 次有效更新，使得常规的反例搜索在单机上很难在可接受时间给出 witness。我们在不修改 Ultimate 内核的前提下，实现了一个 Boogie→Boogie 的“**closure_check→confirm**”两段式加速管线：先生成一个 loop-free 的 `closure_check` 证明任务，证明在选定的 cutpoint/投影下，“执行一个 round”会对目标寄存器槽位产生净 `+1` 且回到同一投影类（闭包泵，closure pump）；再在全语义模型中从临界状态附近快速确证性质违反（confirm）。在 Netchain 的 2 节点复现实验中，`closure_check` 阶段用 400.2s 证明闭包泵成立，`confirm.unroll3` 阶段用 69.7s 找到真实性质反例，总计约 7.8 分钟产出可解释的 GraphML witness。
+
+---
+
+## 1 引言（Introduction）
+
+**问题背景**：分布式数据面系统（例如多交换机部署的有状态 P4 程序）包含：
+
+- 多节点并发执行（跨节点消息/转发交互）
+- 数据面状态（寄存器、计数器、哈希索引等）
+- 丰富的环境输入（外部报文的字段、到达端口、控制面表项）
+
+这类系统的验证难点主要来自 **状态空间爆炸**：一方面来自并发交错，另一方面来自状态变量（尤其是 bitvector 寄存器）带来的深路径。
+
+**我们遇到的具体瓶颈**：Netchain 中存在一个典型 bug：16-bit 序号寄存器在 `65535 -> 0` 翻转后导致跨节点关系断裂（例如 `s1_seq >= s2_seq` 被违反）。即使我们把环境输入收紧到“只发写请求、只用 index=0、角色固定”等，验证仍可能因为需要探索极深前缀而卡住数小时。
+
+**本文贡献**（面向工程与可复现）：
+
+1. 总结并形式化本仓库当前的 DSL→Boogie 分布式建模方式（pass-atomic + 队列抽象 + 环境注入）。
+2. 实现一个不侵入 Ultimate 的 wrap-around 加速原型（Boogie-to-Boogie），并给出与代码一一对应的解释。
+3. 给出 Netchain 基准上的端到端结果（时间、CFG 规模、witness 工件），以及为何它比“直接把寄存器初值设成 65535”更接近可控与可解释的工作流。
+
+---
+
+## 2 系统概览（System Overview）
+
+### 2.1 输入/输出与工件
+
+**输入**
+
+- DSL 规格：`.prop`（节点、拓扑、环境约束、性质）
+- 每个节点的 P4 程序：`*.p4` 或 `*.json`
+- 控制面表项：BMv2 命令文件（例如 `commands_*.txt`）
+
+**输出**
+
+- Boogie 模型：`.bpl`（包含每个节点的 Boogie + 分布式 harness）
+- Ultimate 日志：`*.gemcutter.log`
+- GraphML witness：`*.bpl-witness.graphml`（结构化反例轨迹）
+
+### 2.2 关键代码入口（你应从哪里读）
+
+- DSL 编译入口：`dslc/compiler.py`
+- Boogie 后端（语义编码的核心）：`dslc/backends/boogie.py`
+- wrap-around 加速变换：`dslc/transform/wraparound.py`
+- 一键跑 wrap-around 管线：`Procurator/argo/code/spec/prop_compile/run_wraparound.py`
+
+---
+
+### 2.3 术语：Harness 是什么？（用一句话说清楚）
+
+在验证里，**harness** 指“为了验证而生成/手写的**驱动程序（driver/testbench）**”：它不实现 P4 程序本身的功能，而是负责：
+
+- 建模环境输入（外部报文如何产生、字段如何 nondet/havoc、哪些约束必须满足）
+- 建模系统结构（拓扑/转发/入队/队列容量等）
+- 建模并发/调度（下一步执行 env 注入还是某个节点的一次 pass）
+- 在合适位置插入断言（assert）来表达我们要验证的性质
+
+在本仓库里，“被验证的程序本体”主要是 **P4B 输出的每个节点 Boogie**（例如 `s1_mainProcedure()` 表示 s1 的一次 pipeline pass），而 harness 是 `dslc/backends/boogie.py` 生成的一大段“胶水代码”，典型入口是：
+
+- `procedure ULTIMATE.start()`（Ultimate 的入口，负责启动主循环）
+- `procedure mainProcedure()`（一次性初始化 + `while(true)`）
+- `procedure main()`（每步只执行一个动作：env 注入/节点 pass/host 行为/idle）
+- `procedure s1__enqueue_s2()`（跨节点转发：只复制 `hdr.*`，不复制 `meta.*`）
+
+用“接近代码的伪代码”表示，sequential harness 大致长这样（仅示意）：
+
+```
+procedure ULTIMATE.start() { call mainProcedure(); }
+
+procedure mainProcedure() {
+  init queues, regs, dsl state;
+  while (true) {
+    call main();          // one scheduler step
+    procurator_step++;
+  }
+}
+
+procedure main() {
+  choose one action:
+    env_inject(s1) | node_pass(s1) | node_pass(s2) | ...
+}
+```
+
+这就是你在 `.bpl` 里看到的“很多与 P4 无关的东西”的来源：它们属于 harness，目的是把“多节点系统语义”编码成单个可验证程序。
+
+---
+
+## 3 设计：分布式语义如何落到 Boogie（Design）
+
+本仓库的核心设计原则是：**把复杂系统的并发点压缩到“pass/step 的边界”**，让验证器主要面对“调度选择（哪个 actor 在下一步执行）”，而不是在每条语句之间交错。
+
+### 3.1 执行语义：pass-atomic / step-atomic
+
+我们把系统的一步定义为：
+
+- **环境注入**：产生一个外部输入报文（受 `.prop` 的 assume/env 收紧）
+- **节点执行**：某个节点处理一个输入（完整 ingress/egress 或拆成 two-stage）
+- **host 行为**：可选的 host send/recv（用于更贴近 Promela 的交互）
+
+在 Boogie 的 sequential harness 中，这种“一步一个动作”的语义直接编码为：
+
+- `procedure main()`：一次只执行一个动作（nondet 或 deterministic round-robin）
+- `procedure mainProcedure()`：一次性初始化后 `while(true) { call main(); step++; }`
+
+对应实现：
+
+- `dslc/backends/boogie.py:_emit_sequential_main`（生成 `main()` 与 action 列表）
+- `dslc/backends/boogie.py:_emit_sequential_main`（生成 `mainProcedure()` 的 while(true) 驱动）
+
+> 这套 sequential harness 的目的，是让 Ultimate 可以在一个“经典的顺序程序 + while(true)”框架下做 unbounded 推理；并发 harness（fork/atomic + 全局锁）也存在，但 wrap-around 加速 v0/v1 目前以 sequential harness 为主。
+
+### 3.2 队列抽象：Bag(K) + mailbox
+
+跨节点交互通过“入队到下游节点 inbox”建模。当前默认抽象是：
+
+- 每个节点有 `*_inbox_count`（整数计数，容量上界 K）
+- 报文内容通过一组全局变量表示（单槽 mailbox）；入队时将 `hdr.*` 从 src 复制到 dst（不复制 `meta.*`）
+
+其效果是一个 **Bag(K)**（不保序）抽象：只关心“有多少条消息”，不关心 FIFO 顺序。这大幅降低状态空间，并与后续 commutativity/POR 优化兼容。
+
+### 3.3 环境收紧：用 `.prop` 控制输入空间
+
+对于深 bug，环境收紧是必要条件。以 Netchain 为例，我们在 `.prop` 中固定：
+
+- 报文字段（协议栈 valid、op、key、overlay terminator 等）
+- 控制面命中（`find_index.hit` 等）
+- 角色（role=100/101）
+- 关键 index（location.index=0）
+
+对应 spec：`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`
+
+### 3.4 P4 状态初始化：寄存器默认值
+
+P4 语义里寄存器如果没有由控制面显式配置，通常默认 0。Boogie harness 在初始化时对寄存器数组加入：
+
+- `assume (forall i :: reg[i] == 0)`
+- 同时保留 `reg[0]==0` 作为辅助（便于某些工具/简化）
+
+对应实现：`dslc/backends/boogie.py:_emit_register_init_assumes`
+
+---
+
+## 4 设计：为什么 wrap-around 让验证变慢（Motivation）
+
+假设一个 w-bit 寄存器 `R[idx]` 每次有效写回执行 `R[idx] := R[idx] + 1 (mod 2^w)`。
+
+要观察到翻转 `MAX -> 0`，至少需要到达 `R[idx]==MAX` 的状态；从 0 推到 MAX 在最坏情况下需要 `2^w - 1` 次有效更新。对于 `w=16`：
+
+- 需要 65535 次有效更新
+- 在分布式模型中，每次有效更新还需要若干调度步（env→s1→s2...），反例前缀深度进一步放大
+
+这解释了你观察到的现象：
+
+- 直接从初态跑：工具需要探索“很深的未来”，可能数小时没有 witness
+- 人为把寄存器初值设成 65535：立即落在临界点附近，短 suffix 就能触发 bug
+
+但后者的问题是：它把问题变成“从一个不可证明可达的状态出发”，会带来 **语义与实验意义** 的争议。因此我们希望一个更可解释的流程：既能快，也能说明“为什么这个临界状态是合理的目标”。
+
+---
+
+## 5 设计：wrap-around 加速管线（closure_check → confirm）（Design）
+
+我们的核心思路不是直接求 `Pre(Bad)`，也不是展开 `2^w` 次更新，而是先证明一个更“结构化”的事实：
+
+> 在选定的 cutpoint/投影下，存在一个闭包的 round 摘要：每执行一个 round，目标寄存器槽位净效应为 `+1`，并回到同一投影类（closure pump）。
+
+这件事可以被编码成一个 **loop-free 的 SAFETY 证明任务（`closure_check`）**。当该证明成立时，我们就有了“从 0 可以推进到 `MAX`”的可解释支撑，于是可以做两段式：
+
+1. **closure_check（证明阶段）**：证明 round 的闭包 + `+1` 净效应（避免伪泵导致的伪可达性）
+2. **confirm（确证阶段）**：在全语义模型里把状态快进到临界状态附近，验证翻转后缀是否真的会触发断言违反
+
+当 `closure_check` 暂时证明不了时，我们仍保留一个 **可选的 pump（witness 阶段）** 用于诊断/CEGAR（先找“存在泵循环”的反例轨迹，再决定把哪些状态量纳入闭包谓词）。
+
+### 5.1 关键概念：投影（projection）与 cutpoint
+
+如果我们希望一个循环可以“被泵”（重复执行很多次），必须确保循环前后某些状态等价。我们用一个投影 `proj(s)` 表示“我们要求保持不变的那部分状态”。
+
+在 v0/v1 原型中：
+
+- 默认投影包含 `procurator_phase`（调度相位）和所有 `*_inbox_count`/`*_egress_count`（队列计数）
+- 只投影 **标量**（不投影数组/结构体），以便快照为 local 变量
+
+同时，我们只在某些“**cutpoint**”位置比较投影，避免在任意语句点比较：
+
+- 默认 cutpoint 条件：`procurator_phase == 0`
+- 直观含义：只在“调度回到 round-robin 的边界”处对齐状态
+
+### 5.1.1 closure pump（闭包泵）到底是什么：一个可证明可重复的 `+1` round 摘要
+
+为了让概念更直观，我们先抛开 Boogie，用最小数学语言定义我们真正想要证明的东西：
+
+- 设 **一轮 round** 的语义是 `Round(s) -> s'`（在我们的 sequential harness 里，round 就是把调度相位从 `0..period-1` 跑一遍）
+- 设目标寄存器槽位是 `R[idx]`，位宽是 `w`（例如 `w=16`，则 `MAX=2^w-1=65535`）
+- 我们选择一个投影函数 `proj(s)`（例如只保留 `procurator_phase` 与 `*_inbox_count`）
+
+我们说“存在一个闭包泵（closure pump）”，是指在 cutpoint 上，round 的行为满足一个 **闭包 + 单步效应** 的 Hoare 形式：
+
+- **闭包（closure）**：`proj(s') == proj(s)`（round 前后回到同一投影类，下一轮还能“以同样方式”继续）  
+- **单步效应（+1）**：`R[idx](s') == R[idx](s) + 1 (mod 2^w)`（目标槽位净效应为 +1）
+
+直觉：只要闭包泵成立，那么每执行一轮，`R[idx]` 就 +1 一次，于是你可以把寄存器从 0 推到 `MAX`，再下一轮触发 `MAX -> 0` 的翻转。
+
+> 对比：**pump witness**（我们仍保留）通常是一个“存在性证据”：它会找出一条轨迹，展示“某次回到同一投影类时净效应为 +1”。但仅靠存在性，可能出现伪泵（隐藏状态变化导致无法长期重复）。这也是我们引入 `closure_check` 的原因：把“可重复性”变成一个能被 Ultimate 证明的 SAFETY 任务。
+
+### 5.1.2 为什么“一次能增 1”不代表能增 1e9 次？
+
+你提出的直觉“能增一次就能增很多次”只有在一个前提下成立：**下一次增 1 的前置条件（guard）可以被再次满足**，并且系统不会因为这次增 1 而进入“再也增不了”的区域。
+
+现实里经常不成立，原因通常是“增 1 伴随着其他状态变化”，这些变化会截断后续增量。给几个极简例子（用 P4/状态机直觉理解即可）：
+
+**例 1：消耗型资源（能增一次但不能重复）**
+
+- 有两个寄存器：`credit_reg` 和 `seq_reg`
+- 每次写请求会做：
+  - `if (credit_reg[0] > 0) { seq_reg[0]++; credit_reg[0]--; }`
+
+若 `credit_reg[0]` 初始为 1，则确实“能增一次”，但第二次 guard 失败，无法继续增。
+
+**例 2：阈值截断（只允许增到某个上限）**
+
+- `if (seq_reg[0] < 100) seq_reg[0]++; else mark_to_drop();`
+
+这种程序里不存在 wrap-around（增不到 MAX），因此 “从 MAX 出发能触发的 bug” 很可能是不可达的伪 bug。
+
+**例 3：角色/模式切换（第一次之后走不同分支）**
+
+- 第一次写请求会触发 failover，导致 `role_reg` 改变
+- 后续只有 leader 才会 `seq_reg++`
+
+则“能增一次”并不能推出“能增很多次”，因为系统模式已经改变。
+
+所以你直觉里说的“除非做了某些限制”是对的：这个“限制”就是系统必须存在一个可重复执行的循环结构，而这正是我们引入 **闭包泵（closure pump）/`closure_check`** 的原因——它要捕捉的不是“增一次”，而是“**每一轮都能回到同一类状态并净 +1**”。
+
+### 5.2 closure_check：把“闭包泵”改写为一个 loop-free 的 SAFETY 证明任务
+
+在 `closure_check` 阶段，我们不去“找 witness”，而是让 Ultimate 证明一个 round 摘要对所有可能执行都成立。具体做法（Boogie→Boogie 变换）：
+
+1. 自动推断 sequential scheduler 的周期 `period`（寻找 `if (procurator_phase == period-1) { procurator_phase := 0; }` 形态）。
+2. 将 `mainProcedure()` 的 `while(true)` 展开 `period` 次，使程序 loop-free（只包含 1 个 round）。
+3. 为降低 CFG 规模，把每个 `call main();` 替换为对应相位分支的 body（并加 `assume procurator_phase == k;`），得到“直线化的 round”。
+4. 在 round 开始前插入：
+   - `havoc wrap_closure_seq0; assume wrap_closure_seq0 != MAX;`
+   - 对参与加速的寄存器副本（例如 s1/s2 的 `sequence_reg`）执行 `reg.write(idx, wrap_closure_seq0)`，保证它们从同一序号出发。
+   - 快照投影变量 `proj(s)`（默认：`procurator_phase` 与各队列 count）。
+5. round 结束后断言：
+   - 投影变量未变（闭包）
+   - 各寄存器副本都等于 `wrap_closure_seq0 + 1`（单步效应）
+   - 回到 cutpoint（例如 `procurator_phase == 0`）
+
+对应实现：`dslc/transform/wraparound.py` 中 `WraparoundStage.CLOSURE_CHECK` 分支（`unroll_mainprocedure_loop_text` / `_inline_deterministic_round_into_mainprocedure` / `_emit_closure_setup` / `_emit_closure_asserts`）。
+
+> `closure_check` 的结果如果是 `correct`，我们就可以把 confirm 的 “写到 MAX” 解释为一个摘要步（否则 confirm 只能作为条件反例）。
+
+### 5.3 pump（可选）：把“存在泵循环”改写为 reachability
+
+在 pump 阶段，我们对 `mainProcedure()` 的 while-loop 做插桩，把每一步变成：
+
+1. 读寄存器旧值
+2. `call main();` 执行一步
+3. 读寄存器新值
+4. 若到达 cutpoint：
+   - 第一次到 cutpoint：记录快照（投影变量 + 寄存器值）
+   - 之后每次到 cutpoint：检查
+     - 投影是否与快照一致
+     - 寄存器新值是否等于快照值 `+1`
+     - 若成立，触发 `assert false`（这是“泵循环存在”的 witness）
+
+对应实现：`dslc/transform/wraparound.py:_emit_step_block` + `_emit_pump_error_proc`
+
+> 注意：pump 阶段会剥离原本的 DSL 断言与 `__dbg` 快照赋值（这些不是 P4 语义的一部分，只是性质检查/可读性 instrumentation），以减少 CEGAR 目标与公式规模。对应实现：`_strip_other_asserts_for_pump` 与 `_strip_debug_snapshot_for_pump`。
+
+### 5.3.1 为什么“找到 pump/closure pump”就能“跳到 65535”？
+
+这里的核心是一条非常朴素的“加法推理”：
+
+- 如果你有一个可重复使用的片段，每次净效应是 `R[idx] := R[idx] + 1 (mod 2^w)`
+- 那么重复 `k` 次，净效应就是 `R[idx] := R[idx] + k (mod 2^w)`
+
+对 Netchain 的序号寄存器，`w=16`，所以 `MAX = 65535`：
+
+- 若某次 cutpoint 时 `R[idx]=0`，重复 65535 次后 `R[idx]=65535`
+- 再下一次 `+1` 就发生翻转：`65535 + 1 (mod 2^16) = 0`
+
+因此，“pump → 到 MAX → 翻转”在逻辑上是连起来的：**pump 是证明“可以持续推进”的结构证据**，而 `MAX` 是翻转前沿的临界点。
+
+### 5.3.2 32 位寄存器也适用吗？
+
+概念上完全适用：如果 `w=32`，同样有 `MAX = 2^32-1 = 4294967295`。只要你能找到一个真正可重复的 `+1 pump`，就能把寄存器推到 `MAX` 并触发翻转。
+
+但工程上有一个巨大差异：从 0 到 `2^32-1` 需要约 43 亿次有效更新，任何“按步展开/显式跑前缀”的方法都会崩溃。因此 32 位场景必须依赖 **加速/摘要（acceleration/summarization）**：不要真的循环 43 亿次，而是把循环的净效应一次写出来（例如把 `R[idx]` 直接写到 `MAX`，或写成 `R[idx] := R[idx] + k` 的形式）。
+
+### 5.3.3 我们怎么判断当前 pump “够不够真”？（为什么要谈“证明味”）
+
+这里的“证明味”，不是说我们现在就要做完备证明，而是指：**我们希望减少“从不可达状态出发的伪反例”**，让加速得到的 bug 更可信、更可解释。
+
+关键点是：当前 pump 的闭合条件是 `proj(s')==proj(s)`，它是一个抽象等价类。抽象越粗，越容易出现：
+
+- 抽象上看起来“回到了同一状态”（投影相等）
+- 但具体状态已经变了（例如某个隐藏寄存器/模式位变了），导致这个片段其实无法重复执行很多次
+
+因此，“找到一次 pump”并不自动推出“能泵到 MAX”。我们建议把 pump 视为一个 **可迭代加强的证据**：
+
+1) **证据等级 0（confirm-only）**：从 `MAX` 出发能触发真实断言 ⇒ “条件反例”（if MAX reachable）
+2) **证据等级 1（当前 pump）**：存在一段 `proj` 闭合且净 `+1` 的片段 ⇒ “MAX 可能可达”的结构证据
+3) **证据等级 2（repeatability check）**：证明该片段至少能连续重复 2 次/3 次（存在 witness） ⇒ 大幅降低“伪泵”概率
+4) **证据等级 3（投影 CEGAR）**：若重复失败，则把导致失败的关键状态量加入 `proj`，再次寻找泵 ⇒ 逐步逼近“真正可重复”的循环
+
+其中 (2) 的“重复检查”是最便宜也最实用的工程手段：把 witness 里推断的 loop 片段尝试再跑一遍（相当于在模型里要求出现两次相同类型的 `+1` 闭合）。如果连重复 2 次都做不到，那它几乎肯定不是能泵到 `MAX` 的循环。
+
+> 结论：所谓“证明味”有意义，是因为它决定了我们把 `confirm` 的结果解释成“真实 bug”还是“可能的伪 bug”。对于 Netchain 这种我们已强力收紧环境且写路径稳定的程序，当前做法作为 bug-finding 加速是合理的；但对一般程序，必须配合 repeatability/投影 CEGAR 才能避免被“能增一次但不能长期增”的程序形态误导。
+
+### 5.3.4 你想要的“sound”：需要证明什么，才能说“不会中途停掉”？
+
+你提到的“sound”，如果我们把它严格化，通常至少要补上下面这个缺口：
+
+> `confirm` 阶段从 `R[idx]=MAX` 出发找到的 bug，是否一定能从初态触发？
+
+要把它变成“从初态可达”的结论，必须证明一个 **可达性前提**：`R[idx]=MAX` 的状态（或翻转前沿）在原模型里是可达的。
+
+你提出的“不会被别的指令截断”本质上是在问：**能否证明一个“自增过程”在足够长的时间里一直保持可用（不会因为其他状态变化导致 guard 失败/写回点消失）？**
+
+这件事通常需要证明一个“闭包（closure）/可重复性（repeatability）”性质。直观上它和形式化验证里非常常见的 **lasso/ultimately-periodic** 结构是同一类思想：LTL/ω-正则模型检测中的反例通常可表示为“前缀 + 循环”，循环段可被重复（pump）[1,2,3]；而在程序分析/终止性里也会专门用“lasso programs（stem+loop）”来刻画可重复的循环片段 [4]。我们这里把循环段的语义换成了“在 cutpoint 上闭合，并对目标寄存器净 `+1`”，因此需要一个更强的“闭包证明”来避免伪泵。
+
+形式化地说，我们希望存在一个状态谓词 `P(s)`（把它理解成“增 1 循环的前置条件”），满足：
+
+1) **可达性**：存在某个 reachable 状态满足 `P(s)`（从初态能走到进入稳定自增模式的状态）
+2) **闭包（关键）**：从任意满足 `P(s)` 的状态，执行一次“一个周期”（例如 round-robin 的一圈）后还能回到 `P(s')`
+3) **净效应**：在这个周期内，`R[idx]` 的净效应就是 `+1 (mod 2^w)`，并且没有别的写把它改成别的值
+
+如果 (1)(2)(3) 都成立，那么你就能用归纳法得到：
+
+- 对任意 `k>=0`，存在一条执行可以重复该周期 `k` 次
+- 因此从 `R[idx]=0` 出发，取 `k = 2^w-1` 就能到达 `R[idx]=MAX`
+
+这就是你想要的“不会中途停掉”的证明形态：它不靠展开 2^32 次，而靠 **闭包 + 归纳**。这与非终止证明里常用的 **(closed) recurrent set**（可达 + 对转移闭包）非常接近，并且很多工作会把它改写为 safety 来求解 [8,9,10]。从“循环加速/摘要”角度看，我们最终想要的是把“执行 k 次循环/round”的净效应写成一个摘要（acceleration / transitive closure），避免显式展开超深前缀 [5,6,7,11]。
+
+> 重要区分：这依然是“存在性”的 sound（存在一条可泵到 MAX 的执行），而不是“对所有环境输入都必然自增到 MAX”。后者是更强的 liveness/策略问题，需要更强假设（比如环境持续发写请求、调度公平等），不一定是我们想要/能要的结论。
+
+**我们当前做法处在什么位置？**
+
+- `confirm`：验证了 (3) 的“后半段”（从 MAX 附近确实能触发真实断言违反），但没有证明 (1)(2)
+- `pump`：提供了一个“(2)(3) 的弱证据”（在投影意义下闭包且净 +1），但不是严格的闭包证明
+
+因此，严格来说：**当前做法是 bug-finding 加速（conditional counterexample + 结构证据），不是一个完备的可达性证明链**。
+
+**要把它升级到更 sound，我们应该怎么做？（路线图）**
+
+最实用的两步是：
+
+1) **repeatability check（存在性加强）**：要求 witness 中的泵循环能连续出现 2 次/3 次（把伪泵概率快速压下去）
+2) **closure check（进入证明链）**：在 cutpoint 处快照一组“影响 guard/写回的持久状态变量”，跑一个周期后断言这些变量恢复原值（或满足同一谓词 `P`）。失败就用反例把缺失变量加入 `P`（CEGAR）
+
+当 closure check 成功后，我们就有资格把 “快进到 MAX” 解释成一个 **可证明正确的摘要步（summary/acceleration step）**，并把 confirm 的 bug 结论提升为“从初态可达的真实 bug”。
+
+### 5.4 confirm：在全语义模型里快速触发真实断言
+
+confirm 阶段更简单：在进入 `while(true)` 前插入：
+
+- `call reg.write(idx, MAX);`（对相关寄存器槽位）
+
+然后在很短的 unroll 后缀中检查原本的性质断言。
+
+对应实现：`dslc/transform/wraparound.py` 中 `WraparoundStage.CONFIRM` 分支（插入 `_emit_confirm_init`）。
+
+> confirm 会把所有断言改写为 `call __wraparound_assert(cond)`，将多个断言点合并到一个错误位置，通常能减少 Ultimate 的“多目标”负担（语义等价）。
+
+### 5.4.1 “closure_check 通过后，怎么得到一个 MAX(=65535) 的 Boogie 状态去求 bug？”
+
+把它拆成“你能在代码里看到的两步”会更清楚：
+
+**第一步：证明 closure_check（闭包泵）**
+
+你运行的是 `closure_check` 变体。它把 `mainProcedure()` 的循环展开成 **一个 round（loop-free）**，并插入断言去证明：
+
+- round 前后回到同一投影类（闭包）
+- 目标寄存器副本净 `+1`
+- 回到 cutpoint（例如 `procurator_phase == 0`）
+
+Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当前输入/调度约束下成立；这就是我们把 “写到 MAX” 当成摘要步的依据。
+
+> 可选：如果 `closure_check` 暂时证明不了，可以先跑 `pump` 变体让工具给出一个“存在性 +1 闭合”的 witness，用来定位闭包谓词缺了哪些变量，再去精化投影或环境约束。
+
+**第二步：构造一个“快进到 MAX”的验证任务，然后检查真实断言**
+
+当前仓库里有两种方式（都属于 acceleration 思路）：
+
+1) **confirm（最稳、最简单）**：直接在进入 `while(true)` 前插入 `call R.write(idx, MAX);`，让验证从临界点附近开始，再用很短的 suffix（例如 unroll=3）检查真实性质是否违反。  
+   - 优点：通常最快、最容易稳定出 witness。  
+   - 局限：它本身不证明 `MAX` 从初态可达，因此更偏向“bug-finding/诊断”。
+
+2) **accel（把快进写进同一份模型）**：在运行时先等待检测到“可快进条件”成立，再在模型内执行 `call R.write(idx, MAX);` 做快进，然后继续跑并检查真实断言。  
+   - 这相当于把“检测快进条件 + confirm”合并成一次验证任务（但目前在 TraceAbstraction 下不一定更快）。
+
+这两种方式的共同点是：它们都不显式模拟 “从 0 加到 65535 的 65535 次更新”，而是把这段超深前缀用一个“快进写回（summary step）”代替。
+
+> 如果你希望把“快进到 MAX”的合理性再往前推一步（更像证明），下一步通常是：用 pump witness 提取循环片段，并把投影逐步扩展到“循环在全状态上可重复”。这就是为什么我们把 proj/cutpoint 设计成一个可调旋钮：它决定了 pump 的“证据强度”。
+
+### 5.5 为什么这比“直接设初值=65535”更有意义
+
+- `confirm` 单独使用确实是“从临界状态出发”，不保证可达性（它更像条件反例：if `MAX` reachable）。
+- `closure_check` 成功时给出的是一个更强的证据：在选定 cutpoint/投影与输入约束下，每一轮 round 都净 `+1` 且闭包，因此可以推得 `MAX` 可达（无需展开 65535 次）。
+- 因此 `closure_check -> confirm` 可以被解释为：**我们先证明“能推进到临界前沿”的闭包泵成立，再在全语义下检查翻转后缀是否会导致真实性质违反**（必要时再用 pump witness 做诊断/精化）。
+
+---
+
+## 6 实现（Implementation）
+
+### 6.1 DSL 编译与 Boogie 生成
+
+- `dslc/compiler.py`：解析 `.prop` → 语义检查 → 调用后端
+- `dslc/backends/boogie.py`：
+  - 调 P4B：`P4BTranslator.compile_to_bpl`（支持 `--goto/--meta-out/--bmv2cmds/--slicing-vars`）
+  - 前缀化每个节点的 Boogie，避免命名冲突
+  - 生成 harness（sequential 或 concurrent）
+
+在本次 wrap-around 实验中，我们使用 **sequential harness**，以便 wraparound 变换能稳定定位：
+
+- `mainProcedure()` 的 `while(true)`
+- 其中的 `call main();` 与 `procurator_step := procurator_step + 1;`
+
+### 6.2 wraparound 变换（Boogie→Boogie）
+
+实现文件：`dslc/transform/wraparound.py`
+
+关键点：
+
+- 通过解析 Boogie 声明找出目标寄存器数组的位宽（`[bvX]bvW`）：`analyze_bpl_for_wraparound`
+- 只在 `mainProcedure()` 内插桩，保证变换局部化
+- 为了让 “witness 缓存” 稳定生效：如果输出内容不变，就不重写 `.bpl`（避免 mtime 总变化）：`instrument_bpl_file`/`unroll_mainprocedure_loop_file`
+
+### 6.3 端到端脚本（产物对齐 + 可复现）
+
+实现文件：`Procurator/argo/code/spec/prop_compile/run_wraparound.py`
+
+它负责把多个部件串起来：
+
+1. 先生成 base `.bpl`（忠实语义）
+2. 从 `.prop` 的 `global assert` 自动推断（目标寄存器名、idx）：
+   - 例如 `s1_sequence_reg_0[0] >= s2_sequence_reg_0[0]`
+3. 生成各 stage `.bpl`：closure_check/pump/accel/accel_probe/confirm
+4. 调 Ultimate CLI 跑，并把日志写到 `.tmp/dslc/*.gemcutter.log`
+5. 默认复用已有产物（log/witness 新于输入 `.bpl` 时自动跳过该 stage）
+
+### 6.4 Ultimate 工具链配置
+
+本次实验分两类任务：
+
+- `closure_check`（SAFE 证明）：优先用不输出 witness 的 reachability 流水线，减少开销
+- `confirm`（UNSAFE 找 bug）：用带 WitnessPrinter 的 reachability 流水线输出 GraphML
+
+其中 `confirm` 使用的“ReachSafety + Witness”流水线为：
+
+- toolchain：`Procurator/argo/code/spec/config/ReachSafety-Witness.xml`
+- settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf`
+  - 外部求解器：Z3（ALL）
+  - 启用 WitnessPrinter：输出 `*.bpl-witness.graphml`
+
+`closure_check` 使用的配置为：
+
+- toolchain：`Procurator/argo/code/spec/config/ClosureCheck-ReachSafety.xml`（不含 WitnessPrinter）
+- settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`
+  - 关闭 per-query Z3 timeout（避免 UNKNOWN）
+  - `HoareAnnotationPositions=None`（避免 SAFE 后的额外 simplify 卡顿）
+  - 关闭并发 POR（sequential round proof 不需要）
+
+此外，我们也提供了一个带 `icfgtransformation` 的 toolchain，用于后续 loop acceleration 实验（本报告不把它纳入主结果）：`Procurator/argo/code/spec/config/ReachSafety-Transformed-Witness.xml`。
+
+---
+
+## 7 评估（Evaluation）
+
+### 7.1 实验设置
+
+**硬件/软件**
+
+- CPU：AMD Ryzen 7 7745HX（16 vCPU）
+- 内存：15GiB
+- Z3：4.8.12
+- Ultimate：0.3.1-dev-d36a0da05e-m（见日志开头 “This is Ultimate …”）
+
+**基准与性质**
+
+- P4 程序：`Procurator/argo/code/dataset/Netchain/netchain_16.p4`
+- 控制面表项：
+  - s1：`Procurator/argo/code/dataset/Netchain/commands_1.txt`
+  - s2：`Procurator/argo/code/dataset/Netchain/commands_2.txt`
+- DSL spec：`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`
+  - 2 节点拓扑：`s1 -> s2`
+  - 收紧输入：只发 `NC_WRITE_REQUEST`，key 固定到 index 0，overlay terminator 固定等
+  - 性质（safety）：`assert { s1_sequence_reg_0[0] >= s2_sequence_reg_0[0]; }`
+
+**计时口径**
+
+下表中的时间来自 Ultimate 日志末尾的 `OverallTime`（TraceAbstraction/Automizer 统计），不包含 P4→Boogie 翻译时间。
+
+### 7.2 结果总览
+
+表 1：Netchain（wrap-around bug）在各阶段的结果（UNSAFE 代表找到 witness；pump/accel_probe/accel 的 UNSAFE 可能是“合成断言点”被触发，用于诊断/加速实验）。
+
+| 运行 | 输入 BPL | 目的 | 结果 | OverallTime (s) | CFG 规模（procs/locs/edges） | witness 大小 |
+|---|---|---|---|---:|---|---:|
+| closure_check | `netchain_bug_s1s2.tight.seq.closure_check.bpl` | 证明闭包泵（round 闭包 + 净 `+1`） | SAFE | 400.2 | 27 / 279 / 442 | — |
+| confirm | `netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl` | 从临界点附近短后缀确证真实断言违反 | UNSAFE | 69.7 | 22 / 268 / 424 | 535,366 B |
+| pump（可选） | `netchain_bug_s1s2.tight.seq.pump.bpl` | 找到 `+1` 泵循环 witness（诊断/CEGAR） | UNSAFE | 318.9 | 20 / 262 / 411 | 488,826 B |
+| accel_probe（可选） | `netchain_bug_s1s2.tight.seq.accel_probe.bpl` | 只确认“加速触发条件可达”（诊断用） | UNSAFE | 324.1 | 20 / 262 / 411 | 493,933 B |
+| accel（可选） | `netchain_bug_s1s2.tight.seq.accel.bpl` | 在模型内执行快进写回（实验中） | UNSAFE | 592.2 | 21 / 267 / 379 | 894,690 B |
+
+**端到端结论（本次的主线）**
+
+- 我们把“从 0 推到翻转”这个深前缀问题，拆成了两个更可控的查询：
+  - `closure_check`：400.2s 证明闭包泵成立（round 闭包 + 净 `+1`）
+  - `confirm`：69.7s 得到翻转后缀导致的真实性质反例
+- 两段合计约 **470s（≈7.8 分钟）** 得到可解释的反例工件（log + GraphML witness）。
+
+### 7.3 反例是否“符合预期”（语义 sanity check）
+
+在 confirm 阶段，最终触发的断言被改写为：
+
+```
+call __wraparound_assert(bvule.bv16$builtin(s2_sequence_reg__dbg0, s1_sequence_reg__dbg0));
+```
+
+即验证 `s2_seq <= s1_seq`（等价于 `s1_seq >= s2_seq`）。在触发点的 valuation（见 `netchain_bug_s1s2.tight.seq.confirm.unroll3.gemcutter.log`）包含：
+
+- `old(s1_sequence_reg__dbg0)=0bv16`
+- `s2_sequence_reg__dbg0=65535bv16`
+
+因此 `65535 <= 0` 为假，断言被真实违反，这与“翻转导致关系断裂”的预期一致。
+
+---
+
+## 8 局限性与下一步（Limitations & Next Steps）
+
+### 8.1 当前 wrap-around 加速的边界
+
+- **依赖 sequential harness 形状**：变换目前要求存在 `mainProcedure()` + `while(true)` + `call main()` 的结构，因此主要服务于 sequential harness（并发 harness 需单独适配插桩点）。
+- **投影选择会影响健全性/性能**：
+  - 投影太弱：可能出现“伪泵循环”（循环在真实状态空间不可重复），导致 confirm 从 MAX 出发能触发 bug，但 pump 的“可达性证据”不够强。
+  - 投影太强：很难闭合循环，pump 变慢或找不到 witness。
+  - v0/v1 的正确方向应当是 CEGAR：从小投影开始，出现伪证据就扩投影。
+
+### 8.2 为什么 accel 阶段目前不如两段式（closure_check→confirm）稳定
+
+`accel` 把快进写回直接编码在模型里，等价于把两段式合并成一次大查询。直觉上它可能更快，但在 TraceAbstraction 下它会：
+
+- 引入额外控制流与写回动作，扩大公式/自动机差分的负担
+- 仍然需要在同一份模型内同时解决“发现循环”和“触发真实断言”，导致 CEGAR 更难收敛
+
+因此短期更可控的策略是：**保持两段式**（`closure_check` 给出闭包泵证明，`confirm` 回到全语义确证；必要时再用 `pump` witness 做诊断/精化）。
+
+### 8.3 想做到“分钟级”的主要抓手
+
+基于当前实现与日志剖析，最直接的加速路径通常不是“加更多开关”，而是围绕两点：
+
+1. **更强的投影收紧（但可解释）**：把与泵循环无关、但导致等价类难闭合的变量剔除/抽象化。
+2. **更小的错误目标（更少错误位置）**：我们已在 confirm/accel 中使用 `__wraparound_assert` 合并断言点；同理可对 pump/accel 的检测点做更强的结构化输出，降低 Ultimate 的目标数量。
+
+---
+
+## 9 复现（Artifact & Reproducibility）
+
+**直接复现本报告的 closure_check→confirm 结果（推荐）**
+
+- 产物与日志位置：
+  - `.bpl`：`.tmp/dslc/netchain_bug_s1s2.tight.seq.*.bpl`
+  - log：`.tmp/dslc/netchain_bug_s1s2.tight.seq.*.gemcutter.log`
+  - witness：`.tmp/dslc/netchain_bug_s1s2.tight.seq.*.bpl-witness.graphml`
+
+**命令（示例）**
+
+使用 wraparound runner（会自动编译 base `.bpl`，然后跑 `closure_check/confirm`）：
+
+```
+python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \
+  --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop \
+  --boogie-harness sequential \
+  --stages closure_check,confirm \
+  --unroll confirm=3 \
+  --require-closure \
+  --ultimate ./UGemCutter-linux/Ultimate
+```
+
+> 如果你只想复跑 Ultimate 而不重新编译 base，可以先保留生成的 base `.bpl`，用 `--base-bpl` 指定它；并用 `--rerun` 控制是否复用 witness。
+
+---
+
+## 10 相关工作（Related Work，简述）
+
+这部分只覆盖“与本实现直接相关、且我们确实用到了的概念/工具”，并给出可对齐的引用（后续写论文时需要进一步补齐比较实验与更系统的 related work）：
+
+- **Lasso / Pump（最终周期性反例）**：LTL 的 automata-theoretic 传统表明，反例可表示为 “前缀 + 循环”（ultimately periodic / lasso）[1]；工程实现中也大量使用该形状做 LTL 反例搜索与重放 [2]，并且近年来也有面向 infinite-state 的 LTL falsification 实践 [3]。我们在 wrap-around 深 bug 上用的 `pump` witness 属于同一“最终周期性结构”的变体，只是把循环的语义从 Büchi 环换成了“cutpoint 闭合 + 寄存器净 +1”。
+- **闭包/可重复性（closure pump 的思想来源）**：为了避免伪泵，我们需要证明某个谓词对 round 转移闭包，这与非终止证明里常见的 recurrent set / proving nontermination via safety 的思路一致 [8,9,10]。
+- **循环加速/摘要（为何不展开 2^w 次）**：从验证角度看，wrap-around 是典型“需要跨过超深前缀”的计数器问题；程序加速/正则模型检查等方向提供了把循环净效应摘要为 transitive closure 的方法论与工具化路径 [5,6,7,11]。
+- **P4→Boogie 前端**：我们复用了 P4b/P4B 的 “P4→Boogie” 翻译路线作为单节点语义底座 [12]。
+- **通用并发验证工具链**：Ultimate 的 TraceAbstraction/GemCutter 提供了我们当前使用的并发/证明取向后端（commutativity/CEGAR 等）[14]。
+- **领域定制网络验证**：NetSMC 展示了“针对状态化网络系统做定制模型检查器”的经验与 trade-off，这也支撑我们在 harness/抽象上做领域化取舍 [13]。
+
+---
+
+## 结论（Conclusion）
+
+本报告把 Procurator 当前的“DSL→Boogie 分布式语义编码 + Ultimate 验证”实现拆解成可读的设计与实现对应关系，并针对 Netchain 的 wrap-around 深反例给出一个可落地的加速工作流：用 `closure_check` 证明闭包泵成立（从而支撑 `MAX` 可达），再用 `confirm` 在全语义下快速确证翻转后缀的真实性质违反。在我们的复现实验中，该流程把“可能数小时无结果”的深 bug 搜索压缩到分钟级，并产出可审计的 GraphML witness，具备进一步系统化与论文化的基础。
+
+---
+
+## 参考文献（References）
+
+[1] Moshe Y. Vardi. *An automata-theoretic approach to linear temporal logic*. 1996. doi: `10.1007/3-540-60915-6_6`
+
+[2] Stefan Edelkamp, Shahid Jabbar. *Large-Scale Directed Model Checking LTL*. 2006. doi: `10.1007/11691617_1`
+
+[3] Alessandro Cimatti, Alberto Griggio, Enrico Magnago. *LTL falsification in infinite-state systems*. 2022. doi: `10.1016/j.ic.2022.104977`
+
+[4] Matthias Heizmann, Jochen Hoenicke, Jan Leike, Andreas Podelski. *Linear Ranking for Linear Lasso Programs*. 2013. doi: `10.1007/978-3-319-02444-8_26`
+
+[5] Marius Bozga, Radu Iosif, Filip Konečný. *Fast Acceleration of Ultimately Periodic Relations*. 2010. doi: `10.1007/978-3-642-14295-6_23`
+
+[6] Ahmed Bouajjani, Bengt Jönsson, Marcus Nilsson, Tayssir Touili. *Regular Model Checking*. 2000. doi: `10.1007/10722167_31`
+
+[7] Ahmed Bouajjani, Peter Habermehl, Tomáš Vojnar. *Abstract Regular Model Checking*. 2004. doi: `10.1007/978-3-540-27813-9_29`
+
+[8] Ashutosh Gupta, Thomas A. Henzinger, Rupak Majumdar, Andrey Rybalchenko, Ru-Gang Xu. *Proving non-termination*. 2008. doi: `10.1145/1328438.1328459`
+
+[9] Hong-yi Chen, Byron Cook, Carsten Fuhs, Kaustubh Nimkar, Peter W. O’Hearn. *Proving Nontermination via Safety*. 2014. doi: `10.1007/978-3-642-54862-8_11`
+
+[10] Alexey Bakhirkin, Nir Piterman. *Finding Recurrent Sets with Backward Analysis and Trace Partitioning*. 2016. doi: `10.1007/978-3-662-49674-9_2`
+
+[11] Colas Le Guernic. *Toward a Sound Analysis of Guarded LTI Loops with Inputs by Abstract Acceleration*. 2017. doi: `10.1007/978-3-319-66706-5_10`
+
+[12] Chong Ye, Fei He. *P4b: A Translator from P4 Programs to Boogie*. 2023. doi: `10.1145/3611643.3613091`
+
+[13] Yifei Yuan, Soo-Jin Moon, Sahil Uppal, Limin Jia, Vyas Sekar. *NetSMC: A Custom Symbolic Model Checker for Stateful Network Verification*. NSDI 2020. https://www.usenix.org/system/files/nsdi20-paper-yuan.pdf
+
+[14] Azadeh Farzan, Dominik Klumpp, Andreas Podelski. *Sound sequentialization for concurrent program verification*. 2022. doi: `10.1145/3519939.3523727`

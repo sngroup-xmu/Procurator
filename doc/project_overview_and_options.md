@@ -45,6 +45,21 @@
 
 - `Procurator/argo/code/spec/prop_compile/run_ablation.py`：当前主要做 **symmetry / property-split** 两类消融矩阵。
 
+### 2.4 Wrap-around 加速实验入口（V0-0/V0-1）
+
+- `Procurator/argo/code/spec/prop_compile/run_wraparound.py`
+  - 生成并（可选）运行 `closure_check/pump/accel/accel_probe/confirm` 变体，用于 “寄存器翻转（wrap-around）” 这类深前缀 bug 的加速实验。
+  - `closure_check`（V0-1 主线）：生成 loop-free 的证明任务，证明 round 的闭包 + 净 `+1`（closure pump），作为 `MAX` 可达的证据。
+  - `confirm`（V0-0）：在进入循环前把目标寄存器槽位写到 `MAX`，再用很短的 unroll suffix 检查是否能触发断言违反。
+  - `pump`（可选诊断）：找 “`+1` 的泵循环 witness”（存在性证据），用于定位闭包谓词/投影缺口（CEGAR/调试）。
+  - `accel_probe`：只验证“加速触发条件可达”，便于诊断 `accel` 为什么跑不出来（同样输出 witness）。
+  - `accel`（实验中）：把“检测到泵循环”编码到模型里，并在模型中执行加速写回；当前仍可能超时，推荐先用 `closure_check -> confirm` 两段式跑通端到端。
+  - 工程化特性：
+    - 默认 stages 为 `closure_check,confirm`；`--rerun` 可强制重跑并刷新输出
+    - `--require-closure`：`closure_check` 不是 `correct` 时拒绝跑 confirm/accel（soundness guard）
+    - 复用输出（log/witness）：当输出新于输入 `.bpl` 时，对应 stage 会直接 `[SKIP]`（便于把“日常复跑”降到秒级/分钟级）
+    - 支持对单独 stage 覆盖 toolchain/settings（例如只对 `pump` 启用 `icfgtransformation`）
+
 ---
 
 ## 3. DSL（`.prop`）能写什么：语义上对应哪一层
@@ -308,6 +323,8 @@ DSL 写法：`global { symmetry(s1, s2, s3); }`
   - automaton state 数量上万（例如日志里出现 “First operand 26884 states ...”）。
 
 换句话说：你直觉里说的“前缀很长”确实是一个核心原因（这里的 prefix 指 counterexample/loop execution prefix）。
+
+更进一步的“工程化解决思路”（把深前缀替换为泵循环 + 加速 + 确证，并尝试放进 Ultimate toolchain）见：`doc/ultimate_wraparound_acceleration_design.md`。
 
 ---
 

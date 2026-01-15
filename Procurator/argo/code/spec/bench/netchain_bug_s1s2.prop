@@ -38,9 +38,20 @@ node s1 {
     hdr.overlay.1.swip == 167797762;
     hdr.overlay.2.swip == 0;
     hdr.overlay.3.swip == 0;
+    // Parser terminator for the overlay header stack.
+    hdr.overlay.last.swip == 0;
 
     hdr.nc_hdr.op == 12; // NC_WRITE_REQUEST
     hdr.nc_hdr.key == 2024; // index 0
+    // Tighten irrelevant payload fields to reduce SMT/search complexity.
+    // The flip bug only depends on the sequence register semantics.
+    hdr.nc_hdr.value == 0;
+    hdr.nc_hdr.sc == 0;
+    hdr.nc_hdr.vgroup == 0;
+    hdr.nc_hdr.seq == 0;
+    hdr.udp.len == 0;
+    hdr.ipv4.totalLen == 0;
+    hdr.ipv4.ttl == 64;
   };
 }
 
