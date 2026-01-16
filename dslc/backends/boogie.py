@@ -1584,15 +1584,8 @@ class BoogieHarnessEmitter:
             out.append(f"{indent}// Trace snapshot\n")
             out.append(trace_lines)
         if assert_lines:
-            guard = self._emit_register_write_guard()
-            if guard:
-                out.append(f"{indent}if ({guard}) {{\n")
-                out.append(f"{indent}  // DSL assertions\n")
-                out.append(assert_lines)
-                out.append(f"{indent}}}\n")
-            else:
-                out.append(f"{indent}// DSL assertions\n")
-                out.append(assert_lines)
+            out.append(f"{indent}// DSL assertions\n")
+            out.append(assert_lines)
         return "".join(out)
 
     def _emit_node_thread(self, node: str, k: int) -> str:
@@ -2243,20 +2236,6 @@ class BoogieHarnessEmitter:
                 out.append(f"  {self._register_last0_value_name(name)} := {val_zero};\n")
         return "".join(out)
 
-    def _emit_register_write_guard(self) -> Optional[str]:
-        guards: List[str] = []
-        for regs in self._node_register_arrays.values():
-            for name, (idx_type, _elem_type) in sorted(regs.items()):
-                wrote0 = self._register_wrote_index0_name(name)
-                last_idx = self._register_last_index_name(name)
-                idx_zero = self._render_index_zero(idx_type)
-                # Be conservative but semantics-friendly: enable DSL assertions after we have
-                # observed at least one register write (any index).
-                guards.append(f"({wrote0} || {last_idx} != {idx_zero})")
-        if not guards:
-            return None
-        return " || ".join(guards)
-
     def _emit_assert_lines(self, exprs: Sequence[Tree], *, indent: str, current_node: str) -> str:
         out: List[str] = []
         for expr in exprs:
@@ -2545,15 +2524,8 @@ class BoogieHarnessEmitter:
             out.append(f"{indent}// Trace snapshot\n")
             out.append(trace_lines)
         if assert_lines:
-            guard = self._emit_register_write_guard()
-            if guard:
-                out.append(f"{indent}if ({guard}) {{\n")
-                out.append(f"{indent}  // DSL assertions\n")
-                out.append(assert_lines)
-                out.append(f"{indent}}}\n")
-            else:
-                out.append(f"{indent}// DSL assertions\n")
-                out.append(assert_lines)
+            out.append(f"{indent}// DSL assertions\n")
+            out.append(assert_lines)
         return "".join(out)
 
     def _emit_sequential_node_ingress_step(self, node: str, *, k: int, indent: str) -> str:
