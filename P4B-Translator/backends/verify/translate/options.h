@@ -6,6 +6,7 @@
 #include <set>
 #include <string>
 #include <unordered_set>
+#include <vector>
 #include "frontends/common/options.h"
 #include "backends/verify/translate/utils.h"
 
@@ -53,6 +54,33 @@ class P4VerifyOptions : public CompilerOptions {
     std::vector<cstring> rwReads;
     std::vector<cstring> rwWrites;
     std::vector<cstring> rwStatefulObjects;
+
+    struct WraparoundRegisterInfo {
+        cstring internal_name = nullptr;  // IR/p4c name (e.g., leafload_reg_0)
+        cstring boogie_name = nullptr;    // control-plane / translated name (e.g., partitionswitchIngress_leafload_reg)
+        int value_width = -1;             // bitwidth of register element (bits), -1 if unknown
+        int index_width = 32;             // bitwidth of index (bits), default 32
+    };
+
+    struct WraparoundUpdate {
+        cstring reg_internal = nullptr;
+        cstring reg_boogie = nullptr;
+        std::vector<cstring> idx_vars;
+        int idx_const = -1;               // >=0 if constant index could be extracted
+        cstring idx_expr = nullptr;       // best-effort Boogie index expression (unprefixed), empty if unknown
+        cstring value_var = nullptr;      // variable written (best-effort dotted path), nullptr if complex
+        cstring op = nullptr;             // "add" | "sub"
+        bool delta_is_const = false;
+        cstring delta_const = nullptr;    // decimal string when delta_is_const
+        bool delta_is_odd = false;        // only meaningful when delta_is_const and value_width known
+        int value_width = -1;
+        int index_width = 32;
+        cstring context = nullptr;        // action/control name (best-effort)
+    };
+
+    // Post-slicing analysis results (filled by analysis passes, emitted via --meta-out).
+    std::vector<WraparoundRegisterInfo> wraparound_registers;
+    std::vector<WraparoundUpdate> wraparound_updates;
 
     P4VerifyOptions() {
         registerOption("--translate-only", nullptr,

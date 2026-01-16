@@ -1285,6 +1285,86 @@ static void writeJsonStringArray(std::ostream &out,
     out << "]";
 }
 
+static void writeJsonWraparoundRegisters(std::ostream &out,
+                                        const std::vector<P4VerifyOptions::WraparoundRegisterInfo> &regs,
+                                        const std::string &indent) {
+    out << indent << "\"registers\": [";
+    if (!regs.empty()) {
+        out << "\n";
+        for (size_t i = 0; i < regs.size(); ++i) {
+            if (i > 0) {
+                out << ",\n";
+            }
+            const auto &r = regs[i];
+            const std::string internal = r.internal_name ? r.internal_name.c_str() : "";
+            const std::string name = r.boogie_name ? r.boogie_name.c_str() : "";
+            out << indent << "  {"
+                << "\"internal\": \"" << jsonEscape(internal) << "\", "
+                << "\"name\": \"" << jsonEscape(name) << "\", "
+                << "\"value_width\": " << r.value_width << ", "
+                << "\"index_width\": " << r.index_width
+                << "}";
+        }
+        out << "\n" << indent;
+    }
+    out << "]";
+}
+
+	static void writeJsonWraparoundUpdates(std::ostream &out,
+	                                      const std::vector<P4VerifyOptions::WraparoundUpdate> &updates,
+	                                      const std::string &indent) {
+	    out << indent << "\"updates\": [";
+	    if (!updates.empty()) {
+	        out << "\n";
+	        for (size_t i = 0; i < updates.size(); ++i) {
+            if (i > 0) {
+                out << ",\n";
+            }
+	            const auto &u = updates[i];
+	            const std::string regInternal = u.reg_internal ? u.reg_internal.c_str() : "";
+	            const std::string reg = u.reg_boogie ? u.reg_boogie.c_str() : "";
+	            const std::string idxExpr = u.idx_expr ? u.idx_expr.c_str() : "";
+	            const std::string valVar = u.value_var ? u.value_var.c_str() : "";
+	            const std::string op = u.op ? u.op.c_str() : "";
+	            const std::string delta = u.delta_const ? u.delta_const.c_str() : "";
+	            const std::string ctx = u.context ? u.context.c_str() : "";
+
+            out << indent << "  {";
+            out << "\"reg_internal\": \"" << jsonEscape(regInternal) << "\", ";
+            out << "\"reg\": \"" << jsonEscape(reg) << "\", ";
+            out << "\"idx_vars\": [";
+            for (size_t j = 0; j < u.idx_vars.size(); ++j) {
+                if (j > 0) {
+                    out << ", ";
+                }
+                out << "\"" << jsonEscape(u.idx_vars[j].c_str()) << "\"";
+            }
+            out << "], ";
+	            if (u.idx_const >= 0) {
+	                out << "\"idx_const\": " << u.idx_const << ", ";
+	            } else {
+	                out << "\"idx_const\": null, ";
+	            }
+	            if (u.idx_expr && !idxExpr.empty()) {
+	                out << "\"idx_expr\": \"" << jsonEscape(idxExpr) << "\", ";
+	            } else {
+	                out << "\"idx_expr\": null, ";
+	            }
+	            out << "\"value_var\": \"" << jsonEscape(valVar) << "\", ";
+	            out << "\"op\": \"" << jsonEscape(op) << "\", ";
+	            out << "\"delta_is_const\": " << (u.delta_is_const ? "true" : "false") << ", ";
+	            out << "\"delta_const\": \"" << jsonEscape(delta) << "\", ";
+            out << "\"delta_is_odd\": " << (u.delta_is_odd ? "true" : "false") << ", ";
+            out << "\"value_width\": " << u.value_width << ", ";
+            out << "\"index_width\": " << u.index_width << ", ";
+            out << "\"context\": \"" << jsonEscape(ctx) << "\"";
+            out << "}";
+        }
+        out << "\n" << indent;
+    }
+    out << "]";
+}
+
 void Translator::writeMetaToFile(std::ostream &metaOut) const {
     // Minimal contract v1:
     // - globalVariables: list of Boogie globals
@@ -1335,6 +1415,13 @@ void Translator::writeMetaToFile(std::ostream &metaOut) const {
     writeJsonStringArray(metaOut, "reads", options.rwReads, "    ");
     metaOut << ",\n";
     writeJsonStringArray(metaOut, "writes", options.rwWrites, "    ");
+    metaOut << "\n  },\n";
+
+    // wraparound/monotonic analysis (post-slicing)
+    metaOut << "  \"wraparound\": {\n";
+    writeJsonWraparoundRegisters(metaOut, options.wraparound_registers, "    ");
+    metaOut << ",\n";
+    writeJsonWraparoundUpdates(metaOut, options.wraparound_updates, "    ");
     metaOut << "\n  },\n";
 
     metaOut << "  \"max_bitvector_size\": " << maxBitvectorSize << "\n";

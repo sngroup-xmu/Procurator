@@ -33,6 +33,7 @@ limitations under the License.
 #include "backends/verify/translate/translate.h"
 #include "backends/verify/translate/analyzer.h"
 #include "backends/verify/translate/bmv2.h"
+#include "backends/verify/analysis/monotonic.h"
 #include "frontends/common/applyOptionsPragmas.h"
 #include "frontends/common/parseInput.h"
 #include "frontends/p4/frontend.h"
@@ -263,6 +264,12 @@ int main(int argc, char *const argv[]) {
             options.rwWrites = sres.rwWrites;
             options.rwStatefulObjects = sres.rwStatefulObjects;
         }
+    }
+
+    // Post-slicing analysis (for meta consumers like dslc): summarize monotonic/affine
+    // register updates that may lead to wrap-around bugs.
+    if (options.outputMetaFile != nullptr) {
+        P4Verify::analyzeWraparoundMonotonicity(program, &refMap, &typeMap, &options);
     }
 
     std::ostream* out = openFile(options.outputBplFile, false);

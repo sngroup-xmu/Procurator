@@ -17,6 +17,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/translate/version.h.cmake"
 
 set (P4VERIFY_BACKEND_VERIFY_SRCS
   bpl_verify/main.cpp
+  analysis/monotonic.h
+  analysis/monotonic.cpp
   slicing/slicer.cpp
   slicing/slicer.h
 )
