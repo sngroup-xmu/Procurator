@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import re
 import subprocess
@@ -521,19 +522,31 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     base_bpl_text = paths.base_bpl.read_text(encoding="utf-8", errors="replace")
 
-    # 2) Infer wraparound candidates from (spec + compiled Boogie).
-    candidates = infer_wraparound_candidates(spec_text=spec_text, bpl_text=base_bpl_text)
+    # 2) Infer wraparound candidates from (spec + compiled Boogie + P4B meta).
+    meta_by_node = {}
+    meta_dir = Path(str(paths.base_bpl) + ".work")
+    if meta_dir.is_dir():
+        for mp in sorted(meta_dir.glob("*.meta.json")):
+            key = mp.name
+            if key.endswith(".meta.json"):
+                key = key[: -len(".meta.json")]
+            try:
+                meta_by_node[key] = json.loads(mp.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+    candidates = infer_wraparound_candidates(spec_text=spec_text, bpl_text=base_bpl_text, meta_by_node=meta_by_node)
     if not candidates:
         raise SystemExit(
             "[ERR] no wraparound candidates inferred.\n"
             "      - NetChain-style: global assert should reference reg[i].\n"
-            "      - DistCache-style: global assert should reference a var that is written by a +1 counter update."
+            "      - DistCache-style: global assert should reference a var that is written by a monotonic register update."
         )
     print(f"[WRAP] candidates={len(candidates)}")
     for i, cand in enumerate(candidates):
         idx_desc = str(cand.index_value) if cand.index_value is not None else (cand.index_expr or "?")
+        step_desc = f"{cand.step_op}{cand.step_delta}" if cand.step_delta is not None else f"{cand.step_op}(unknown)"
         print(
-            f"  - cand[{i}] reason={cand.reason} pump_reg={cand.pump_reg} idx={idx_desc} accel_regs={list(cand.accel_regs)}"
+            f"  - cand[{i}] reason={cand.reason} pump_reg={cand.pump_reg} idx={idx_desc} accel_regs={list(cand.accel_regs)} step={step_desc}"
         )
 
     unroll_map = _parse_unroll_map(args.unroll)
@@ -552,6 +565,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             index_expr=seed.index_expr,
             proj_vars=seed.proj_vars or None,
             cutpoint_cond=seed.cutpoint_cond,
+            step_op=seed.step_op,
+            step_delta=seed.step_delta or 1,
         )
         entry_check_bpl = paths.entry_check_bpl
         entry_check_log = paths.entry_check_log
@@ -609,6 +624,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 index_expr=cand.index_expr,
                 proj_vars=proj_vars,
                 cutpoint_cond=cand.cutpoint_cond,
+                step_op=cand.step_op,
+                step_delta=cand.step_delta or 1,
             )
             closure_check_bpl = cand_paths.closure_check_bpl
             closure_check_log = cand_paths.closure_check_log
@@ -651,6 +668,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 index_expr=cand.index_expr,
                 proj_vars=proj_vars,
                 cutpoint_cond=cand.cutpoint_cond,
+                step_op=cand.step_op,
+                step_delta=cand.step_delta or 1,
             )
             pump_bpl = cand_paths.pump_bpl
             pump_log = cand_paths.pump_log
@@ -691,6 +710,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 index_expr=cand.index_expr,
                 proj_vars=proj_vars,
                 cutpoint_cond=cand.cutpoint_cond,
+                step_op=cand.step_op,
+                step_delta=cand.step_delta or 1,
             )
             accel_probe_bpl = cand_paths.accel_probe_bpl
             accel_probe_log = cand_paths.accel_probe_log
@@ -731,6 +752,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 index_expr=cand.index_expr,
                 proj_vars=proj_vars,
                 cutpoint_cond=cand.cutpoint_cond,
+                step_op=cand.step_op,
+                step_delta=cand.step_delta or 1,
             )
             accel_bpl = cand_paths.accel_bpl
             accel_log = cand_paths.accel_log
@@ -771,6 +794,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 index_expr=cand.index_expr,
                 proj_vars=proj_vars,
                 cutpoint_cond=cand.cutpoint_cond,
+                step_op=cand.step_op,
+                step_delta=cand.step_delta or 1,
             )
             confirm_bpl = cand_paths.confirm_bpl
             confirm_log = cand_paths.confirm_log

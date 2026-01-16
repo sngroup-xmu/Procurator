@@ -17,7 +17,9 @@ class WraparoundCandidate:
     - `pump_reg` is the primary counter register (used for gating/diagnostics).
     - `accel_regs` are the registers we fast-forward to MAX in confirm.
     - `index_value`/`index_expr` describe the slot/key being tracked.
-      V1 prefers `index_expr` (can be symbolic); v0-1 uses a constant `index_value`.
+      v0-1 prefers a constant `index_value`; if unknown, we fall back to `index_expr`.
+    - `step_op`/`step_delta` describe the single-step counter update we treat as the "pump".
+      v0-1 supports only constant deltas (from P4B meta); unknown deltas default to +1.
     """
 
     pump_reg: str
@@ -27,18 +29,11 @@ class WraparoundCandidate:
     proj_vars: Tuple[str, ...]
     cutpoint_cond: Optional[str]
     reason: str
+    step_op: str = "add"
+    step_delta: Optional[int] = 1
 
 
 _RE_VAR_DECL = re.compile(r"^var\s+(?P<name>\S+)\s*:\s*(?P<type>[^;]+);\s*$")
-_RE_WRITE_CALL = re.compile(
-    r"^\s*call\s+(?P<reg>[A-Za-z_][A-Za-z0-9_.]*)\.write\s*\(\s*(?P<idx>[^,]+)\s*,\s*(?P<val>[A-Za-z_][A-Za-z0-9_.]*)\s*\)\s*;\s*$"
-)
-_RE_READ_ASSIGN = re.compile(
-    r"^\s*(?P<dst>[A-Za-z_][A-Za-z0-9_.]*)\s*:=\s*(?P<reg>[A-Za-z_][A-Za-z0-9_.]*)\.read\s*\(\s*(?P=reg)\s*,\s*(?P<idx>[^)]+)\)\s*;\s*$"
-)
-_RE_ADD1_ASSIGN = re.compile(
-    r"^\s*(?P<dst>[A-Za-z_][A-Za-z0-9_.]*)\s*:=\s*add\.bv(?P<w>\d+)\(\s*(?P=dst)\s*,\s*1bv(?P=w)\s*\)\s*;\s*$"
-)
 _RE_IDENT = re.compile(r"\b[A-Za-z_][A-Za-z0-9_.]*\b")
 _RE_BV_LIT = re.compile(r"^(?P<val>\d+)bv(?P<w>\d+)$")
 _RE_CONCAT_LIT_VAR = re.compile(
@@ -75,9 +70,6 @@ def extract_constant_equalities_from_global_assumes(spec_text: str) -> Dict[str,
       `clientTrack_meta.leafswitchidx == 2`
     yields:
       {"clientTrack_meta.leafswitchidx": 2}
-
-    This is used to collapse symbolic index expressions (e.g., `0bv16++x`) into
-    a concrete slot when the spec explicitly fixes `x`.
     """
 
     parse_tree(spec_text)
@@ -231,7 +223,7 @@ def extract_seed_vars_from_global_asserts(spec_text: str) -> List[Tuple[str, Tup
 def _infer_from_global_asserts(spec_text: str) -> Optional[WraparoundCandidate]:
     """
     MVP inference: look for register[i] occurrences in global asserts, and group
-    registers by a single constant index.
+    registers by a single constant index (NetChain-style).
     """
 
     seeds = extract_seed_vars_from_global_asserts(spec_text)
@@ -264,65 +256,179 @@ def _infer_from_global_asserts(spec_text: str) -> Optional[WraparoundCandidate]:
     )
 
 
-@dataclass(frozen=True)
-class _CounterWrite:
-    reg: str
-    idx_expr: str
-    val_var: str
+_DEBUG_SUFFIXES = (
+    "__last0_value__dbg",
+    "__last0_value",
+    "__last_value__dbg",
+    "__last_value",
+    "__last_index__dbg",
+    "__last_index",
+    "__wrote_index0__dbg",
+    "__wrote_index0",
+    "__dbg0",
+)
 
 
-def _find_counter_writes(bpl_text: str) -> List[_CounterWrite]:
+def _strip_debug_suffix(name: str) -> str:
+    for suf in _DEBUG_SUFFIXES:
+        if name.endswith(suf):
+            return name[: -len(suf)]
+    return name
+
+
+def _resolve_prefixed_name(name: str, *, node: str, var_types: Dict[str, str]) -> str:
     """
-    Heuristic: detect `reg[idx] := reg[idx] + 1` updates encoded as:
-      tmp := reg.read(reg, idx);
-      tmp := add.bvW(tmp, 1bvW);
-      call reg.write(idx, tmp);
+    Map an unprefixed P4B name to the composed Boogie name.
+
+    dslc prefixes Boogie symbols using `node_...`. P4B sometimes emits both
+    `<x>` and `<x>_0` variants; we prefer whichever exists in `var_types`.
     """
 
-    lines = bpl_text.splitlines()
-    out: List[_CounterWrite] = []
-    for i, line in enumerate(lines):
-        m = _RE_WRITE_CALL.match(line)
-        if not m:
+    cand = f"{node}_{name}"
+    if cand in var_types:
+        return cand
+    if name.endswith("_0"):
+        alt = f"{node}_{name[:-2]}"
+        if alt in var_types:
+            return alt
+    else:
+        alt = f"{node}_{name}_0"
+        if alt in var_types:
+            return alt
+    return cand
+
+
+def _prefix_expr_with_known_vars(expr: str, *, node: str, var_types: Dict[str, str]) -> str:
+    """
+    Prefix identifiers inside an unprefixed Boogie expression using `node_...`,
+    but only when the prefixed name exists in `var_types`.
+    """
+
+    def repl(m: re.Match[str]) -> str:
+        tok = m.group(0)
+        pref = _resolve_prefixed_name(tok, node=node, var_types=var_types)
+        return pref if pref in var_types else tok
+
+    return _RE_IDENT.sub(repl, expr)
+
+
+def _infer_from_meta_updates(
+    *,
+    spec_text: str,
+    bpl_text: str,
+    meta_by_node: Dict[str, dict],
+) -> List[WraparoundCandidate]:
+    var_types = _parse_var_types(bpl_text)
+    global_const_eq = extract_constant_equalities_from_global_assumes(spec_text)
+    default_proj = _default_proj_vars(var_types)
+
+    seed_pairs = extract_seed_vars_from_global_asserts(spec_text)
+    seed_bases: Set[str] = {base for base, _ in seed_pairs}
+    seed_bases |= {_strip_debug_suffix(b) for b in list(seed_bases)}
+
+    out: List[WraparoundCandidate] = []
+    seen: Set[Tuple[str, Optional[int], Optional[str], str, Optional[int]]] = set()
+
+    for node, meta in sorted(meta_by_node.items()):
+        wrap = (meta or {}).get("wraparound") or {}
+        updates = wrap.get("updates") or []
+        if not isinstance(updates, list):
             continue
-        reg = m.group("reg")
-        idx_expr = m.group("idx").strip()
-        val_var = m.group("val").strip()
-
-        saw_add1 = False
-        saw_read = False
-        # Search a small window backwards inside the same action/proc body.
-        for j in range(max(0, i - 12), i):
-            ln = lines[j]
-            m_add = _RE_ADD1_ASSIGN.match(ln)
-            if m_add and m_add.group("dst") == val_var:
-                saw_add1 = True
+        for u in updates:
+            if not isinstance(u, dict):
                 continue
-            m_read = _RE_READ_ASSIGN.match(ln)
-            if m_read and m_read.group("dst") == val_var and m_read.group("reg") == reg:
-                # idx_expr string match is intentionally loose (whitespace differences).
-                if m_read.group("idx").strip() == idx_expr:
-                    saw_read = True
-                    continue
+            reg = str(u.get("reg") or "")
+            value_var = str(u.get("value_var") or "")
+            op = str(u.get("op") or "")
+            delta_is_const = bool(u.get("delta_is_const"))
+            delta_const = u.get("delta_const")
 
-        if saw_add1 and saw_read:
-            out.append(_CounterWrite(reg=reg, idx_expr=idx_expr, val_var=val_var))
+            if not reg or not value_var:
+                continue
+            if op != "add":
+                # v0-1 pipeline currently accelerates overflow (MAX -> ...), so only handle +delta.
+                continue
+            if not delta_is_const:
+                continue
+            try:
+                step_delta = int(str(delta_const))
+            except Exception:
+                continue
 
-    # De-dup by (reg, idx_expr, val_var).
-    seen: Set[Tuple[str, str, str]] = set()
-    dedup: List[_CounterWrite] = []
-    for w in out:
-        k = (w.reg, w.idx_expr, w.val_var)
-        if k not in seen:
-            seen.add(k)
-            dedup.append(w)
-    return dedup
+            pump_reg = _resolve_prefixed_name(reg, node=node, var_types=var_types)
+            value_var_pref = _resolve_prefixed_name(value_var, node=node, var_types=var_types)
+
+            # Filter by whether the updated var (or the register itself) appears in global asserts.
+            if (
+                value_var_pref not in seed_bases
+                and value_var not in seed_bases
+                and pump_reg not in seed_bases
+                and reg not in seed_bases
+            ):
+                continue
+
+            idx_const = u.get("idx_const", None)
+            idx_expr_raw = u.get("idx_expr", None)
+            idx_value: Optional[int] = None
+            idx_expr: Optional[str] = None
+            proj: List[str] = list(default_proj)
+
+            if isinstance(idx_const, int) and idx_const >= 0:
+                idx_value = idx_const
+            else:
+                if isinstance(idx_expr_raw, str) and idx_expr_raw.strip():
+                    idx_expr_pref = _prefix_expr_with_known_vars(idx_expr_raw, node=node, var_types=var_types)
+                    idx_eval = _maybe_eval_index_expr_to_constant(
+                        idx_expr_pref, const_eq=global_const_eq, var_types=var_types
+                    )
+                    if idx_eval is not None:
+                        idx_value = idx_eval
+                    else:
+                        idx_expr = idx_expr_pref
+                        proj = sorted(set(proj + _vars_in_expr(idx_expr_pref, var_types=var_types)))
+                else:
+                    # Best-effort: keep index symbolic via a single var if we can.
+                    idx_vars = u.get("idx_vars") or []
+                    if isinstance(idx_vars, list) and len(idx_vars) == 1 and isinstance(idx_vars[0], str):
+                        idx_expr_pref = _resolve_prefixed_name(idx_vars[0], node=node, var_types=var_types)
+                        idx_eval = _maybe_eval_index_expr_to_constant(
+                            idx_expr_pref, const_eq=global_const_eq, var_types=var_types
+                        )
+                        if idx_eval is not None:
+                            idx_value = idx_eval
+                        else:
+                            idx_expr = idx_expr_pref
+                            proj = sorted(set(proj + [idx_expr_pref]))
+
+            accel_regs = (pump_reg,)
+            reason = f"meta_wraparound_update:{value_var}"
+            key = (pump_reg, idx_value, idx_expr, reason, step_delta)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            out.append(
+                WraparoundCandidate(
+                    pump_reg=pump_reg,
+                    accel_regs=accel_regs,
+                    index_value=idx_value,
+                    index_expr=idx_expr,
+                    proj_vars=tuple(proj),
+                    cutpoint_cond=None,
+                    reason=reason,
+                    step_op="add",
+                    step_delta=step_delta,
+                )
+            )
+
+    return out
 
 
 def infer_wraparound_candidates(
     *,
     spec_text: str,
     bpl_text: str,
+    meta_by_node: Optional[Dict[str, dict]] = None,
 ) -> List[WraparoundCandidate]:
     """
     Infer wraparound candidates for the given spec and compiled Boogie model.
@@ -330,51 +436,88 @@ def infer_wraparound_candidates(
     Strategy:
       1) If the global assert directly references register slots (reg[i]),
          use those regs + the constant index (NetChain-style).
-      2) Otherwise, look for counter-like (+1) register writes in the Boogie
-         model and filter them by whether they update a seed variable appearing
-         in the global assert (DistCache-style leafload_0/spineload_0).
+      2) Otherwise, consult P4B meta (`wraparound.updates`) to find monotonic
+         register writes whose updated value variable (or register) appears in
+         the global assert (DistCache-style leafload/spineload).
     """
 
     cand = _infer_from_global_asserts(spec_text)
     if cand is not None:
+        # If meta is available, try to recover the step size for the pump reg.
+        if meta_by_node:
+            step = _find_step_info_for_pump_reg(cand.pump_reg, meta_by_node=meta_by_node)
+            if step is not None:
+                op, delta = step
+                return [
+                    WraparoundCandidate(
+                        pump_reg=cand.pump_reg,
+                        accel_regs=cand.accel_regs,
+                        index_value=cand.index_value,
+                        index_expr=cand.index_expr,
+                        proj_vars=cand.proj_vars,
+                        cutpoint_cond=cand.cutpoint_cond,
+                        reason=cand.reason,
+                        step_op=op,
+                        step_delta=delta,
+                    )
+                ]
         return [cand]
 
-    var_types = _parse_var_types(bpl_text)
-    global_const_eq = extract_constant_equalities_from_global_assumes(spec_text)
-    default_proj = _default_proj_vars(var_types)
-    seed_bases = {base for base, _ in extract_seed_vars_from_global_asserts(spec_text)}
+    if not meta_by_node:
+        return []
 
-    counter_writes = _find_counter_writes(bpl_text)
-    selected: List[WraparoundCandidate] = []
-    for w in counter_writes:
-        if w.val_var not in seed_bases:
-            continue
-        idx_const = _maybe_eval_index_expr_to_constant(w.idx_expr, const_eq=global_const_eq, var_types=var_types)
-        idx_expr: Optional[str]
-        idx_value: Optional[int]
-        proj: List[str]
-        reason_suffix = ""
-        if idx_const is not None:
-            idx_value = idx_const
-            idx_expr = None
-            proj = list(default_proj)
-            reason_suffix = f":idx_from_global_assume={idx_const}"
-        else:
-            idx_value = None
-            idx_expr = w.idx_expr
-            idx_vars = _vars_in_expr(w.idx_expr, var_types=var_types)
-            proj = sorted(set(default_proj + idx_vars))
-        selected.append(
-            WraparoundCandidate(
-                pump_reg=w.reg,
-                accel_regs=(w.reg,),
-                index_value=idx_value,
-                index_expr=idx_expr,
-                proj_vars=tuple(proj),
-                cutpoint_cond=None,
-                reason=f"boogie_counter_write:{w.val_var}{reason_suffix}",
-            )
-        )
+    return _infer_from_meta_updates(spec_text=spec_text, bpl_text=bpl_text, meta_by_node=meta_by_node)
 
-    # Stable order: smaller element widths first if we can cheaply approximate by suffix.
-    return selected
+
+def _find_step_info_for_pump_reg(pump_reg: str, *, meta_by_node: Dict[str, dict]) -> Optional[Tuple[str, int]]:
+    """
+    Best-effort lookup of (op, delta) for a composed `pump_reg`.
+
+    For node-prefixed names (e.g., `s1_sequence_reg`), we strip the prefix and
+    search the corresponding node's meta updates. For unprefixed names, we try
+    all nodes and return the first match.
+    """
+
+    def match_reg(update_reg: str, target: str) -> bool:
+        if update_reg == target:
+            return True
+        if update_reg.endswith("_0") and update_reg[:-2] == target:
+            return True
+        if target.endswith("_0") and target[:-2] == update_reg:
+            return True
+        return False
+
+    def search_node_meta(meta: dict, *, unpref_reg: str) -> Optional[Tuple[str, int]]:
+        wrap = (meta or {}).get("wraparound") or {}
+        updates = wrap.get("updates") or []
+        if not isinstance(updates, list):
+            return None
+        for u in updates:
+            if not isinstance(u, dict):
+                continue
+            reg = str(u.get("reg") or "")
+            if not reg or not match_reg(reg, unpref_reg):
+                continue
+            op = str(u.get("op") or "")
+            if op != "add":
+                continue
+            if not bool(u.get("delta_is_const")):
+                continue
+            try:
+                delta = int(str(u.get("delta_const")))
+            except Exception:
+                continue
+            return ("add", delta)
+        return None
+
+    for node, meta in meta_by_node.items():
+        prefix = f"{node}_"
+        if pump_reg.startswith(prefix):
+            return search_node_meta(meta, unpref_reg=pump_reg[len(prefix) :])
+
+    # Unprefixed: try all nodes.
+    for _node, meta in meta_by_node.items():
+        res = search_node_meta(meta, unpref_reg=pump_reg)
+        if res is not None:
+            return res
+    return None

@@ -64,6 +64,8 @@ class WraparoundConfig:
     accel_targets: Tuple[WraparoundTarget, ...]
     proj_vars: Tuple[str, ...]
     cutpoint_cond: str
+    step_op: str
+    step_delta_bv: str
 
 
 class WraparoundTransformError(RuntimeError):
@@ -360,6 +362,8 @@ def analyze_bpl_for_wraparound(
     index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
+    step_op: str = "add",
+    step_delta: int = 1,
     stage: WraparoundStage,
 ) -> WraparoundConfig:
     lines = bpl_text.splitlines(keepends=False)
@@ -414,13 +418,34 @@ def analyze_bpl_for_wraparound(
             continue
         filtered.append(v)
 
+    if step_op not in {"add", "sub"}:
+        raise WraparoundTransformError(f"unsupported step_op: {step_op}")
+    try:
+        delta_int = int(step_delta)
+    except Exception as e:
+        raise WraparoundTransformError(f"invalid step_delta: {step_delta}") from e
+    # Normalize to a bitvector literal consistent with the pump register element width.
+    delta_mod = delta_int % (1 << elem_w)
+    delta_bv = f"{delta_mod}bv{elem_w}"
+
     return WraparoundConfig(
         stage=stage,
         pump_target=pump_target,
         accel_targets=tuple(accel_targets),
         proj_vars=tuple(filtered),
         cutpoint_cond=cond,
+        step_op=step_op,
+        step_delta_bv=delta_bv,
     )
+
+
+def _step_update_expr(cfg: WraparoundConfig, x_expr: str) -> str:
+    p = cfg.pump_target
+    if cfg.step_op == "add":
+        return f"add.bv{p.elem_width}({x_expr}, {cfg.step_delta_bv})"
+    if cfg.step_op == "sub":
+        return f"sub.bv{p.elem_width}({x_expr}, {cfg.step_delta_bv})"
+    raise WraparoundTransformError(f"unsupported step_op: {cfg.step_op}")
 
 
 def _emit_closure_local_decls(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
@@ -463,7 +488,6 @@ def _emit_closure_setup(cfg: WraparoundConfig) -> str:
 
 
 def _emit_closure_asserts(cfg: WraparoundConfig) -> str:
-    p = cfg.pump_target
     lines: List[str] = []
     lines.append("  // wraparound closure_check asserts (generated)\n")
     for v in cfg.proj_vars:
@@ -473,9 +497,7 @@ def _emit_closure_asserts(cfg: WraparoundConfig) -> str:
         target_read = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
         local = f"wrap_closure_after_{_sanitize_local(t.reg_var)}"
         lines.append(f"  {local} := {target_read};\n")
-        lines.append(
-            f"  assert {local} == add.bv{t.elem_width}(wrap_closure_seq0, 1bv{t.elem_width});\n"
-        )
+        lines.append(f"  assert {local} == {_step_update_expr(cfg, 'wrap_closure_seq0')};\n")
     # Ensure we end a full round at the intended cutpoint.
     lines.append(f"  assert ({cfg.cutpoint_cond});\n")
     lines.append("\n")
@@ -543,7 +565,7 @@ def _emit_step_block(cfg: WraparoundConfig) -> str:
         for chk in proj_eq_checks:
             lines.append(chk)
         lines.append(
-            f"        if (wrap_proj_ok && (wrap_target_new == add.bv{p.elem_width}(wrap_target_snap, 1bv{p.elem_width}))) {{\n"
+            f"        if (wrap_proj_ok && (wrap_target_new == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
         )
         lines.append("          wrap_loop_len := procurator_step - wrap_snap_step;\n")
         lines.append(f"          call {_PUMP_ERROR_PROC}();\n")
@@ -555,7 +577,7 @@ def _emit_step_block(cfg: WraparoundConfig) -> str:
         for chk in proj_eq_checks:
             lines.append(chk)
         lines.append(
-            f"        if (wrap_proj_ok && (wrap_target_new == add.bv{p.elem_width}(wrap_target_snap, 1bv{p.elem_width}))) {{\n"
+            f"        if (wrap_proj_ok && (wrap_target_new == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
         )
         lines.append("          wrap_accel_done := true;\n")
         for t in cfg.accel_targets:
@@ -568,7 +590,7 @@ def _emit_step_block(cfg: WraparoundConfig) -> str:
         for chk in proj_eq_checks:
             lines.append(chk)
         lines.append(
-            f"        if (wrap_proj_ok && (wrap_target_new == add.bv{p.elem_width}(wrap_target_snap, 1bv{p.elem_width}))) {{\n"
+            f"        if (wrap_proj_ok && (wrap_target_new == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
         )
         lines.append("          wrap_accel_done := true;\n")
         lines.append(f"          call {_PUMP_ERROR_PROC}();\n")
@@ -741,6 +763,8 @@ def instrument_bpl_text(
     index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
+    step_op: str = "add",
+    step_delta: int = 1,
 ) -> str:
     lines = bpl_text.splitlines(keepends=True)
     no_nl_lines = [ln.rstrip("\n") for ln in lines]
@@ -795,6 +819,8 @@ def instrument_bpl_text(
             index_expr=index_expr,
             proj_vars=proj_vars,
             cutpoint_cond=cutpoint_cond,
+            step_op=step_op,
+            step_delta=step_delta,
             stage=stage,
         )
 
@@ -866,6 +892,8 @@ def instrument_bpl_text(
         index_expr=index_expr,
         proj_vars=proj_vars,
         cutpoint_cond=cutpoint_cond,
+        step_op=step_op,
+        step_delta=step_delta,
         stage=stage,
     )
 
@@ -969,6 +997,8 @@ def instrument_bpl_file(
     index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
+    step_op: str = "add",
+    step_delta: int = 1,
 ) -> None:
     text = in_path.read_text(encoding="utf-8", errors="replace")
     out = instrument_bpl_text(
@@ -980,6 +1010,8 @@ def instrument_bpl_file(
         index_expr=index_expr,
         proj_vars=proj_vars,
         cutpoint_cond=cutpoint_cond,
+        step_op=step_op,
+        step_delta=step_delta,
     )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.exists():
