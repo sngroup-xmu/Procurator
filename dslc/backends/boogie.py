@@ -40,6 +40,7 @@ class P4BTranslator:
         out_meta: Optional[str] = None,
         slicing_vars: Optional[Sequence[str]] = None,
         disable_slicing: bool = False,
+        keep_control_seeds: bool = True,
     ) -> None:
         def run(cmd: List[str]) -> None:
             try:
@@ -64,6 +65,9 @@ class P4BTranslator:
                 cmd.extend(["--goto"])
             if disable_slicing:
                 cmd.append("--no-slicing")
+            elif not keep_control_seeds:
+                # Let the caller (dslc) decide which control variables matter for the property/topology.
+                cmd.append("--no-slicing-control-seeds")
             if p4_path.endswith(".json"):
                 cmd.extend(["--fromJSON", p4_path])
             else:
@@ -570,6 +574,7 @@ def _instrument_register_writes(
         return (
             f"{indent}var {reg_name}__last_index: {idx_type};\n"
             f"{indent}var {reg_name}__last_value: {elem_type};\n"
+            f"{indent}var {reg_name}__wrote_any: bool;\n"
             f"{indent}var {reg_name}__wrote_index0: bool;\n"
             f"{indent}var {reg_name}__last0_value: {elem_type};\n"
         )
@@ -602,6 +607,7 @@ def _instrument_register_writes(
                 extras = [
                     f"{reg_name}__last_index",
                     f"{reg_name}__last_value",
+                    f"{reg_name}__wrote_any",
                     f"{reg_name}__wrote_index0",
                     f"{reg_name}__last0_value",
                 ]
@@ -612,20 +618,6 @@ def _instrument_register_writes(
         return f"{indent}modifies {', '.join(items)};"
 
     out = mod_re.sub(_mod_repl, out)
-
-    # Extract register sizes when available (e.g., axiom reg.size == 1bv32).
-    reg_sizes: Dict[str, int] = {}
-    for reg_name in reg_types.keys():
-        size_re = re.compile(
-            rf"^\s*axiom\s+{re.escape(reg_name)}\.size\s*==\s*(\d+)bv\d+\s*;",
-            re.MULTILINE,
-        )
-        m = size_re.search(out)
-        if m:
-            try:
-                reg_sizes[reg_name] = int(m.group(1))
-            except Exception:
-                pass
 
     # Instrument each register.write procedure to record last write + index-0 writes.
     for reg_name, (idx_type, _) in reg_types.items():
@@ -647,20 +639,18 @@ def _instrument_register_writes(
         idx_expr = m.group("idx").strip()
         val_expr = m.group("val").strip()
         idx_zero = _render_zero_literal(idx_type)
-        assume_idx = ""
-        if reg_sizes.get(reg_name) == 1 or reg_name.endswith("sequence_reg"):
-            assume_idx = f"{indent}assume {idx_expr} == {idx_zero};\n"
         extra = "\n".join(
             [
                 f"{indent}{reg_name}__last_index := {idx_expr};",
                 f"{indent}{reg_name}__last_value := {val_expr};",
+                f"{indent}{reg_name}__wrote_any := true;",
                 f"{indent}if ({idx_expr} == {idx_zero}) {{",
                 f"{indent}  {reg_name}__wrote_index0 := true;",
                 f"{indent}  {reg_name}__last0_value := {val_expr};",
                 f"{indent}}}",
             ]
         )
-        replacement = assume_idx + line + "\n" + extra
+        replacement = line + "\n" + extra
         new_body = body[: m.start()] + replacement + body[m.end() :]
         out = out[:body_start] + new_body + out[body_end:]
 
@@ -1476,7 +1466,7 @@ class BoogieHarnessEmitter:
             out.append("          assume procurator_lock == 0;\n")
             out.append("          procurator_lock := 1;\n")
             out.append("        }\n")
-            out.append(self._emit_external_enqueue_stmt(n, k, indent="        "))
+            out.append(self._emit_external_enqueue_stmt(n, k, indent="        ", deterministic=False))
             out.append("        atomic {\n")
             out.append("          procurator_lock := 0;\n")
             out.append("        }\n")
@@ -1626,6 +1616,7 @@ class BoogieHarnessEmitter:
                 modifies_set.add(self._register_debug_var_name(name))
                 modifies_set.add(self._register_last_index_dbg_name(name))
                 modifies_set.add(self._register_last_value_dbg_name(name))
+                modifies_set.add(self._register_wrote_any_dbg_name(name))
                 modifies_set.add(self._register_wrote_index0_dbg_name(name))
                 modifies_set.add(self._register_last0_value_dbg_name(name))
         declared = self._node_declared_vars.get(node, set())
@@ -1848,10 +1839,12 @@ class BoogieHarnessEmitter:
                 start_modifies.add(self._register_debug_var_name(name))
                 start_modifies.add(self._register_last_index_dbg_name(name))
                 start_modifies.add(self._register_last_value_dbg_name(name))
+                start_modifies.add(self._register_wrote_any_dbg_name(name))
                 start_modifies.add(self._register_wrote_index0_dbg_name(name))
                 start_modifies.add(self._register_last0_value_dbg_name(name))
                 start_modifies.add(self._register_last_index_name(name))
                 start_modifies.add(self._register_last_value_name(name))
+                start_modifies.add(self._register_wrote_any_name(name))
                 start_modifies.add(self._register_wrote_index0_name(name))
                 start_modifies.add(self._register_last0_value_name(name))
         for a in node_aliases:
@@ -1944,10 +1937,12 @@ class BoogieHarnessEmitter:
                 mods.add(self._register_debug_var_name(name))
                 mods.add(self._register_last_index_dbg_name(name))
                 mods.add(self._register_last_value_dbg_name(name))
+                mods.add(self._register_wrote_any_dbg_name(name))
                 mods.add(self._register_wrote_index0_dbg_name(name))
                 mods.add(self._register_last0_value_dbg_name(name))
                 mods.add(self._register_last_index_name(name))
                 mods.add(self._register_last_value_name(name))
+                mods.add(self._register_wrote_any_name(name))
                 mods.add(self._register_wrote_index0_name(name))
                 mods.add(self._register_last0_value_name(name))
 
@@ -1966,6 +1961,7 @@ class BoogieHarnessEmitter:
             for regs in self._node_register_arrays.values():
                 for name in regs.keys():
                     mods.add(self._trace_reg_dbg0_name(name))
+                    mods.add(self._trace_reg_wrote_any_name(name))
                     mods.add(self._trace_reg_wrote_index0_name(name))
                     mods.add(self._trace_reg_last0_value_name(name))
             for link in self._spec.links:
@@ -2023,6 +2019,10 @@ class BoogieHarnessEmitter:
         return f"{reg_name}__last_value"
 
     @staticmethod
+    def _register_wrote_any_name(reg_name: str) -> str:
+        return f"{reg_name}__wrote_any"
+
+    @staticmethod
     def _register_wrote_index0_name(reg_name: str) -> str:
         return f"{reg_name}__wrote_index0"
 
@@ -2037,6 +2037,10 @@ class BoogieHarnessEmitter:
     @staticmethod
     def _register_last_value_dbg_name(reg_name: str) -> str:
         return f"{reg_name}__last_value__dbg"
+
+    @staticmethod
+    def _register_wrote_any_dbg_name(reg_name: str) -> str:
+        return f"{reg_name}__wrote_any__dbg"
 
     @staticmethod
     def _register_wrote_index0_dbg_name(reg_name: str) -> str:
@@ -2065,6 +2069,10 @@ class BoogieHarnessEmitter:
     @staticmethod
     def _trace_reg_dbg0_name(reg_name: str) -> str:
         return f"trace_{reg_name}__dbg0"
+
+    @staticmethod
+    def _trace_reg_wrote_any_name(reg_name: str) -> str:
+        return f"trace_{reg_name}__wrote_any"
 
     @staticmethod
     def _trace_reg_wrote_index0_name(reg_name: str) -> str:
@@ -2122,6 +2130,7 @@ class BoogieHarnessEmitter:
         for regs in self._node_register_arrays.values():
             for name, (_, elem_type) in sorted(regs.items()):
                 out.append(f"var {self._trace_reg_dbg0_name(name)}: [int]{elem_type};\n")
+                out.append(f"var {self._trace_reg_wrote_any_name(name)}: [int]bool;\n")
                 out.append(f"var {self._trace_reg_wrote_index0_name(name)}: [int]bool;\n")
                 out.append(f"var {self._trace_reg_last0_value_name(name)}: [int]{elem_type};\n")
         for link in self._spec.links:
@@ -2172,6 +2181,9 @@ class BoogieHarnessEmitter:
                 f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {self._register_debug_var_name(name)};\n"
             )
             out.append(
+                f"{indent}{self._trace_reg_wrote_any_name(name)}[procurator_step] := {self._register_wrote_any_name(name)};\n"
+            )
+            out.append(
                 f"{indent}{self._trace_reg_wrote_index0_name(name)}[procurator_step] := {self._register_wrote_index0_name(name)};\n"
             )
             out.append(
@@ -2204,6 +2216,7 @@ class BoogieHarnessEmitter:
                 out.append(f"var {dbg}: {elem_type};\n")
                 out.append(f"var {self._register_last_index_dbg_name(name)}: {idx_type};\n")
                 out.append(f"var {self._register_last_value_dbg_name(name)}: {elem_type};\n")
+                out.append(f"var {self._register_wrote_any_dbg_name(name)}: bool;\n")
                 out.append(f"var {self._register_wrote_index0_dbg_name(name)}: bool;\n")
                 out.append(f"var {self._register_last0_value_dbg_name(name)}: {elem_type};\n")
         return "".join(out)
@@ -2219,6 +2232,7 @@ class BoogieHarnessEmitter:
                 out.append(f"{indent}{dbg} := {name}[{idx_zero}];\n")
                 out.append(f"{indent}{self._register_last_index_dbg_name(name)} := {self._register_last_index_name(name)};\n")
                 out.append(f"{indent}{self._register_last_value_dbg_name(name)} := {self._register_last_value_name(name)};\n")
+                out.append(f"{indent}{self._register_wrote_any_dbg_name(name)} := {self._register_wrote_any_name(name)};\n")
                 out.append(f"{indent}{self._register_wrote_index0_dbg_name(name)} := {self._register_wrote_index0_name(name)};\n")
                 out.append(f"{indent}{self._register_last0_value_dbg_name(name)} := {self._register_last0_value_name(name)};\n")
         return "".join(out)
@@ -2232,6 +2246,7 @@ class BoogieHarnessEmitter:
                 val_zero = self._render_value_zero(elem_type)
                 out.append(f"  {self._register_last_index_name(name)} := {idx_zero};\n")
                 out.append(f"  {self._register_last_value_name(name)} := {val_zero};\n")
+                out.append(f"  {self._register_wrote_any_name(name)} := false;\n")
                 out.append(f"  {self._register_wrote_index0_name(name)} := false;\n")
                 out.append(f"  {self._register_last0_value_name(name)} := {val_zero};\n")
         return "".join(out)
@@ -2309,22 +2324,22 @@ class BoogieHarnessEmitter:
             out.append("  " + head + " {\n")
             if kind == "env_inject":
                 out.append(f"{indent}// env inject -> {name}\n")
-                out.append(self._emit_external_enqueue_stmt(name, k, indent=indent))
+                out.append(self._emit_external_enqueue_stmt(name, k, indent=indent, deterministic=deterministic))
             elif kind == "host_send":
                 out.append(f"{indent}// host send -> {name}\n")
-                out.append(self._emit_sequential_host_send_step(name, k=k, indent=indent))
+                out.append(self._emit_sequential_host_send_step(name, k=k, indent=indent, deterministic=deterministic))
             elif kind == "host_recv":
                 out.append(f"{indent}// host recv -> {name}\n")
-                out.append(self._emit_sequential_host_recv_step(name, indent=indent))
+                out.append(self._emit_sequential_host_recv_step(name, indent=indent, deterministic=deterministic))
             elif kind == "node_pass":
                 out.append(f"{indent}// node pass -> {name}\n")
-                out.append(self._emit_sequential_node_pass_step(name, k=k, indent=indent))
+                out.append(self._emit_sequential_node_pass_step(name, k=k, indent=indent, deterministic=deterministic))
             elif kind == "node_ingress":
                 out.append(f"{indent}// node ingress -> {name}\n")
-                out.append(self._emit_sequential_node_ingress_step(name, k=k, indent=indent))
+                out.append(self._emit_sequential_node_ingress_step(name, k=k, indent=indent, deterministic=deterministic))
             elif kind == "node_egress":
                 out.append(f"{indent}// node egress -> {name}\n")
-                out.append(self._emit_sequential_node_egress_step(name, k=k, indent=indent))
+                out.append(self._emit_sequential_node_egress_step(name, k=k, indent=indent, deterministic=deterministic))
             else:
                 raise AssertionError(f"unhandled sequential action: {kind}")
 
@@ -2415,7 +2430,7 @@ class BoogieHarnessEmitter:
         out.append("}\n")
         return "".join(out)
 
-    def _emit_sequential_host_send_step(self, host: str, *, k: int, indent: str) -> str:
+    def _emit_sequential_host_send_step(self, host: str, *, k: int, indent: str, deterministic: bool) -> str:
         target = self._host_to_node.get(host)
         if not target:
             return f"{indent}assume false;\n"
@@ -2426,6 +2441,28 @@ class BoogieHarnessEmitter:
         copy_vars: List[str] = [v for v in host_vars if v in host_decl and v in target_decl]
 
         out: List[str] = []
+        if deterministic:
+            inner = indent + "  "
+            out.append(f"{indent}if ({target}_inbox_count < {k}) {{\n")
+            # Create a fresh packet for this host send.
+            for v in host_vars:
+                out.append(f"{inner}havoc {host}_{v};\n")
+            if not self._max_env_inputs:
+                env_lines = self._emit_host_env_inject_statements(host, indent=inner)
+                if env_lines:
+                    out.append(env_lines)
+                hd = self._spec.hosts.get(host, HostDecl(name=host))
+                for expr in hd.assume_exprs:
+                    out.append(f"{inner}assume {self._expr_to_boogie(expr, current_node=host)};\n")
+                for expr in self._spec.global_decl.assume_exprs:
+                    out.append(f"{inner}assume {self._expr_to_boogie(expr, current_node=host)};\n")
+            for v in copy_vars:
+                out.append(f"{inner}{target}_{v} := {host}_{v};\n")
+            out.append(f"{inner}{target}_pkt_external := true;\n")
+            out.append(f"{inner}{target}_inbox_count := {target}_inbox_count + 1;\n")
+            out.append(f"{indent}}}\n")
+            return "".join(out)
+
         out.append(f"{indent}assume {target}_inbox_count < {k};\n")
         # Create a fresh packet for this host send.
         for v in host_vars:
@@ -2445,15 +2482,23 @@ class BoogieHarnessEmitter:
         out.append(f"{indent}{target}_inbox_count := {target}_inbox_count + 1;\n")
         return "".join(out)
 
-    def _emit_sequential_host_recv_step(self, host: str, *, indent: str) -> str:
+    def _emit_sequential_host_recv_step(self, host: str, *, indent: str, deterministic: bool) -> str:
         out: List[str] = []
-        out.append(f"{indent}assume {host}_inbox_count > 0;\n")
         hd = self._spec.hosts.get(host, HostDecl(name=host))
+        if deterministic:
+            inner = indent + "  "
+            out.append(f"{indent}if ({host}_inbox_count > 0) {{\n")
+            out.append(self._emit_assert_lines(hd.assert_exprs, indent=inner, current_node=host))
+            out.append(f"{inner}{host}_inbox_count := {host}_inbox_count - 1;\n")
+            out.append(f"{indent}}}\n")
+            return "".join(out)
+
+        out.append(f"{indent}assume {host}_inbox_count > 0;\n")
         out.append(self._emit_assert_lines(hd.assert_exprs, indent=indent, current_node=host))
         out.append(f"{indent}{host}_inbox_count := {host}_inbox_count - 1;\n")
         return "".join(out)
 
-    def _emit_sequential_node_pass_step(self, node: str, *, k: int, indent: str) -> str:
+    def _emit_sequential_node_pass_step(self, node: str, *, k: int, indent: str, deterministic: bool) -> str:
         input_vars = self._node_input_vars.get(node, [])
 
         assert_lines = "".join(
@@ -2480,6 +2525,8 @@ class BoogieHarnessEmitter:
                 clone_flags.append(flag)
 
         out: List[str] = []
+        if deterministic:
+            out.append(f"{indent}if ({node}_inbox_count > 0) {{\n")
         out.append(f"{indent}assume {node}_inbox_count > 0;\n")
         if self._por_enabled and self._por_guard_enabled:
             guards = self._por_guards.get(node, [])
@@ -2526,14 +2573,18 @@ class BoogieHarnessEmitter:
         if assert_lines:
             out.append(f"{indent}// DSL assertions\n")
             out.append(assert_lines)
+        if deterministic:
+            out.append(f"{indent}}}\n")
         return "".join(out)
 
-    def _emit_sequential_node_ingress_step(self, node: str, *, k: int, indent: str) -> str:
+    def _emit_sequential_node_ingress_step(self, node: str, *, k: int, indent: str, deterministic: bool) -> str:
         dsl_stmt_lines = self._emit_node_pass_statements(node, indent=indent)
         declared = self._node_declared_vars.get(node, set())
         clone_flags = [f for f in ("p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i", "p4b_recirculate") if f in declared]
 
         out: List[str] = []
+        if deterministic:
+            out.append(f"{indent}if ({node}_inbox_count > 0) {{\n")
         out.append(f"{indent}assume {node}_inbox_count > 0;\n")
         if self._por_enabled and self._por_guard_enabled:
             guards = self._por_guards.get(node, [])
@@ -2561,9 +2612,11 @@ class BoogieHarnessEmitter:
         if trace_lines:
             out.append(f"{indent}// Trace snapshot\n")
             out.append(trace_lines)
+        if deterministic:
+            out.append(f"{indent}}}\n")
         return "".join(out)
 
-    def _emit_sequential_node_egress_step(self, node: str, *, k: int, indent: str) -> str:
+    def _emit_sequential_node_egress_step(self, node: str, *, k: int, indent: str, deterministic: bool) -> str:
         assert_lines = "".join(
             [
                 self._emit_assert_lines(
@@ -2582,6 +2635,8 @@ class BoogieHarnessEmitter:
         clone_flags = [f for f in ("p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i", "p4b_recirculate") if f in declared]
 
         out: List[str] = []
+        if deterministic:
+            out.append(f"{indent}if ({node}_egress_count > 0) {{\n")
         out.append(f"{indent}assume {node}_egress_count > 0;\n")
         out.append(f"{indent}{node}_egress_count := {node}_egress_count - 1;\n")
         out.append(
@@ -2593,10 +2648,14 @@ class BoogieHarnessEmitter:
                 clone_flags=clone_flags,
             )
         )
+        if deterministic:
+            out.append(f"{indent}}}\n")
         return "".join(out)
 
-    def _emit_external_enqueue_stmt(self, dst: str, k: int, indent: str) -> str:
+    def _emit_external_enqueue_stmt(self, dst: str, k: int, indent: str, deterministic: bool) -> str:
         out: List[str] = []
+        if deterministic:
+            out.append(f"{indent}if ({dst}_inbox_count < {k}) {{\n")
         # Enqueue an external packet: havoc its fields + apply DSL env constraints at injection time.
         out.append(f"{indent}assume {dst}_inbox_count < {k};\n")
         out.append(f"{indent}{dst}_pkt_external := true;\n")
@@ -2611,6 +2670,8 @@ class BoogieHarnessEmitter:
             for expr in self._spec.global_decl.assume_exprs:
                 out.append(f"{indent}assume {self._expr_to_boogie(expr, current_node=dst)};\n")
         out.append(f"{indent}{dst}_inbox_count := {dst}_inbox_count + 1;\n")
+        if deterministic:
+            out.append(f"{indent}}}\n")
         return "".join(out)
 
     def _emit_internal_enqueue_stmt(self, dst: str, k: int, indent: str) -> str:
@@ -2991,9 +3052,31 @@ class BoogieHarnessEmitter:
         """
         nd = self._spec.nodes.get(node, NodeDecl(name=node))
         out: List[str] = []
+        declared_raw = self._node_declared_vars.get(node, set())
+
+        def _normalize_ref(name: str) -> str:
+            if name.startswith(f"{node}_"):
+                return name[len(node) + 1 :]
+            return name
+
+        def _ref_is_available(name: str) -> bool:
+            if _dsl_is_simple_local_name(name) and name in self._dsl_node_vars.get(node, {}):
+                return True
+            if _dsl_is_simple_local_name(name) and name in self._dsl_global_vars:
+                return True
+            raw = _normalize_ref(name)
+            return raw in declared_raw
+
+        def _stmt_refs_available(stmt: Tree) -> bool:
+            for v in _collect_dotted_vars(stmt):
+                if not _ref_is_available(v):
+                    return False
+            return True
 
         def emit_bool_block(stmt: Tree, cur_indent: str) -> None:
             for expr in self._extract_bool_exprs(stmt):
+                if not _stmt_refs_available(expr):
+                    continue
                 out.append(f"{cur_indent}assume {self._expr_to_boogie(expr, current_node=node)};\n")
 
         def emit_stmt(stmt: Tree, cur_indent: str) -> None:
@@ -3001,6 +3084,8 @@ class BoogieHarnessEmitter:
             if st == "var_decl":
                 return
             if st == "assignment":
+                if not _stmt_refs_available(stmt):
+                    return
                 lhs_tree = stmt.children[0]
                 op = str(stmt.children[1].data)  # assign|addeq
                 rhs_tree = stmt.children[2]
@@ -3021,6 +3106,8 @@ class BoogieHarnessEmitter:
                 return
             if st == "if_statement":
                 cond = stmt.children[0]
+                if isinstance(cond, Tree) and not _stmt_refs_available(cond):
+                    return
                 cond_str = self._expr_to_boogie(cond, current_node=node)
                 out.append(f"{cur_indent}if ({cond_str}) {{\n")
                 else_block = None
@@ -3058,9 +3145,32 @@ class BoogieHarnessEmitter:
         """
         hd = self._spec.hosts.get(host, HostDecl(name=host))
         out: List[str] = []
+        declared_raw = self._host_declared_vars.get(host, set())
+        target = self._host_to_node.get(host, "")
+
+        def _normalize_ref(name: str) -> str:
+            if target and name.startswith(f"{target}_"):
+                return name[len(target) + 1 :]
+            return name
+
+        def _ref_is_available(name: str) -> bool:
+            if _dsl_is_simple_local_name(name) and name in self._dsl_host_vars.get(host, {}):
+                return True
+            if _dsl_is_simple_local_name(name) and name in self._dsl_global_vars:
+                return True
+            raw = _normalize_ref(name)
+            return raw in declared_raw
+
+        def _stmt_refs_available(stmt: Tree) -> bool:
+            for v in _collect_dotted_vars(stmt):
+                if not _ref_is_available(v):
+                    return False
+            return True
 
         def emit_bool_block(stmt: Tree, cur_indent: str) -> None:
             for expr in self._extract_bool_exprs(stmt):
+                if not _stmt_refs_available(expr):
+                    continue
                 out.append(f"{cur_indent}assume {self._expr_to_boogie(expr, current_node=host)};\n")
 
         def emit_stmt(stmt: Tree, cur_indent: str) -> None:
@@ -3068,6 +3178,8 @@ class BoogieHarnessEmitter:
             if st == "var_decl":
                 return
             if st == "assignment":
+                if not _stmt_refs_available(stmt):
+                    return
                 lhs_tree = stmt.children[0]
                 op = str(stmt.children[1].data)  # assign|addeq
                 rhs_tree = stmt.children[2]
@@ -3088,6 +3200,8 @@ class BoogieHarnessEmitter:
                 return
             if st == "if_statement":
                 cond = stmt.children[0]
+                if isinstance(cond, Tree) and not _stmt_refs_available(cond):
+                    return
                 cond_str = self._expr_to_boogie(cond, current_node=host)
                 out.append(f"{cur_indent}if ({cond_str}) {{\n")
                 else_block = None
@@ -3350,35 +3464,105 @@ class BoogieBackend:
         node_info: Dict[str, _BoogieNodeInfo] = {}
 
         # 1) Load or compile each imported unit into raw Boogie
+        def collect_dsl_local_names() -> set[str]:
+            """
+            Collect DSL-declared locals so we don't accidentally treat them as P4 slicing seeds.
+
+            DSL locals live in the harness namespace and have no corresponding P4 IR symbol.
+            Passing them to P4B's slicer can (a) bloat the seed set and (b) confuse debugging.
+            """
+            out: set[str] = set()
+
+            def add_from_statements(stmts: Sequence[object]) -> None:
+                for stmt in stmts:
+                    if not isinstance(stmt, Tree) or str(stmt.data) != "var_decl":
+                        continue
+                    # var_decl: type dotted_var assign_op expression
+                    if len(stmt.children) < 2 or not isinstance(stmt.children[1], Tree):
+                        continue
+                    out.add(BoogieHarnessEmitter._dotted_var_to_str_static(stmt.children[1]))
+
+            add_from_statements(spec.global_decl.statements)
+            for nd in spec.nodes.values():
+                add_from_statements(nd.statements)
+            for hd in spec.hosts.values():
+                add_from_statements(hd.statements)
+
+            return out
+
+        dsl_locals = collect_dsl_local_names()
+
         def collect_slice_seeds() -> Dict[str, List[str]]:
             seeds: Dict[str, set[str]] = {a: set() for a in spec.imports.keys()}
 
             def add_seed(node: str, name: str) -> None:
                 if node not in seeds:
                     return
+                # Avoid treating DSL locals as P4 slicing seeds.
+                if name in dsl_locals and "." not in name and "[" not in name:
+                    return
 
-                seeds[node].add(name)
+                def rewrite_seed_names(raw: str) -> List[str]:
+                    # Boogie-only trace/debug variables should not be passed to P4B's slicer.
+                    if raw.startswith("trace_"):
+                        return []
+                    # Register debug/instrumentation vars are introduced by dslc after slicing.
+                    # Map them back to their underlying register array so slicing keeps the
+                    # semantics that the property observes.
+                    idx0_suffixes = {
+                        "__dbg0",
+                        "__wrote_index0",
+                        "__wrote_index0__dbg",
+                        "__last0_value",
+                        "__last0_value__dbg",
+                    }
+                    any_suffixes = {
+                        "__last_index",
+                        "__last_value",
+                        "__wrote_any",
+                        "__last_index__dbg",
+                        "__last_value__dbg",
+                        "__wrote_any__dbg",
+                    }
+                    for s in sorted(idx0_suffixes, key=len, reverse=True):
+                        if raw.endswith(s):
+                            return [raw[: -len(s)] + "[0]"]
+                    for s in sorted(any_suffixes, key=len, reverse=True):
+                        if raw.endswith(s):
+                            return [raw[: -len(s)]]
+                    return [raw]
 
-                # Also add the base without any `[idx]` suffix so the slicer can keep the
-                # underlying variable, while preserving indexed forms so P4B can infer
-                # register max-index bounds from seeds like `sequence_reg[0]`.
-                base = name
-                idx_suffix = ""
-                if "[" in name:
-                    base = name.split("[", 1)[0]
-                    idx_suffix = name[len(base) :]
-                    seeds[node].add(base)
+                for rewritten in rewrite_seed_names(name):
+                    if not rewritten:
+                        continue
+                    seeds[node].add(rewritten)
 
-                if base.endswith("_0"):
-                    stripped = base[:-2]
-                    seeds[node].add(stripped)
-                    if idx_suffix:
-                        seeds[node].add(stripped + idx_suffix)
-                else:
-                    with_suffix = base + "_0"
-                    seeds[node].add(with_suffix)
-                    if idx_suffix:
-                        seeds[node].add(with_suffix + idx_suffix)
+                    # Also add the base without any `[idx]` suffix so the slicer can keep the
+                    # underlying variable, while preserving indexed forms so P4B can infer
+                    # register max-index bounds from seeds like `sequence_reg[0]`.
+                    base = rewritten
+                    idx_suffix = ""
+                    if "[" in rewritten:
+                        base = rewritten.split("[", 1)[0]
+                        idx_suffix = rewritten[len(base) :]
+                        seeds[node].add(base)
+
+                    if base.endswith("_0"):
+                        stripped = base[:-2]
+                        seeds[node].add(stripped)
+                        if idx_suffix:
+                            seeds[node].add(stripped + idx_suffix)
+                    else:
+                        with_suffix = base + "_0"
+                        seeds[node].add(with_suffix)
+                        if idx_suffix:
+                            seeds[node].add(with_suffix + idx_suffix)
+
+            def is_other_node_ref(current_node: str, name: str) -> bool:
+                for other in spec.imports.keys():
+                    if other != current_node and name.startswith(f"{other}_"):
+                        return True
+                return False
 
             # Node-local assumes/asserts and DSL statements (including env blocks).
             for node, nd in spec.nodes.items():
@@ -3386,12 +3570,17 @@ class BoogieBackend:
                     for v in _collect_dotted_vars(expr):
                         if v.startswith(f"{node}_"):
                             add_seed(node, v[len(node) + 1 :])
+                        elif is_other_node_ref(node, v):
+                            continue
                         else:
                             add_seed(node, v)
-                for stmt in list(nd.statements) + list(getattr(nd, "env_statements", [])):
+                # NOTE: env statements are input injection constraints, not slicing criteria.
+                for stmt in list(nd.statements):
                     for v in _collect_dotted_vars(stmt):
                         if v.startswith(f"{node}_"):
                             add_seed(node, v[len(node) + 1 :])
+                        elif is_other_node_ref(node, v):
+                            continue
                         else:
                             add_seed(node, v)
 
@@ -3417,12 +3606,17 @@ class BoogieBackend:
                     for v in _collect_dotted_vars(expr):
                         if v.startswith(f"{target}_"):
                             add_seed(target, v[len(target) + 1 :])
+                        elif is_other_node_ref(target, v):
+                            continue
                         else:
                             add_seed(target, v)
-                for stmt in list(hd.statements) + list(getattr(hd, "env_statements", [])):
+                # NOTE: env statements are input injection constraints, not slicing criteria.
+                for stmt in list(hd.statements):
                     for v in _collect_dotted_vars(stmt):
                         if v.startswith(f"{target}_"):
                             add_seed(target, v[len(target) + 1 :])
+                        elif is_other_node_ref(target, v):
+                            continue
                         else:
                             add_seed(target, v)
 
@@ -3432,7 +3626,8 @@ class BoogieBackend:
             # Propagate packet-carried vars backward along topology so upstream nodes keep needed headers.
             work: Dict[str, set[str]] = {n: set(vs) for n, vs in seeds.items()}
             packet_only: Dict[str, set[str]] = {
-                n: {v for v in vs if _is_packet_var(v)} for n, vs in work.items()
+                # Only `hdr.*` is on-wire and can be copied along links; meta/standard_metadata are node-local.
+                n: {v for v in vs if _is_on_wire_packet_var(v)} for n, vs in work.items()
             }
             changed = True
             while changed:
@@ -3448,6 +3643,35 @@ class BoogieBackend:
             return {k: sorted(v) for k, v in work.items()}
 
         seed_vars = collect_slice_seeds()
+        if enable_slicing:
+            # System-level communication seeds:
+            # P4B slicing runs per-node and does not see our harness/topology semantics, so we must
+            # conservatively keep the control variables that affect cross-node communication.
+            #
+            # When topology is empty, forwarding has no effect in our model; keep only self-enqueue controls.
+            control_seeds_distributed = {
+                # forwarding / routing
+                "standard_metadata.egress_port",
+                "standard_metadata.egress_spec",
+                "ig_intr_tm_md.ucast_egress_port",
+                "ig_tm_md.ucast_egress_port",
+                "eg_intr_md.egress_port",
+                "forward",
+                "drop",
+                # clone / recirculation flags
+                "p4b_clone_i2e",
+                "p4b_clone_e2e",
+                "p4b_clone_i2i",
+                "p4b_recirculate",
+            }
+            control_seeds_single_node = {
+                "p4b_clone_i2i",
+                "p4b_recirculate",
+            }
+            extra = control_seeds_distributed if spec.links else control_seeds_single_node
+            for node in list(seed_vars.keys()):
+                seed_vars[node] = sorted(set(seed_vars[node]) | set(extra))
+
         forced_inputs: Dict[str, List[str]] = {}
         for node, vars_ in seed_vars.items():
             forced_inputs[node] = sorted(
@@ -3489,6 +3713,7 @@ class BoogieBackend:
                     out_meta=str(meta_path),
                     slicing_vars=node_seed_vars.get(alias),
                     disable_slicing=not enable_slicing,
+                    keep_control_seeds=not enable_slicing,
                 )
                 raw_text = raw_path.read_text(encoding="utf-8", errors="replace")
                 try:
