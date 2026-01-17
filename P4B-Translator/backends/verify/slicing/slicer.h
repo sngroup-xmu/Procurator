@@ -12,12 +12,21 @@
 #include "ir/ir.h"
 #include "lib/cstring.h"
 
+class BMV2CmdsAnalyzer;
+
 namespace P4Verify {
 
 struct SliceOptions {
     std::vector<cstring> seedVars;
     bool enable = false;
     bool collectRw = false;
+    // Optional control-plane context: if provided, slicing can use bmv2 CLI commands to
+    // restrict table action choices / match-key relevance (e.g., fixed table_set_default).
+    const BMV2CmdsAnalyzer* bmv2Analyzer = nullptr;
+    // When true, treat forwarding/drop/clone/recirc control variables as implicit seeds.
+    // This is a conservative default for single-program verification; system-level tools
+    // (e.g., dslc) may disable it and supply the required control seeds explicitly.
+    bool keepControlSeeds = true;
     bool debug = false;
     std::string dotDir;
 };

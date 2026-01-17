@@ -41,7 +41,7 @@ BMV2CmdsAnalyzer::BMV2CmdsAnalyzer(std::ifstream* fin){
 	// }
 }
 
-std::vector<TableAdd*> BMV2CmdsAnalyzer::getTableAddCmds(cstring table){
+std::vector<TableAdd*> BMV2CmdsAnalyzer::getTableAddCmds(cstring table) const{
 	std::vector<TableAdd*> res;
 	for(auto cmd:cmds){
 		if(cmd->cmdType == NAME_TABLE_ADD){
@@ -54,7 +54,7 @@ std::vector<TableAdd*> BMV2CmdsAnalyzer::getTableAddCmds(cstring table){
 	return res;
 }
 
-bool BMV2CmdsAnalyzer::hasTableAddCmds(cstring table){
+bool BMV2CmdsAnalyzer::hasTableAddCmds(cstring table) const{
 	for(auto cmd:cmds){
 		if(cmd->cmdType == NAME_TABLE_ADD){
 			TableAdd* tableAdd = (TableAdd*)cmd;
@@ -66,7 +66,7 @@ bool BMV2CmdsAnalyzer::hasTableAddCmds(cstring table){
 	return false;
 }
 
-TableSetDefault* BMV2CmdsAnalyzer::getTableSetDefaultCmd(cstring table){
+TableSetDefault* BMV2CmdsAnalyzer::getTableSetDefaultCmd(cstring table) const{
 	for(auto cmd:cmds){
 		if(cmd->cmdType == NAME_TABLE_SET_DEFAULT){
 			TableSetDefault* tableSet = (TableSetDefault*)cmd;

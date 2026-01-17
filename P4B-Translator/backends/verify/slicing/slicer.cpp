@@ -7,6 +7,8 @@
 #include <limits>
 #include <sys/stat.h>
 
+#include "backends/verify/translate/bmv2.h"
+#include "backends/verify/translate/utils.h"
 #include "ir/ir.h"
 #include "ir/visitor.h"
 #include "lib/cstring.h"
@@ -1902,18 +1904,98 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         collectStmtIds(kv.second->body, ids);
         actionStmtIds.emplace(kv.first, std::move(ids));
     }
+
+    // Control-plane-aware table slicing: if we have bmv2 commands, restrict action choices for
+    // tables that have explicit rules/defaults. This helps avoid slicing blowups caused by
+    // conservatively treating all table actions and match keys as relevant.
+    struct TableCpInfo {
+        bool fixedDefault = false;  // fixed by table_set_default with no table_add rules
+        bool hasRules = false;
+        std::set<cstring> allowedActions;  // rules + (explicit default) + (P4 default fallback when needed)
+    };
+    std::unordered_map<cstring, TableCpInfo> tableCp;
+    if (opts.bmv2Analyzer) {
+        auto p4DefaultActionName = [](const IR::Expression* defAct) -> cstring {
+            if (!defAct) {
+                return nullptr;
+            }
+            if (auto pe = defAct->to<IR::PathExpression>()) {
+                return pe->path->name;
+            }
+            if (auto mce = defAct->to<IR::MethodCallExpression>()) {
+                if (auto m = mce->method->to<IR::PathExpression>()) {
+                    return m->path->name;
+                }
+            }
+            return nullptr;
+        };
+        for (const auto& kv : collector.tables) {
+            const IR::P4Table* table = kv.second;
+            if (!table) {
+                continue;
+            }
+            TableCpInfo info;
+            info.hasRules = opts.bmv2Analyzer->hasTableAddCmds(kv.first);
+            TableSetDefault* defCmd = opts.bmv2Analyzer->getTableSetDefaultCmd(kv.first);
+            if (defCmd != nullptr) {
+                info.allowedActions.insert(defCmd->action);
+                if (!info.hasRules) {
+                    info.fixedDefault = true;
+                }
+            }
+            if (info.hasRules) {
+                for (auto rule : opts.bmv2Analyzer->getTableAddCmds(kv.first)) {
+                    if (rule) {
+                        info.allowedActions.insert(rule->action);
+                    }
+                }
+                // If there are rules but no explicit default, bmv2 falls back to the P4 default action.
+                if (defCmd == nullptr) {
+                    if (auto p4def = p4DefaultActionName(table->getDefaultAction())) {
+                        info.allowedActions.insert(p4def);
+                    }
+                }
+            }
+            tableCp.emplace(kv.first, std::move(info));
+        }
+    }
+
+    auto actionAllowed = [&](cstring tableName, cstring actionName) -> bool {
+        if (!opts.bmv2Analyzer) {
+            return true;
+        }
+        auto it = tableCp.find(tableName);
+        if (it == tableCp.end() || it->second.allowedActions.empty()) {
+            return true;
+        }
+        for (const auto& allowed : it->second.allowedActions) {
+            if (isSame(actionName, allowed)) {
+                return true;
+            }
+        }
+        return false;
+    };
     for (const auto& kv : collector.tables) {
         const IR::P4Table* table = kv.second;
         UsesDefs ud;
-        // Table action selection is modeled via action_run.
-        VarKey actionRun;
-        actionRun.base = kv.first.c_str();
-        actionRun.segs.push_back("action_run");
-        addVarKey(ud.defs, actionRun);
-        if (auto key = table->getKey()) {
-            for (auto ke : key->keyElements) {
-                if (ke && ke->expression) {
-                    collectExprKeys(ke->expression, ud.uses, typeMap);
+        bool fixedDefault = false;
+        if (opts.bmv2Analyzer) {
+            auto it = tableCp.find(kv.first);
+            if (it != tableCp.end()) {
+                fixedDefault = it->second.fixedDefault;
+            }
+        }
+        if (!fixedDefault) {
+            // Table action selection is modeled via action_run.
+            VarKey actionRun;
+            actionRun.base = kv.first.c_str();
+            actionRun.segs.push_back("action_run");
+            addVarKey(ud.defs, actionRun);
+            if (auto key = table->getKey()) {
+                for (auto ke : key->keyElements) {
+                    if (ke && ke->expression) {
+                        collectExprKeys(ke->expression, ud.uses, typeMap);
+                    }
                 }
             }
         }
@@ -1926,6 +2008,9 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                 if (!path) {
                     continue;
                 }
+                if (!actionAllowed(kv.first, path->name)) {
+                    continue;
+                }
                 auto it = actionUsesDefs.find(path->name);
                 if (it != actionUsesDefs.end()) {
                     mergeSets(ud.uses, it->second.uses);
@@ -1935,6 +2020,11 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         }
         if (auto defAct = table->getDefaultAction()) {
             if (auto pe = defAct->to<IR::PathExpression>()) {
+                if (!actionAllowed(kv.first, pe->path->name)) {
+                    // For rule-based tables without explicit defaults, we add P4's default to allowedActions above.
+                    // Otherwise, treat non-allowed defaults as irrelevant for the configured control plane.
+                    goto default_done;
+                }
                 auto it = actionUsesDefs.find(pe->path->name);
                 if (it != actionUsesDefs.end()) {
                     mergeSets(ud.uses, it->second.uses);
@@ -1942,6 +2032,9 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                 }
             } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
                 if (auto m = mce->method->to<IR::PathExpression>()) {
+                    if (!actionAllowed(kv.first, m->path->name)) {
+                        goto default_done;
+                    }
                     auto it = actionUsesDefs.find(m->path->name);
                     if (it != actionUsesDefs.end()) {
                     mergeSets(ud.uses, it->second.uses);
@@ -1949,6 +2042,8 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                     }
                 }
             }
+default_done:
+            ;
         }
         tableUsesDefs.emplace(kv.first, std::move(ud));
     }
@@ -2043,7 +2138,7 @@ SliceResult Slicer::run(const SliceOptions& opts) {
     RegisterDeclCollector regDeclCollector;
     program->apply(regDeclCollector);
     std::set<VarKey, VarKeyLess> seedVars = normalizeSeeds(opts.seedVars, &regDeclCollector.regs);
-    auto tableDefinesSeed = [&](const IR::P4Table* table) -> bool {
+    auto tableDefinesSeed = [&](cstring tableName, const IR::P4Table* table) -> bool {
         if (!table) {
             return false;
         }
@@ -2065,19 +2160,19 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                     continue;
                 }
                 auto path = a->getPath();
-                if (path && hasSeedDef(path->name)) {
+                if (path && actionAllowed(tableName, path->name) && hasSeedDef(path->name)) {
                     return true;
                 }
             }
         }
         if (auto defAct = table->getDefaultAction()) {
             if (auto pe = defAct->to<IR::PathExpression>()) {
-                if (hasSeedDef(pe->path->name)) {
+                if (actionAllowed(tableName, pe->path->name) && hasSeedDef(pe->path->name)) {
                     return true;
                 }
             } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
                 if (auto pe = mce->method->to<IR::PathExpression>()) {
-                    if (hasSeedDef(pe->path->name)) {
+                    if (actionAllowed(tableName, pe->path->name) && hasSeedDef(pe->path->name)) {
                         return true;
                     }
                 }
@@ -2087,7 +2182,17 @@ SliceResult Slicer::run(const SliceOptions& opts) {
     };
     // Seed action_run only for tables whose actions can define seed variables.
     for (const auto& kv : collector.tables) {
-        if (!tableDefinesSeed(kv.second)) {
+        bool fixedDefault = false;
+        if (opts.bmv2Analyzer) {
+            auto it = tableCp.find(kv.first);
+            if (it != tableCp.end()) {
+                fixedDefault = it->second.fixedDefault;
+            }
+        }
+        if (fixedDefault) {
+            continue;
+        }
+        if (!tableDefinesSeed(kv.first, kv.second)) {
             continue;
         }
         VarKey actionRun;
@@ -2096,8 +2201,11 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         addVarKey(seedVars, actionRun);
     }
     std::set<std::string> packetCarriedBases = collectPacketCarriedBases(program, refMap);
-    // Always keep forwarding/drop control variables if present to avoid over-approximation.
-    {
+    // Optionally keep forwarding/drop/clone/recirc control variables as implicit seeds.
+    // This is conservative (prevents slicing away control effects that can change
+    // communication behavior), but may keep large parts of the pipeline for systems
+    // where the property does not observe forwarding/egress behavior.
+    if (opts.keepControlSeeds) {
         AllVarCollector allVars(typeMap);
         program->apply(allVars);
         const std::set<std::string> controlSegs = {
@@ -2127,6 +2235,16 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         if (!table) {
             continue;
         }
+        bool fixedDefault = false;
+        if (opts.bmv2Analyzer) {
+            auto it = tableCp.find(kv.first);
+            if (it != tableCp.end()) {
+                fixedDefault = it->second.fixedDefault;
+            }
+        }
+        if (fixedDefault) {
+            continue;
+        }
         bool touchesSeed = false;
         if (auto al = table->getActionList()) {
             for (auto a : al->actionList) {
@@ -2135,6 +2253,9 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                 }
                 auto path = a->getPath();
                 if (!path) {
+                    continue;
+                }
+                if (!actionAllowed(kv.first, path->name)) {
                     continue;
                 }
                 auto it = actionUsesDefs.find(path->name);
@@ -2155,6 +2276,9 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         if (!touchesSeed) {
             if (auto defAct = table->getDefaultAction()) {
                 if (auto pe = defAct->to<IR::PathExpression>()) {
+                    if (!actionAllowed(kv.first, pe->path->name)) {
+                        goto def_done;
+                    }
                     auto it = actionUsesDefs.find(pe->path->name);
                     if (it != actionUsesDefs.end()) {
                         for (const auto& d : it->second.defs) {
@@ -2166,6 +2290,9 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                     }
                 } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
                     if (auto mpe = mce->method->to<IR::PathExpression>()) {
+                        if (!actionAllowed(kv.first, mpe->path->name)) {
+                            goto def_done;
+                        }
                         auto it = actionUsesDefs.find(mpe->path->name);
                         if (it != actionUsesDefs.end()) {
                             for (const auto& d : it->second.defs) {
@@ -2179,6 +2306,8 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                 }
             }
         }
+def_done:
+        ;
         if (!touchesSeed) {
             continue;
         }

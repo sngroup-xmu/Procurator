@@ -225,6 +225,8 @@ int main(int argc, char *const argv[]) {
         sopts.seedVars = options.slicingVarNames;
         sopts.enable = doSlicing;
         sopts.collectRw = needRw;
+        sopts.bmv2Analyzer = bMV2CmdsAnalyzer;
+        sopts.keepControlSeeds = options.slicingControlSeeds;
         sopts.debug = options.slicingDebug;
         if (options.slicingDotDir) {
             sopts.dotDir = options.slicingDotDir.c_str();

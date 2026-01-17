@@ -50,6 +50,7 @@ class P4VerifyOptions : public CompilerOptions {
     std::map<cstring, int> slicingRegMaxIndex;
     std::set<cstring> slicingRegHasNonConst;
     bool slicingRegPrune = true;
+    bool slicingControlSeeds = true;
 
     std::vector<cstring> rwReads;
     std::vector<cstring> rwWrites;
@@ -255,6 +256,13 @@ class P4VerifyOptions : public CompilerOptions {
                            return true;
                        },
                        "Disable register index pruning during slicing.");
+
+        registerOption("--no-slicing-control-seeds", nullptr,
+                       [this](const char*) {
+                           slicingControlSeeds = false;
+                           return true;
+                       },
+                       "Disable implicit forwarding/drop/clone/recirc control seeds in the slicer.");
 
         /*
         */

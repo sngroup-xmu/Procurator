@@ -91,9 +91,9 @@ public:
 
 	void analyzeBMV2Commands();
 	void analyzeSingleCommand();
-	std::vector<TableAdd*> getTableAddCmds(cstring table);
-	bool hasTableAddCmds(cstring table);
-	TableSetDefault* getTableSetDefaultCmd(cstring table);
+	std::vector<TableAdd*> getTableAddCmds(cstring table) const;
+	bool hasTableAddCmds(cstring table) const;
+	TableSetDefault* getTableSetDefaultCmd(cstring table) const;
 	// std::vector<TableDelete*> getTableDeleteCmds();
 };
 
