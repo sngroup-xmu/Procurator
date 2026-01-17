@@ -1,0 +1,16 @@
+# DistCache leaf: minimal control-plane for CM/hotness sanity checking.
+#
+# Goal: make CM updates active and lower the hot-key threshold so the
+# (cm1..cm4)->is_hot pipeline becomes reachable within a couple of packets.
+#
+# This file is intentionally tiny (only touches tables required by the spec).
+
+# Lower hot threshold: 1 (so a counter value of 1 already counts as "hot").
+table_set_default set_hot_threshold_tbl set_hot_threshold 0x1
+
+# Disable egress bypass so CM tables always execute (matches the P4 default NoAction behavior).
+table_set_default bypass_egress_tbl NoAction
+
+# Only execute the CM rows we care about (cm3/cm4) to keep the generated Boogie small.
+table_set_default access_cm3_tbl update_cm3
+table_set_default access_cm4_tbl update_cm4
