@@ -115,6 +115,8 @@ procedure main() {
 - `procedure main()`：一次只执行一个动作（nondet 或 deterministic round-robin）
 - `procedure mainProcedure()`：一次性初始化后 `while(true) { call main(); step++; }`
 
+其中 `global.deterministic_scheduler=true` 的 deterministic round-robin 为了避免“某一轮 action 暂时不可执行”导致系统死锁（例如 host inbox 为空时的 `host_recv`），会把每个 action 包在 `if (enabled) { ... }` 中：当 `enabled` 不满足时该步为 no-op（idle），调度仍继续推进到下一 phase。
+
 对应实现：
 
 - `dslc/backends/boogie.py:_emit_sequential_main`（生成 `main()` 与 action 列表）
@@ -425,6 +427,18 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
   - 调 P4B：`P4BTranslator.compile_to_bpl`（支持 `--goto/--meta-out/--bmv2cmds/--slicing-vars`）
   - 前缀化每个节点的 Boogie，避免命名冲突
   - 生成 harness（sequential 或 concurrent）
+
+其中，**slicing + env-input pruning** 的关键准则是“职责分离”：
+
+- **Property seeds（切片准则）**来自 `assume/assert`（约束可行性/性质可观测量）与 node/host 的**非 env** DSL 语句里引用到的 P4 变量。
+- `env { ... }` 是输入注入建模（注入时刻对包字段赋值/收紧），**不作为切片 seeds**；否则会把“为了构造包而写的字段”误当作性质观测量，导致切片被动保留大量无关逻辑（例如 DistCache 的 value 路径）。
+- 若存在 `topology { link ... }`，由系统层补充 **Communication seeds**（转发/事件控制变量，如 `standard_metadata.egress_port/egress_spec`、`p4b_clone_*`、`p4b_recirculate`），避免切片删掉“影响下游可达性”的通信语义。
+- 多节点时沿拓扑反向传播的 packet seeds 只传播 `hdr.*`（on-wire 字段），不传播 `meta.*`/`standard_metadata.*`（节点本地）。
+
+同时，为了让 “slicing + pruning” 在工程上可用（不会因为 slice 后符号消失而让 Boogie 直接 typecheck 失败），我们在生成 harness 时做了两件配套处理：
+
+- **env 语句过滤**：如果 `.prop` 的 `env { ... }` 引用到的字段在 slice 后已经不再声明，`dslc` 会自动丢弃这条 env 语句（否则会触发 Ultimate 的 Boogie TypeChecker error）。
+- **寄存器写入追踪（ghost instrumentation）**：对每个 P4 register 数组 `R` 注入 `R__wrote_any / R__last_index / R__last_value / ...`，并在 `R.write` 中更新；这样可以写出更“功能性”的性质（例如“某个寄存器应该被写到”，而不是只看最终数值），也便于对照 witness/trace。
 
 在本次 wrap-around 实验中，我们使用 **sequential harness**，以便 wraparound 变换能稳定定位：
 

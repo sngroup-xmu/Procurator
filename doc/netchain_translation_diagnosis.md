@@ -7,9 +7,15 @@
 同一个 P4 程序，在我们系统里会产生两类 `.bpl`：
 
 1) **unsliced（不剪枝）**：用于语义对比/定位翻译正确性。  
-2) **sliced（剪枝）**：用于验证加速；会删掉看起来“与目标变量无关”的语句/表/动作，属于一种**过近似**抽象，可能引入伪反例（false positive）。
+2) **sliced（剪枝）**：用于验证加速；按“性质 seeds”做 backward slice，删掉看起来“与 seeds 无关”的语句/表/动作。
+   - 理想情况下它应当保持 seeds 的语义；但当 seeds 选取过宽/过窄，或模型/环境约束表达不当时，会表现为过近似/欠近似，从而出现伪反例（false positive）或漏报（false negative）。
 
 因此，“P4 源码 vs `.tmp/dslc/netchain_bug.bpl`”看到的缺失，常常不是 translator 不会翻译，而是被 slicing 删掉了。
+
+补充：当前 seeds 的设计遵循“职责分离”——
+- `assume/assert`（约束可行性/性质可观测量）参与 seeds；
+- `env { ... }` 是输入注入建模，不作为切片准则（避免把“为了构造包而写的字段”误当作性质观测量导致切片膨胀）；
+- 有拓扑时由系统层补充转发/事件控制相关 seeds（否则 P4B slicer 本身不知道我们的分布式 harness/topology 语义）。
 
 ## 1. 推荐的复现/对比方式（两份输出对照）
 

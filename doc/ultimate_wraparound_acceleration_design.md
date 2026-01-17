@@ -174,6 +174,7 @@ v0 采用“够用即可”的默认投影（后续再 CEGAR 精化）：
 
 - 调度相关：
   - `procurator_phase`（若使用 deterministic scheduler）
+    - 注：当前 deterministic round-robin 的每个 action 都用 `if (enabled) { ... }` 包裹，`enabled` 不满足时该步为 no-op（避免 host/node 暂时不可执行时死锁）。
   - 或者 `choice`（若使用 nondet scheduler，需把 choice 暴露为变量）
 - 队列相关：
   - `s1_inbox_count`, `s2_inbox_count`, ...
@@ -387,10 +388,21 @@ V1 的核心是让“闭包泵证明”只跑在少量真正相关的寄存器�
 
 #### 9.3.1 从性质出发的依赖分析（P4B slicing）
 
-1) 从 `.prop` 的 global asserts/关系断言中提取 seed（涉及的状态变量）
-2) 用 P4B 的 slicing（或你们已有的 seed-driven slicing）把：
-   - 与 seed 无关的寄存器/元数据/表项逻辑剪掉
-   - env 的 `havoc` 也同步剪到仅影响 slice 的字段
+1) 从 `.prop` 中提取 **Property seeds（性质种子）**：
+   - 所有 `assume { ... }` / `assert { ... }` 中引用到的 P4 变量（约束可行性/性质可观测量）
+   - node/host 的**非 env** DSL 语句中引用到的 P4 变量（例如 “看到某个 meta 值后设置一个 DSL flag”，这种写法常见于你们的基准）
+
+   > 关键点：`env { ... }` 是输入建模，不是切片准则。我们不把 env 字段当 seeds，避免把“为了构造包而写的字段”误当作性质观测量，从而被动保留大量无关 pipeline（DistCache 的 value 路径就是典型）。
+
+2) 系统层面补充 **Communication seeds（通信种子）**（因为 P4B slicer 本身不知道我们的分布式 harness/topology 语义）：
+   - 若存在 `topology { link ... }`：补充转发/事件控制变量（如 `standard_metadata.egress_port/egress_spec`、`p4b_clone_*`、`p4b_recirculate` 等），避免切片删掉“决定包是否/往哪转发”的逻辑，从而改变下游可达性。
+   - 若 `topology {}`：默认不补充转发相关控制量，只保留会导致**本节点再入队**的控制量（如 `p4b_recirculate`/`p4b_clone_i2i`），以免破坏单节点 pass 语义。
+
+3) 用 P4B 的 slicing（或你们已有的 seed-driven slicing）把：
+   - 与 seeds 无关的寄存器/元数据/表项逻辑剪掉
+   - 同步把 env-input 的 `havoc` 收缩到仅影响 slice 的字段（InputsNeeded）
+
+4) 若是多节点系统：沿拓扑反向传播 **on-wire packet seeds**，只传播 `hdr.*`（跨链路真正会传输的字段），不传播 `meta.*`/`standard_metadata.*`（节点本地）。
 
 产物：
 

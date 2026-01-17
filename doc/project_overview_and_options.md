@@ -149,6 +149,7 @@ Boogie 后端核心文件：`dslc/backends/boogie.py`。
 2) **sequential harness**
    - 生成一个 `while(true) { call main(); procurator_step++; }` 的单线程调度器；
    - 如果 `global.deterministic_scheduler=true`，调度器用 `procurator_phase` 做 round-robin（避免 modulo），减少求解器负担，适合 debug 深循环；
+   - 为避免 deterministic round-robin 因“动作暂时不可执行”（例如 `host_recv` 时 host inbox 为空）而死锁：deterministic 模式下每个动作都用 `if (enabled) { ... }` 包裹，`enabled` 不满足则该步为 no-op（idle）；
    - **`global.max_steps` 在这里被忽略**（当前就是 unbounded）。
 
 ### 4.3 两段式 pipeline（不是优化，是语义选择）
@@ -264,11 +265,21 @@ Boogie 后端核心文件：`dslc/backends/boogie.py`。
 做了两件事：
 
 1) **seed-driven slicing（调用 P4B 的 slicer）**
-   - seeds 来自：node/host/global 的 assume/assert + DSL 语句里出现的变量（见 `collect_slice_seeds()`）
-   - 额外做了“沿拓扑反向传播 packet seeds”（`propagate_packet_seeds()`），确保上游节点保留下游需要的 `hdr.*` 字段。
+   - 目标：只保留“可能影响性质/约束可行性”的 P4 语句与状态，尽量删掉无关的表/动作/寄存器逻辑。
+   - **Property seeds（性质种子）**来自：
+     - node/host/global 的 `assume { ... }` 与 `assert { ... }` 中引用到的 P4 变量；
+     - node/host 的**非 env** DSL 语句中引用到的 P4 变量（例如 `if (meta.cm3_predicate==2) ...`）。
+   - **注意：`env { ... }` 不参与 seeds**。`env` 是输入建模（注入时刻对包字段赋值/收紧），不是“切片准则”。把 env 字段当 seeds 会把“为了构造包而写的字段”误当作性质观测量，导致切片被动保留大量无关逻辑（典型现象：DistCache 的 `valhi/vallo` 路径被整坨拉回）。
+   - **Communication seeds（通信种子）**：P4B slicer 并不知道我们的分布式 harness/topology 语义，因此由 `dslc` 在系统层面补充必要的控制类 seeds：
+     - 若存在 `topology { link ... }`：补充转发/事件控制变量（如 `standard_metadata.egress_port/egress_spec`、`p4b_clone_*`、`p4b_recirculate` 等），避免切片把“影响包是否/往哪转发”的逻辑删掉，从而改变下游可达性。
+     - 若 `topology {}`：默认不补充转发相关控制量（因为模型里不存在跨节点传递），只保留会导致**本节点再入队**的控制量（如 `p4b_recirculate`/`p4b_clone_i2i`），以免破坏单节点的 pass 语义。
+   - **Control-plane-aware slicing**：P4B slicer 现在可以读取 `bmv2cmds`（`table_add` / `table_set_default`），用“表项限制 action 选择/固定 default”来减少无谓的 `action_run` 与 match-key 依赖（典型收益：DistCache 不再因为控制面固定了 `access_cm3/access_cm4` 默认动作而把整条 value 路径保留下来）。
+   - 额外做了“沿拓扑反向传播 on-wire packet seeds”（`propagate_packet_seeds()`）：只传播 `hdr.*`（真正会跨链路传递的字段），不传播 `meta.*`/`standard_metadata.*`（它们是节点本地的）。
 
 2) **env-input pruning**
-   - 只 havoc 那些在 sliced `.raw.bpl` 中“真的被用到”的输入字段（否则会制造无关分支、拖慢求解器）。
+   - 只 havoc 那些在 sliced `.raw.bpl` 中“真的被用到”的输入字段，并同步收缩 env 注入字段（否则会制造无关分支、拖慢求解器）。
+   - 这一步是“从 slice 反推最小输入域（InputsNeeded）”的落地做法：`env` 仍然是 property-directed 的，但它的最小化应以 slice 的依赖闭包为准，而不是反过来用 env 字段决定 slice。
+   - 工程细节：如果 `.prop` 的 `env { ... }` 引用了被 slice 删除的字段，`dslc` 会在生成 harness 时自动过滤掉这些 env 语句，避免生成的 `.bpl` 因“引用未声明变量”而无法通过 Ultimate/Boogie typecheck。
 
 ### 6.2 property split（compose 模式）
 
@@ -299,6 +310,7 @@ DSL 写法：`global { symmetry(s1, s2, s3); }`
 
 - 跨节点只复制 `hdr.*`（避免 meta 泄漏）
 - 寄存器显式初始化为 0（P4 语义要求；否则会出现大量凭空状态）
+- 寄存器写入追踪（debug-friendly）：对每个寄存器数组 `R` 注入 `R__wrote_any / R__last_index / R__last_value ...` 这类 ghost 变量，便于写“寄存器是否被写过/最后一次写了什么”的性质与对照 trace
 - bitvector builtin 属性修正（避免 BV 运算被当成 uninterpreted）
 
 ---
