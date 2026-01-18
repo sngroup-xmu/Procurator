@@ -1,0 +1,56 @@
+// DistCache (leaf-only): cache_frequency_reg wrap-around demo.
+//
+// Goal: show that the 32-bit per-key `cache_frequency_reg` can wrap to 0, which
+// may break higher-level expectations like "frequency is monotonic".
+//
+// We keep the environment tight:
+//   - Always send `GETREQ_INSWITCH` for a cached key (idx=7 in flow_entries.txt).
+//   - Assume the cached slot is `latest` so `update_cache_frequency()` runs.
+//
+// Then we rely on the wraparound pipeline (`run_wraparound.py`) to fast-forward
+// the target register cell to MAX and confirm the next +1 wraps to 0, violating
+// the assertion.
+
+import leaf from "../../dataset/distcache/leafswitch/netcache.p4"
+  entries "distcache_leaf_cache_frequency_wraparound_entries.txt";
+
+topology {}
+
+node leaf {
+  external_input = true;
+
+  assume {
+    // Parser sanity: reach `parse_op` and make op_hdr valid.
+    hdr.ethernet_hdr.valid == true;
+    hdr.ipv4_hdr.valid == true;
+    hdr.udp_hdr.valid == true;
+    hdr.op_hdr.valid == true;
+    hdr.ethernet_hdr.etherType == 2048;
+    hdr.ipv4_hdr.protocol == 17;
+    hdr.udp_hdr.dstPort == 5008;
+
+    // Drive leaf egress into `update_cache_frequency()` via control-plane entries.
+    hdr.op_hdr.optype == 4; // GETREQ_INSWITCH
+
+    // Use the cached key configured in `flow_entries.txt`:
+    //   table_add cache_lookup_tbl cached_action 0xABCD0001 0 0 0 0 => 7
+    hdr.op_hdr.keylolo == 2882338817; // 0xABCD0001
+    hdr.op_hdr.keylohi == 0;
+    hdr.op_hdr.keyhilo == 0;
+    hdr.op_hdr.keyhihilo == 0;
+    hdr.op_hdr.keyhihihi == 0;
+
+    // `access_latest_tbl` keys on `fraginfo_hdr.cur_fragidx`; keep it stable.
+    hdr.fraginfo_hdr.cur_fragidx == 0;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+
+  // Checked in wraparound-confirm stage (after fast-forwarding to MAX).
+  assert {
+    leaf_netcacheEgress_cache_frequency_reg[7] != 0;
+  };
+}

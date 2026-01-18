@@ -1,0 +1,64 @@
+// DistCache (spine-only): cache_frequency_reg index-source bug check.
+//
+// Observation:
+//   - Spine ingress computes `meta.idx` via `cache_lookup_tbl`.
+//   - Spine egress `update_cache_frequency()` uses `hdr_eg.inswitch_hdr.idx`.
+//   - For `GETREQ_SPINE (0x200)`, the parser does not extract `inswitch_hdr`,
+//     so `hdr.inswitch_hdr.idx` is not a well-defined input.
+//
+// Property idea (functional consistency):
+//   - When `meta.is_cached == 1`, the cache-frequency update should target the
+//     same slot as the cache-lookup result (`meta.idx`).
+//
+// We model "no inswitch_hdr present" by constraining `hdr.inswitch_hdr.idx == 0`,
+// which makes the mismatch observable when `meta.idx == 7` for the cached key.
+
+import spine from "../../dataset/distcache/spineswitch/spineswitch.p4"
+  entries "../../dataset/distcache/spineswitch/spine_entries.txt";
+
+topology {}
+
+node spine {
+  external_input = true;
+
+  assume {
+    hdr.ethernet_hdr.valid == true;
+    hdr.ipv4_hdr.valid == true;
+    hdr.udp_hdr.valid == true;
+    hdr.op_hdr.valid == true;
+    hdr.ethernet_hdr.etherType == 2048;
+    hdr.ipv4_hdr.protocol == 17;
+    hdr.udp_hdr.dstPort == 5008;
+
+    // `spine_entries.txt` drives update_cache_frequency on GETREQ_SPINE when cached.
+    hdr.op_hdr.optype == 512; // 0x200 (GETREQ_SPINE)
+
+    // Same cached key as in distcache configs:
+    //   table_add cache_lookup_tbl cached_action 0xABCD0001 0 0 0 0 => 7
+    hdr.op_hdr.keylolo == 2882338817; // 0xABCD0001
+    hdr.op_hdr.keylohi == 0;
+    hdr.op_hdr.keyhilo == 0;
+    hdr.op_hdr.keyhihilo == 0;
+    hdr.op_hdr.keyhihihi == 0;
+
+    // Model: GETREQ_SPINE packets do not carry inswitch_hdr, so idx is undefined;
+    // we pin it to 0 to make the bug observable and stable.
+    hdr.inswitch_hdr.idx == 0;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+
+  // Make the effect observable: start from a known value.
+  assume {
+    spine_partitionswitchEgress_cache_frequency_reg[7] == 0;
+  };
+
+  // If the key is cached, the cache-frequency update should target idx=7 (the
+  // cache_lookup result for the pinned key), so the cell must become non-zero.
+  assert {
+    (spine_meta.is_cached == 0) || (spine_partitionswitchEgress_cache_frequency_reg[7] != 0);
+  };
+}

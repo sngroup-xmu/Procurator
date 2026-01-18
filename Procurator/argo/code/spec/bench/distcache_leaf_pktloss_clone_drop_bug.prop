@@ -1,0 +1,53 @@
+// DistCache (leaf-only): pktloss-clone state machine sanity.
+//
+// In `leafswitch/p4src/egress_mat.p4`, the NETCACHE_GETREQ_POP / WARMUPREQ_POP
+// "pktloss tolerance" logic uses `clonenum_for_pktloss` and repeatedly clones
+// packets to switchos.
+//
+// The code comments describe a drop+clone loop for pktloss ACKs:
+//   "drop w/ 3 -> clone w/ 2 -> clone w/ 1 -> clone w/ 0 -> drop and clone ..."
+//
+// However, the `forward_netcache_getreq_pop_clone_for_pktloss_and_getreq` action
+// (clonenum > 0 path) does not call `mark_to_drop()`.
+//
+// Property (conservative safety): while `clonenum_for_pktloss > 0`, the packet
+// must still be dropped (unicast disabled), i.e., `leaf_drop == true`.
+
+import leaf from "../../dataset/distcache/leafswitch/netcache.p4"
+  entries "../../dataset/distcache/leafswitch/flow_entries.txt";
+
+topology {}
+
+host io {
+  connect leaf;
+  env {
+    // Drive the leaf egress state machine directly: NETCACHE_GETREQ_POP (0x120).
+    meta.bypass_egress = 0;
+
+    hdr_eg.op_hdr.valid = true;
+    hdr_eg.op_hdr.optype = 288; // 0x120 NETCACHE_GETREQ_POP
+
+    // Make the clone header deterministic and hit the "not last clone" branch.
+    hdr_eg.clone_hdr.valid = true;
+    hdr_eg.clone_hdr.server_sid = 20; // 0x14 (matches flow_entries.txt)
+    hdr_eg.clone_hdr.clonenum_for_pktloss = 1;
+
+    // Keep other keys aligned with the configured entry (use zero defaults).
+    hdr_eg.inswitch_hdr.valid = true;
+    hdr_eg.inswitch_hdr.is_cached = 0;
+    hdr_eg.inswitch_hdr.client_sid = 0;
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+
+  assert {
+    // While clonenum>0, require drop+clone behavior.
+    (leaf_hdr_eg.clone_hdr.clonenum_for_pktloss == 0) || leaf_drop;
+  };
+}
+
