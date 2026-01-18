@@ -1,4 +1,4 @@
-// DistCache (leaf-only): pktloss-clone state machine sanity.
+// DistCache (leaf-only): pktloss-clone state machine sanity (functional bug).
 //
 // In `leafswitch/p4src/egress_mat.p4`, the NETCACHE_GETREQ_POP / WARMUPREQ_POP
 // "pktloss tolerance" logic uses `clonenum_for_pktloss` and repeatedly clones
@@ -10,31 +10,76 @@
 // However, the `forward_netcache_getreq_pop_clone_for_pktloss_and_getreq` action
 // (clonenum > 0 path) does not call `mark_to_drop()`.
 //
-// Property (conservative safety): while `clonenum_for_pktloss > 0`, the packet
-// must still be dropped (unicast disabled), i.e., `leaf_drop == true`.
+// Scenario:
+// - Inject a NETCACHE_GETREQ_POP packet that already carries a nonzero
+//   `clone_hdr.clonenum_for_pktloss` (pktloss retry state).
+// - Force the `eg_port_forward_tbl` entry that selects
+//   `forward_netcache_getreq_pop_clone_for_pktloss_and_getreq`
+//   (see `flow_entries.txt`).
+//
+// Expected behavior: the packet should be "drop + clone" (unicast disabled),
+// so `leaf_drop` must become true.
+//
+// Observed behavior: the selected forward action decrements `clonenum_for_pktloss`
+// and clones, but never calls `mark_to_drop()`, so `leaf_drop` can remain false.
 
 import leaf from "../../dataset/distcache/leafswitch/netcache.p4"
   entries "../../dataset/distcache/leafswitch/flow_entries.txt";
 
 topology {}
 
+node leaf {
+  // Model per-packet v1model metadata defaults for externally injected packets.
+  // (P4B currently exposes `forward`/`drop` as globals, so we reset them here.)
+  if (pkt_external) {
+    forward = true;
+    drop = false;
+    // Hit `prepare_for_cachepop_tbl`'s explicit NoAction entry for NETCACHE_GETREQ_POP
+    // (prevents default reset of clone_hdr.server_sid in the original P4).
+    standard_metadata.egress_port = 4;
+  }
+}
+
 host io {
   connect leaf;
   env {
-    // Drive the leaf egress state machine directly: NETCACHE_GETREQ_POP (0x120).
-    meta.bypass_egress = 0;
+    // Parser realism: make the packet reach `parse_op` and take NETCACHE_GETREQ_POP.
+    hdr.ethernet_hdr.etherType = 2048; // 0x0800 IPv4
+    hdr.ipv4_hdr.protocol = 17;        // UDP
+    hdr.udp_hdr.dstPort = 5008;        // reserved port => parse_op
+    hdr.op_hdr.optype = 288;           // 0x120 NETCACHE_GETREQ_POP
 
-    hdr_eg.op_hdr.valid = true;
+    // Drive the leaf egress state machine: NETCACHE_GETREQ_POP (0x120).
+    meta.bypass_egress = 0;
+    meta.spine_sid = 0;
+
     hdr_eg.op_hdr.optype = 288; // 0x120 NETCACHE_GETREQ_POP
 
-    // Make the clone header deterministic and hit the "not last clone" branch.
-    hdr_eg.clone_hdr.valid = true;
-    hdr_eg.clone_hdr.server_sid = 20; // 0x14 (matches flow_entries.txt)
+    // Force the `eg_port_forward_tbl` entry that selects the buggy forward action:
+    // table_add eg_port_forward_tbl forward_netcache_getreq_pop_clone_for_pktloss_and_getreq
+    //   0x120 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x14 => 0x14
+    meta.cm1_predicate = 0;
+    meta.cm2_predicate = 0;
+    meta.cm3_predicate = 0;
+    meta.cm4_predicate = 0;
+    meta.is_hot = 0;
+    meta.is_report1 = 0;
+    meta.is_report2 = 0;
+    meta.is_report3 = 0;
+    meta.is_report = 0;
+    meta.is_latest = 0;
+    meta.is_deleted = 0;
+    // In the original P4 this is computed by `lastclone_lastscansplit_tbl` (default 0).
+    // P4B's Boogie currently omits some default-action resets, so we pin it here.
+    meta.is_lastclone_for_pktloss = 0;
+
+    // Deterministic clone header fields (match flow_entries).
+    hdr_eg.clone_hdr.server_sid = 20; // 0x14
     hdr_eg.clone_hdr.clonenum_for_pktloss = 1;
 
-    // Keep other keys aligned with the configured entry (use zero defaults).
-    hdr_eg.inswitch_hdr.valid = true;
+    // Other key fields (zeros match flow_entries).
     hdr_eg.inswitch_hdr.is_cached = 0;
+    hdr_eg.inswitch_hdr.is_sampled = 0;
     hdr_eg.inswitch_hdr.client_sid = 0;
   }
 }
@@ -46,8 +91,7 @@ global {
   deterministic_scheduler = true;
 
   assert {
-    // While clonenum>0, require drop+clone behavior.
-    (leaf_hdr_eg.clone_hdr.clonenum_for_pktloss == 0) || leaf_drop;
+    // This injected scenario must end the pass with drop asserted.
+    leaf_drop;
   };
 }
-

@@ -331,3 +331,54 @@ cd /root/p4-verify
 - **P4→Boogie 翻译报 `no include path ... core.p4/v1model.p4`**：调用 `p4c-translator` 时需要 `-I P4B-Translator/p4include`（DSL Boogie backend 已自动探测并注入）。
 
 ---
+
+### 7) 复现已知反例（DistCache / Netchain）与 witness 对照
+
+#### 7.1 DistCache：`leaf_drop` 功能性 bug（pktloss-clone 状态机）
+
+- **Spec**：`Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop`
+- **P4 代码定位**：`Procurator/argo/code/dataset/distcache/leafswitch/p4src/egress_mat.p4`
+  - `action forward_netcache_getreq_pop_clone_for_pktloss_and_getreq(...)` 只做 `clonenum_for_pktloss--` + `clone(...)`，缺少 `mark_to_drop(standard_metadata)`。
+- **控制面表项定位**：`Procurator/argo/code/dataset/distcache/leafswitch/flow_entries.txt`（`eg_port_forward_tbl`，行号约 302）
+
+运行（默认启用 slicing/prune）：
+
+```bash
+cd /root/p4-verify
+PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+  --spec Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate
+```
+
+产物（默认在 `.tmp/dslc/`）：
+- `.tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl`
+- `.tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.gemcutter.log`
+- `.tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml`
+
+从 witness 核对“是真功能性 bug”（核心三点都要同时出现）：
+
+```bash
+rg -n "leaf_eg_port_forward_tbl_0\\.hit := true" .tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml
+rg -n "call leaf_forward_netcache_getreq_pop_clone_for_pktloss_and_getreq" .tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml
+rg -n "assert leaf_drop" .tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml
+```
+
+解释口径（和 P4 对齐）：
+- witness 里会走到 `eg_port_forward_tbl` 并命中 `forward_netcache_getreq_pop_clone_for_pktloss_and_getreq`（这条 action 的 P4 实现缺少 drop）。
+- 因为这条 action 没有 `mark_to_drop(...)`，所以 pass 结束时 `leaf_drop == false`，从而违反 `assert leaf_drop;`。
+- **对照 prune vs no-prune**：用 `--no-prune` 重跑应出现相同的 action 调用与同一条断言点（区别主要是 BPL/witness 更大、求解更慢）。
+
+#### 7.2 Netchain：`seq` 翻转（wrap-around）导致的 s1/s2 不一致（fastforward 版）
+
+- **Spec**：`Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop`
+
+```bash
+cd /root/p4-verify
+PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+  --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate
+```
+
+产物同样在 `.tmp/dslc/`：`netchain_bug_s1s2_fastforward.*`（`.bpl/.log/.graphml`）。
