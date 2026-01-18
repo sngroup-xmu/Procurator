@@ -541,6 +541,10 @@ static void collectStmtUsesDefs(const IR::Statement* stmt,
         if (auto member = mce->method->to<IR::Member>()) {
             receiver = member->expr;
             methodName = member->member.toString().c_str();
+        } else if (auto pe = mce->method->to<IR::PathExpression>()) {
+            // Some v1model built-ins (e.g., mark_to_drop(standard_metadata)) are direct calls
+            // and appear as PathExpression in the IR.
+            methodName = pe->path->name.name.c_str();
         }
         if (methodName == "apply" || methodName == "execute") {
             if (regActionUsesDefs) {
@@ -1469,6 +1473,11 @@ class RegisterUseCollector : public Inspector {
 class RegisterDeclCollector : public Inspector {
  public:
     std::set<std::string> regs;
+    // Map from sanitized control-plane name (Boogie-level) to IR instance name.
+    // Empty value means ambiguous (multiple instances share the same sanitized name).
+    std::unordered_map<std::string, std::string> controlToInternal;
+    // Inverse map: IR instance name -> sanitized control-plane name.
+    std::unordered_map<std::string, std::string> internalToControl;
 
     bool preorder(const IR::Declaration_Instance* inst) override {
         if (!inst || !inst->type) {
@@ -1488,12 +1497,48 @@ class RegisterDeclCollector : public Inspector {
             }
         }
         if (extLower.find("register") != std::string::npos) {
-            regs.insert(inst->name.name.c_str());
+            std::string internal = inst->name.name.c_str();
+            regs.insert(internal);
+
+            cstring cp = inst->controlPlaneName();
+            if (!cp.isNullOrEmpty()) {
+                std::string sanitized = sanitizeDeclName(cp.c_str());
+                if (!sanitized.empty()) {
+                    auto it = controlToInternal.find(sanitized);
+                    if (it == controlToInternal.end()) {
+                        controlToInternal.emplace(sanitized, internal);
+                        internalToControl.emplace(internal, sanitized);
+                    } else if (it->second != internal) {
+                        // Ambiguous: keep no mapping.
+                        if (!it->second.empty()) {
+                            internalToControl.erase(it->second);
+                        }
+                        it->second.clear();
+                    }
+                }
+            }
         }
         return false;
     }
 
  private:
+    static std::string sanitizeDeclName(const std::string& raw) {
+        std::string out;
+        out.reserve(raw.size());
+        for (char c : raw) {
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+                (c >= '0' && c <= '9') || c == '_') {
+                out.push_back(c);
+            } else {
+                out.push_back('_');
+            }
+        }
+        if (!out.empty() && out[0] >= '0' && out[0] <= '9') {
+            out.insert(out.begin(), '_');
+        }
+        return out;
+    }
+
     static bool lookupExternName(const IR::Type* type, std::string& out) {
         if (!type) {
             return false;
@@ -1787,13 +1832,27 @@ static bool parseVarKeyFromString(const std::string& name, VarKey& out) {
 }
 
 static std::set<VarKey, VarKeyLess> normalizeSeeds(const std::vector<cstring>& seeds,
-                                                   const std::set<std::string>* regDecls) {
+                                                   const std::set<std::string>* regDecls,
+                                                   const std::unordered_map<std::string, std::string>* regControlMap) {
     auto normalizeRegSeedBase = [&](const std::string& base) -> std::string {
         if (!regDecls || regDecls->empty()) {
             return base;
         }
         if (regDecls->count(base)) {
             return base;
+        }
+        if (regControlMap) {
+            auto it = regControlMap->find(base);
+            if (it != regControlMap->end() && !it->second.empty() && regDecls->count(it->second)) {
+                return it->second;
+            }
+            if (base.size() > 2 && base.rfind("_0") == base.size() - 2) {
+                std::string stripped = base.substr(0, base.size() - 2);
+                it = regControlMap->find(stripped);
+                if (it != regControlMap->end() && !it->second.empty() && regDecls->count(it->second)) {
+                    return it->second;
+                }
+            }
         }
         if (base.size() > 2 && base.rfind("_0") == base.size() - 2) {
             std::string stripped = base.substr(0, base.size() - 2);
@@ -2189,7 +2248,8 @@ default_done:
 
     RegisterDeclCollector regDeclCollector;
     program->apply(regDeclCollector);
-    std::set<VarKey, VarKeyLess> seedVars = normalizeSeeds(seedInputs, &regDeclCollector.regs);
+    std::set<VarKey, VarKeyLess> seedVars =
+        normalizeSeeds(seedInputs, &regDeclCollector.regs, &regDeclCollector.controlToInternal);
     auto tableDefinesSeed = [&](cstring tableName, const IR::P4Table* table) -> bool {
         if (!table) {
             return false;
@@ -3451,6 +3511,13 @@ def_done:
     for (const auto& name : forcedKeepNames) {
         result.keepVarNames.insert(cstring(name));
     }
+    // For registers, also keep the sanitized control-plane alias used by the Boogie translator.
+    // This allows system-level tools (e.g., dslc) to seed slicing using Boogie-level names.
+    for (const auto& kv : regDeclCollector.internalToControl) {
+        if (result.keepVarNames.count(cstring(kv.first.c_str())) > 0) {
+            result.keepVarNames.insert(cstring(kv.second.c_str()));
+        }
+    }
     for (const auto& t : keepTables) {
         result.keepTables.insert(t);
     }
@@ -3595,7 +3662,8 @@ class SliceRegisterUseCollector : public Inspector {
 };
 
 const IR::P4Program* applySlice(const IR::P4Program* program,
-                                const std::unordered_set<int>& keepStatementIds) {
+                                const std::unordered_set<int>& keepStatementIds,
+                                const std::unordered_set<cstring>* keepVarNames) {
     if (keepStatementIds.empty()) {
         return program;
     }
@@ -3621,6 +3689,32 @@ const IR::P4Program* applySlice(const IR::P4Program* program,
     sliced->apply(regUseCollector);
 
     std::unordered_set<std::string> keepRegs = std::move(regUseCollector.used);
+    if (keepVarNames != nullptr) {
+        for (const auto& v : *keepVarNames) {
+            std::string name = v.c_str();
+            if (regDeclCollector.regs.count(name) > 0) {
+                keepRegs.insert(name);
+                continue;
+            }
+            auto aliasIt = regDeclCollector.controlToInternal.find(name);
+            if (aliasIt != regDeclCollector.controlToInternal.end() && !aliasIt->second.empty() &&
+                regDeclCollector.regs.count(aliasIt->second) > 0) {
+                keepRegs.insert(aliasIt->second);
+                continue;
+            }
+            std::string withSuffix = name + "_0";
+            if (regDeclCollector.regs.count(withSuffix) > 0) {
+                keepRegs.insert(withSuffix);
+                continue;
+            }
+            if (name.size() > 2 && name.rfind("_0") == name.size() - 2) {
+                std::string trimmed = name.substr(0, name.size() - 2);
+                if (regDeclCollector.regs.count(trimmed) > 0) {
+                    keepRegs.insert(trimmed);
+                }
+            }
+        }
+    }
     if (keepRegs.size() >= regDeclCollector.regs.size()) {
         return sliced;
     }

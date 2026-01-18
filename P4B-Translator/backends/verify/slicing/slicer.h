@@ -55,7 +55,8 @@ class Slicer {
 };
 
 const IR::P4Program* applySlice(const IR::P4Program* program,
-                                const std::unordered_set<int>& keepStatementIds);
+                                const std::unordered_set<int>& keepStatementIds,
+                                const std::unordered_set<cstring>* keepVarNames = nullptr);
 
 }  // namespace P4Verify
 

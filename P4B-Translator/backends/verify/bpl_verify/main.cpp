@@ -27,6 +27,7 @@ limitations under the License.
 
 #include "ir/ir.h"
 #include "ir/json_loader.h"
+#include "ir/visitor.h"
 #include "lib/gc.h"
 #include "lib/crash.h"
 #include "lib/nullstream.h"
@@ -63,14 +64,16 @@ static bool _mapTryGet(const std::map<cstring, int>& map, const char* key, int& 
     return true;
 }
 
-static int _runSlicingSelftest(const P4VerifyOptions& options, const P4Verify::SliceResult& sres) {
+static int _runSlicingSelftest(const P4VerifyOptions& options,
+                               const P4Verify::SliceResult& sres,
+                               const IR::P4Program* slicedProgram) {
     const std::string caseName = options.slicingSelftestCase ? options.slicingSelftestCase.c_str() : "";
     if (caseName.empty()) {
         std::cerr << "[SELFTEST] missing --slicing-selftest=<case>\n";
         return 2;
     }
 
-    if (caseName != "netchain_seq") {
+    if (caseName != "netchain_seq" && caseName != "distcache_reg_alias") {
         std::cerr << "[SELFTEST] unknown case: " << caseName << "\n";
         return 2;
     }
@@ -83,32 +86,65 @@ static int _runSlicingSelftest(const P4VerifyOptions& options, const P4Verify::S
         }
     };
 
-    // Netchain slicing regression (field-sensitive headers):
-    // Seed: sequence_reg_0[0] (sequence register only). Expected effects:
-    //  - keep write path (assign_value/maintain_sequence/get_sequence)
-    //  - drop value_reg / nc_hdr.value dependent path (read_value)
-    //  - prune register index domain to {0} for sequence_reg
-    expect(_setContains(sres.keepTables, "assign_value_0"), "expected keepTables contains assign_value_0");
-    expect(_setContains(sres.keepTables, "maintain_sequence_0"), "expected keepTables contains maintain_sequence_0");
-    expect(_setContains(sres.keepTables, "get_sequence_0"), "expected keepTables contains get_sequence_0");
-    expect(!_setContains(sres.keepTables, "read_value_0"), "expected keepTables does NOT contain read_value_0");
+    if (caseName == "netchain_seq") {
+        // Netchain slicing regression (field-sensitive headers):
+        // Seed: sequence_reg_0[0] (sequence register only). Expected effects:
+        //  - keep write path (assign_value/maintain_sequence/get_sequence)
+        //  - drop value_reg / nc_hdr.value dependent path (read_value)
+        //  - prune register index domain to {0} for sequence_reg
+        expect(_setContains(sres.keepTables, "assign_value_0"), "expected keepTables contains assign_value_0");
+        expect(_setContains(sres.keepTables, "maintain_sequence_0"),
+               "expected keepTables contains maintain_sequence_0");
+        expect(_setContains(sres.keepTables, "get_sequence_0"), "expected keepTables contains get_sequence_0");
+        expect(!_setContains(sres.keepTables, "read_value_0"), "expected keepTables does NOT contain read_value_0");
 
-    expect(_setContains(sres.keepVarNames, "hdr.nc_hdr.seq"), "expected keepVarNames contains hdr.nc_hdr.seq");
-    expect(!_setContains(sres.keepVarNames, "hdr.nc_hdr.value"),
-           "expected keepVarNames does NOT contain hdr.nc_hdr.value");
+        expect(_setContains(sres.keepVarNames, "hdr.nc_hdr.seq"), "expected keepVarNames contains hdr.nc_hdr.seq");
+        expect(!_setContains(sres.keepVarNames, "hdr.nc_hdr.value"),
+               "expected keepVarNames does NOT contain hdr.nc_hdr.value");
 
-    int maxIdx = -1;
-    const bool hasSeq =
-        _mapTryGet(sres.regMaxIndex, "sequence_reg", maxIdx) || _mapTryGet(sres.regMaxIndex, "sequence_reg_0", maxIdx);
-    expect(hasSeq, "expected regMaxIndex contains sequence_reg (or sequence_reg_0)");
-    if (hasSeq) {
-        expect(maxIdx == 0, "expected regMaxIndex(sequence_reg) == 0");
+        int maxIdx = -1;
+        const bool hasSeq = _mapTryGet(sres.regMaxIndex, "sequence_reg", maxIdx) ||
+                            _mapTryGet(sres.regMaxIndex, "sequence_reg_0", maxIdx);
+        expect(hasSeq, "expected regMaxIndex contains sequence_reg (or sequence_reg_0)");
+        if (hasSeq) {
+            expect(maxIdx == 0, "expected regMaxIndex(sequence_reg) == 0");
+        }
+        expect(!_setContains(sres.keepVarNames, "value_reg"), "expected keepVarNames does NOT contain value_reg");
+        expect(!_setContains(sres.keepVarNames, "value_reg_0"), "expected keepVarNames does NOT contain value_reg_0");
+    } else if (caseName == "distcache_reg_alias") {
+        // DistCache slicing regression: allow dslc to seed slicing using Boogie-level register names
+        // (sanitized control-plane names), even when the IR instance name differs.
+        //
+        // Expected: seed `netcacheEgress_cm3_reg` maps to internal `cm3_reg_0`, and we keep both
+        // names so translation can retain the Boogie-level declaration while slicing reasons about
+        // the IR name.
+        expect(_setContains(sres.keepVarNames, "cm3_reg_0"), "expected keepVarNames contains cm3_reg_0");
+        expect(_setContains(sres.keepVarNames, "netcacheEgress_cm3_reg"),
+               "expected keepVarNames contains netcacheEgress_cm3_reg");
+        expect(_setContains(sres.keepVarNames, "cm4_reg_0"), "expected keepVarNames contains cm4_reg_0");
+        expect(_setContains(sres.keepVarNames, "netcacheEgress_cm4_reg"),
+               "expected keepVarNames contains netcacheEgress_cm4_reg");
+
+        class InstNameCollector : public Inspector {
+         public:
+            std::unordered_set<std::string> names;
+            bool preorder(const IR::Declaration_Instance* inst) override {
+                if (inst) {
+                    names.insert(inst->name.name.c_str());
+                }
+                return false;
+            }
+        };
+        if (slicedProgram) {
+            InstNameCollector col;
+            slicedProgram->apply(col);
+            expect(col.names.count("cm3_reg_0") > 0, "expected sliced IR contains Declaration_Instance cm3_reg_0");
+            expect(col.names.count("cm4_reg_0") > 0, "expected sliced IR contains Declaration_Instance cm4_reg_0");
+        }
     }
-    expect(!_setContains(sres.keepVarNames, "value_reg"), "expected keepVarNames does NOT contain value_reg");
-    expect(!_setContains(sres.keepVarNames, "value_reg_0"), "expected keepVarNames does NOT contain value_reg_0");
 
     if (ok) {
-        std::cerr << "[SELFTEST] PASS: netchain_seq\n";
+        std::cerr << "[SELFTEST] PASS: " << caseName << "\n";
         return 0;
     }
     return 1;
@@ -302,7 +338,7 @@ int main(int argc, char *const argv[]) {
         if (doSlicing) {
             if (!sres.keepStatementIds.empty()) {
                 if (!options.loadIRFromJson) {
-                    program = P4Verify::applySlice(program, sres.keepStatementIds);
+                    program = P4Verify::applySlice(program, sres.keepStatementIds, &sres.keepVarNames);
                 } else if (options.slicingDebug) {
                     std::cerr << "[slicer] skipping statement pruning for JSON IR\n";
                 }
@@ -334,7 +370,7 @@ int main(int argc, char *const argv[]) {
         }
 
         if (options.slicingSelftest) {
-            return _runSlicingSelftest(options, sres);
+            return _runSlicingSelftest(options, sres, program);
         }
     }
 
