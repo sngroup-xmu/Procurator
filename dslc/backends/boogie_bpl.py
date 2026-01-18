@@ -49,7 +49,7 @@ def collect_input_vars_and_egress_type(
         if not egress_var and (name.endswith(".ucast_egress_port") or name.endswith(".egress_port")):
             egress_type = typ
             egress_var = name
-        if name.startswith(("hdr.", "meta.", "standard_metadata.")) or "_md." in name:
+        if name.startswith(("hdr.", "hdr_eg.", "meta.", "standard_metadata.")) or "_md." in name:
             if typ == "Ref" or typ.endswith("Ref"):
                 continue
             if is_skipped_input_var(name):
@@ -143,4 +143,3 @@ def patch_missing_var_decls(
     if insert:
         return raw_bpl[: insert.start()] + block + raw_bpl[insert.start() :]
     return raw_bpl + "\n" + block
-

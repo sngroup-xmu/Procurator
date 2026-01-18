@@ -31,7 +31,7 @@ def is_on_wire_packet_var(name: str) -> bool:
 
 
 def is_packet_var(name: str) -> bool:
-    return name.startswith(("hdr.", "meta.", "standard_metadata.")) or "_md." in name
+    return name.startswith(("hdr.", "hdr_eg.", "meta.", "standard_metadata.")) or "_md." in name
 
 
 def dsl_is_simple_local_name(name: str) -> bool:
