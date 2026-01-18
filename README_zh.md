@@ -15,8 +15,7 @@ DSL spec (.prop) -> Boogie (.bpl) -> Ultimate/GemCutter -> witness/trace
 - `Procurator/argo/code/spec`：DSL 规格与编译入口
 - `Procurator/argo/code/dataset`：P4 程序与控制面 entries
 - `P4B-Translator`：P4 -> Boogie 翻译器（基于 p4c）
-- `ultimate/releaseScripts/default/UGemCutter-linux`：Ultimate CLI 二进制
-- `UGemCutter-linux`：备用 Ultimate 包（同一套二进制）
+- `UGemCutter-linux`：Ultimate CLI 包（GemCutter + witness printer）
 - `.tmp/dslc`：运行时生成的 Boogie / 日志 / witness
 
 ## 系统依赖
@@ -36,9 +35,9 @@ sudo apt-get install -y \
 ## Python 环境（DSL 编译器）
 
 ```bash
-python3 -m venv /mnt/e/p4-verify/.venv
-/mnt/e/p4-verify/.venv/bin/python -m pip install \
-  -r /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/requirements.txt
+python3 -m venv .venv
+.venv/bin/python -m pip install \
+  -r Procurator/argo/code/spec/prop_compile/requirements.txt
 ```
 
 ## 构建 P4B-Translator（P4 -> Boogie）
@@ -47,8 +46,8 @@ python3 -m venv /mnt/e/p4-verify/.venv
 建议禁用 gtest 与 gold。
 
 ```bash
-mkdir -p /mnt/e/p4-verify/P4B-Translator/build-host
-cd /mnt/e/p4-verify/P4B-Translator/build-host
+mkdir -p P4B-Translator/build-host
+cd P4B-Translator/build-host
 cmake -DP4C_USE_GOLD=OFF -DENABLE_GTESTS=OFF ..
 cmake --build . --target p4c-translator -j"$(nproc)"
 ```
@@ -56,7 +55,7 @@ cmake --build . --target p4c-translator -j"$(nproc)"
 可执行文件路径：
 
 ```
-/mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator
+P4B-Translator/build-host/p4c-translator
 ```
 
 ## Ultimate/GemCutter 配置（Boogie 后端）
@@ -65,13 +64,13 @@ Ultimate 需要 Java 21。Z3 在 Ultimate 目录内。
 
 ```bash
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export PATH=/mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux:$JAVA_HOME/bin:$PATH
+export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
 ```
 
 Ultimate 可执行文件：
 
 ```
-/mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate
+UGemCutter-linux/Ultimate
 ```
 
 ## Boogie 用法
@@ -79,21 +78,21 @@ Ultimate 可执行文件：
 1) DSL -> Boogie：
 
 ```bash
-PYTHONPATH=/mnt/e/p4-verify /mnt/e/p4-verify/.venv/bin/python -m dslc.compiler \
+PYTHONPATH=. .venv/bin/python -m dslc.compiler \
   --backend boogie \
-  --spec /mnt/e/p4-verify/Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --out /mnt/e/p4-verify/.tmp/dslc/boogie_smoke.bpl \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --work-dir /mnt/e/p4-verify/.tmp/dslc/boogie_smoke.work
+  --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
+  --out .tmp/dslc/boogie_smoke.bpl \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --work-dir .tmp/dslc/boogie_smoke.work
 ```
 
 2) Ultimate/GemCutter 运行 Boogie：
 
 ```bash
-/mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
-  -tc /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  -s  /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf \
-  -i  /mnt/e/p4-verify/.tmp/dslc/boogie_smoke.bpl
+UGemCutter-linux/Ultimate \
+  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  -s  Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf \
+  -i  .tmp/dslc/boogie_smoke.bpl
 ```
 
 输出在 `.tmp/dslc/`：
@@ -204,75 +203,75 @@ global {
 
 ```bash
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export PATH=/mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux:$JAVA_HOME/bin:$PATH
-export PYTHONPATH=/mnt/e/p4-verify
+export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
+export PYTHONPATH=.
 ```
 
 ATP：
 
 ```bash
-/mnt/e/p4-verify/.venv/bin/python \
-  /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
-  --spec /mnt/e/p4-verify/Procurator/argo/code/spec/bench/atp_bug.prop \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
+.venv/bin/python \
+  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+  --spec Procurator/argo/code/spec/bench/atp_bug.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 NetChain：
 
 ```bash
-/mnt/e/p4-verify/.venv/bin/python \
-  /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
-  --spec /mnt/e/p4-verify/Procurator/argo/code/spec/test/netchain_bug.prop \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
+.venv/bin/python \
+  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+  --spec Procurator/argo/code/spec/test/netchain_bug.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 P4XOS：
 
 ```bash
-/mnt/e/p4-verify/.venv/bin/python \
-  /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
-  --spec /mnt/e/p4-verify/Procurator/argo/code/spec/bench/p4xos_bug.prop \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
+.venv/bin/python \
+  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+  --spec Procurator/argo/code/spec/bench/p4xos_bug.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 DistCache（建议 `--no-prune`）：
 
 ```bash
-/mnt/e/p4-verify/.venv/bin/python \
-  /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
-  --spec /mnt/e/p4-verify/Procurator/argo/code/spec/bench/distcache_bug.prop \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
+.venv/bin/python \
+  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+  --spec Procurator/argo/code/spec/bench/distcache_bug.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate \
   --env max \
   --no-prune \
-  --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 Gecko（Tofino JSON，建议 `--no-prune`）：
 
 ```bash
-/mnt/e/p4-verify/.venv/bin/python \
-  /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
-  --spec /mnt/e/p4-verify/Procurator/argo/code/spec/bench/gecko_bug1_timer_loss.prop \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
+.venv/bin/python \
+  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+  --spec Procurator/argo/code/spec/bench/gecko_bug1_timer_loss.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate \
   --env max \
   --no-prune \
-  --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 ## 常见问题
@@ -281,7 +280,7 @@ Gecko（Tofino JSON，建议 `--no-prune`）：
   - 使用 Java 21，并确保 `JAVA_HOME` 正确。
 - 找不到 Z3：
   - 把 Ultimate 目录加到 `PATH`：
-    `/mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux`
+    `UGemCutter-linux`
 - gold linker 崩溃：
   - 使用 `-DP4C_USE_GOLD=OFF` 重新配置 P4B-Translator。
 - DistCache 的 Boogie 字段缺失：

@@ -122,46 +122,45 @@ Java/runtime note:
 - Example prefix:
   `JAVA_HOME=/home/smy/.cursor-server/data/User/globalStorage/pleiades.java-extension-pack-jdk/java/latest PATH=$JAVA_HOME/bin:$PATH`
 
-```
-PYTHONPATH=/mnt/e/p4-verify /mnt/e/p4-verify/.venv/bin/python \
-  /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+No-prune (recommended for translation debugging):
+
+```bash
+PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
   --spec <spec.prop> \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate \
   --env max \
   --no-prune \
-  --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf
+```
 
 Pruning (default on, disable with `--no-prune`) with internal SMTInterpol:
 
-```
-PYTHONPATH=/mnt/e/p4-verify /mnt/e/p4-verify/.venv/bin/python \
-  /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+```bash
+PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
   --spec <spec.prop> \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
-```
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 Compose mode (split global conjuncts into local specs and run in parallel):
 
 ```
-PYTHONPATH=/mnt/e/p4-verify /mnt/e/p4-verify/.venv/bin/python \
-  /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
   --spec <spec.prop> \
   --compose \
   --compose-max-nodes 2 \
   --compose-jobs 2 \
   --compose-local-inputs \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --ultimate /mnt/e/p4-verify/ultimate/releaseScripts/default/UGemCutter-linux/Ultimate \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 Outputs (compose mode):
@@ -169,9 +168,9 @@ Outputs (compose mode):
 - `<spec-tag>` is `<spec-stem>` unless the file name is `spec.prop`, in which case it uses the parent folder name.
 
 Outputs (default):
-- Boogie program: `/mnt/e/p4-verify/.tmp/dslc/<spec>.bpl`
-- Ultimate log: `/mnt/e/p4-verify/.tmp/dslc/<spec>.gemcutter.log`
-- GraphML witness: `/mnt/e/p4-verify/.tmp/dslc/<spec>.bpl-witness.graphml`
+- Boogie program: `.tmp/dslc/<spec>.bpl`
+- Ultimate log: `.tmp/dslc/<spec>.gemcutter.log`
+- GraphML witness: `.tmp/dslc/<spec>.bpl-witness.graphml`
 
 ## How to Read the Trace (GraphML witness)
 

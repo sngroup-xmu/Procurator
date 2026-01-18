@@ -6,21 +6,21 @@
 > - **(A) 端到端怎么跑通**：DSL → (P4B) Boogie → 并发 harness → Ultimate/GemCutter
 > - **(B) 改源码后去哪里做增量构建**：Ultimate / P4B-Translator / DSL 编译器分别怎么最省时重建
 >
-> 注：下面命令均用 **WSL 绝对路径**，可以直接 copy/paste。
+> 注：下面命令默认你在 **仓库根目录**运行，并尽量使用仓库相对路径（避免 `/mnt/<drive>` 上的 IO 过慢/不稳定）。
 
 ### 0) 产物位置（你已经 build 成功）
 
-- **Ultimate/GemCutter zip**：`/mnt/e/p4-verify/ultimate/releaseScripts/default/UltimateGemCutter-linux.zip`
-- **Ultimate CLI 产品目录（Maven 产物）**：`/mnt/e/p4-verify/ultimate/trunk/source/BA_SiteRepository/target/products/CLI-E4/linux/gtk/x86_64/`
-- **P4B-Translator Boogie 后端可执行**：`/mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator`
-- **DSL→Boogie 最小 E2E spec**：`/mnt/e/p4-verify/Procurator/argo/code/spec/test/boogie_smoke.prop`
+- **Ultimate/GemCutter CLI（推荐直接用仓库内置）**：`UGemCutter-linux/Ultimate`
+- **Ultimate CLI 产品目录（若你从源码构建）**：`ultimate/trunk/source/BA_SiteRepository/target/products/CLI-E4/linux/gtk/x86_64/Ultimate`
+- **P4B-Translator Boogie 后端可执行**：`P4B-Translator/build-host/p4c-translator`（软链接到 `P4B-Translator/build-host/backends/verify/p4c-translator`）
+- **DSL→Boogie 最小 E2E spec**：`Procurator/argo/code/spec/test/boogie_smoke.prop`
 
 ### 1) 端到端：DSL → Boogie → GemCutter（建议最小 smoke 路径）
 
 #### 1.1 构建/更新 P4B-Translator（P4→Boogie）
 
 ```bash
-cd /mnt/e/p4-verify/P4B-Translator
+cd P4B-Translator
 mkdir -p build-host
 cd build-host
 cmake ..
@@ -33,9 +33,9 @@ CCACHE_DISABLE=1 cmake --build . --target p4c-translator -j"$(nproc)"
 #### 1.2 准备 DSL 编译器 Python 环境（只需一次）
 
 ```bash
-cd /mnt/e/p4-verify
-python3 -m venv /mnt/e/p4-verify/.venv
-/mnt/e/p4-verify/.venv/bin/python -m pip install -r /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/requirements.txt
+cd /root/p4-verify
+python3 -m venv .venv
+.venv/bin/python -m pip install -r Procurator/argo/code/spec/prop_compile/requirements.txt
 ```
 
 #### 1.2.1 DSL 语法参考（最小示例 + 完整示例）
@@ -124,13 +124,13 @@ global {
 #### 1.3 DSL → 并发 Boogie（会调用 host `p4c-translator` 生成每个节点 `.bpl` 并前缀化 + harness）
 
 ```bash
-mkdir -p /mnt/e/p4-verify/.tmp/dslc
-/mnt/e/p4-verify/.venv/bin/python -m dslc.compiler \
+mkdir -p .tmp/dslc
+PYTHONPATH=. .venv/bin/python -m dslc.compiler \
   --backend boogie \
-  --spec /mnt/e/p4-verify/Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --out /mnt/e/p4-verify/.tmp/dslc/boogie_smoke.bpl \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --work-dir /mnt/e/p4-verify/.tmp/dslc/boogie_smoke.work
+  --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
+  --out .tmp/dslc/boogie_smoke.bpl \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --work-dir .tmp/dslc/boogie_smoke.work
 ```
 
 #### 1.3.1 Gecko（Tofino JSON）Boogie 运行（包含手动 ENV 约束）
@@ -138,13 +138,13 @@ mkdir -p /mnt/e/p4-verify/.tmp/dslc
 Gecko 需要手动约束输入包（例如 `ether_type=0x5555`），使用 DSL 的 `env { ... }`：
 
 ```bash
-mkdir -p /mnt/e/p4-verify/.tmp/gecko_run
-/mnt/e/p4-verify/.venv/bin/python -m dslc.compiler \
+mkdir -p .tmp/gecko_run
+PYTHONPATH=. .venv/bin/python -m dslc.compiler \
   --backend boogie \
-  --spec /mnt/e/p4-verify/Procurator/argo/code/spec/test/gecko.prop \
-  --out /mnt/e/p4-verify/.tmp/gecko_run/gecko.bpl \
-  --p4b-bin /mnt/e/p4-verify/P4B-Translator/build-host/backends/verify/p4c-translator \
-  --work-dir /mnt/e/p4-verify/.tmp/gecko_run/work \
+  --spec Procurator/argo/code/spec/test/gecko.prop \
+  --out .tmp/gecko_run/gecko.bpl \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --work-dir .tmp/gecko_run/work \
   --no-prune
 ```
 
@@ -156,53 +156,39 @@ mkdir -p /mnt/e/p4-verify/.tmp/gecko_run
 #### 1.4 GemCutter 结构 smoke（不跑 Ultimate，仅检查 fork/atomic/ULTIMATE.start）
 
 ```bash
-/mnt/e/p4-verify/.venv/bin/python /mnt/e/p4-verify/Procurator/argo/code/spec/prop_compile/gemcutter_smoke.py \
-  --bpl /mnt/e/p4-verify/.tmp/dslc/boogie_smoke.bpl
+PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/gemcutter_smoke.py \
+  --bpl .tmp/dslc/boogie_smoke.bpl
 ```
 
 #### 1.5 真跑 Ultimate/GemCutter（运行 zip 中的 Ultimate）
 
-1) 建议把 zip 解压到 **Linux 文件系统**（如 `/tmp`），避免 `/mnt/<drive>` 上大量小文件 IO 很慢：
+直接运行仓库内置的 `UGemCutter-linux/Ultimate`（推荐）：
 
 ```bash
-rm -rf /tmp/ultimate && mkdir -p /tmp/ultimate
-cd /tmp/ultimate
-unzip -q /mnt/e/p4-verify/ultimate/releaseScripts/default/UltimateGemCutter-linux.zip
-cd /tmp/ultimate/UGemCutter-linux
-./Ultimate --version
-```
+UGemCutter-linux/Ultimate --version
+UGemCutter-linux/Ultimate \
+  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  -s Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf \
+  -i .tmp/dslc/boogie_smoke.bpl \
+  > .tmp/dslc/boogie_smoke.gemcutter.log 2>&1
 
-2) **注意：zip 里的 `config/GemCutterReach.xml` 是面向 C 输入（包含 `cacsl2boogietranslator`）**；
-对 `.bpl` 输入更推荐用仓库自带的 Boogie 并发用例 toolchain：
-
-- toolchain：`/mnt/e/p4-verify/ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety.xml`
-- settings：`/mnt/e/p4-verify/ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety-32bit-GemCutter.epf`
-
-```bash
-cd /tmp/ultimate/UGemCutter-linux
-./Ultimate \
-  -tc /mnt/e/p4-verify/ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety.xml \
-  -s /mnt/e/p4-verify/ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety-32bit-GemCutter.epf \
-  -i /mnt/e/p4-verify/.tmp/dslc/boogie_smoke.bpl \
-  > /tmp/boogie_smoke_gemcutter.log 2>&1
-
-# 看结果（SAFE/UNSAFE/UNKNOWN 通常会出现在 RESULT 或 Summary 附近）
-grep -nE 'RESULT|AllSpecificationsHoldResult|proved your program|incorrect|Exception' /tmp/boogie_smoke_gemcutter.log | tail -n 50
+grep -nE 'RESULT|AllSpecificationsHoldResult|proved your program|incorrect|Exception' \
+  .tmp/dslc/boogie_smoke.gemcutter.log | tail -n 50
 ```
 
 Gecko 对应的运行示例（使用 Internal SMTInterpol 设置）：
 
 ```bash
-env HOME=/mnt/e/p4-verify/.tmp/ultimate_home \
-JAVA_TOOL_OPTIONS=-Duser.home=/mnt/e/p4-verify/.tmp/ultimate_home \
-/mnt/e/p4-verify/ultimate/trunk/source/BA_SiteRepository/target/products/CLI-E4/linux/gtk/x86_64/Ultimate \
-  -data /mnt/e/p4-verify/.tmp/ultimate_ws \
-  -tc /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  -s /mnt/e/p4-verify/Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf \
-  -i /mnt/e/p4-verify/.tmp/gecko_run/gecko.bpl \
-  > /mnt/e/p4-verify/.tmp/gecko_run/gecko.gemcutter.log 2>&1
+env HOME="$PWD/.tmp/ultimate_home" \
+JAVA_TOOL_OPTIONS="-Duser.home=$PWD/.tmp/ultimate_home" \
+UGemCutter-linux/Ultimate \
+  -data .tmp/ultimate_ws \
+  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  -s Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf \
+  -i .tmp/gecko_run/gecko.bpl \
+  > .tmp/gecko_run/gecko.gemcutter.log 2>&1
 
-rg -n "RESULT|AllSpecificationsHoldResult|Exception|TypeError" /mnt/e/p4-verify/.tmp/gecko_run/gecko.gemcutter.log | tail -n 50
+rg -n "RESULT|AllSpecificationsHoldResult|Exception|TypeError" .tmp/gecko_run/gecko.gemcutter.log | tail -n 50
 ```
 
 补充：对照 prune vs no-prune（slicing+env prune 开关）时，建议用 `run_gemcutter.py` 的 `--out/--work-dir/--log`
@@ -227,7 +213,7 @@ rg -n "RESULT|AllSpecificationsHoldResult|Exception|TypeError" /mnt/e/p4-verify/
   - ✅ `fork 1 s1Thread();`
   - ❌ `fork EnvThread();`（会直接语法错误）
 
-  修复：更新 `dslc/backends/boogie.py` 后**重新生成** `.bpl`。
+  修复：更新 Boogie 生成器（入口：`dslc/backends/boogie.py`；实现主体：`dslc/backends/boogie_backend.py` / `dslc/backends/boogie_harness.py`）后**重新生成** `.bpl`。
 
 - **(3) 典型失败 ②：TypeError（modifies 不完备 / fork 的 modifies 传递性）**
 
@@ -242,11 +228,10 @@ rg -n "RESULT|AllSpecificationsHoldResult|Exception|TypeError" /mnt/e/p4-verify/
   修复：同样是更新 generator + **重新生成** `.bpl`。
 
 ```bash
-cd /tmp/ultimate/UGemCutter-linux
-./Ultimate \
-  -tc /mnt/e/p4-verify/ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety.xml \
-  -s /mnt/e/p4-verify/ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety-32bit-GemCutter.epf \
-  -i /mnt/e/p4-verify/.tmp/dslc/boogie_smoke.bpl \
+UGemCutter-linux/Ultimate \
+  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  -s Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf \
+  -i .tmp/dslc/boogie_smoke.bpl \
   > /tmp/boogie_smoke_gemcutter.log 2>&1
 
 grep -nE 'SyntaxErrorResult|TypeErrorResult|AllSpecificationsHoldResult|program does not contain any specification|RESULT:' \
@@ -259,9 +244,9 @@ grep -nE 'SyntaxErrorResult|TypeErrorResult|AllSpecificationsHoldResult|program 
 
 #### 2.1 你改源码的位置
 
-- **Java/插件源码**：`/mnt/e/p4-verify/ultimate/trunk/source/`
-- **Maven 聚合工程入口**：`/mnt/e/p4-verify/ultimate/trunk/source/BA_MavenParentUltimate/`
-- **打包脚本**：`/mnt/e/p4-verify/ultimate/releaseScripts/default/`
+- **Java/插件源码**：`ultimate/trunk/source/`
+- **Maven 聚合工程入口**：`ultimate/trunk/source/BA_MavenParentUltimate/`
+- **打包脚本**：`ultimate/releaseScripts/default/`
 
 #### 2.2 增量构建（只重编译变化的模块）
 
@@ -279,7 +264,7 @@ mvn -T 1C install -Pmaterialize
 #### 2.3 只重打 GemCutter 的 zip（不重跑整套 makeFresh）
 
 ```bash
-cd /mnt/e/p4-verify/ultimate/releaseScripts/default
+cd ultimate/releaseScripts/default
 
 # 先确保打包工具齐全
 sudo apt-get install -y zip unzip
@@ -293,25 +278,25 @@ bash makeZip.sh GemCutter linux \
   NONE \
   NONE
 
-ls -lh /mnt/e/p4-verify/ultimate/releaseScripts/default/UltimateGemCutter-linux.zip
+ls -lh UltimateGemCutter-linux.zip
 ```
 
 #### 2.4 全量重建（最慢，但最稳）
 
 ```bash
-cd /mnt/e/p4-verify/ultimate/releaseScripts/default
-PATH=/mnt/e/p4-verify/.tools/apache-maven-3.9.9/bin:$PATH bash makeFresh.sh
+cd ultimate/releaseScripts/default
+bash makeFresh.sh
 ```
 
 ---
 
 ### 3) P4B-Translator 改动后：去哪里做“增量构建”
 
-- **源码位置**：`/mnt/e/p4-verify/P4B-Translator/`
-- **增量编译目录（建议固定用一个）**：`/mnt/e/p4-verify/P4B-Translator/build-host/`
+- **源码位置**：`P4B-Translator/`
+- **增量编译目录（建议固定用一个）**：`P4B-Translator/build-host/`
 
 ```bash
-cd /mnt/e/p4-verify/P4B-Translator/build-host
+cd P4B-Translator/build-host
 
 # 只要 CMakeLists.txt 没大改，一般直接 build 即可
 cmake --build . --target p4c-translator -j"$(nproc)"
@@ -324,12 +309,12 @@ cmake --build . --target p4c-translator -j"$(nproc)"
 
 ### 4) DSL 编译器（Python）改动后：去哪里做“增量构建”
 
-- **源码位置（统一入口）**：`/mnt/e/p4-verify/dslc/`
+- **源码位置（统一入口）**：`dslc/`
 - **不需要 build**：改完直接用 venv 跑即可；建议跑单测回归：
 
 ```bash
-cd /mnt/e/p4-verify
-/mnt/e/p4-verify/.venv/bin/python -m unittest -v dslc.tests.test_boogie_backend_smoke
+cd /root/p4-verify
+.venv/bin/python -m unittest -v dslc.tests.test_boogie_backend_smoke
 ```
 
 ### 6) DSL 里的 env / host 建模（现状）
@@ -343,6 +328,6 @@ cd /mnt/e/p4-verify
 
 - **Ultimate build 报 “Tycho requires Maven 3.9.0”**：用本地 Maven 3.9.9 跑（见 2.2），不要用 apt 的 3.8.7。
 - **makeFresh.sh 最后打包失败：`zip: command not found`**：`sudo apt-get install -y zip unzip`。
-- **P4→Boogie 翻译报 `no include path ... core.p4/v1model.p4`**：调用 `p4c-translator` 时需要 `-I /mnt/e/p4-verify/P4B-Translator/p4include`（DSL Boogie backend 已自动探测并注入）。
+- **P4→Boogie 翻译报 `no include path ... core.p4/v1model.p4`**：调用 `p4c-translator` 时需要 `-I P4B-Translator/p4include`（DSL Boogie backend 已自动探测并注入）。
 
 ---

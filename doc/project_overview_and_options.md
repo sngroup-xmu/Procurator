@@ -20,7 +20,7 @@
 1) **DSL → Promela → SPIN**（`dslc/backends/promela.py`）  
    - 适合 LTL（SPIN 原生支持），但目前 Promela 后端对“把 DSL 语句插入到每个节点的 Promela 过程里”比较保守（避免 fragile 的文本拼接），因此主要依赖全局性质与环境约束。
 
-2) **DSL → Boogie → Ultimate/GemCutter**（`dslc/backends/boogie.py`）  
+2) **DSL → Boogie → Ultimate/GemCutter**（实现主体：`dslc/backends/boogie_backend.py` + `dslc/backends/boogie_harness.py`；入口：`dslc/backends/boogie.py`）  
    - 适合 safety/可证明取向（GemCutter 的 CEGAR + commutativity 思路）。
    - 重点在“分布式 pass-atomic 语义 + P4-aware 剪枝/约束 + 并发/串行两种 harness”。
 
@@ -60,6 +60,10 @@
     - 复用输出（log/witness）：当输出新于输入 `.bpl` 时，对应 stage 会直接 `[SKIP]`（便于把“日常复跑”降到秒级/分钟级）
     - 支持对单独 stage 覆盖 toolchain/settings（例如只对 `pump` 启用 `icfgtransformation`）
 
+- `dslc/workflows/wraparound.py`（推荐：只生成产物，不跑求解器）
+  - `python3 -m dslc.workflows.wraparound --spec <x.prop> --out-dir <dir> --p4b-bin <p4c-translator>`
+  - 输出：base `.bpl`、各阶段 `.bpl`、以及 `wraparound.manifest.json`（供 runner/回归/实验对齐使用）
+
 ---
 
 ## 3. DSL（`.prop`）能写什么：语义上对应哪一层
@@ -85,7 +89,7 @@ DSL 语法在 `dslc/speclang/grammar.py`，模型结构在 `dslc/speclang/model.
 - `queue_capacity = <int>;`
   - 控制 Bag(K) 中的 K（`inbox_count < K` 约束）。
 - `max_steps = <int>;`
-  - **注意：Boogie 后端目前刻意忽略它**（`dslc/backends/boogie.py` 里有注释：保持 unbounded loop，让 Ultimate 自己处理循环）。
+  - **注意：Boogie 后端目前刻意忽略它**（`dslc/backends/boogie_harness.py` 里有注释：保持 unbounded loop，让 Ultimate 自己处理循环）。
   - 你可以把它当成“以后做 BMC/有界验证”的输入接口，但当前 GemCutter harness 不使用它做 cut。
 - `deterministic_scheduler = true|false;`
   - 只影响 **Boogie sequential harness**：true 时生成 round-robin 调度（避免 nondet 分支、避免 modulo），便于 debug 深循环。
@@ -100,7 +104,7 @@ DSL 语法支持 `ltl { ... }`（见 `dslc/speclang/grammar.py`），Promela/SPI
 
 但 **Boogie/GemCutter 后端目前不编码 LTL**：
 
-- Boogie 后端会在表达式层面“尽量解析 always/eventually”，但只会把 `[]P` / `<>P` 退化成 `P`（`dslc/backends/boogie.py:_expr_to_boogie` 里有 best-effort 逻辑）。
+- Boogie 后端会在表达式层面“尽量解析 always/eventually”，但只会把 `[]P` / `<>P` 退化成 `P`（`dslc/backends/boogie_harness.py:_expr_to_boogie` 里有 best-effort 逻辑）。
 - 因此如果你的性质本质是 liveness（比如“最终一致性”），目前更现实的做法是：
   - 先把它改写成 safety（加监视器/ghost state，把 liveness-to-safety），或
   - 走 Promela/SPIN 做原型验证。
@@ -109,24 +113,29 @@ DSL 语法支持 `ltl { ... }`（见 `dslc/speclang/grammar.py`），Promela/SPI
 
 ## 4. Boogie 后端：P4→Boogie + 分布式 harness 是怎么拼起来的
 
-Boogie 后端核心文件：`dslc/backends/boogie.py`。
+Boogie 后端按单一职责拆成多个模块：
+
+- 编排/拼接：`dslc/backends/boogie_backend.py`（调用 P4B、前缀化、merge）
+- 系统 harness：`dslc/backends/boogie_harness.py`（并发/串行调度、队列/事件语义、assert/trace）
+- slicing 种子：`dslc/backends/boogie_seeds.py`（全局种子收集 + `hdr.*` 反向传播）
+- Boogie 文本工具：`dslc/backends/boogie_bpl.py` / `dslc/backends/boogie_prefix.py` / `dslc/backends/boogie_registers.py` / `dslc/backends/boogie_pipeline.py`
 
 ### 4.1 每个节点的 P4→Boogie 翻译（P4B-Translator）
 
 对每个 `import s1 from ...`：
 
-1) 调用 P4B-Translator（包装器：`P4BTranslator.compile_to_bpl`）：
+1) 调用 P4B-Translator（封装：`dslc/backends/boogie_p4b.py:P4BTranslator.compile_to_bpl`）：
    - 默认加 `--goto`（把控制流变成 goto-state machine，避免大 if-else 链干扰 Ultimate 的 atomic 分析）
    - 支持 `--fromJSON`（Tofino/bf-p4c JSON IR）
    - 支持 `--meta-out`（生成 `p4bmeta-v1`，用于类型/读写集/切片等）
    - 支持 `--slicing-vars=<...>`（把 slicing seeds 传给 P4B）
 
-2) 对输出 `.raw.bpl` 做工程化修补：
-   - 补缺失的变量声明（`_patch_missing_var_decls`，结合 `meta-out` 的类型信息）
-   - 收集“外部输入字段列表”（`_collect_input_vars_and_egress_type`）
-   - 若启用剪枝：过滤掉“只出现在 var 声明、但不出现在程序使用处”的输入字段，保证 env havoc 和 sliced 程序对齐（`_filter_input_vars_by_usage`）
+2) 对输出 `.raw.bpl` 做工程化修补（Boogie 文本层，不碰 P4 语义）：
+   - 补缺失的变量声明：`dslc/backends/boogie_bpl.py:patch_missing_var_decls`（结合 `--meta-out` 的类型信息）
+   - 收集“外部输入字段列表 + egress_port 类型”：`dslc/backends/boogie_bpl.py:collect_input_vars_and_egress_type`
+   - 若启用剪枝：按“是否在 slice 后程序中被使用”过滤 env havoc 字段：`dslc/backends/boogie_bpl.py:filter_input_vars_by_usage`
 
-3) 给每个节点整体加前缀（`BoogiePrefixer`）
+3) 给每个节点整体加前缀：`dslc/backends/boogie_prefix.py:BoogiePrefixer`
    - 例如把 `hdr.ipv4.dstAddr` 变成 `s1_hdr.ipv4.dstAddr`
    - 并避免把 Boogie 内置的 bitvector builtin 名字也错改（否则会导致 BV 运算变成 uninterpreted）
 
@@ -168,7 +177,7 @@ Boogie 后端核心文件：`dslc/backends/boogie.py`。
 - 在 ingress 开始前清零标志位；
 - 在 ingress/egress 结束时根据 flag 决定是否额外入队或额外安排一次 egress；
 
-对应实现：`dslc/backends/boogie.py:_emit_ingress_stage_body` / `_emit_egress_stage_body`。
+对应实现：`dslc/backends/boogie_harness.py:_emit_ingress_stage_body` / `_emit_egress_stage_body`。
 
 ### 4.5 跨节点转发只复制 `hdr.*`
 
@@ -176,7 +185,7 @@ Boogie 后端核心文件：`dslc/backends/boogie.py`。
 
 因此 `s1 -> s2` 的 enqueue 过程必须只复制 on-wire 字段：
 
-- 当前实现用 `_is_on_wire_packet_var(name) -> name.startswith("hdr.")` 来保证只复制 header。
+- 当前实现用 `dslc/backends/boogie_common.py:is_on_wire_packet_var(name) -> name.startswith("hdr.")` 来保证只复制 header。
 
 如果这点做错，会造成非常隐蔽的：
 

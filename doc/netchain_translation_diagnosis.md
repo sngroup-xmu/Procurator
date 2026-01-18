@@ -22,7 +22,7 @@
 ### 1.1 生成 unsliced（语义对照基线）
 
 ```bash
-P4B-Translator/build-linux/backends/verify/p4c-translator \
+P4B-Translator/build-host/p4c-translator \
   -I P4B-Translator/p4include \
   Procurator/argo/code/dataset/Netchain/netchain_16.p4 \
   --bmv2cmds Procurator/argo/code/dataset/Netchain/commands_1.txt \
@@ -208,7 +208,7 @@ Netchain 的 `sequence_reg` 是 `bv16`（16 位无符号 bitvector），按模 `
 
 在 Boogie harness 的初始化里，为所有寄存器数组生成显式零初始化约束（同时也给 index=0 单独一条，便于读 witness）：
 
-- 实现位置：`dslc/backends/boogie.py` 的 `_emit_register_init_assumes()`
+- 实现位置：`dslc/backends/boogie_harness.py` 的 `_emit_register_init_assumes()`
 
 你可以在 Ultimate witness/log 里直接看到类似（示例来自 `.tmp/regress/netchain/maxindex5/slice/run.gemcutter.log`）：
 
@@ -234,7 +234,7 @@ Netchain 的 `sequence_reg` 是 `bv16`（16 位无符号 bitvector），按模 `
 
 **修复（分别在各自模块完成，保持单一职责）**
 
-- `dslc/backends/boogie.py`：`collect_slice_seeds()` 保留 `[idx]` 形式的 seeds，并同时补全 base/`_0` 变体，兼容 P4B 的命名规则。
+- `dslc/backends/boogie_seeds.py`：`build_slicing_plan()` 保留 `[idx]` 形式的 seeds，并同时补全 base/`_0` 变体，兼容 P4B 的命名规则。
 - `P4B-Translator/backends/verify/slicing/slicer.cpp`：`RegisterIndexCollector` 按参数个数区分 P4_16 vs bmv2 的 `read`，正确提取 idx 参数位置。
 - `P4B-Translator/backends/verify/translate/translate.cpp`：对 bitvector idx 用 `bvule.bvXX$builtin(idx, max)` 形式发出上界约束，避免 ill-typed Boogie。
 
@@ -250,7 +250,7 @@ Netchain 的 `sequence_reg` 是 `bv16`（16 位无符号 bitvector），按模 `
 
 **修复**
 
-- `dslc/backends/boogie.py`：`BoogiePrefixer` 跳过 `bv*.bv*($builtin)` 这类名字；并将 `inline` 加入关键字集合，避免把 `{:inline 1}` 改写成 `{:s1_inline 1}`。
+- `dslc/backends/boogie_prefix.py`：`BoogiePrefixer` 跳过 `bv*.bv*($builtin)` 这类名字；并将 `inline` 加入关键字集合，避免把 `{:inline 1}` 改写成 `{:s1_inline 1}`。
 
 #### 4.4.4 fast-forward spec 里的跨节点写：modifies clause 缺失（Ultimate typecheck fail）
 
@@ -266,7 +266,7 @@ node thread 的 `modifies` 只收集了“节点自己的变量 + P4 mainProcedu
 
 **修复**
 
-- `dslc/backends/boogie.py`：新增 `_collect_dsl_modified_boogie_vars()`，把每个节点 DSL 的 LHS（包含跨节点的 `s2_sequence_reg_0[0]`）加入该节点线程的 modifies 集合。
+- `dslc/backends/boogie_harness.py`：新增 `_collect_dsl_modified_boogie_vars()`，把每个节点 DSL 的 LHS（包含跨节点的 `s2_sequence_reg_0[0]`）加入该节点线程的 modifies 集合。
 
 #### 4.4.5 trace 解读坑：为什么同一个寄存器同时出现 0 和 65535？
 
@@ -301,7 +301,7 @@ s2_sequence_reg_0[0] = 65535;
 . .venv/bin/activate
 PYTHONPATH=. python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop \
-  --p4b-bin P4B-Translator/build-linux/backends/verify/p4c-translator \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --ultimate-timeout-seconds 0
 ```

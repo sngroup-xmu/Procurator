@@ -7,9 +7,178 @@
 
 # 设计文档：Procurator vNext（P4 分布式状态化验证：BMC + 证明取向后端 + P4-aware 优化）
 
-## 0. 摘要
+## 0. 系统概览（仓库实现对齐）
 
-Procurator vNext 面向“多交换机部署的状态化 P4 应用”，以**统一的 pass 原子并发语义**建模分布式执行，并通过**队列抽象分层、P4 state 读写集/可交换性约简、入口环境最小化**等 P4-aware 优化显著降低状态空间。验证引擎采用“双后端”：**BMC 模式**用于强 bug-finding；**证明取向模式**优先对接 Ultimate/GemCutter，以 commutativity 驱动的 CEGAR/泛化提升证明覆盖率。GemCutter 作为并发证明取向工具，其核心基于“语句可交换性（commutativity）”来削减交错与提升泛化能力。([Ultimate PA][1])
+这段是“本仓库当前代码”视角的系统介绍（偏工程落地），用于帮助快速定位：**哪个模块负责什么、有哪些关键开关、哪些优化已经落到实现里**。后面的章节仍保留更偏研究/论文表达的设计细节。
+
+### 0.1 端到端流程（我们这条 Boogie + Ultimate/GemCutter 产线）
+
+1) **输入**：`.prop` DSL 规格（拓扑 + import 的 P4 程序/表项 + env 约束 + assert）。
+2) **DSL 编译**：`dslc/compiler.py` 解析/类型检查/建模，再调用后端生成产物。
+3) **单交换机语义翻译（P4 → Boogie）**：`P4B-Translator/backends/verify/bpl_verify/main.cpp`（`p4c-translator`）把每个 P4 程序 + 控制面表项编译成 Boogie 过程/全局状态；可选运行 slicing 并输出 meta（`--meta-out`）。
+4) **分布式 harness 拼接（系统级语义）**：`dslc/backends/boogie_backend.py` 负责编排“每节点 P4→Boogie（可 slicing）→ 前缀化/插桩 → 系统 harness 拼接”，其中 harness 生成主体在 `dslc/backends/boogie_harness.py`。
+5) **验证后端**：Ultimate/GemCutter 对最终 `.bpl` 做 bug finding / proof attempt，输出 `UNSAFE`（witness）或 `SAFE/UNKNOWN`。
+
+#### 0.1.1 架构图（ASCII）
+
+```text
+        .prop (topology + env/host + assert)
+                  |
+                  v
+           dslc/compiler.py
+                  |
+                  v
+      dslc/backends/boogie_backend.py
+        |    |         |           |
+        |    |         |           +--> dslc/backends/boogie_harness.py (pass-atomic / queues / POR / symmetry)
+        |    |         +--> dslc/backends/boogie_prefix.py + boogie_registers.py + boogie_pipeline.py
+        |    +--> dslc/backends/boogie_seeds.py (slice seeds + hdr.* propagation)
+        +--> P4B-Translator/p4c-translator (slicer.cpp + translate/* + analysis/monotonic.cpp -> meta.json)
+                  |
+                  v
+              merged .bpl
+                  |
+                  v
+     Ultimate (GemCutter/Automizer/...) -> witness/SAFE/UNKNOWN
+
+  wraparound fast-forward (optional):
+    base .bpl -> dslc/workflows/wraparound.py -> staged .bpl -> Ultimate
+```
+
+### 0.2 仓库模块与职责（单一职责划分）
+
+**DSL 前端与系统级建模**
+
+- `dslc/compiler.py`：DSL 解析、语义检查、后端调用；统一对外的编译入口/开关（例如 `--no-prune`、`--por`、`--boogie-harness`、`--env`、`--no-two-stage`）。
+- `dslc/workflows/wraparound.py`：wraparound 加速管线的“产物生成器”（base 编译 + 候选推断 + staged `.bpl` + manifest），**不负责**运行 Ultimate。
+- `dslc/backends/boogie.py`：后端入口（对外 API 稳定），仅 re-export `BoogieBackend`。
+- `dslc/backends/boogie_backend.py`：Boogie 后端编排（加载/调用 P4B、拼接各节点、merge 产物）。
+- `dslc/backends/boogie_harness.py`：系统级 harness 生成（并发/串行两种 harness；pass-atomic / two-stage）。
+- `dslc/backends/boogie_seeds.py`：分布式 slicing 种子收集与 `hdr.*` 反向传播（全局保守闭包）。
+- `dslc/backends/boogie_bpl.py`：Boogie 文本层工具（输入字段提取、missing decl patch、按使用过滤 env havoc）。
+- `dslc/backends/boogie_prefix.py`：Boogie 前缀化与 bvbuiltin 去重/Ultimate 兼容重写。
+- `dslc/backends/boogie_registers.py`：寄存器数组识别与 write 插桩（last/index0 镜像）。
+- `dslc/backends/boogie_pipeline.py`：从单节点 Boogie 中提取 ingress/egress 两阶段切分（two-stage harness）。
+- `dslc/backends/boogie_p4b.py`：P4B-Translator 调用封装（含 include path 发现）。
+
+**P4 → Boogie（P4B-Translator）**
+
+- `P4B-Translator/backends/verify/bpl_verify/main.cpp`：`p4c-translator` 主程序；负责：
+  - 调用 P4C 前端解析/类型检查（含 `--fromJSON`）。
+  - 调用 slicing（见下）并把结果灌入 `P4VerifyOptions`（供 translate 阶段做过滤/寄存器剪枝）。
+  - 可选输出 meta（`--meta-out`）与后分析（例如 wraparound/单调更新摘要）。
+- `P4B-Translator/backends/verify/slicing/slicer.cpp`：P4 IR slicing pass（CFG/CDG/DDG + backward slice），输出：
+  - `keepStatementIds`：哪些 IR 语句保留（用于 `applySlice` 真的把 IR 剪掉）。
+  - `keepVarNames` / `keepTables`：后续翻译时只声明/只生成相关变量/表。
+  - `regMaxIndex`：按 seed 推断寄存器最大索引（用于把 index 约束为较小范围，减少 Boogie 状态空间）。
+- `P4B-Translator/backends/verify/translate/*`：核心翻译逻辑（IR → Boogie）、BMv2 控制面命令解析（`bmv2.*`）、以及与 P4LTL 相关的语法/工具链接口（如果开启）。
+
+**基准/规格/脚本**
+
+- `Procurator/argo/code/spec/bench/*.prop`：系统级基准规格（Netchain/DistCache/Gecko/...）。
+- `Procurator/argo/code/spec/prop_compile/*`：运行 Ultimate/GemCutter、抽 witness/日志、wraparound 实验脚本等。
+
+### 0.3 当前主要“优化开关”与落点（设计 ↔ 实现对齐）
+
+下面列的是“确实落在代码里的关键旋钮”，每项都对应一个明确模块/实现位置。
+
+1) **程序切片（slicing）+ env 输入剪枝（prune）**
+   - 入口（DSL）：`dslc/compiler.py` 的 `--no-prune`（关闭 slicing + env 剪枝）。
+   - P4 侧实现：`P4B-Translator/backends/verify/slicing/slicer.cpp`（输出 keep 集合/寄存器索引上界），`P4B-Translator/backends/verify/bpl_verify/main.cpp` 调 `applySlice`。
+   - 系统侧实现：`dslc/backends/boogie_backend.py` 在 `prune_env_inputs` 时只对 slice 后仍“活着”的输入字段 `havoc`（核心实现：`dslc/backends/boogie_bpl.py` 的 `filter_input_vars_by_usage`）。
+   - **分布式全局剪枝（种子传播）**：由于 P4B slicing 是“每个节点单独运行”，它看不到我们的拓扑/队列语义，所以 dslc 需要在系统层做一次保守的种子传播：
+     - dslc 先从 spec 的 **assert + DSL 语句（property 依赖）** 里收集每个节点的 slicing seed（`dslc/backends/boogie_seeds.py` 的 `build_slicing_plan`）；**assume/env 约束只用于收紧输入，不作为 slicing criteria**（否则会把与性质无关的字段错误当成依赖，导致切片过大、验证变慢）。
+     - 若存在拓扑链路，则把 **on-wire 的包字段（`hdr.*`）** 沿 `dst → src` 方向做传递闭包（`propagate_packet_seeds`），保证“下游节点用到的 header 字段”不会被上游节点切掉。
+     - 具体实现入口：`dslc/backends/boogie_seeds.py`（`build_slicing_plan` / `propagate_packet_seeds`，并在 `spec.links` 非空时启用）；传播时只传 `hdr.*`（on-wire），不传 `meta.*`/`standard_metadata.*`（node-local）。
+   - **当前限制（需要在设计里明确）**：这一步传播基于“spec 显式提到的种子”；如果某个下游性质只提到了 `meta/reg`，但其计算依赖某些 `hdr.*` 字段，那么要做到完全 sound 的“全局 slicing”，应当做一个系统级 fixpoint（先切下游、读出其 slice 后需要的 `hdr.*`，再反向喂给上游重切），目前实现尚未自动化该迭代。
+
+2) **寄存器索引剪枝（regMaxIndex → 约束 index 域）**
+   - P4B 侧分析：`P4B-Translator/backends/verify/slicing/slicer.cpp` 产出 `regMaxIndex`。
+   - 翻译侧生效：`P4B-Translator/backends/verify/translate/translate.cpp` 依据 `options.slicingRegMaxIndex` 对 `read/write` 的 index 生成 `assume(index <= max)`。
+   - 典型效果：把“所有 4096 槽”收紧到“只关心的少数槽”（例如只验证 `reg[0]` 时强制 index=0）。
+
+3) **并发语义压缩：pass-atomic + 全局锁**
+   - 系统侧实现：`dslc/backends/boogie_harness.py` 生成的 harness 把“单次 pipeline 处理”作为原子步（交错点只在“选哪个节点执行下一次 pass”）。
+   - 对 Ultimate/GemCutter：减少可交错点，利于其并发验证/泛化能力。
+
+4) **调度/交错约简（POR 开关）**
+   - 入口（DSL）：`dslc/compiler.py --por`。
+   - 当前实现位置：`dslc/backends/boogie_harness.py`（以 pass 边界/guard 形式做保守约简；后续可与更强的 commutativity oracle 对齐）。
+
+5) **对称性约简（symmetry）**
+   - 系统侧实现：`dslc/backends/boogie_harness.py` 在对称节点上添加约束，减少等价状态/等价调度分支。
+
+6) **两种 harness：并发 vs 串行（便于对比/调试）**
+   - `dslc/compiler.py --boogie-harness {concurrent,sequential}`：
+     - `concurrent`：生成 `fork/atomic` 的并发 Boogie（更贴近 GemCutter 的并发验证定位）。
+     - `sequential`：生成单线程 nondet 调度循环（便于调试/减少并发编码噪声）。
+   - 该项是“建模选择”，不是优化本身，但会显著影响后端性能与 witness 形态。
+
+7) **wraparound（计数器翻转）加速：闭包泵（closure pump）+ fast-forward**
+   - 背景：分布式 P4 系统里常见“计数器/序列号寄存器”在 `2^w-1 -> 0` 翻转时触发一致性/顺序性 bug；直接让验证器从 0 符号执行到翻转点会产生极长前缀（尤其 16/32 位寄存器），导致验证“卡住”。
+   - 关键思想（v0-1 实现）：不在系统语义里“硬塞 65535 初值”，而是把它做成一个**可选的加速管道**：
+     1) 先用 P4B 从 IR 里提取“看起来像计数器”的更新（`x := x + k` / `x := x - k`），输出到 meta；
+     2) 再在系统级 Boogie 上构造一个**闭包检查（closure_check）**：证明“从 cutpoint 开始，把目标寄存器置为任意 `seq0 != MAX`，跑完一个调度轮次后，寄存器必然变成 `seq0 + k`，并且投影变量（队列计数/phase 等）保持不变”；
+     3) 通过后，把寄存器 fast-forward 到 `MAX`（或接近翻转的阈值）再跑原始断言，快速触发翻转后缀（confirm）。
+   - 实现落点（严格按职责划分）：
+     - **P4B 提供“单调/仿射更新摘要”**：`P4B-Translator/backends/verify/analysis/monotonic.cpp` 会识别寄存器相关的仿射自更新，并把 `wraparound_registers / wraparound_updates` 写入 `--meta-out`（见 `P4B-Translator/backends/verify/translate/options.h` 中 `WraparoundUpdate`）。
+     - **DSL 侧推断候选目标**：`dslc/analysis/wraparound_candidates.py` 根据：
+       - global assert 是否直接提到了 `reg[i]`（NetChain 风格），或
+       - meta 里 `wraparound_updates` 指出某个“被单调更新并写回寄存器”的变量（DistCache 风格）
+       推断 `pump_reg / index / step_delta / proj_vars`。
+     - **Boogie 侧插桩/变换（系统级）**：`dslc/transform/wraparound.py`
+       - `ENTRY_CHECK`：检查 base harness 是否可达（避免 env/表项不一致导致的“空模型”伪结论）。
+       - `CLOSURE_CHECK`：把 `mainProcedure` unroll 一个调度轮次，插入闭包断言（证明“泵”闭包性）。
+       - `PUMP/ACCEL/CONFIRM`：在 cutpoint 周围插桩、选择性剥离无关断言/调试快照、并在 `confirm` 前 fast-forward 到 `MAX`。
+     - **实验驱动脚本**：`Procurator/argo/code/spec/prop_compile/run_wraparound.py` 负责编译 base `.bpl`、读取 `.work/*.meta.json`、为每个候选生成多阶段 `.bpl` 并调用 Ultimate 跑日志。
+   - 一个重要的工程优化点：当目标是固定槽（例如 `reg[0]`），系统 Boogie 里通常会有标量镜像（如 `<reg>__last0_value`）；`dslc/transform/wraparound.py` 会优先用该标量而非数组读写（显著减少 SMT 的 array 负担）。
+
+### 0.4 例子：Netchain 在 `seq_reg` 断言种子下，切片应保留什么/剪掉什么
+
+**原始 P4 关键片段**：`Procurator/argo/code/dataset/Netchain/netchain_16.p4` 的 ingress 中：
+
+- `assign_value_act()` 同时写两个寄存器：
+  - `sequence_reg.write(index, hdr.nc_hdr.seq);`
+  - `value_reg.write(index, hdr.nc_hdr.value);`
+- `apply` 中 `NC_READ`（`op==10`）走 `read_value.apply()`，`NC_WRITE`（`op==12`）走 `maintain_sequence/assign_value/...`。
+
+**当性质只关心 `sequence_reg_0[0]` 时（seed = `sequence_reg_0[0]`）**，切片后的“语义上必要”保留/剪枝应满足：
+
+- **保留的控制路径（与 `sequence_reg` 相关或影响转发控制种子）**：
+  - `hdr.nc_hdr.isValid()` 分支（决定是否进入主逻辑）。
+  - `find_index.apply()` / `get_sequence.apply()`（决定 `meta.location.index`、读出 `meta.sequence_md.seq`）。
+  - `op==12`（write 请求）路径下的 `maintain_sequence.apply()` 与 `assign_value.apply()`（会更新/写回 `sequence_reg`）。
+  - 转发相关的 `ipv4_route.apply()`（因为 slicer 默认把 `egress_spec` 这类转发控制量作为隐式种子，避免把转发语义剪“坏”）。
+- **应被剪掉的路径/语句**（与 `sequence_reg` 无关）：
+  - `op==10` 分支里的 `read_value.apply()`（读 `value_reg` 与性质无关）。
+  - `assign_value_act()` 内部对 `value_reg.write(...)` 的写入（与 `sequence_reg` 无关）。
+  - `pop_chain.apply()` / `drop_packet.apply()` / `failure_recovery.apply()` 等与 `sequence_reg` 无关的控制流（只要不影响被保留的种子）。
+
+**在 P4B slicer 输出层面的可检查结果（更“工程化”的对照）**：
+
+- 期望 `keepTables` 至少包含：`assign_value_0`、`get_sequence_0`、`maintain_sequence_0`（表明写路径仍在）。
+- 期望 `keepTables` 不包含：`read_value_0`（表明 `value_reg` 读路径被剪掉）。
+- 期望 `keepVarNames` 包含 `hdr.nc_hdr.seq`，且不包含 `hdr.nc_hdr.value`。
+- 期望 `regMaxIndex(sequence_reg)==0`（把寄存器槽域剪到 `{0}`）。
+
+**对应的 C++ 侧冒烟自检（不依赖 Python 文本匹配）**：
+
+在 `p4c-translator` 里加入了 `--slicing-selftest=netchain_seq`，它直接检查 slicer 的 `SliceResult`（tables/vars/regMaxIndex）：
+
+`P4B-Translator/build-host/p4c-translator -I P4B-Translator/p4include --goto --bmv2cmds Procurator/argo/code/dataset/Netchain/commands_1.txt --slicing-vars=sequence_reg_0[0] --slicing-selftest=netchain_seq Procurator/argo/code/dataset/Netchain/netchain_16.p4`
+
+这类“按种子剪掉 `value_reg`”的能力，是我们后续做更强 bug finding / 证明提速（尤其是大程序如 DistCache）时的基础：否则无关寄存器/控制流会把 Boogie 状态空间撑爆。
+
+### 0.5 冒烟测试（回归基线）
+
+每次改动以下模块后，建议至少跑一次对应冒烟，以保证“翻译/切片/系统级 harness”一致性不回退：
+
+- **DSL/Python 侧（快速）**：
+  - `.venv/bin/python -m unittest -v dslc.tests.test_boogie_backend_smoke dslc.tests.test_boogie_slicing_seeds dslc.tests.test_p4b_translator_slicing_selftest dslc.tests.test_wraparound_workflow_smoke`
+- **P4B-Translator 侧（增量编译）**：
+  - `cd P4B-Translator/build-host && make -j16 p4c-translator`（或 `cmake --build . --target p4c-translator -j"$(nproc)"`）
+- **P4B slicing 自检（无需跑 Ultimate）**：
+  - `P4B-Translator/build-host/p4c-translator -I P4B-Translator/p4include --goto --bmv2cmds Procurator/argo/code/dataset/Netchain/commands_1.txt --slicing-vars=sequence_reg_0[0] --slicing-selftest=netchain_seq Procurator/argo/code/dataset/Netchain/netchain_16.p4`
 
 ---
 

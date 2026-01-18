@@ -53,8 +53,9 @@
 ### 2.2 关键代码入口（你应从哪里读）
 
 - DSL 编译入口：`dslc/compiler.py`
-- Boogie 后端（语义编码的核心）：`dslc/backends/boogie.py`
+- Boogie 后端（语义编码的核心）：`dslc/backends/boogie_backend.py` + `dslc/backends/boogie_harness.py`（入口：`dslc/backends/boogie.py`）
 - wrap-around 加速变换：`dslc/transform/wraparound.py`
+- wrap-around 任务生成（不跑求解器）：`dslc/workflows/wraparound.py`
 - 一键跑 wrap-around 管线：`Procurator/argo/code/spec/prop_compile/run_wraparound.py`
 
 ---
@@ -68,7 +69,7 @@
 - 建模并发/调度（下一步执行 env 注入还是某个节点的一次 pass）
 - 在合适位置插入断言（assert）来表达我们要验证的性质
 
-在本仓库里，“被验证的程序本体”主要是 **P4B 输出的每个节点 Boogie**（例如 `s1_mainProcedure()` 表示 s1 的一次 pipeline pass），而 harness 是 `dslc/backends/boogie.py` 生成的一大段“胶水代码”，典型入口是：
+在本仓库里，“被验证的程序本体”主要是 **P4B 输出的每个节点 Boogie**（例如 `s1_mainProcedure()` 表示 s1 的一次 pipeline pass），而 harness 由 `dslc/backends/boogie_harness.py` 生成、并由 `dslc/backends/boogie_backend.py` 拼接进最终 `.bpl`；典型入口是：
 
 - `procedure ULTIMATE.start()`（Ultimate 的入口，负责启动主循环）
 - `procedure mainProcedure()`（一次性初始化 + `while(true)`）
@@ -119,8 +120,8 @@ procedure main() {
 
 对应实现：
 
-- `dslc/backends/boogie.py:_emit_sequential_main`（生成 `main()` 与 action 列表）
-- `dslc/backends/boogie.py:_emit_sequential_main`（生成 `mainProcedure()` 的 while(true) 驱动）
+- `dslc/backends/boogie_harness.py:_emit_sequential_main`（生成 `main()` 与 action 列表）
+- `dslc/backends/boogie_harness.py:_emit_sequential_main`（生成 `mainProcedure()` 的 while(true) 驱动）
 
 > 这套 sequential harness 的目的，是让 Ultimate 可以在一个“经典的顺序程序 + while(true)”框架下做 unbounded 推理；并发 harness（fork/atomic + 全局锁）也存在，但 wrap-around 加速 v0/v1 目前以 sequential harness 为主。
 
@@ -151,7 +152,7 @@ P4 语义里寄存器如果没有由控制面显式配置，通常默认 0。Boo
 - `assume (forall i :: reg[i] == 0)`
 - 同时保留 `reg[0]==0` 作为辅助（便于某些工具/简化）
 
-对应实现：`dslc/backends/boogie.py:_emit_register_init_assumes`
+对应实现：`dslc/backends/boogie_harness.py:_emit_register_init_assumes`
 
 ---
 
@@ -423,10 +424,13 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 ### 6.1 DSL 编译与 Boogie 生成
 
 - `dslc/compiler.py`：解析 `.prop` → 语义检查 → 调用后端
-- `dslc/backends/boogie.py`：
-  - 调 P4B：`P4BTranslator.compile_to_bpl`（支持 `--goto/--meta-out/--bmv2cmds/--slicing-vars`）
-  - 前缀化每个节点的 Boogie，避免命名冲突
-  - 生成 harness（sequential 或 concurrent）
+- `dslc/backends/boogie.py`：后端入口（仅 re-export `BoogieBackend`）
+- `dslc/backends/boogie_backend.py`：Boogie 后端编排（调用 P4B、前缀化、寄存器写插桩、拼接节点 + harness）
+  - 调 P4B：`dslc/backends/boogie_p4b.py:P4BTranslator.compile_to_bpl`（支持 `--goto/--meta-out/--bmv2cmds/--slicing-vars`）
+  - 前缀化：`dslc/backends/boogie_prefix.py:BoogiePrefixer`（避免命名冲突；跳过 `$builtin/{:inline ...}` 等）
+  - 寄存器写插桩：`dslc/backends/boogie_registers.py:instrument_register_writes`（last/index0 追踪变量）
+- `dslc/backends/boogie_harness.py`：系统级 harness 生成（sequential/concurrent；队列/事件语义；assert/trace）
+- `dslc/backends/boogie_seeds.py`：分布式 slicing 种子与 `hdr.*` 反向传播（用于全局剪枝/收紧 env havoc）
 
 其中，**slicing + env-input pruning** 的关键准则是“职责分离”：
 
@@ -457,7 +461,10 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 
 ### 6.3 端到端脚本（产物对齐 + 可复现）
 
-实现文件：`Procurator/argo/code/spec/prop_compile/run_wraparound.py`
+实现文件：
+
+- `dslc/workflows/wraparound.py`：只生成产物（base `.bpl` + staged `.bpl` + manifest），不跑 Ultimate
+- `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：runner（可 end-to-end，也可用 `--base-bpl` 复用已有 base）
 
 它负责把多个部件串起来：
 

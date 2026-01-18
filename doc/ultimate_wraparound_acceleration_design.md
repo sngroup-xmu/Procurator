@@ -174,7 +174,6 @@ v0 采用“够用即可”的默认投影（后续再 CEGAR 精化）：
 
 - 调度相关：
   - `procurator_phase`（若使用 deterministic scheduler）
-    - 注：当前 deterministic round-robin 的每个 action 都用 `if (enabled) { ... }` 包裹，`enabled` 不满足时该步为 no-op（避免 host/node 暂时不可执行时死锁）。
   - 或者 `choice`（若使用 nondet scheduler，需把 choice 暴露为变量）
 - 队列相关：
   - `s1_inbox_count`, `s2_inbox_count`, ...
@@ -296,11 +295,12 @@ v1 推荐路线 A：先把工程闭环跑通，再考虑路线 B 的“更语义
 
 ### 6.1 v0（1~2 周内目标）
 
-v0 在本仓库已经落地成“外部编排 + Boogie→Boogie 变换”的工作流（避免污染 `dslc/backends/boogie.py`，保持单一职责）：
+v0 在本仓库已经落地成“外部编排 + Boogie→Boogie 变换”的工作流（避免污染 Boogie 后端编排/语义层：`dslc/backends/boogie_backend.py` / `dslc/backends/boogie_harness.py`，保持单一职责）：
 
-1) `dslc/transform/wraparound.py`：生成 `closure_check/confirm` 等阶段的变换版 `.bpl`
-2) `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：外部编排脚本（按阶段生成 `.bpl` + 跑 Ultimate）
-3) Netchain（`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`）作为最小可复现实验：在 minutes 级触发翻转反例
+1) `dslc/transform/wraparound.py`：Boogie→Boogie 变换（生成 `closure_check/confirm` 等阶段 `.bpl`）
+2) `dslc/workflows/wraparound.py`：产物生成器（base 编译 + 候选推断 + staged `.bpl` + manifest；不跑 Ultimate）
+3) `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：外部编排 runner（按阶段生成 `.bpl` + 跑 Ultimate）
+4) Netchain（`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`）作为最小可复现实验：在 minutes 级触发翻转反例
 
 ### 6.2 v1（2~6 周内目标）
 
@@ -330,7 +330,7 @@ v0 在本仓库已经落地成“外部编排 + Boogie→Boogie 变换”的工�
 
 ## 8. 与当前仓库代码的结合点（指路）
 
-- Boogie harness/插桩生成：`dslc/backends/boogie.py`
+- Boogie harness/系统级语义生成：`dslc/backends/boogie_backend.py` / `dslc/backends/boogie_harness.py`
 - 一键跑 Ultimate：`Procurator/argo/code/spec/prop_compile/run_gemcutter.py`
 - 现成 reachability toolchain：`ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety.xml`
 - 现成 LTL toolchain（可选）：`ultimate/trunk/examples/toolchains/LTLAutomizer.xml`
@@ -388,21 +388,10 @@ V1 的核心是让“闭包泵证明”只跑在少量真正相关的寄存器�
 
 #### 9.3.1 从性质出发的依赖分析（P4B slicing）
 
-1) 从 `.prop` 中提取 **Property seeds（性质种子）**：
-   - 所有 `assume { ... }` / `assert { ... }` 中引用到的 P4 变量（约束可行性/性质可观测量）
-   - node/host 的**非 env** DSL 语句中引用到的 P4 变量（例如 “看到某个 meta 值后设置一个 DSL flag”，这种写法常见于你们的基准）
-
-   > 关键点：`env { ... }` 是输入建模，不是切片准则。我们不把 env 字段当 seeds，避免把“为了构造包而写的字段”误当作性质观测量，从而被动保留大量无关 pipeline（DistCache 的 value 路径就是典型）。
-
-2) 系统层面补充 **Communication seeds（通信种子）**（因为 P4B slicer 本身不知道我们的分布式 harness/topology 语义）：
-   - 若存在 `topology { link ... }`：补充转发/事件控制变量（如 `standard_metadata.egress_port/egress_spec`、`p4b_clone_*`、`p4b_recirculate` 等），避免切片删掉“决定包是否/往哪转发”的逻辑，从而改变下游可达性。
-   - 若 `topology {}`：默认不补充转发相关控制量，只保留会导致**本节点再入队**的控制量（如 `p4b_recirculate`/`p4b_clone_i2i`），以免破坏单节点 pass 语义。
-
-3) 用 P4B 的 slicing（或你们已有的 seed-driven slicing）把：
-   - 与 seeds 无关的寄存器/元数据/表项逻辑剪掉
-   - 同步把 env-input 的 `havoc` 收缩到仅影响 slice 的字段（InputsNeeded）
-
-4) 若是多节点系统：沿拓扑反向传播 **on-wire packet seeds**，只传播 `hdr.*`（跨链路真正会传输的字段），不传播 `meta.*`/`standard_metadata.*`（节点本地）。
+1) 从 `.prop` 的 global asserts/关系断言中提取 seed（涉及的状态变量）
+2) 用 P4B 的 slicing（或你们已有的 seed-driven slicing）把：
+   - 与 seed 无关的寄存器/元数据/表项逻辑剪掉
+   - env 的 `havoc` 也同步剪到仅影响 slice 的字段
 
 产物：
 
@@ -551,3 +540,79 @@ V1 的核心是让“闭包泵证明”只跑在少量真正相关的寄存器�
 - **SAFE（不在 wraparound 管线里做承诺）**：如果你需要证明 SAFE，就直接对 *原模型* 运行 Ultimate/GemCutter/Automizer 的原生证明流程（不启用任何快进/加速变换）。wraparound 管线的职责不是给出 SAFE 证明，而是给出 *sound UNSAFE* 与诊断信息。
 
 换句话说：wraparound 管线是一个 **bug-finding accelerator**；它不追求完备性（可能漏 bug），但追求“报 bug 必真”（在模型/假设下）。
+
+---
+
+## Appendix A. 集成到 dslc 的 workflow（建议：把 wraparound 当作“可选编译管线”，而不是塞进 boogie 后端）
+
+目标：把“寄存器翻转加速”变成验证系统的一部分，但遵循单一职责：
+
+- `boogie 后端`只负责“把系统语义编译成 base `.bpl`”；
+- `wraparound`作为**独立模块/管线**，在 base `.bpl` 之上做“候选推断 + 插桩 + 生成多个验证任务（.bpl）”；
+- “跑 Ultimate/GemCutter”仍然由一个 runner 脚本负责（可以留在 `Procurator/.../prop_compile`，也可以后续搬到 `dslc/toolchain/`），避免编译器同时承担执行/资源管理。
+
+### A.1 代码落点（现状 vs 目标）
+
+**现状（已具备的可复用模块）**
+
+- P4B（语义/分析）：
+  - `P4B-Translator/backends/verify/analysis/monotonic.cpp`：识别寄存器仿射/单调更新并写入 `--meta-out` 的 `wraparound.updates`。
+- dslc（分析/变换）：
+  - `dslc/analysis/wraparound_candidates.py`：从 spec 的 global assert（NetChain-style）或 P4B meta（DistCache-style）推断候选 `WraparoundCandidate`。
+  - `dslc/transform/wraparound.py`：对 base `.bpl` 做 `ENTRY_CHECK/CLOSURE_CHECK/PUMP/ACCEL/CONFIRM` 等阶段变换。
+- runner（外部编排）：
+  - `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：端到端串联编译 → 候选 → 多阶段 `.bpl` → 调 Ultimate。
+
+**目标（把“编排产物生成”搬进 dslc 的独立模块）**
+
+- 新增：`dslc/workflows/wraparound.py`（或 `dslc/pipelines/wraparound.py`）
+  - 输入：`spec_path`, `p4b_bin`, `out_dir`, `dslc 编译参数（prune/por/harness/...）`
+  - 输出：
+    - base `.bpl`（沿用 `dslc/compiler.py` 的 boogie backend）
+    - `wraparound.manifest.json`（候选列表 + 每个候选的阶段 bpl 路径 + 关键参数）
+    - 每个候选的一组阶段 `.bpl`（entry_check/closure_check/confirm 等）
+  - 不负责跑 Ultimate（只产出任务）。
+
+### A.2 推荐的端到端执行顺序（保证 UNSAFE sound）
+
+把 wraparound 视为一个“加速器”：只有在通过健全性前置检查时才允许 fast-forward。
+
+对每个候选 `cand`（pump_reg/index/step_delta/proj_vars）：
+
+1) **Base 编译**（无加速，原语义）
+   - `dslc` 产出 `base.bpl` 与 per-node `*.meta.json`（来自 P4B `--meta-out`）。
+2) **ENTRY_CHECK（可达性 sanity）**
+   - 目的：避免 env/表项/路径约束不一致导致“空模型”，从而出现莫名其妙的 `SAFE/UNKNOWN` 或伪结论。
+   - 若 entry_check 本身 `UNSAFE`：说明 base harness 就已违反某个 reachability 断言（大概率是规格/环境问题），此时直接回退到 base 调试，不进入 wraparound。
+3) **CLOSURE_CHECK（闭包泵证明）**
+   - 目的：证明“泵循环的闭包性/可重复性”（在投影 `proj_vars` 下回到同一等价类，并且目标寄存器必然按 `+delta` 推进）。
+   - 只有当 `closure_check == SAFE`（或工具给出可接受的“证明结论”）时，才允许进入 fast-forward。
+4) **CONFIRM（fast-forward 后的全语义确证）**
+   - 在保持 base harness 不变的前提下，把目标寄存器槽位 fast-forward 到 `MAX`（或阈值附近），再用原断言快速找翻转后缀。
+   - 若 `confirm == UNSAFE`：在 “entry_check 可达 + closure_check 成立” 前提下，这是 **sound 的 UNSAFE**（在模型与假设下确实存在从初态到翻转的可达路径）。
+   - 若 `confirm == SAFE/UNKNOWN`：回退到 base 的正常验证流程（GemCutter/Automizer），wraparound 仅作为“可用时加速”的优化。
+
+### A.3 与 slicing/prune 的配合（避免“切片把泵剪没了”）
+
+- base 编译时仍建议开启 `--no-prune` 以外的默认剪枝（切片/输入剪枝）来降低状态空间。
+- 但 wraparound 依赖的最小 seed 需要满足：
+  - 性质相关变量（global assert 依赖）
+  - 转发/跨节点通信控制量（egress_port/clone/recirc）
+  - 以及候选寄存器槽位（reg[idx] 或其 derived value var）
+- 这部分种子策略应由 `dslc/backends/boogie_seeds.py` 统一管理；wraparound 模块只消费 base `.bpl` 与 meta，不在 boogie 后端里“硬编码特例”。
+
+### A.4 产物对齐（便于回归与复现）
+
+建议 `dslc/workflows/wraparound.py` 输出一个 manifest（JSON）：
+
+- `base_bpl` 路径
+- `candidates[]`：
+  - `tag`（可复现命名：pump_reg + idx + reason）
+  - `params`（pump_reg/index/step_delta/proj_vars/cutpoint）
+  - `bpl`：entry_check/closure_check/confirm（以及可选 pump/accel）
+
+这样 runner 可以：
+
+- 并行跑多个候选；
+- 把 “closure_check 失败/成功” 明确区分为不同失败原因；
+- 产物可直接用于论文/报告（每个阶段都有 bpl + log + witness）。
