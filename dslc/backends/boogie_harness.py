@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from lark import Tree
 
 from ..speclang.model import HostDecl, LinkDecl, NodeDecl, SpecModel
-from .boogie_common import dsl_is_simple_local_name, dsl_type_to_boogie, is_on_wire_packet_var
+from .boogie_common import dsl_is_simple_local_name, dsl_type_to_boogie, is_on_wire_packet_var, is_packet_var
 from .boogie_dsl import collect_dotted_vars
 from .boogie_errors import BoogieBackendError
 from .boogie_pipeline import PipelineStages
@@ -17,6 +17,7 @@ _dsl_is_simple_local_name = dsl_is_simple_local_name
 _dsl_type_to_boogie = dsl_type_to_boogie
 _collect_dotted_vars = collect_dotted_vars
 _is_on_wire_packet_var = is_on_wire_packet_var
+_is_packet_var = is_packet_var
 _PipelineStages = PipelineStages
 
 
@@ -89,6 +90,8 @@ class BoogieHarnessEmitter:
             set(self._node_pipeline_stages.keys()) if self._pipeline_two_stage else set()
         )
         self._por_guards: Dict[str, List[str]] = {}
+        # Two-stage pipeline: preserve packet state across ingress->egress.
+        self._two_stage_snapshot_vars: Dict[str, List[str]] = {}
         self._dsl_global_vars: Dict[str, str] = {}  # name -> boogie type
         self._dsl_node_vars: Dict[str, Dict[str, str]] = {}  # node -> (name -> boogie type)
         self._dsl_host_vars: Dict[str, Dict[str, str]] = {}  # host -> (name -> boogie type)
@@ -394,6 +397,18 @@ class BoogieHarnessEmitter:
                     if self._is_two_stage_node(a):
                         lines.append(f"var {a}_egress_count: int;\n")
                 lines.append("\n")
+                lines.append("// Two-stage pipeline: egress mailbox snapshots (preserve packet state across stages)\n")
+                for a in node_aliases:
+                    if not self._is_two_stage_node(a):
+                        continue
+                    for v in self._two_stage_snapshot_var_bases(a):
+                        vt = self._node_var_types.get(a, {}).get(v)
+                        if not isinstance(vt, str) or not vt.strip():
+                            continue
+                        typ = self._prefix_node_type(a, vt)
+                        lines.append(f"var {self._egress_mailbox_var(a, v)}: {typ};\n")
+                        lines.append(f"var {self._ingress_saved_var(a, v)}: {typ};\n")
+                lines.append("\n")
 
             # Single-slot mailbox classification: whether the currently-stored packet fields originated from Env injection.
             # This lets us avoid havoc'ing forwarded packets (otherwise forwarding copy is immediately overwritten).
@@ -509,6 +524,18 @@ class BoogieHarnessEmitter:
             for a in node_aliases:
                 if self._is_two_stage_node(a):
                     lines.append(f"var {a}_egress_count: int;\n")
+            lines.append("\n")
+            lines.append("// Two-stage pipeline: egress mailbox snapshots (preserve packet state across stages)\n")
+            for a in node_aliases:
+                if not self._is_two_stage_node(a):
+                    continue
+                for v in self._two_stage_snapshot_var_bases(a):
+                    vt = self._node_var_types.get(a, {}).get(v)
+                    if not isinstance(vt, str) or not vt.strip():
+                        continue
+                    typ = self._prefix_node_type(a, vt)
+                    lines.append(f"var {self._egress_mailbox_var(a, v)}: {typ};\n")
+                    lines.append(f"var {self._ingress_saved_var(a, v)}: {typ};\n")
             lines.append("\n")
 
         # Single-slot mailbox classification: whether the currently-stored packet fields originated from Env injection.
@@ -703,6 +730,104 @@ class BoogieHarnessEmitter:
     def _egress_proc_name(self, node: str) -> str:
         return f"{node}__procurator_egress"
 
+    def _prefix_node_type(self, node: str, typ: str) -> str:
+        """
+        P4B emits node-local type aliases (e.g., `error`, `egressSpec_t`).
+        After prefixing, these become `<node>_<type>`. Harness-declared variables
+        must use the prefixed name.
+        """
+        t = typ.strip()
+        if not t:
+            return t
+        if t in {"int", "bool"}:
+            return t
+        if t.startswith("bv") and t[2:].isdigit():
+            return t
+        if t.startswith(f"{node}_"):
+            return t
+        return f"{node}_{t}"
+
+    def _is_snapshot_scalar(self, node: str, base: str) -> bool:
+        """
+        Snapshot only scalar, non-Ref variables into the two-stage egress mailbox.
+
+        We intentionally skip:
+          - references (`Ref`) and reference-like types
+          - map/array types like `[bv32]bv16` (stateful/register arrays)
+        """
+        vt = self._node_var_types.get(node, {}).get(base)
+        if not isinstance(vt, str) or not vt.strip():
+            return False
+        t = vt.strip()
+        if t == "Ref" or t.endswith("Ref"):
+            return False
+        if t.startswith("["):
+            return False
+        return True
+
+    def _egress_mailbox_var(self, node: str, base: str) -> str:
+        return f"{node}__eg_{base}"
+
+    def _ingress_saved_var(self, node: str, base: str) -> str:
+        return f"{node}__ig_saved_{base}"
+
+    def _two_stage_snapshot_var_bases(self, node: str) -> List[str]:
+        """
+        Vars to preserve across ingress->egress for two-stage pipeline nodes.
+
+        Rationale: when ingress and egress are scheduled as separate steps, other
+        injections/passes may overwrite per-packet Boogie globals. Without an
+        explicit snapshot, egress (and DSL asserts placed after egress) can observe
+        a mix of states from different packets, yielding false counterexamples.
+        """
+        if not self._is_two_stage_node(node):
+            return []
+        cached = self._two_stage_snapshot_vars.get(node)
+        if cached is not None:
+            return cached
+
+        declared = self._node_declared_vars.get(node, set())
+        snapshot: set[str] = set()
+
+        # Always keep scalar packet/meta vars; these are the main source of mixing.
+        for v in declared:
+            if _is_packet_var(v) and "[" not in v and self._is_snapshot_scalar(node, v):
+                snapshot.add(v)
+
+        # Keep key per-pass control flags if present.
+        for v in ("drop", "forward"):
+            if v in declared and self._is_snapshot_scalar(node, v):
+                snapshot.add(v)
+
+        # Keep any scalar vars referenced by DSL assertions (node-local + global).
+        exprs: List[Tree] = []
+        exprs.extend(self._spec.nodes.get(node, NodeDecl(name=node)).assert_exprs)
+        exprs.extend(self._spec.global_decl.assert_exprs)
+        for expr in exprs:
+            for dv in _collect_dotted_vars(expr):
+                # Ignore DSL locals (these are modeled as separate harness globals).
+                if _dsl_is_simple_local_name(dv) and dv in self._dsl_node_vars.get(node, {}):
+                    continue
+                if _dsl_is_simple_local_name(dv) and dv in self._dsl_global_vars:
+                    continue
+                # Resolve `node_x` prefix if present; ignore other-node refs.
+                raw = dv
+                if dv.startswith(f"{node}_"):
+                    raw = dv[len(node) + 1 :]
+                else:
+                    for other in self._spec.imports.keys():
+                        if other != node and dv.startswith(f"{other}_"):
+                            raw = ""
+                            break
+                if not raw or "[" in raw:
+                    continue
+                if raw in declared and self._is_snapshot_scalar(node, raw):
+                    snapshot.add(raw)
+
+        out = sorted(snapshot)
+        self._two_stage_snapshot_vars[node] = out
+        return out
+
     def _emit_env_thread(self, k: int) -> str:
         # Determine which nodes can receive external inputs.
         nodes = list(self._spec.imports.keys())
@@ -786,6 +911,11 @@ class BoogieHarnessEmitter:
             out.append(f"{indent}// DSL statements (per-pass instrumentation)\n")
             out.append(dsl_stmt_lines)
         out.append(f"{indent}call {self._ingress_proc_name(node)}();\n")
+        snap = self._two_stage_snapshot_var_bases(node)
+        if snap:
+            out.append(f"{indent}// Snapshot per-packet state for deferred egress.\n")
+            for v in snap:
+                out.append(f"{indent}{self._egress_mailbox_var(node, v)} := {node}_{v};\n")
         out.append(f"{indent}// Schedule egress for the original packet.\n")
         out.append(f"{indent}assume {node}_egress_count < {k};\n")
         out.append(f"{indent}{node}_egress_count := {node}_egress_count + 1;\n")
@@ -813,9 +943,21 @@ class BoogieHarnessEmitter:
         clone_flags: List[str],
     ) -> str:
         out: List[str] = []
+        snap = self._two_stage_snapshot_var_bases(node)
+        if snap:
+            out.append(f"{indent}// Two-stage: swap in the pending egress packet snapshot.\n")
+            for v in snap:
+                out.append(f"{indent}{self._ingress_saved_var(node, v)} := {node}_{v};\n")
+            for v in snap:
+                out.append(f"{indent}{node}_{v} := {self._egress_mailbox_var(node, v)};\n")
+
         out.append(f"{indent}call {self._egress_proc_name(node)}();\n")
         if "p4b_clone_e2e" in clone_flags:
             out.append(f"{indent}if ({node}_p4b_clone_e2e) {{\n")
+            if snap:
+                out.append(f"{indent}  // Snapshot the cloned packet for the next egress pass.\n")
+                for v in snap:
+                    out.append(f"{indent}  {self._egress_mailbox_var(node, v)} := {node}_{v};\n")
             out.append(f"{indent}  assume {node}_egress_count < {k};\n")
             out.append(f"{indent}  {node}_egress_count := {node}_egress_count + 1;\n")
             out.append(f"{indent}}}\n")
@@ -823,10 +965,6 @@ class BoogieHarnessEmitter:
             out.append(f"{indent}if ({node}_p4b_recirculate) {{\n")
             out.append(self._emit_internal_enqueue_stmt(node, k, indent=indent + "  "))
             out.append(f"{indent}}}\n")
-        if clone_flags:
-            out.append(f"{indent}// Clear clone/recirculate flags after egress.\n")
-            for flag in clone_flags:
-                out.append(f"{indent}{node}_{flag} := false;\n")
         out.append(f"{indent}call {node}_Forward();\n")
         trace_lines = self._emit_trace_assignments(node, indent=indent, stage_id=2)
         dbg_needed = bool(assert_lines or trace_lines)
@@ -841,6 +979,22 @@ class BoogieHarnessEmitter:
         if assert_lines:
             out.append(f"{indent}// DSL assertions\n")
             out.append(assert_lines)
+
+        # Restore ingress mailbox state unless we just enqueued a recirculated packet (self-enqueue overwrites mailbox).
+        if snap:
+            if "p4b_recirculate" in clone_flags:
+                out.append(f"{indent}if (!{node}_p4b_recirculate) {{\n")
+                for v in snap:
+                    out.append(f"{indent}  {node}_{v} := {self._ingress_saved_var(node, v)};\n")
+                out.append(f"{indent}}}\n")
+            else:
+                for v in snap:
+                    out.append(f"{indent}{node}_{v} := {self._ingress_saved_var(node, v)};\n")
+
+        if clone_flags:
+            out.append(f"{indent}// Clear clone/recirculate flags after egress.\n")
+            for flag in clone_flags:
+                out.append(f"{indent}{node}_{flag} := false;\n")
         return "".join(out)
 
     def _emit_node_thread(self, node: str, k: int) -> str:
@@ -893,6 +1047,11 @@ class BoogieHarnessEmitter:
         two_stage = self._is_two_stage_node(node)
         if two_stage:
             modifies_set.add(f"{node}_egress_count")
+            for v in self._two_stage_snapshot_var_bases(node):
+                # Two-stage pipeline: egress step swaps/restores the active packet globals.
+                modifies_set.add(f"{node}_{v}")
+                modifies_set.add(self._egress_mailbox_var(node, v))
+                modifies_set.add(self._ingress_saved_var(node, v))
         for l in self._spec.links:
             if l.src == node:
                 modifies_set.add(f"{l.dst}_inbox_count")
@@ -1092,6 +1251,10 @@ class BoogieHarnessEmitter:
         for a in node_aliases:
             if self._is_two_stage_node(a):
                 start_modifies.add(f"{a}_egress_count")
+                for v in self._two_stage_snapshot_var_bases(a):
+                    start_modifies.add(f"{a}_{v}")
+                    start_modifies.add(self._egress_mailbox_var(a, v))
+                    start_modifies.add(self._ingress_saved_var(a, v))
         # DSL locals are globals and may be initialized here.
         start_modifies.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
         for a in node_aliases:
@@ -1194,6 +1357,10 @@ class BoogieHarnessEmitter:
         for a in node_aliases:
             if self._is_two_stage_node(a):
                 mods.add(f"{a}_egress_count")
+                for v in self._two_stage_snapshot_var_bases(a):
+                    mods.add(f"{a}_{v}")
+                    mods.add(self._egress_mailbox_var(a, v))
+                    mods.add(self._ingress_saved_var(a, v))
 
         mods.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
         for a in node_aliases:
