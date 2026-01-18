@@ -5998,120 +5998,152 @@ void Translator::translate(const IR::P4Table *p4Table){
                             }
                             handledDefault = true;
                         }
-                    }
+	                    }
 
-                    if(!handledDefault){
-                        int cnt = actionList->actionList.size();
+	                    if(!handledDefault){
+	                        auto isNoAction = [](const cstring& actionName) -> bool {
+	                            if (actionName == nullptr) {
+	                                return false;
+	                            }
+	                            // BMv2 uses NoAction / NoAction_*; do not assume its position in the action list.
+	                            std::string s(actionName.c_str());
+	                            return s == "NoAction" || s.rfind("NoAction_", 0) == 0;
+	                        };
 
-                        // goto statement
-                        if(options.gotoOrIf){
-                            bool firstAction = true;
-                            for(auto actionElement:actionList->actionList){
-                                if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
-                                    // NoAction should not be considered
-                                    cnt--;
-                                    if(cnt == 0)
-                                        break;
+	                        // In BMv2, if no table rules are configured (and control-plane does not override the
+	                        // default), the table deterministically executes the P4-program default action.
+	                        if (options.gotoOrIf && bMV2CmdsAnalyzer != nullptr) {
+	                            cstring defaultActionName = nullptr;
+	                            for (auto prop : p4Table->properties->properties) {
+	                                if (prop->getName() != "default_action") {
+	                                    continue;
+	                                }
+	                                if (auto ev = prop->value->to<IR::ExpressionValue>()) {
+	                                    const IR::Expression* expr = ev->expression;
+	                                    if (auto mce = expr->to<IR::MethodCallExpression>()) {
+	                                        if (mce->arguments == nullptr || mce->arguments->size() == 0) {
+	                                            defaultActionName = translate(mce->method);
+	                                        }
+	                                    } else if (auto pe = expr->to<IR::PathExpression>()) {
+	                                        defaultActionName = translate(pe);
+	                                    }
+	                                }
+	                                break;
+	                            }
 
-                                    cstring actionName = translate(actionCallExpr->method);
-                                    if(!firstAction) gotoStmt += ", ";
-                                    else firstAction = false;
-                                    gotoStmt += "action_"; gotoStmt += actionName;
-                                }
-                            }
-                            if(!firstAction){
-                                gotoStmt += ";\n";
-                                table.addStatement(gotoStmt);
-                            } else {
-                                table.addStatement(getIndent()+"goto Exit;\n");
-                            }
-                        }
+	                            if (defaultActionName != nullptr && actions.find(defaultActionName) != actions.end()) {
+	                                table.addStatement(getIndent()+name+".action_run := "+
+	                                    name+".action."+defaultActionName+";\n");
+	                                table.addModifiedGlobalVariables(name+".action_run");
+	                                table.addStatement(getIndent()+"call "+defaultActionName+"();\n");
+	                                table.addSucc(defaultActionName);
+	                                addPred(defaultActionName, tableName);
+	                                table.addStatement(getIndent()+"goto Exit;\n");
+	                                handledDefault = true;
+	                            }
+	                        }
 
-                        cnt = actionList->actionList.size();
-                        bool firstAction = true;
-                        // std::cout << tableName << " " << cnt << std::endl;
-                        for(auto actionElement:actionList->actionList){
-                            // if(actionList->actionList.size()!=1){
-                            //     table.addStatement(getIndent()+"assume(");
-                            // }
-                            
-                            // NoAction should not be considered
-                            cnt--;
-                            // if(cnt == 0)
-                            //     break;
-                            // std::cout << "action: " << actionElement->expression->toString() << std::endl;
-                            if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
-                                cstring actionName = translate(actionCallExpr->method);
-                                // std::cout << "action: " << actionName << std::endl;
-                                std::string label("\n"+getIndent());
-                                label += "action_"; label += actionName; label += ":\n";
-                                if(options.gotoOrIf){
-                                    table.addStatement(label);
-                                }
+	                        // Fallback: nondeterministically choose one of the table's actions (excluding NoAction).
+	                        // This is used when no control-plane config is available.
+	                        if (!handledDefault && options.gotoOrIf){
+	                            bool firstAction = true;
+	                            for(auto actionElement:actionList->actionList){
+	                                cstring actionName = nullptr;
+	                                if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+	                                    actionName = translate(actionCallExpr->method);
+	                                } else if (auto pe = actionElement->expression->to<IR::PathExpression>()) {
+	                                    actionName = translate(pe);
+	                                }
+	                                if (actionName == nullptr || isNoAction(actionName)) {
+	                                    continue;
+	                                }
+	                                if(!firstAction) gotoStmt += ", ";
+	                                else firstAction = false;
+	                                gotoStmt += "action_"; gotoStmt += actionName;
+	                            }
+	                            if(!firstAction){
+	                                gotoStmt += ";\n";
+	                                table.addStatement(gotoStmt);
+	                            } else {
+	                                table.addStatement(getIndent()+"goto Exit;\n");
+	                            }
+	                        }
 
-                                if(actionList->actionList.size()!=1){
-                                    // table.addStatement(getIndent()+"assume("+name+".action_run == "+name+".action."
-                                        // +actionName+");\n");
-                                }
+	                        bool firstAction = true;
+	                        // std::cout << tableName << " " << actionList->actionList.size() << std::endl;
+	                        for(auto actionElement:actionList->actionList){
+	                            cstring actionName = nullptr;
+	                            if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
+	                                actionName = translate(actionCallExpr->method);
+	                            } else if (auto pe = actionElement->expression->to<IR::PathExpression>()) {
+	                                actionName = translate(pe);
+	                            }
+	                            if (actionName == nullptr || isNoAction(actionName)) {
+	                                continue;
+	                            }
+	                            // std::cout << "action: " << actionName << std::endl;
+	                            std::string label("\n"+getIndent());
+	                            label += "action_"; label += actionName; label += ":\n";
+	                            if(options.gotoOrIf){
+	                                table.addStatement(label);
+	                            }
 
-                                if(options.gotoOrIf){
-                                    table.addStatement(getIndent()+"assume "+name+".action_run == "+
-                                        name+".action."+actionName+";\n");
-                                    table.addModifiedGlobalVariables(name+".action_run");
-                                }
-                                else{
-                                    if(firstAction){
-                                        hasIfChain = true;
-                                        table.addStatement(getIndent()+"if("+name+".action_run == "+
-                                            name+".action."+actionName+"){\n");
-                                        firstAction = false;
-                                    }
-                                    else{
-                                        table.addStatement(getIndent()+"else if("+name+".action_run == "+
-                                            name+".action."+actionName+"){\n");
-                                    }
-                                    incIndent();
-                                }
-                                
-                                const IR::P4Action* action = actions[actionName];
-                                table.addStatement(getIndent()+"call "+actionName+"(");
-                                table.addSucc(actionName);
-                                addPred(actionName, tableName);
-                                int cnt2 = action->parameters->parameters.size();
-                                for(auto parameter:action->parameters->parameters){
-                                    cnt2--;
-                                    if(options.ultimateAutomizer && options.bitBlasting && 
-                                        parameter->type->to<IR::Type_Bits>()){
-                                        auto typeBits = parameter->type->to<IR::Type_Bits>();
-                                        cstring stmt = "";
-                                        for(int i = 0; i < typeBits->size; i++){
-                                            stmt += connect(actionName+"."+translate(parameter->name), i);
-                                            if(i < typeBits->size-1) stmt += ", ";
-                                        }
-                                        table.addStatement(stmt);
-                                    }
-                                    else{
-                                        cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
-                                        table.addStatement(parameterName);
-                                    }
-                                    if(cnt2 != 0)
-                                        table.addStatement(", ");
-                                }
-                                table.addStatement(");\n");
-                                if(options.gotoOrIf){
-                                    table.addStatement(getIndent()+"goto Exit;\n");
-                                }
-                                else{
-                                    decIndent();
-                                    table.addStatement(getIndent()+"}\n");
-                                }
-                                // decIndent();
-                            }
-                        }
-                    }
-                    // add action declaration
-                    translate(actionList, name+".action");
-                }
+	                            if(options.gotoOrIf){
+	                                table.addStatement(getIndent()+"assume "+name+".action_run == "+
+	                                    name+".action."+actionName+";\n");
+	                                table.addModifiedGlobalVariables(name+".action_run");
+	                            }
+	                            else{
+	                                if(firstAction){
+	                                    hasIfChain = true;
+	                                    table.addStatement(getIndent()+"if("+name+".action_run == "+
+	                                        name+".action."+actionName+"){\n");
+	                                    firstAction = false;
+	                                }
+	                                else{
+	                                    table.addStatement(getIndent()+"else if("+name+".action_run == "+
+	                                        name+".action."+actionName+"){\n");
+	                                }
+	                                incIndent();
+	                            }
+
+	                            const IR::P4Action* action = actions[actionName];
+	                            table.addStatement(getIndent()+"call "+actionName+"(");
+	                            table.addSucc(actionName);
+	                            addPred(actionName, tableName);
+	                            int cnt2 = action->parameters->parameters.size();
+	                            for(auto parameter:action->parameters->parameters){
+	                                cnt2--;
+	                                if(options.ultimateAutomizer && options.bitBlasting && 
+	                                    parameter->type->to<IR::Type_Bits>()){
+	                                    auto typeBits = parameter->type->to<IR::Type_Bits>();
+	                                    cstring stmt = "";
+	                                    for(int i = 0; i < typeBits->size; i++){
+	                                        stmt += connect(actionName+"."+translate(parameter->name), i);
+	                                        if(i < typeBits->size-1) stmt += ", ";
+	                                    }
+	                                    table.addStatement(stmt);
+	                                }
+	                                else{
+	                                    cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
+	                                    table.addStatement(parameterName);
+	                                }
+	                                if(cnt2 != 0)
+	                                    table.addStatement(", ");
+	                            }
+	                            table.addStatement(");\n");
+	                            if(options.gotoOrIf){
+	                                table.addStatement(getIndent()+"goto Exit;\n");
+	                            }
+	                            else{
+	                                decIndent();
+	                                table.addStatement(getIndent()+"}\n");
+	                            }
+	                        }
+	                    }
+	                    // add action declaration
+	                    translate(actionList, name+".action");
+	                }
                 /* handle table add commands, i.e., table rules
                     1. find the rules of the current table (from BMV2CmdsAnalyzer)
                     2. add condition statements (according to keys and priority)
