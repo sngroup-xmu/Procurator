@@ -1,8 +1,8 @@
 // Gecko bug #3: write arrives before timer is active.
 // Model: if a write occurs before any timer packet, mark it as a violation.
 
-import ta from "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/timer_a.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/control/a.txt";
-import tb from "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/timer_b.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/control/b.txt";
+import ta from "../../dataset/gecko/timer_a.json" entries "../../dataset/gecko/control/a.txt";
+import tb from "../../dataset/gecko/timer_b.json" entries "../../dataset/gecko/control/b.txt";
 
 topology {
   link ta -> tb ALL;

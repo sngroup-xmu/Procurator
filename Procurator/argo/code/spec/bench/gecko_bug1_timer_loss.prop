@@ -1,8 +1,8 @@
 // Gecko bug #1: timer packet loss/blockage -> pending writes stall.
 // Model: client host injects write or timer packets; assert timer must arrive within a bounded window.
 
-import ta from "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/timer_a.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/control/a.txt";
-import tb from "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/timer_b.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/control/b.txt";
+import ta from "../../dataset/gecko/timer_a.json" entries "../../dataset/gecko/control/a.txt";
+import tb from "../../dataset/gecko/timer_b.json" entries "../../dataset/gecko/control/b.txt";
 
 topology {
   link ta -> tb ALL;

@@ -3,15 +3,16 @@
 // Notes:
 // - Uses a repo-shipped P4_16 program (`dataset/ipv4/basic.p4`) for each node.
 // - Intended to be compiled with:
-//     python -m Procurator.argo.code.spec.prop_compile.dslc.compiler \
+//     PYTHONPATH=. .venv/bin/python -m dslc.compiler \
 //       --backend boogie \
 //       --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
 //       --out /tmp/boogie_smoke.bpl \
-//       --p4b-bin <path-to-P4B-Translator/build-host/backends/verify/p4c-translator>
+//       --p4b-bin P4B-Translator/build-host/p4c-translator \
+//       --work-dir /tmp/boogie_smoke.work
 //
 
-import s1 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/ipv4/basic.p4";
-import s2 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/ipv4/basic.p4";
+import s1 from "../../dataset/ipv4/basic.p4";
+import s2 from "../../dataset/ipv4/basic.p4";
 
 topology {
   link s1 -> s2;
@@ -31,5 +32,4 @@ node s2 {
 global {
   queue_capacity = 2;
 }
-
 

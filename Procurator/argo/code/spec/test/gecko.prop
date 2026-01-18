@@ -2,8 +2,8 @@
 // NOTE: Tofino recirculate uses magic egress ports; the Boogie backend
 // treats 68/196 as self-recirculate when a Gecko/Tofino import is detected.
 
-import ta from "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/timer_a.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/control/a.txt";
-import tb from "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/timer_b.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/control/b.txt";
+import ta from "../../dataset/gecko/timer_a.json" entries "../../dataset/gecko/control/a.txt";
+import tb from "../../dataset/gecko/timer_b.json" entries "../../dataset/gecko/control/b.txt";
 
 topology {
   link ta -> tb ALL;

@@ -1,7 +1,7 @@
 // Gecko bug #3 (ta-only): write arrives before timer is active.
 // Reduced to single pipeline to isolate translation correctness and trace sanity.
 
-import ta from "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/timer_a.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/gecko/control/a.txt";
+import ta from "../../dataset/gecko/timer_a.json" entries "../../dataset/gecko/control/a.txt";
 
 topology {
   // ta-only model: no inter-node forwarding

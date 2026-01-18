@@ -1,15 +1,15 @@
 // switchv2p (max-env): egress_port sanity per node + reachability proxy.
 
-import core1  from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/core/CORE1.txt";
-import core2  from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/core/CORE2.txt";
-import spine1 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/spine/SPINE1.txt";
-import spine2 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/spine/SPINE2.txt";
-import spine3 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/spine/SPINE3.txt";
-import spine4 from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/spine/GW_SPINE.txt";
-import tor1   from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/tor/TOR1.txt";
-import tor2   from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/tor/TOR2.txt";
-import tor3   from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/tor/TOR3.txt";
-import tor4   from "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/p4/frontend-ir.json" entries "/mnt/e/p4-verify/Procurator/argo/code/dataset/switchv2p/commands/tor/GW_TOR.txt";
+import core1  from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/core/CORE1.txt";
+import core2  from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/core/CORE2.txt";
+import spine1 from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/spine/SPINE1.txt";
+import spine2 from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/spine/SPINE2.txt";
+import spine3 from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/spine/SPINE3.txt";
+import spine4 from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/spine/GW_SPINE.txt";
+import tor1   from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/tor/TOR1.txt";
+import tor2   from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/tor/TOR2.txt";
+import tor3   from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/tor/TOR3.txt";
+import tor4   from "../../dataset/switchv2p/p4/frontend-ir.json" entries "../../dataset/switchv2p/commands/tor/GW_TOR.txt";
 
 topology {
   link core1 -> spine1 1; link core1 -> spine3 2; link core1 -> core1 68;
