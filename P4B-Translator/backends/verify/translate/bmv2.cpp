@@ -78,6 +78,16 @@ TableSetDefault* BMV2CmdsAnalyzer::getTableSetDefaultCmd(cstring table) const{
 	return nullptr;
 }
 
+std::vector<RegisterWrite*> BMV2CmdsAnalyzer::getRegisterWriteCmds() const{
+	std::vector<RegisterWrite*> res;
+	for(auto cmd:cmds){
+		if(cmd->cmdType == NAME_REGISTER_WRITE){
+			res.push_back((RegisterWrite*)cmd);
+		}
+	}
+	return res;
+}
+
 std::vector<cstring> BMV2Cmd::split(cstring str){
 	return split(std::string(str.c_str()));
 }
@@ -146,7 +156,18 @@ cstring BMV2Cmd::splitFirst(std::string str){
 
 cstring BMV2Cmd::getName(std::string str){
 	std::string::size_type idx = str.find(".");
+	if(idx == std::string::npos){
+		return str;
+	}
 	return str.substr(idx+1);
+}
+
+cstring BMV2Cmd::getControl(std::string str){
+	std::string::size_type idx = str.find(".");
+	if(idx == std::string::npos){
+		return "";
+	}
+	return str.substr(0, idx);
 }
 
 BMV2Cmd::BMV2Cmd(){}
@@ -217,6 +238,7 @@ RegisterWrite::RegisterWrite(cstring _cont){
         std::cerr << "ERROR_INFO: " << cont << std::endl;
 		throw "ERROR: Illegal register_write command!!!\nUsage: register_write <name> <index> <value>";
 	}
+	control = getControl(vec[1].c_str());
 	reg = getName(vec[1].c_str());
 	index = vec[2];
 	value = vec[3];

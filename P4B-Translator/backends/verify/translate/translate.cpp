@@ -1362,7 +1362,40 @@ static void writeJsonWraparoundRegisters(std::ostream &out,
         }
         out << "\n" << indent;
     }
-    out << "]";
+	    out << "]";
+}
+
+static void writeJsonRegisterInits(std::ostream &out,
+                                   const std::map<cstring, std::map<cstring, cstring>> &inits,
+                                   const std::string &indent) {
+    out << indent << "\"register_inits\": {";
+    if (!inits.empty()) {
+        out << "\n";
+        bool firstReg = true;
+        for (const auto &rk : inits) {
+            if (!firstReg) {
+                out << ",\n";
+            }
+            firstReg = false;
+            out << indent << "  \"" << jsonEscape(rk.first.c_str()) << "\": {";
+            if (!rk.second.empty()) {
+                out << "\n";
+                bool firstIdx = true;
+                for (const auto &iv : rk.second) {
+                    if (!firstIdx) {
+                        out << ",\n";
+                    }
+                    firstIdx = false;
+                    out << indent << "    \"" << jsonEscape(iv.first.c_str()) << "\": \""
+                        << jsonEscape(iv.second.c_str()) << "\"";
+                }
+                out << "\n" << indent << "  ";
+            }
+            out << "}";
+        }
+        out << "\n" << indent;
+    }
+    out << "}";
 }
 
 void Translator::writeMetaToFile(std::ostream &metaOut) const {
@@ -1423,6 +1456,142 @@ void Translator::writeMetaToFile(std::ostream &metaOut) const {
     metaOut << ",\n";
     writeJsonWraparoundUpdates(metaOut, options.wraparound_updates, "    ");
     metaOut << "\n  },\n";
+
+    // Control-plane register initialization (BMV2 `register_write`)
+    std::map<cstring, std::map<cstring, cstring>> regInits;
+    if (bMV2CmdsAnalyzer != nullptr) {
+        struct RegInitState {
+            bool hasDefault = false;
+            cstring defaultVal;
+            std::map<cstring, cstring> cells;
+        };
+        std::map<cstring, RegInitState> acc;
+
+        auto isRegisterArrayGlobal = [&](const cstring &name) -> bool {
+            auto it = varTypes.find(name);
+            if (it == varTypes.end()) {
+                return false;
+            }
+            const std::string t = it->second.c_str();
+            return !t.empty() && t[0] == '[';
+        };
+
+        auto resolveBoogieRegister = [&](const RegisterWrite *rw) -> cstring {
+            if (rw == nullptr) {
+                return "";
+            }
+            const cstring regOnly = remapName(rw->reg);
+            const bool hasCtrl = (rw->control != nullptr && rw->control != "");
+            const cstring ctrl = hasCtrl ? remapName(rw->control) : "";
+
+            auto tryExact = [&](const cstring &cand) -> cstring {
+                if (cand != "" && globalVariables.find(cand) != globalVariables.end() &&
+                    isRegisterArrayGlobal(cand)) {
+                    return cand;
+                }
+                // Some backends may use '_' instead of '.' in names.
+                std::string s = cand.c_str();
+                if (s.find('.') != std::string::npos) {
+                    for (auto &ch : s) {
+                        if (ch == '.') ch = '_';
+                    }
+                    cstring alt = s.c_str();
+                    if (globalVariables.find(alt) != globalVariables.end() &&
+                        isRegisterArrayGlobal(alt)) {
+                        return alt;
+                    }
+                }
+                return "";
+            };
+
+            // Prefer explicit (qualified) matches when available.
+            if (hasCtrl) {
+                cstring cand = ctrl + "_" + regOnly;
+                cstring m = tryExact(cand);
+                if (m != "") {
+                    return m;
+                }
+                cand = ctrl + "." + regOnly;
+                m = tryExact(cand);
+                if (m != "") {
+                    return m;
+                }
+            }
+            {
+                cstring m = tryExact(regOnly);
+                if (m != "") {
+                    return m;
+                }
+            }
+
+            // Fallback: suffix match (e.g., `netcacheEgress_latest_reg` for `latest_reg`).
+            std::vector<cstring> matchesCtrl;
+            std::vector<cstring> matchesAny;
+            const std::string suffix = "_" + std::string(regOnly.c_str());
+            const std::string prefix = hasCtrl ? (std::string(ctrl.c_str()) + "_") : "";
+
+            for (const auto &g : globalVariables) {
+                if (!isRegisterArrayGlobal(g)) {
+                    continue;
+                }
+                const std::string gs = g.c_str();
+                const bool ends = (gs == regOnly.c_str()) ||
+                                  (gs.size() > suffix.size() &&
+                                   gs.rfind(suffix) == gs.size() - suffix.size());
+                if (!ends) {
+                    continue;
+                }
+                matchesAny.push_back(g);
+                if (hasCtrl && !prefix.empty() && gs.rfind(prefix, 0) == 0) {
+                    matchesCtrl.push_back(g);
+                }
+            }
+
+            if (matchesCtrl.size() == 1) {
+                return matchesCtrl[0];
+            }
+            if (matchesAny.size() == 1) {
+                return matchesAny[0];
+            }
+            return "";
+        };
+
+        for (const auto *rw : bMV2CmdsAnalyzer->getRegisterWriteCmds()) {
+            const cstring boogieReg = resolveBoogieRegister(rw);
+            if (boogieReg == "") {
+                continue;
+            }
+            cstring idx = str2num(rw->index);
+            cstring val = str2num(rw->value);
+
+            std::string idxs = idx.c_str();
+            const bool isAll = (!idxs.empty() && idxs[0] == '-');
+
+            auto &st = acc[boogieReg];
+            if (isAll) {
+                st.hasDefault = true;
+                st.defaultVal = val;
+                st.cells.clear();
+            } else {
+                st.cells[idx] = val;
+            }
+        }
+
+        for (const auto &kv : acc) {
+            std::map<cstring, cstring> m;
+            if (kv.second.hasDefault) {
+                m["*"] = kv.second.defaultVal;
+            }
+            for (const auto &iv : kv.second.cells) {
+                m[iv.first] = iv.second;
+            }
+            if (!m.empty()) {
+                regInits[kv.first] = m;
+            }
+        }
+    }
+    writeJsonRegisterInits(metaOut, regInits, "  ");
+    metaOut << ",\n";
 
     metaOut << "  \"max_bitvector_size\": " << maxBitvectorSize << "\n";
     metaOut << "}\n";

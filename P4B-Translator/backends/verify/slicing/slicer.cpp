@@ -96,7 +96,15 @@ static void addVarKey(std::set<VarKey, VarKeyLess>& dst, VarKey key) {
         return;
     }
     dst.insert(key);
-    if (key.segs.size() > 1) {
+    // Keep header fields field-sensitive: adding parent keys like `hdr.nc_hdr`
+    // for every field access (e.g., `hdr.nc_hdr.seq`) creates spurious
+    // dependencies across unrelated fields and prevents slicing from pruning
+    // independent state (e.g., Netchain's `value_reg` when slicing for
+    // `sequence_reg` only).
+    //
+    // For non-header bases, keeping the immediate parent is still useful to
+    // conservatively approximate struct assignments.
+    if (key.segs.size() > 1 && key.base != "hdr") {
         VarKey parent = key;
         parent.segs.pop_back();
         dst.insert(parent);
@@ -1793,6 +1801,25 @@ static std::set<VarKey, VarKeyLess> normalizeSeeds(const std::vector<cstring>& s
                 return stripped;
             }
         }
+        // Best-effort: allow unqualified control-plane names (e.g., `latest_reg`) to match
+        // compiler-renamed register declarations (e.g., `netcacheEgress_latest_reg`).
+        {
+            const std::string suffix = "_" + base;
+            std::string match;
+            for (const auto& r : *regDecls) {
+                if (r.size() > suffix.size() && r.rfind(suffix) == r.size() - suffix.size()) {
+                    if (!match.empty()) {
+                        // Ambiguous suffix match: keep the original base.
+                        match.clear();
+                        break;
+                    }
+                    match = r;
+                }
+            }
+            if (!match.empty()) {
+                return match;
+            }
+        }
         std::string withSuffix = base + "_0";
         if (regDecls->count(withSuffix)) {
             return withSuffix;
@@ -1867,7 +1894,24 @@ Slicer::Slicer(const IR::P4Program* program, P4::ReferenceMap* refMap, P4::TypeM
 
 SliceResult Slicer::run(const SliceOptions& opts) {
     SliceResult result;
-    bool doSlicing = opts.enable && !opts.seedVars.empty();
+    std::vector<cstring> seedInputs = opts.seedVars;
+    if (opts.bmv2Analyzer) {
+        for (const auto* rw : opts.bmv2Analyzer->getRegisterWriteCmds()) {
+            if (!rw) {
+                continue;
+            }
+            if (rw->reg != nullptr && rw->reg != "") {
+                seedInputs.push_back(rw->reg);
+            }
+            if (rw->control != nullptr && rw->control != "" && rw->reg != nullptr && rw->reg != "") {
+                std::string qualified = rw->control.c_str();
+                qualified += "_";
+                qualified += rw->reg.c_str();
+                seedInputs.push_back(cstring(qualified.c_str()));
+            }
+        }
+    }
+    bool doSlicing = opts.enable && !seedInputs.empty();
     if (!doSlicing && !opts.collectRw) {
         return result;
     }
@@ -1975,78 +2019,86 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         }
         return false;
     };
-    for (const auto& kv : collector.tables) {
-        const IR::P4Table* table = kv.second;
-        UsesDefs ud;
-        bool fixedDefault = false;
-        if (opts.bmv2Analyzer) {
-            auto it = tableCp.find(kv.first);
-            if (it != tableCp.end()) {
-                fixedDefault = it->second.fixedDefault;
+    auto buildTableUsesDefs =
+        [&](const std::unordered_map<cstring, UsesDefs>& currentActionUsesDefs)
+        -> std::unordered_map<cstring, UsesDefs> {
+        std::unordered_map<cstring, UsesDefs> out;
+        for (const auto& kv : collector.tables) {
+            const IR::P4Table* table = kv.second;
+            UsesDefs ud;
+            bool fixedDefault = false;
+            if (opts.bmv2Analyzer) {
+                auto it = tableCp.find(kv.first);
+                if (it != tableCp.end()) {
+                    fixedDefault = it->second.fixedDefault;
+                }
             }
-        }
-        if (!fixedDefault) {
-            // Table action selection is modeled via action_run.
-            VarKey actionRun;
-            actionRun.base = kv.first.c_str();
-            actionRun.segs.push_back("action_run");
-            addVarKey(ud.defs, actionRun);
-            if (auto key = table->getKey()) {
-                for (auto ke : key->keyElements) {
-                    if (ke && ke->expression) {
-                        collectExprKeys(ke->expression, ud.uses, typeMap);
+            if (!fixedDefault) {
+                // Table action selection is modeled via action_run.
+                VarKey actionRun;
+                actionRun.base = kv.first.c_str();
+                actionRun.segs.push_back("action_run");
+                addVarKey(ud.defs, actionRun);
+                if (auto key = table->getKey()) {
+                    for (auto ke : key->keyElements) {
+                        if (ke && ke->expression) {
+                            collectExprKeys(ke->expression, ud.uses, typeMap);
+                        }
                     }
                 }
             }
-        }
-        if (auto al = table->getActionList()) {
-            for (auto a : al->actionList) {
-                if (!a) {
-                    continue;
-                }
-                auto path = a->getPath();
-                if (!path) {
-                    continue;
-                }
-                if (!actionAllowed(kv.first, path->name)) {
-                    continue;
-                }
-                auto it = actionUsesDefs.find(path->name);
-                if (it != actionUsesDefs.end()) {
-                    mergeSets(ud.uses, it->second.uses);
-                    mergeSets(ud.defs, it->second.defs);
+            if (auto al = table->getActionList()) {
+                for (auto a : al->actionList) {
+                    if (!a) {
+                        continue;
+                    }
+                    auto path = a->getPath();
+                    if (!path) {
+                        continue;
+                    }
+                    if (!actionAllowed(kv.first, path->name)) {
+                        continue;
+                    }
+                    auto it = currentActionUsesDefs.find(path->name);
+                    if (it != currentActionUsesDefs.end()) {
+                        mergeSets(ud.uses, it->second.uses);
+                        mergeSets(ud.defs, it->second.defs);
+                    }
                 }
             }
-        }
-        if (auto defAct = table->getDefaultAction()) {
-            if (auto pe = defAct->to<IR::PathExpression>()) {
-                if (!actionAllowed(kv.first, pe->path->name)) {
-                    // For rule-based tables without explicit defaults, we add P4's default to allowedActions above.
-                    // Otherwise, treat non-allowed defaults as irrelevant for the configured control plane.
-                    goto default_done;
-                }
-                auto it = actionUsesDefs.find(pe->path->name);
-                if (it != actionUsesDefs.end()) {
-                    mergeSets(ud.uses, it->second.uses);
-                    mergeSets(ud.defs, it->second.defs);
-                }
-            } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
-                if (auto m = mce->method->to<IR::PathExpression>()) {
-                    if (!actionAllowed(kv.first, m->path->name)) {
+            if (auto defAct = table->getDefaultAction()) {
+                if (auto pe = defAct->to<IR::PathExpression>()) {
+                    if (!actionAllowed(kv.first, pe->path->name)) {
+                        // For rule-based tables without explicit defaults, we add P4's default to allowedActions above.
+                        // Otherwise, treat non-allowed defaults as irrelevant for the configured control plane.
                         goto default_done;
                     }
-                    auto it = actionUsesDefs.find(m->path->name);
-                    if (it != actionUsesDefs.end()) {
-                    mergeSets(ud.uses, it->second.uses);
-                    mergeSets(ud.defs, it->second.defs);
+                    auto it = currentActionUsesDefs.find(pe->path->name);
+                    if (it != currentActionUsesDefs.end()) {
+                        mergeSets(ud.uses, it->second.uses);
+                        mergeSets(ud.defs, it->second.defs);
+                    }
+                } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
+                    if (auto m = mce->method->to<IR::PathExpression>()) {
+                        if (!actionAllowed(kv.first, m->path->name)) {
+                            goto default_done;
+                        }
+                        auto it = currentActionUsesDefs.find(m->path->name);
+                        if (it != currentActionUsesDefs.end()) {
+                            mergeSets(ud.uses, it->second.uses);
+                            mergeSets(ud.defs, it->second.defs);
+                        }
                     }
                 }
-            }
 default_done:
-            ;
+                ;
+            }
+            out.emplace(kv.first, std::move(ud));
         }
-        tableUsesDefs.emplace(kv.first, std::move(ud));
-    }
+        return out;
+    };
+
+    tableUsesDefs = buildTableUsesDefs(actionUsesDefs);
 
     StatefulDeclCollector statefulDeclCollector;
     program->apply(statefulDeclCollector);
@@ -2137,7 +2189,7 @@ default_done:
 
     RegisterDeclCollector regDeclCollector;
     program->apply(regDeclCollector);
-    std::set<VarKey, VarKeyLess> seedVars = normalizeSeeds(opts.seedVars, &regDeclCollector.regs);
+    std::set<VarKey, VarKeyLess> seedVars = normalizeSeeds(seedInputs, &regDeclCollector.regs);
     auto tableDefinesSeed = [&](cstring tableName, const IR::P4Table* table) -> bool {
         if (!table) {
             return false;
@@ -2324,7 +2376,7 @@ def_done:
         }
     }
     std::map<std::string, int> seedRegMaxIndex;
-    for (auto s : opts.seedVars) {
+    for (auto s : seedInputs) {
         std::string base;
         int idx = -1;
         if (extractSeedIndex(s.c_str(), base, idx)) {
@@ -2371,29 +2423,53 @@ def_done:
         }
     }
 
-    // Fill use/def sets.
-    for (auto& kv : cfg.nodes) {
-        int id = kv.first;
-        NodeInfo& node = kv.second;
-        if (!node.stmt) {
-            continue;
+    constexpr int kFixpointMaxIterations = 3;
+    std::unordered_set<int> prevKeepStmtIds;
+    std::unordered_set<int> keepStmtIds;
+    std::unordered_set<cstring> keepActions;
+    std::unordered_set<cstring> keepTables;
+    std::set<VarKey, VarKeyLess> parserVars;
+
+    for (int iter = 0; iter < kFixpointMaxIterations; ++iter) {
+        // Run a small fixpoint between CFG slicing and action-body slicing.
+        // The first pass uses coarse action/table summaries, and later passes
+        // refine those summaries based on the sliced action bodies.
+        tableUsesDefs = buildTableUsesDefs(actionUsesDefs);
+
+        keepStmtIds.clear();
+        keepActions.clear();
+        keepTables.clear();
+        parserVars.clear();
+
+        result.hasRecirculation = false;
+        for (auto& kv : cfg.nodes) {
+            kv.second.uses.clear();
+            kv.second.defs.clear();
+        }
+
+        // Fill use/def sets.
+        for (auto& kv : cfg.nodes) {
+            int id = kv.first;
+            NodeInfo& node = kv.second;
+            if (!node.stmt) {
+                continue;
+            }
+            if (opts.debug) {
+                std::cerr << "[slicer] node " << id << " type=" << node.stmt->node_type_name() << "\n";
+            }
+            fillNodeUsesDefs(node,
+                             typeMap,
+                             tableUsesDefs,
+                             actionUsesDefs,
+                             regActionUsesDefs,
+                             &result.hasRecirculation,
+                             opts.debug,
+                             &extractSeedFields,
+                             &seedVars);
         }
         if (opts.debug) {
-            std::cerr << "[slicer] node " << id << " type=" << node.stmt->node_type_name() << "\n";
+            std::cerr << "[slicer] use/def sets filled\n";
         }
-        fillNodeUsesDefs(node,
-                         typeMap,
-                         tableUsesDefs,
-                         actionUsesDefs,
-                         regActionUsesDefs,
-                         &result.hasRecirculation,
-                         opts.debug,
-                         &extractSeedFields,
-                         &seedVars);
-    }
-    if (opts.debug) {
-        std::cerr << "[slicer] use/def sets filled\n";
-    }
 
     // Reaching definitions dataflow (two-pass to model cross-pass deps).
     auto buildAllDefs = [](const std::unordered_map<int, NodeInfo>& nodes) {
@@ -2662,9 +2738,7 @@ def_done:
 
     // Keep action bodies referenced by kept calls.
     std::unordered_set<int> extraKeep;
-    std::unordered_set<cstring> keepActions;
     std::unordered_set<cstring> keepRegActions;
-    std::unordered_set<cstring> keepTables;
     for (auto& kv : cfg.nodes) {
         int id = kv.first;
         if (!keepNodes.count(id)) {
@@ -2684,7 +2758,8 @@ def_done:
                     if (auto base = member->expr->to<IR::PathExpression>()) {
                         auto tit = collector.tables.find(base->path->name);
                         if (tit != collector.tables.end()) {
-                            keepTables.insert(base->path->name);
+                            cstring tableName = base->path->name;
+                            keepTables.insert(tableName);
                             if (auto al = tit->second->getActionList()) {
                                 for (auto a : al->actionList) {
                                     if (!a) {
@@ -2694,15 +2769,22 @@ def_done:
                                     if (!path) {
                                         continue;
                                     }
+                                    if (!actionAllowed(tableName, path->name)) {
+                                        continue;
+                                    }
                                     keepActions.insert(path->name);
                                 }
                             }
                             if (auto defAct = tit->second->getDefaultAction()) {
                                 if (auto pe = defAct->to<IR::PathExpression>()) {
-                                    keepActions.insert(pe->path->name);
+                                    if (actionAllowed(tableName, pe->path->name)) {
+                                        keepActions.insert(pe->path->name);
+                                    }
                                 } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
                                     if (auto mpe = mce->method->to<IR::PathExpression>()) {
-                                        keepActions.insert(mpe->path->name);
+                                        if (actionAllowed(tableName, mpe->path->name)) {
+                                            keepActions.insert(mpe->path->name);
+                                        }
                                     }
                                 }
                             }
@@ -2723,43 +2805,86 @@ def_done:
 
     std::unordered_map<cstring, std::unordered_set<int>> actionSliceStmtIds;
     std::unordered_set<cstring> slicedActions;
-    // When slicing action bodies, we must preserve statements that compute values
-    // needed by the (already sliced) control program. Using only the original
-    // seed variables here can incorrectly drop required defs (e.g., a register
-    // read that feeds a later branch).
+    // Slicing action bodies needs an inter-action fixpoint: action A may compute
+    // a variable used by action B, and B may be the one that (transitively)
+    // defines seed variables. A naive "union all uses of kept call-sites"
+    // over-approximates and can keep unrelated stateful logic (e.g., Netchain's
+    // value_reg even when slicing for seq_reg only).
+    //
+    // We seed action slicing with:
+    // - user/property seeds, and
+    // - uses from kept *non-call* control statements (conditions/assignments),
+    // - match-key uses of kept tables (affects action selection).
+    //
+    // Then we close under "needed inputs for relevant action outputs" by
+    // iterating sliceActionStmt until the relevant set stabilizes.
     std::set<VarKey, VarKeyLess> actionRelevant = seedVars;
     for (const auto& kv : cfg.nodes) {
         if (!keepNodes.count(kv.first)) {
             continue;
         }
+        const auto* stmt = kv.second.stmt;
+        if (stmt && stmt->is<IR::MethodCallStatement>()) {
+            continue;
+        }
         mergeVarSets(actionRelevant, kv.second.uses);
-        mergeVarSets(actionRelevant, kv.second.defs);
     }
-    for (const auto& act : keepActions) {
-        auto ait = collector.actions.find(act);
-        if (ait == collector.actions.end()) {
-            continue;
-        }
-        auto uit = actionUsesDefs.find(act);
-        if (uit == actionUsesDefs.end()) {
-            continue;
-        }
-        std::set<VarKey, VarKeyLess> actionSeeds;
-        for (const auto& v : uit->second.uses) {
-            if (actionRelevant.count(v)) {
-                insertVarKey(actionSeeds, v);
+    for (const auto& t : keepTables) {
+        bool fixedDefault = false;
+        if (opts.bmv2Analyzer) {
+            auto it = tableCp.find(t);
+            if (it != tableCp.end()) {
+                fixedDefault = it->second.fixedDefault;
             }
         }
-        for (const auto& v : uit->second.defs) {
-            if (actionRelevant.count(v)) {
-                insertVarKey(actionSeeds, v);
+        if (fixedDefault) {
+            continue;
+        }
+        auto tit = collector.tables.find(t);
+        if (tit == collector.tables.end()) {
+            continue;
+        }
+        if (auto key = tit->second->getKey()) {
+            for (auto ke : key->keyElements) {
+                if (ke && ke->expression) {
+                    std::set<VarKey, VarKeyLess> keyUses;
+                    collectExprKeys(ke->expression, keyUses, typeMap);
+                    mergeVarSets(actionRelevant, keyUses);
+                }
             }
         }
-        slicedActions.insert(act);
-        std::unordered_set<int> keepIds;
-        std::set<VarKey, VarKeyLess> needed = actionSeeds;
-        sliceActionStmt(ait->second->body, needed, keepIds, typeMap, &regActionUsesDefs);
-        actionSliceStmtIds.emplace(act, std::move(keepIds));
+    }
+
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (const auto& act : keepActions) {
+            auto ait = collector.actions.find(act);
+            if (ait == collector.actions.end()) {
+                continue;
+            }
+            auto uit = actionUsesDefs.find(act);
+            if (uit == actionUsesDefs.end()) {
+                continue;
+            }
+            std::set<VarKey, VarKeyLess> actionSeeds;
+            for (const auto& v : uit->second.defs) {
+                if (actionRelevant.count(v)) {
+                    insertVarKey(actionSeeds, v);
+                }
+            }
+            slicedActions.insert(act);
+            std::unordered_set<int> keepIds;
+            std::set<VarKey, VarKeyLess> needed = actionSeeds;
+            sliceActionStmt(ait->second->body, needed, keepIds, typeMap, &regActionUsesDefs);
+            actionSliceStmtIds[act] = std::move(keepIds);
+
+            size_t before = actionRelevant.size();
+            mergeVarSets(actionRelevant, needed);
+            if (actionRelevant.size() != before) {
+                changed = true;
+            }
+        }
     }
     for (const auto& act : keepActions) {
         auto sit = actionSliceStmtIds.find(act);
@@ -2869,10 +2994,8 @@ def_done:
             }
         }
     }
-    std::unordered_set<int> keepStmtIds;
     keepStmtIds.insert(extraKeep.begin(), extraKeep.end());
 
-    std::set<VarKey, VarKeyLess> parserVars;
     std::set<VarKey, VarKeyLess> parserSeedVars = seedVars;
     for (const auto& kv : cfg.nodes) {
         if (!keepNodes.count(kv.first)) {
@@ -3061,6 +3184,45 @@ def_done:
             }
         }
     }
+        if (iter > 0 && keepStmtIds == prevKeepStmtIds) {
+            if (opts.debug) {
+                std::cerr << "[slicer] fixpoint reached after " << (iter + 1) << " iterations\n";
+            }
+            break;
+        }
+        prevKeepStmtIds = keepStmtIds;
+
+        if (iter + 1 < kFixpointMaxIterations) {
+            // Recompute action summaries from the sliced IR to avoid summary pollution
+            // (e.g., unrelated vars kept only because they appear in an unsliced action).
+            const IR::P4Program* slicedForSummary = applySlice(program, keepStmtIds);
+            ActionTableCollector summaryCollector;
+            slicedForSummary->apply(summaryCollector);
+
+            std::unordered_map<cstring, UsesDefs> nextRegActionUsesDefs;
+            for (const auto& kv : summaryCollector.regActions) {
+                const IR::Declaration_Instance* inst = kv.second;
+                const IR::Function* applyFunc = findRegisterActionApply(inst);
+                if (!applyFunc || !applyFunc->body) {
+                    continue;
+                }
+                UsesDefs ud;
+                collectStmtUsesDefs(applyFunc->body, ud, typeMap);
+                nextRegActionUsesDefs.emplace(kv.first, std::move(ud));
+            }
+
+            std::unordered_map<cstring, UsesDefs> nextActionUsesDefs;
+            for (const auto& kv : summaryCollector.actions) {
+                UsesDefs ud;
+                collectStmtUsesDefs(kv.second->body, ud, typeMap, &nextRegActionUsesDefs);
+                nextActionUsesDefs.emplace(kv.first, std::move(ud));
+            }
+
+            regActionUsesDefs = std::move(nextRegActionUsesDefs);
+            actionUsesDefs = std::move(nextActionUsesDefs);
+        }
+    }
+
     result.keepStatementIds.insert(keepStmtIds.begin(), keepStmtIds.end());
 
     if (keepTables.empty()) {
@@ -3375,13 +3537,96 @@ class SlicePruner : public Transform {
     }
 };
 
+class SliceRegisterDeclPruner : public Transform {
+ public:
+    SliceRegisterDeclPruner(const std::set<std::string>& allRegs,
+                            const std::unordered_set<std::string>& keepRegs)
+        : allRegs(allRegs), keepRegs(keepRegs) {
+        setName("SliceRegisterDeclPruner");
+    }
+
+    const IR::Node* postorder(IR::Declaration_Instance* inst) override {
+        if (!inst) {
+            return inst;
+        }
+        std::string name = inst->name.name.c_str();
+        if (allRegs.count(name) > 0 && keepRegs.count(name) == 0) {
+            return nullptr;
+        }
+        return inst;
+    }
+
+ private:
+    const std::set<std::string>& allRegs;
+    const std::unordered_set<std::string>& keepRegs;
+};
+
+class SliceRegisterUseCollector : public Inspector {
+ public:
+    explicit SliceRegisterUseCollector(const std::set<std::string>& regs) : declRegs(regs) {}
+
+    std::unordered_set<std::string> used;
+
+    bool preorder(const IR::PathExpression* pe) override {
+        if (!pe || !pe->path) {
+            return false;
+        }
+        std::string name = pe->path->name.toString().c_str();
+        if (declRegs.count(name) > 0) {
+            used.insert(name);
+            return false;
+        }
+        std::string withSuffix = name + "_0";
+        if (declRegs.count(withSuffix) > 0) {
+            used.insert(withSuffix);
+            return false;
+        }
+        if (name.size() > 2 && name.rfind("_0") == name.size() - 2) {
+            std::string trimmed = name.substr(0, name.size() - 2);
+            if (declRegs.count(trimmed) > 0) {
+                used.insert(trimmed);
+            }
+        }
+        return false;
+    }
+
+ private:
+    const std::set<std::string>& declRegs;
+};
+
 const IR::P4Program* applySlice(const IR::P4Program* program,
                                 const std::unordered_set<int>& keepStatementIds) {
     if (keepStatementIds.empty()) {
         return program;
     }
     SlicePruner pruner(keepStatementIds);
-    return program->apply(pruner)->to<IR::P4Program>();
+    const IR::P4Program* sliced = program->apply(pruner)->to<IR::P4Program>();
+    if (!sliced) {
+        return sliced;
+    }
+
+    // Slicing prunes statements by replacing them with EmptyStatement, but leaves
+    // Register Declaration_Instance nodes intact. Those dead declarations lead to
+    // large Boogie state spaces (vars + init axioms + helper procs).
+    //
+    // Conservatively prune register declarations that are no longer referenced by
+    // any remaining method call on that register in the sliced IR.
+    RegisterDeclCollector regDeclCollector;
+    sliced->apply(regDeclCollector);
+    if (regDeclCollector.regs.empty()) {
+        return sliced;
+    }
+
+    SliceRegisterUseCollector regUseCollector(regDeclCollector.regs);
+    sliced->apply(regUseCollector);
+
+    std::unordered_set<std::string> keepRegs = std::move(regUseCollector.used);
+    if (keepRegs.size() >= regDeclCollector.regs.size()) {
+        return sliced;
+    }
+
+    SliceRegisterDeclPruner declPruner(regDeclCollector.regs, keepRegs);
+    return sliced->apply(declPruner)->to<IR::P4Program>();
 }
 
 }  // namespace P4Verify

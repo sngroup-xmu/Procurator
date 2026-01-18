@@ -45,6 +45,8 @@ class P4VerifyOptions : public CompilerOptions {
     bool slicingEnabled = false;
     bool slicingDebug = false;
     cstring slicingDotDir = nullptr;
+    bool slicingSelftest = false;
+    cstring slicingSelftestCase = nullptr;
     std::unordered_set<cstring> slicingKeepVars;
     std::unordered_set<cstring> slicingKeepTables;
     std::map<cstring, int> slicingRegMaxIndex;
@@ -249,6 +251,14 @@ class P4VerifyOptions : public CompilerOptions {
                            return true;
                        },
                        "Write CFG/CDG/DDG dot files to directory (must exist).");
+
+        registerOption("--slicing-selftest", "case",
+                       [this](const char* arg) {
+                           slicingSelftest = true;
+                           slicingSelftestCase = arg;
+                           return true;
+                       },
+                       "Run a built-in slicer selftest and exit (e.g., --slicing-selftest=netchain_seq).");
 
         registerOption("--no-slicing-reg-prune", nullptr,
                        [this](const char*) {

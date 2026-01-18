@@ -42,9 +42,11 @@ public:
 	static std::vector<cstring> split(std::string str);
 	static std::vector<cstring> split(cstring str);
 	static cstring splitFirst(std::string str);
-	static cstring getName(std::string str); // obj.xxx, return xxx
-	static cstring getControl(std::string str); // obj.xxx, return obj
-};
+	// For qualified names like `obj.xxx`, return `xxx`. If there is no `.`, return the full string.
+	static cstring getName(std::string str);
+	// For qualified names like `obj.xxx`, return `obj`. If there is no `.`, return empty string.
+	static cstring getControl(std::string str);
+	};
 
 // table_add
 class TableAdd : public BMV2Cmd{
@@ -94,8 +96,9 @@ public:
 	std::vector<TableAdd*> getTableAddCmds(cstring table) const;
 	bool hasTableAddCmds(cstring table) const;
 	TableSetDefault* getTableSetDefaultCmd(cstring table) const;
+	std::vector<RegisterWrite*> getRegisterWriteCmds() const;
 	// std::vector<TableDelete*> getTableDeleteCmds();
-};
+	};
 
 
 #endif

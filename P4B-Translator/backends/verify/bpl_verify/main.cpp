@@ -22,6 +22,8 @@ limitations under the License.
 #include <regex>
 #include <unistd.h>
 #include <vector>
+#include <unordered_set>
+#include <map>
 
 #include "ir/ir.h"
 #include "ir/json_loader.h"
@@ -47,6 +49,70 @@ limitations under the License.
 #include "frontends/parsers/p4ltl/p4ltllexer.hpp"
 #include "backends/verify/slicing/slicer.h"
 #include <time.h>
+
+static bool _setContains(const std::unordered_set<cstring>& set, const char* value) {
+    return set.count(cstring(value)) > 0;
+}
+
+static bool _mapTryGet(const std::map<cstring, int>& map, const char* key, int& out) {
+    auto it = map.find(cstring(key));
+    if (it == map.end()) {
+        return false;
+    }
+    out = it->second;
+    return true;
+}
+
+static int _runSlicingSelftest(const P4VerifyOptions& options, const P4Verify::SliceResult& sres) {
+    const std::string caseName = options.slicingSelftestCase ? options.slicingSelftestCase.c_str() : "";
+    if (caseName.empty()) {
+        std::cerr << "[SELFTEST] missing --slicing-selftest=<case>\n";
+        return 2;
+    }
+
+    if (caseName != "netchain_seq") {
+        std::cerr << "[SELFTEST] unknown case: " << caseName << "\n";
+        return 2;
+    }
+
+    bool ok = true;
+    auto expect = [&](bool cond, const std::string& msg) {
+        if (!cond) {
+            ok = false;
+            std::cerr << "[SELFTEST] FAIL: " << msg << "\n";
+        }
+    };
+
+    // Netchain slicing regression (field-sensitive headers):
+    // Seed: sequence_reg_0[0] (sequence register only). Expected effects:
+    //  - keep write path (assign_value/maintain_sequence/get_sequence)
+    //  - drop value_reg / nc_hdr.value dependent path (read_value)
+    //  - prune register index domain to {0} for sequence_reg
+    expect(_setContains(sres.keepTables, "assign_value_0"), "expected keepTables contains assign_value_0");
+    expect(_setContains(sres.keepTables, "maintain_sequence_0"), "expected keepTables contains maintain_sequence_0");
+    expect(_setContains(sres.keepTables, "get_sequence_0"), "expected keepTables contains get_sequence_0");
+    expect(!_setContains(sres.keepTables, "read_value_0"), "expected keepTables does NOT contain read_value_0");
+
+    expect(_setContains(sres.keepVarNames, "hdr.nc_hdr.seq"), "expected keepVarNames contains hdr.nc_hdr.seq");
+    expect(!_setContains(sres.keepVarNames, "hdr.nc_hdr.value"),
+           "expected keepVarNames does NOT contain hdr.nc_hdr.value");
+
+    int maxIdx = -1;
+    const bool hasSeq =
+        _mapTryGet(sres.regMaxIndex, "sequence_reg", maxIdx) || _mapTryGet(sres.regMaxIndex, "sequence_reg_0", maxIdx);
+    expect(hasSeq, "expected regMaxIndex contains sequence_reg (or sequence_reg_0)");
+    if (hasSeq) {
+        expect(maxIdx == 0, "expected regMaxIndex(sequence_reg) == 0");
+    }
+    expect(!_setContains(sres.keepVarNames, "value_reg"), "expected keepVarNames does NOT contain value_reg");
+    expect(!_setContains(sres.keepVarNames, "value_reg_0"), "expected keepVarNames does NOT contain value_reg_0");
+
+    if (ok) {
+        std::cerr << "[SELFTEST] PASS: netchain_seq\n";
+        return 0;
+    }
+    return 1;
+}
 
 int main(int argc, char *const argv[]) {
     clock_t program_start = clock(), program_end;
@@ -265,6 +331,10 @@ int main(int argc, char *const argv[]) {
             options.rwReads = sres.rwReads;
             options.rwWrites = sres.rwWrites;
             options.rwStatefulObjects = sres.rwStatefulObjects;
+        }
+
+        if (options.slicingSelftest) {
+            return _runSlicingSelftest(options, sres);
         }
     }
 
