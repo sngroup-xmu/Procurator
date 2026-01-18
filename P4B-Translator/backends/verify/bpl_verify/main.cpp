@@ -111,6 +111,25 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
         }
         expect(!_setContains(sres.keepVarNames, "value_reg"), "expected keepVarNames does NOT contain value_reg");
         expect(!_setContains(sres.keepVarNames, "value_reg_0"), "expected keepVarNames does NOT contain value_reg_0");
+
+        // applySlice() should also remove the unused register Declaration_Instance from the IR,
+        // otherwise translation will still emit the register array and helper procs.
+        if (slicedProgram) {
+            class InstNameCollector : public Inspector {
+             public:
+                std::unordered_set<std::string> names;
+                bool preorder(const IR::Declaration_Instance* inst) override {
+                    if (inst) {
+                        names.insert(inst->name.name.c_str());
+                    }
+                    return false;
+                }
+            };
+            InstNameCollector col;
+            slicedProgram->apply(col);
+            expect(col.names.count("sequence_reg_0") > 0, "expected sliced IR contains Declaration_Instance sequence_reg_0");
+            expect(col.names.count("value_reg_0") == 0, "expected sliced IR prunes unused Declaration_Instance value_reg_0");
+        }
     } else if (caseName == "distcache_reg_alias") {
         // DistCache slicing regression: allow dslc to seed slicing using Boogie-level register names
         // (sanitized control-plane names), even when the IR instance name differs.
