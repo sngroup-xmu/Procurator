@@ -43,6 +43,50 @@ procedure mainProcedure() returns()
         self.assertIn("call __wraparound_assert(true);", out)
         self.assertIn("if (s1_sequence_reg[0bv32] != 65535bv16)", out)
 
+    def test_confirm_inserts_fast_forward_in_concurrent_harness(self) -> None:
+        src = """
+var s1_sequence_reg:[bv32]bv16;
+var s1_sequence_reg__last0_value: bv16;
+
+procedure {:inline 1} s1_sequence_reg.write(i:bv32, v:bv16)
+  modifies s1_sequence_reg, s1_sequence_reg__last0_value;
+{
+  s1_sequence_reg[i] := v;
+  if (i == 0bv32) {
+    s1_sequence_reg__last0_value := v;
+  }
+}
+
+procedure EnvThread() returns() { }
+
+procedure s1Thread() returns()
+  modifies s1_sequence_reg, s1_sequence_reg__last0_value;
+{
+  assert true;
+}
+
+procedure ULTIMATE.start() returns()
+  modifies s1_sequence_reg, s1_sequence_reg__last0_value;
+{
+  // initialize P4 registers (default 0)
+  assume (forall i:bv32 :: s1_sequence_reg[i] == 0bv16);
+  s1_sequence_reg__last0_value := 0bv16;
+  // spawn threads
+  fork 0 EnvThread();
+  fork 1 s1Thread();
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="s1_sequence_reg",
+            accel_regs=["s1_sequence_reg"],
+        )
+        self.assertIn("call s1_sequence_reg.write(0bv32, 65535bv16);", out)
+        self.assertLess(out.index("call s1_sequence_reg.write"), out.index("fork 0 EnvThread();"))
+        self.assertIn("call __wraparound_assert(true);", out)
+        self.assertIn("if (s1_sequence_reg__last0_value != 65535bv16)", out)
+
     def test_unroll_replaces_while_loop(self) -> None:
         src = """
 var procurator_step: int;

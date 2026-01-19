@@ -95,6 +95,7 @@ class WraparoundManifestCandidate:
 class WraparoundManifest:
     spec: str
     base_bpl: str
+    confirm_base_bpl: Optional[str]
     work_dir: Optional[str]
     candidates: List[WraparoundManifestCandidate]
 
@@ -111,6 +112,7 @@ def generate_wraparound_tasks(
     prune_env_inputs: bool = True,
     por_enabled: bool = False,
     boogie_harness: str = "sequential",
+    confirm_harness: str = "sequential",
     pipeline_two_stage: bool = True,
 ) -> Path:
     """
@@ -145,6 +147,10 @@ def generate_wraparound_tasks(
     if boogie_harness != "sequential":
         raise WraparoundWorkflowError("wraparound workflow requires --boogie-harness sequential")
 
+    confirm_harness = confirm_harness.lower().strip()
+    if confirm_harness not in {"sequential", "concurrent"}:
+        raise WraparoundWorkflowError(f"unsupported confirm_harness: {confirm_harness}")
+
     # 1) Compile base model (if needed).
     if not base_bpl.exists():
         compile_spec_file(
@@ -161,6 +167,27 @@ def generate_wraparound_tasks(
             boogie_harness=boogie_harness,
             pipeline_two_stage=pipeline_two_stage,
         )
+
+    confirm_base_bpl = base_bpl
+    if confirm_harness != boogie_harness:
+        confirm_base_bpl = out_dir / f"{spec_path.stem}.{confirm_harness}.bpl"
+        if not confirm_base_bpl.exists():
+            if p4b_bin is None:
+                raise WraparoundWorkflowError("p4b_bin is required to compile confirm_base_bpl")
+            compile_spec_file(
+                spec_path=spec_path,
+                backend="boogie",
+                out=confirm_base_bpl,
+                p4b_bin=p4b_bin,
+                work_dir=work_dir / f"confirm-{confirm_harness}",
+                max_env_inputs=max_env_inputs,
+                enable_slicing=enable_slicing,
+                prune_env_inputs=prune_env_inputs,
+                por_enabled=por_enabled,
+                por_guard_enabled=True,
+                boogie_harness=confirm_harness,
+                pipeline_two_stage=pipeline_two_stage,
+            )
 
     bpl_text = base_bpl.read_text(encoding="utf-8", errors="replace")
     meta_by_node = _read_meta_by_node(spec_text=spec_text, work_dir=work_dir if work_dir.exists() else None)
@@ -220,7 +247,7 @@ def generate_wraparound_tasks(
             step_delta=step_delta,
         )
         instrument_bpl_file(
-            in_path=base_bpl,
+            in_path=confirm_base_bpl,
             out_path=confirm,
             stage=WraparoundStage.CONFIRM,
             pump_reg=cand.pump_reg,
@@ -300,6 +327,7 @@ def generate_wraparound_tasks(
     manifest = WraparoundManifest(
         spec=str(spec_path),
         base_bpl=str(base_bpl),
+        confirm_base_bpl=str(confirm_base_bpl) if confirm_base_bpl != base_bpl else None,
         work_dir=str(work_dir) if work_dir else None,
         candidates=manifest_candidates,
     )
@@ -330,6 +358,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument("--no-prune", action="store_true", help="Disable DAG-based slicing/env pruning during compile")
     ap.add_argument("--por", action="store_true", help="Enable POR during base compile (not used in staged tasks)")
     ap.add_argument("--no-two-stage", action="store_true", help="Disable two-stage ingress/egress scheduling")
+    ap.add_argument(
+        "--confirm-harness",
+        choices=["sequential", "concurrent"],
+        default="sequential",
+        help="Harness to use for confirm stage (default: sequential).",
+    )
 
     args = ap.parse_args(list(argv) if argv is not None else None)
 
@@ -356,6 +390,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             prune_env_inputs=prune,
             por_enabled=args.por,
             boogie_harness="sequential",
+            confirm_harness=str(args.confirm_harness),
             pipeline_two_stage=not args.no_two_stage,
         )
     except Exception as e:
@@ -367,4 +402,3 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

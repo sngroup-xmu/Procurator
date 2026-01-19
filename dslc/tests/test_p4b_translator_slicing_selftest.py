@@ -56,6 +56,28 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
+    def test_recirc_meta_flow_cross_stage_slicing(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        p4b_bin = repo_root / "P4B-Translator" / "build-host" / "p4c-translator"
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "recirc_fanout" / "switch.p4"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing recirc_fanout dataset or p4include")
+
+        cmd = [
+            str(p4b_bin),
+            "-I",
+            str(p4include),
+            "--goto",
+            "--slicing-vars=hdr.fanout.write_id",
+            "--slicing-selftest=recirc_meta_flow",
+            str(p4),
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
 
 if __name__ == "__main__":
     unittest.main()

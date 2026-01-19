@@ -76,6 +76,7 @@ _RE_GLOBAL_VAR = re.compile(r"^var\s+(?P<name>\S+)\s*:\s*(?P<type>[^;]+);\s*$")
 _RE_REG_DECL = re.compile(r"^var\s+(?P<name>\S+)\s*:\s*\[bv(?P<idx>\d+)\]\s*bv(?P<elem>\d+);\s*$")
 _RE_PROC_MAIN = re.compile(r"^procedure\s+mainProcedure\(\)\s+returns\(\)\s*$")
 _RE_PROC_SCHED = re.compile(r"^procedure\s+main\(\)\s+returns\(\)\s*$")
+_RE_PROC_ULTIMATE_START = re.compile(r"^procedure\s+ULTIMATE\.start\(\)\s+returns\(\)\s*$")
 _RE_WHILE_TRUE = re.compile(r"^\s*while\s*\(\s*true\s*\)\s*(\{\s*)?$")
 _RE_ASSERT_STMT = re.compile(r"^(?P<indent>\s*)assert\b")
 _RE_ASSIGN_STMT = re.compile(r"^(?P<indent>\s*)(?P<lhs>[A-Za-z0-9_.]+)\s*:=\s*")
@@ -884,6 +885,63 @@ def instrument_bpl_text(
         lines.append(_emit_assert_wrapper_proc())
         return "".join(lines)
 
+    if stage == WraparoundStage.CONFIRM:
+        cfg = analyze_bpl_for_wraparound(
+            bpl_text=bpl_text,
+            pump_reg=pump_reg,
+            accel_regs=accel_regs,
+            index_value=index_value,
+            index_expr=index_expr,
+            proj_vars=proj_vars,
+            cutpoint_cond=cutpoint_cond,
+            step_op=step_op,
+            step_delta=step_delta,
+            stage=stage,
+        )
+
+        confirm_block = _emit_confirm_init(cfg)
+
+        # Try sequential harness first (mainProcedure + while(true)).
+        try:
+            _, body_open_idx, body_close_idx = _find_procedure_block(
+                [ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN
+            )
+            while_idx = None
+            for i in range(body_open_idx + 1, body_close_idx + 1):
+                if _RE_WHILE_TRUE.match(lines[i].strip()):
+                    while_idx = i
+                    break
+            if while_idx is None:
+                raise WraparoundTransformError("while(true) loop not found in mainProcedure")
+            lines.insert(while_idx, confirm_block)
+            _rewrite_asserts_as_calls(lines)
+            lines.append(_emit_gated_assert_wrapper_proc(cfg))
+            return "".join(lines)
+        except WraparoundTransformError:
+            # Fall back to concurrent harness patching.
+            pass
+
+        # Concurrent harness: patch ULTIMATE.start before spawning threads.
+        _, body_open_idx, body_close_idx = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_ULTIMATE_START)
+
+        insert_idx = None
+        for i in range(body_open_idx + 1, body_close_idx + 1):
+            if "// spawn threads" in lines[i]:
+                insert_idx = i
+                break
+        if insert_idx is None:
+            for i in range(body_open_idx + 1, body_close_idx + 1):
+                if lines[i].lstrip().startswith("fork "):
+                    insert_idx = i
+                    break
+        if insert_idx is None:
+            raise WraparoundTransformError("failed to locate thread spawn section in ULTIMATE.start for confirm")
+
+        lines.insert(insert_idx, confirm_block)
+        _rewrite_asserts_as_calls(lines)
+        lines.append(_emit_gated_assert_wrapper_proc(cfg))
+        return "".join(lines)
+
     cfg = analyze_bpl_for_wraparound(
         bpl_text=bpl_text,
         pump_reg=pump_reg,
@@ -913,23 +971,6 @@ def instrument_bpl_text(
             break
     if body_open_idx is None:
         raise WraparoundTransformError("mainProcedure body not found")
-
-    if stage == WraparoundStage.CONFIRM:
-        while_idx = None
-        for i in range(body_open_idx + 1, len(no_nl_lines)):
-            if _RE_WHILE_TRUE.match(no_nl_lines[i].strip()):
-                while_idx = i
-                break
-        if while_idx is None:
-            raise WraparoundTransformError(
-                "while(true) loop not found in mainProcedure (confirm expects sequential harness)"
-            )
-
-        confirm_block = _emit_confirm_init(cfg)
-        lines.insert(while_idx, confirm_block)
-        _rewrite_asserts_as_calls(lines)
-        lines.append(_emit_gated_assert_wrapper_proc(cfg))
-        return "".join(lines)
 
     # Insert local decls immediately after '{'.
     insert_locals_at = body_open_idx + 1

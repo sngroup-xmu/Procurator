@@ -335,6 +335,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default="sequential",
         help="Use sequential harness (recommended for pump/accel) or concurrent harness.",
     )
+    ap.add_argument(
+        "--confirm-harness",
+        choices=["sequential", "concurrent"],
+        default="concurrent",
+        help="Harness to use for the confirm stage (default: concurrent).",
+    )
     ap.add_argument("--no-two-stage", action="store_true", help="Disable two-stage ingress/egress scheduling")
 
     ap.add_argument("--ultimate", default="", help="Path to Ultimate CLI executable")
@@ -407,6 +413,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = ap.parse_args(list(argv) if argv is not None else None)
 
     stages = {s.strip().lower() for s in str(args.stages).split(",") if s.strip()}
+    base_harness = str(args.boogie_harness).strip().lower()
+    confirm_harness = str(args.confirm_harness).strip().lower()
+
+    if base_harness not in {"sequential", "concurrent"}:
+        raise SystemExit(f"[ERR] invalid --boogie-harness: {base_harness}")
+    if confirm_harness not in {"sequential", "concurrent"}:
+        raise SystemExit(f"[ERR] invalid --confirm-harness: {confirm_harness}")
+
+    # Wraparound entry/closure/pump/accel stages require deterministic unrolling on the sequential harness.
+    if base_harness != "sequential" and (stages - {"confirm"}):
+        raise SystemExit("[ERR] wraparound pipeline requires --boogie-harness sequential for non-confirm stages")
 
     if args.certify_unsafe and ("accel" in stages or "confirm" in stages):
         needed = {"entry_check", "closure_check"}
@@ -515,12 +532,36 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             prune_env_inputs=prune_env_inputs,
             por_enabled=por_enabled,
             por_guard_enabled=True,
-            boogie_harness=args.boogie_harness,
+            boogie_harness=base_harness,
             pipeline_two_stage=pipeline_two_stage,
         )
         print(f"[OK] base bpl: {paths.base_bpl}")
 
     base_bpl_text = paths.base_bpl.read_text(encoding="utf-8", errors="replace")
+
+    # Optional: compile a second base BPL for confirm under a different harness.
+    confirm_base_bpl = paths.base_bpl
+    if confirm_harness != base_harness:
+        confirm_base_bpl = paths.base_bpl.with_name(f"{paths.base_bpl.stem}.{confirm_harness}.bpl")
+        confirm_work_dir = None
+        if work_dir is not None:
+            confirm_work_dir = work_dir / f"confirm-{confirm_harness}"
+        if not confirm_base_bpl.exists() or args.rerun:
+            compile_spec_file(
+                spec_path=spec_path,
+                backend="boogie",
+                out=confirm_base_bpl,
+                p4b_bin=p4b_bin,
+                work_dir=confirm_work_dir,
+                max_env_inputs=max_env_inputs,
+                enable_slicing=enable_slicing,
+                prune_env_inputs=prune_env_inputs,
+                por_enabled=por_enabled,
+                por_guard_enabled=True,
+                boogie_harness=confirm_harness,
+                pipeline_two_stage=pipeline_two_stage,
+            )
+        print(f"[OK] confirm base bpl ({confirm_harness}): {confirm_base_bpl}")
 
     # 2) Infer wraparound candidates from (spec + compiled Boogie + P4B meta).
     meta_by_node = {}
@@ -785,7 +826,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
         if "confirm" in stages:
             instrument_bpl_file(
-                in_path=paths.base_bpl,
+                in_path=confirm_base_bpl,
                 out_path=cand_paths.confirm_bpl,
                 stage=WraparoundStage.CONFIRM,
                 pump_reg=cand.pump_reg,
@@ -801,6 +842,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             confirm_log = cand_paths.confirm_log
             confirm_home = cand_paths.ultimate_home_root / "confirm"
             if unroll_map.get("confirm", 0) > 0:
+                if confirm_harness != "sequential":
+                    raise SystemExit("[ERR] --unroll confirm=... requires --confirm-harness sequential")
                 steps = unroll_map["confirm"]
                 confirm_bpl_unroll = _with_unroll_suffix(confirm_bpl, steps)
                 unroll_mainprocedure_loop_file(in_path=confirm_bpl, out_path=confirm_bpl_unroll, steps=steps)

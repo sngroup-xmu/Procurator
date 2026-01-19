@@ -47,6 +47,87 @@ global {{
         # Per-pass assignment should be emitted in the node thread
         self.assertRegex(text, r"\bs1_dsl_Counter\s*:=\s*s1_dsl_Counter\s*\+\s*1;")
 
+    def test_concurrent_harness_allows_idling_steps(self) -> None:
+        # For the "sequential witness is a legal concurrent interleaving" argument, we
+        # want threads to be able to do nothing at a scheduling point. Our harness
+        # emits an outer `if (*)` guard for EnvThread injection and node passes.
+        repo_root = Path(__file__).resolve().parents[2]
+        bpl = repo_root / "Procurator" / "argo" / "code" / "Translator" / "feature-testcases" / "bool" / "out.bpl"
+        self.assertTrue(bpl.exists())
+
+        spec = f"""
+import s1 from "{bpl.as_posix()}";
+topology {{ }}
+node s1 {{
+  external_input = true;
+}}
+global {{
+  queue_capacity = 1;
+  assert {{ true; }};
+}}
+"""
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "out.bpl"
+            outp = compile_spec_text(spec_text=spec, backend="boogie", out=out_bpl, boogie_harness="concurrent")
+            text = outp.artifacts["bpl"].read_text(encoding="utf-8", errors="replace")
+
+        self.assertRegex(
+            text,
+            r"(?s)procedure EnvThread\(\) returns\(\).*?while\s*\(\s*true\s*\)\s*\{.*?if\s*\(\s*\*\s*\)",
+        )
+        self.assertRegex(
+            text,
+            r"(?s)procedure s1Thread\(\) returns\(\).*?while\s*\(\s*true\s*\)\s*\{.*?if\s*\(\s*\*\s*\)",
+        )
+
+    def test_concurrent_harness_two_slot_inbox_k2(self) -> None:
+        # Regression: for queue_capacity==2 we must materialize two inbox mailboxes and
+        # actually load/dequeue them in the node thread (otherwise bugs that need two
+        # pending packets become unreachable).
+        repo_root = Path(__file__).resolve().parents[2]
+        bpl = repo_root / "Procurator" / "argo" / "code" / "Translator" / "feature-testcases" / "bool" / "out.bpl"
+        self.assertTrue(bpl.exists())
+
+        spec = f"""
+import s1 from "{bpl.as_posix()}";
+topology {{ }}
+node s1 {{
+  external_input = true;
+  env {{
+    // Ensure DSL globals can be modified in EnvThread without Boogie type errors.
+    phase = phase + 1;
+  }}
+}}
+global {{
+  queue_capacity = 2;
+  int phase = 0;
+  assert {{ phase >= 0; }};
+}}
+"""
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "out.bpl"
+            outp = compile_spec_text(spec_text=spec, backend="boogie", out=out_bpl, boogie_harness="concurrent")
+            text = outp.artifacts["bpl"].read_text(encoding="utf-8", errors="replace")
+
+        # Two-slot inbox mailboxes are declared for on-wire vars.
+        self.assertRegex(text, r"\bvar\s+s1_mb0_hdr\.ipv4\.dstAddr\b")
+        self.assertRegex(text, r"\bvar\s+s1_mb1_hdr\.ipv4\.dstAddr\b")
+
+        # EnvThread must list DSL globals it modifies.
+        self.assertRegex(text, r"(?s)procedure EnvThread\(\) returns\(\)\s*modifies\b.*\bdsl_phase\b")
+        # ULTIMATE.start must also cover vars modified by forked procedures.
+        self.assertRegex(text, r"(?s)procedure ULTIMATE\.start\(\) returns\(\)\s*modifies\b.*\bdsl_phase\b")
+
+        # Node thread must load and shift a mailbox slot when dequeueing.
+        self.assertRegex(
+            text,
+            r"(?s)procedure s1Thread\(\) returns\(\).*?s1_hdr\.ipv4\.dstAddr := s1_mb0_hdr\.ipv4\.dstAddr;",
+        )
+        self.assertRegex(
+            text,
+            r"(?s)procedure s1Thread\(\) returns\(\).*?s1_mb0_hdr\.ipv4\.dstAddr := s1_mb1_hdr\.ipv4\.dstAddr;",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

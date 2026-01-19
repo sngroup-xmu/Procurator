@@ -889,6 +889,30 @@ static void fillNodeUsesDefs(NodeInfo& node,
                  lower.find("clone") != std::string::npos)) {
                 *hasRecirculation = true;
             }
+            // Preserve the semantic effect of clone/recirc/resubmit for slicing.
+            //
+            // These externs do not necessarily read/write any seed-relevant P4 state directly,
+            // but they *do* change the control/communication behavior of the program. We model
+            // them as writes to the synthetic control flags that the Boogie backend relies on
+            // (`p4b_*`). This allows `--slicing-vars` / control-seed selection to keep the
+            // relevant calls and their control dependencies.
+            if (lower.find("recirc") != std::string::npos || lower.find("resubmit") != std::string::npos) {
+                VarKey key;
+                key.base = "p4b_recirculate";
+                addVarKey(node.defs, key);
+            }
+            if (lower.find("mirror") != std::string::npos || lower.find("clone") != std::string::npos) {
+                VarKey i2e;
+                i2e.base = "p4b_clone_i2e";
+                addVarKey(node.defs, i2e);
+                // Be conservative: some targets/externs may map to other clone directions.
+                VarKey e2e;
+                e2e.base = "p4b_clone_e2e";
+                addVarKey(node.defs, e2e);
+                VarKey i2i;
+                i2i.base = "p4b_clone_i2i";
+                addVarKey(node.defs, i2i);
+            }
             if (lower.find("mark_to_drop") != std::string::npos) {
                 VarKey dropKey;
                 dropKey.base = "drop";
@@ -1619,14 +1643,75 @@ class CFGBuilder {
         : refMap(refMap), typeMap(typeMap) {}
 
     void build(const IR::P4Program* program) {
+        // Build CFG fragments for all controls first.
+        // We'll then connect fragments based on the pipeline "main" instance to
+        // model cross-stage dataflow (e.g., Ingress writes -> Egress reads).
+        std::unordered_map<std::string, CFGFragment> controlFrags;
         for (auto obj : program->objects) {
             if (auto control = obj->to<IR::P4Control>()) {
                 CFGFragment frag = buildForStatement(control->body);
                 if (frag.entry != -1) {
-                    roots.push_back(frag.entry);
-                    exits.push_back(frag.exit);
+                    controlFrags.emplace(control->name.name.c_str(), frag);
                 }
             }
+        }
+
+        const IR::Declaration_Instance* mainInst = nullptr;
+        for (auto obj : program->objects) {
+            if (auto inst = obj->to<IR::Declaration_Instance>()) {
+                if (inst->name.name == "main") {
+                    mainInst = inst;
+                    break;
+                }
+            }
+        }
+
+        // If we can extract a sequential control order from the main instance,
+        // connect the control fragments in that order and expose a single
+        // root/exit pair that matches a full packet "pass".
+        if (mainInst && refMap) {
+            std::vector<const IR::P4Control*> order;
+            std::unordered_set<const IR::Declaration_Instance*> visited;
+            collectControlsFromInstance(mainInst, order, visited);
+            int entry = -1;
+            int exit = -1;
+            int prevExit = -1;
+            for (const auto* ctrl : order) {
+                if (!ctrl) {
+                    continue;
+                }
+                auto it = controlFrags.find(ctrl->name.name.c_str());
+                if (it == controlFrags.end()) {
+                    continue;
+                }
+                const CFGFragment& frag = it->second;
+                if (frag.entry == -1 || frag.exit == -1) {
+                    continue;
+                }
+                if (entry == -1) {
+                    entry = frag.entry;
+                }
+                if (prevExit != -1) {
+                    nodes[prevExit].succs.push_back(frag.entry);
+                    nodes[frag.entry].preds.push_back(prevExit);
+                }
+                prevExit = frag.exit;
+                exit = frag.exit;
+            }
+            if (entry != -1 && exit != -1) {
+                roots.push_back(entry);
+                exits.push_back(exit);
+                return;
+            }
+        }
+
+        // Fallback: treat each control as its own root/exit fragment (legacy).
+        // This is less precise for multi-stage programs, but preserves behavior
+        // for IRs where we cannot identify the pipeline structure.
+        for (const auto& kv : controlFrags) {
+            const CFGFragment& frag = kv.second;
+            roots.push_back(frag.entry);
+            exits.push_back(frag.exit);
         }
     }
 
@@ -1642,6 +1727,107 @@ class CFGBuilder {
     P4::ReferenceMap* refMap;
     P4::TypeMap* typeMap;
     int nextId = 1;
+
+    static bool lookupTypeName(const IR::Type* type, std::string& out) {
+        if (!type) {
+            return false;
+        }
+        if (auto name = type->to<IR::Type_Name>()) {
+            if (name->path) {
+                out = name->path->name.name.c_str();
+                return true;
+            }
+        }
+        if (auto spec = type->to<IR::Type_Specialized>()) {
+            return lookupTypeName(spec->baseType, out);
+        }
+        return false;
+    }
+
+    void collectControlsFromExpr(const IR::Expression* expr,
+                                 std::vector<const IR::P4Control*>& out,
+                                 std::unordered_set<const IR::Declaration_Instance*>& visited) {
+        if (!expr || !refMap) {
+            return;
+        }
+        if (auto cce = expr->to<IR::ConstructorCallExpression>()) {
+            const IR::Type* ctorType = cce->constructedType;
+            if (auto tname = ctorType ? ctorType->to<IR::Type_Name>() : nullptr) {
+                if (tname->path) {
+                    if (auto decl = refMap->getDeclaration(tname->path, true)) {
+                        if (auto ctrl = decl->to<IR::P4Control>()) {
+                            out.push_back(ctrl);
+                            return;
+                        }
+                        if (auto inst = decl->to<IR::Declaration_Instance>()) {
+                            collectControlsFromInstance(inst, out, visited);
+                            return;
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        if (auto pe = expr->to<IR::PathExpression>()) {
+            if (auto decl = refMap->getDeclaration(pe->path, true)) {
+                if (auto ctrl = decl->to<IR::P4Control>()) {
+                    out.push_back(ctrl);
+                    return;
+                }
+                if (auto inst = decl->to<IR::Declaration_Instance>()) {
+                    collectControlsFromInstance(inst, out, visited);
+                    return;
+                }
+            }
+        }
+    }
+
+    void collectControlsFromInstance(const IR::Declaration_Instance* inst,
+                                     std::vector<const IR::P4Control*>& out,
+                                     std::unordered_set<const IR::Declaration_Instance*>& visited) {
+        if (!inst || !inst->arguments || !refMap) {
+            return;
+        }
+        if (visited.count(inst)) {
+            return;
+        }
+        visited.insert(inst);
+
+        std::string typeName;
+        if (!lookupTypeName(inst->type, typeName)) {
+            return;
+        }
+
+        // Mirror the translator's sequential composition for common architectures.
+        // We only need a conservative order here to propagate defs/uses across stages.
+        const bool isV1Switch = typeName == "V1Switch";
+        const bool isSwitch = typeName == "Switch";
+        const bool isPipeline = typeName == "Pipeline";
+        if (!(isV1Switch || isSwitch || isPipeline)) {
+            return;
+        }
+
+        const int argc = static_cast<int>(inst->arguments->size());
+        int limit = argc;
+        // In the Boogie translator, V1Switch treats the last argument as the
+        // deparser and does not call it. Keep the same order here.
+        if (isV1Switch && argc > 0) {
+            limit = argc - 1;
+        }
+
+        int idx = 0;
+        for (auto arg : *inst->arguments) {
+            if (idx >= limit) {
+                break;
+            }
+            if (!arg) {
+                idx++;
+                continue;
+            }
+            collectControlsFromExpr(arg->expression, out, visited);
+            idx++;
+        }
+    }
 
     int newNode(const IR::Statement* stmt) {
         int id = nextId++;
@@ -2339,6 +2525,14 @@ default_done:
             if (!v.segs.empty() && controlSegs.count(v.segs.back())) {
                 seedVars.insert(v);
             }
+        }
+        // `p4b_*` flags are synthetic (introduced by our semantic modeling of externs
+        // like recirculate/clone) and may not appear as real IR variables. Seed them
+        // explicitly so that control-effecting extern calls are not sliced away.
+        for (const auto& base : {"p4b_recirculate", "p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i"}) {
+            VarKey key;
+            key.base = base;
+            seedVars.insert(key);
         }
     }
     // If a table's actions can define a seed-relevant variable, treat its match keys as seeds too.

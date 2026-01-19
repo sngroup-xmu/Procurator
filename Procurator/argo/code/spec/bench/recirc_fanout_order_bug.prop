@@ -1,0 +1,92 @@
+// Recirculation fan-out ordering bug (microbenchmark).
+//
+// Two writes A(write_id=0) and B(write_id=1) are fanned out to two replicas via
+// recirculation. Because recirculation splits a logical broadcast into two
+// passes, a schedule may produce a send/arrival pattern like:
+//   A, B, A', B'
+// where A'/B' are recirculated copies. This yields inconsistent ordering across
+// replicas: S1 observes A->B while S2 observes B->A.
+
+import t from "../../dataset/recirc_fanout/switch.p4";
+import s1 from "../../dataset/recirc_fanout/server.p4";
+import s2 from "../../dataset/recirc_fanout/server.p4";
+
+topology {
+  link t -> s1 1;
+  link t -> s2 2;
+}
+
+node t {
+  external_input = true;
+
+  // Inject alternating writes: A then B then A then B ...
+  // The ordering bug manifests once S1 observes A->B while S2 observes B->A.
+  env {
+    hdr.fanout.valid = true;
+    hdr.fanout.pass = 0;
+    if (phase == 0) {
+      hdr.fanout.write_id = 0;
+      phase = 1;
+    } else {
+      hdr.fanout.write_id = 1;
+      phase = 0;
+    }
+  }
+}
+
+node s1 {
+  // Record the first two arrivals at S1.
+  if (hdr.fanout.valid == true) {
+    if (hdr.fanout.write_id == 0) {
+      if (s1_first == 2) {
+        s1_first = 0;
+      } else {
+        if (s1_second == 2) { s1_second = 0; }
+      }
+    } else {
+      if (s1_first == 2) {
+        s1_first = 1;
+      } else {
+        if (s1_second == 2) { s1_second = 1; }
+      }
+    }
+  }
+}
+
+node s2 {
+  // Record the first two arrivals at S2.
+  if (hdr.fanout.valid == true) {
+    if (hdr.fanout.write_id == 0) {
+      if (s2_first == 2) {
+        s2_first = 0;
+      } else {
+        if (s2_second == 2) { s2_second = 0; }
+      }
+    } else {
+      if (s2_first == 2) {
+        s2_first = 1;
+      } else {
+        if (s2_second == 2) { s2_second = 1; }
+      }
+    }
+  }
+}
+
+global {
+  // This microbenchmark requires two distinct pending packets at T to reproduce
+  // the A, B, A', B' ordering.
+  queue_capacity = 2;
+  // Reduce search: deterministic round-robin scheduler.
+  deterministic_scheduler = true;
+
+  // DSL state: 2 means "unset" (write_id is 0/1).
+  int phase = 0;
+  int s1_first = 2;
+  int s1_second = 2;
+  int s2_first = 2;
+  int s2_second = 2;
+
+  assert {
+    !(s1_first == 0 && s1_second == 1 && s2_first == 1 && s2_second == 0);
+  };
+}

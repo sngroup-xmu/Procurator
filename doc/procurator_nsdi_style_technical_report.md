@@ -111,6 +111,8 @@ procedure main() {
 - **节点执行**：某个节点处理一个输入（完整 ingress/egress 或拆成 two-stage）
 - **host 行为**：可选的 host send/recv（用于更贴近 Promela 的交互）
 
+#### 3.1.1 Sequential harness：单线程调度器（推荐做证明/加速）
+
 在 Boogie 的 sequential harness 中，这种“一步一个动作”的语义直接编码为：
 
 - `procedure main()`：一次只执行一个动作（nondet 或 deterministic round-robin）
@@ -123,7 +125,87 @@ procedure main() {
 - `dslc/backends/boogie_harness.py:_emit_sequential_main`（生成 `main()` 与 action 列表）
 - `dslc/backends/boogie_harness.py:_emit_sequential_main`（生成 `mainProcedure()` 的 while(true) 驱动）
 
-> 这套 sequential harness 的目的，是让 Ultimate 可以在一个“经典的顺序程序 + while(true)”框架下做 unbounded 推理；并发 harness（fork/atomic + 全局锁）也存在，但 wrap-around 加速 v0/v1 目前以 sequential harness 为主。
+> 这套 sequential harness 的目的，是让 Ultimate 可以在一个“经典的顺序程序 + while(true)”框架下做 unbounded 推理；并发 harness（fork/atomic + 全局锁）也存在。  
+> 对 wrap-around 加速而言：`entry_check/closure_check` 需要 sequential harness（便于把 “round” 写成固定相位并做 loop-free 证明）；但 `confirm` 已支持切到 concurrent harness：在 `ULTIMATE.start()` 中 fast-forward 目标寄存器到 `MAX`，然后让 GemCutter 在 fork 模型里寻找翻转后缀反例。
+
+#### 3.1.2 Concurrent harness：fork 多线程 + atomic + 全局锁（可验证，但更难讲清楚/更易踩坑）
+
+我们也支持一个更“长得像并发程序”的 harness：把每个 actor 编成一个线程，并在 `ULTIMATE.start()` 中 `fork` 出来：
+
+- `EnvThread()`：环境注入线程
+- `<node>Thread()`：每个交换机节点一个线程
+- `<host>Thread()`：每个 host 一个线程（可选）
+
+其核心形状（伪代码）是：
+
+```
+procedure ULTIMATE.start() {
+  init_globals();
+  fork 0 EnvThread();
+  fork 1 s1Thread();
+  fork 2 s2Thread();
+  ...
+}
+
+procedure s1Thread() {
+  while (true) {
+    if (*) {
+      atomic { assume procurator_lock == 0; assume s1_inbox_count > 0; procurator_lock := 1; }
+      // one pass / one stage
+      ...
+      atomic { procurator_lock := 0; }
+    }
+  }
+}
+```
+
+对应实现：
+
+- 线程生成：`dslc/backends/boogie_harness.py:_emit_env_thread/_emit_node_thread/_emit_host_thread`
+- fork 入口：`dslc/backends/boogie_harness.py:_emit_ultimate_start`
+
+**为什么还要全局锁？**
+
+因为我们希望实现“pass-atomic”的建模初衷：并发交错点只发生在“选哪个 actor 执行下一步”，而不是在 P4 程序的每条语句之间交错。全局锁把每次节点的 pass（或 two-stage 的 ingress/egress stage）线性化，等价于把并发语义压缩成“调度选择”的 nondet。
+
+> 重要现实：在 concurrent harness 下，如果某些线程（尤其是 host send/env inject）在锁外写了节点的 mailbox 变量，就可能在一个 pass 中间覆盖报文字段（单槽 mailbox 抽象会放大这个问题）。因此 concurrent harness 更适合“只建模 env 注入 + 节点 pass”，并把 host 建模留给 sequential harness，或者给 host 也引入同一把锁/快照语义。
+
+#### 3.1.3 在 fork 多线程模型下能“证明”吗？需要哪些前置条件？
+
+可以，但要区分两个层次的“证明”：
+
+1) **相对我们模型（harness + 抽象）的证明**：工具证明的是“在这份 Boogie 模型的语义下”，性质是否对所有执行成立。
+2) **相对真实系统的证明**：这还要求我们的抽象（Bag(K)、单槽 mailbox、pass-atomic、表项抽象）是健全/适用的——这属于建模假设，需要在论文里作为能力边界写清楚。
+
+在第 (1) 层次上，Ultimate 对 Boogie 并发的支持关键在于：`fork` 不是所有后端都支持。实践上：
+
+- **GemCutter**：面向并发程序的验证器；支持 Boogie/C 的 fork 并发，并使用 *sound sequentialization* 把并发验证规约到顺序验证（同时利用可交换性/CEGAR 缩减交错）[14]。
+- **Automizer/TraceAbstraction（顺序）**：更适合我们当前的 sequential harness；它们不一定支持带 `fork` 的 Boogie 输入。
+
+因此，如果你坚持“fork 一堆线程”的模型并希望工具给出 `SAFE` 结论，基本前置条件是：
+
+- **语言/工具链前置条件**
+  - Boogie 程序在 Ultimate 的 Boogie 方言下可解析（`fork <id> proc();`、`atomic { ... }`、位向量内建等）。
+  - 所有 `procedure` 的 `modifies` 列表必须覆盖真实副作用（包括被 `fork` 出来的线程可能写的变量）；否则 Ultimate 会在 typecheck 阶段直接失败（我们已把这些规则固化在 harness 生成里）。
+- **建模前置条件（决定 UNSAFE 是否会伪）**
+  - 单槽 mailbox 抽象要求：一个 pass/stage 期间“当前处理的报文字段”不应被其他线程覆盖；否则会出现“半包混合”的伪轨迹。我们在 two-stage 节点上用 mailbox snapshot/restore 解决了 ingress/egress 分裂导致的混合；但如果 host/env 在锁外写 mailbox，仍可能造成更强的混合（需要额外约束或同一把锁）。
+  - `assume` 必须表达我们认可的环境（例如 DistCache 的 power-of-two-choice 属性必须确保相关表项路径确实被执行，否则容易因 `meta` 未赋值而出现伪反例——这类问题应该通过 spec 收紧修复，而不是靠后端“猜测”）。
+
+在这些前置条件满足时：
+
+- GemCutter 若输出 `UNSAFE`，witness 对应一个具体 interleaving（调度 + 输入），这是对模型的 **sound** 反例；
+- 若输出 `SAFE`，则是在模型语义下对所有 interleavings 的证明（依赖其 sequentialization/CEGAR 的健全性）[14]；
+- 若输出 `UNKNOWN`，通常意味着抽象/不变式不足或搜索不收敛（并不否定性质，也不否定 bug）。
+
+最后一个很实用的工程结论是：**在我们采用“全局锁 + pass-atomic”的前提下，concurrent harness 与 sequential harness 本质上只是两种编码**（都在表达“下一步 nondet 选一个 actor 执行一次原子 step”）。因此：
+
+- 如果你的目标是“更容易证明/更容易做加速/更容易解释”，优先选 sequential harness；
+- 如果你的目标是“与并发验证器接口对齐/保留 fork 形状/尝试利用 GemCutter 的并发能力”，再选 concurrent harness，并严格管住 mailbox 的原子性（否则最容易产生伪轨迹）。
+
+从“witness 合法性”的角度看，这句话还有一个推论：**只要你的并发模型确实被这把全局锁线性化（每次 pass/stage 都在锁保护下完成），那么 sequential harness 上得到的任意一条执行轨迹，都可以被理解为 fork 模型中的一个合法 interleaving**——只要让对应线程按顺序拿到锁，其他线程在中间保持不运行即可。因此：
+
+- sequential 上找到的 `UNSAFE` 反例，是 fork 模型的一个合法反例（存在性意义下的 soundness）；
+- 反过来不一定：fork 模型里允许更多交错，sequential 只是其中一种调度实现。
 
 ### 3.2 队列抽象：Bag(K) + mailbox
 
@@ -368,6 +450,88 @@ P4 语义里寄存器如果没有由控制面显式配置，通常默认 0。Boo
 
 当 closure check 成功后，我们就有资格把 “快进到 MAX” 解释成一个 **可证明正确的摘要步（summary/acceleration step）**，并把 confirm 的 bug 结论提升为“从初态可达的真实 bug”。
 
+### 5.3.5 并发版本的 pump 需要什么理论支撑？（回答“fork 一堆线程也能泵吗？”）
+
+把“并发/干扰”先翻译成 **P4/交换机** 能对齐的语义（而不是 CPU 线程）：
+
+- 我们的一步（step）= 一次 **处理一个包** 的 pass（或启用 two-stage 时的一次 ingress/egress stage）。
+- “泵片段（pump segment）”= 你希望反复重复的一段行为，例如某类包触发 `R[idx] := R[idx] + 1`。
+- “插入干扰（interference）”= 在两次泵片段之间，系统先处理了 **别的包/事件**（可能在同一节点，也可能是别的节点的一次 pass）。
+
+你说“交换机之间不共享变量，只有消息传递”，这在分布式层面是对的；但干扰仍然会出现，因为：
+
+1) **同一交换机内**仍有跨包共享状态（寄存器/计数器/状态机变量）；  
+2) **消息顺序/队列状态**本身就是全局状态：插入一个包，会改变“谁先看到什么”。
+
+一个最贴近 P4 的“干扰”例子，就是你论文里提到的 **recirculation fan-out 非原子广播**：
+
+- 交换机 T 要把每个写请求发给两个副本服务器 `S1,S2`。实现方式是：第一轮 pass 发出第 1 份，然后 `recirculate()` 让同一个包再跑一轮 pass 发第 2 份。
+- 两个写请求 A,B 紧挨到达时，合法的发送序列可能是：`A, B, A', B'`（A' 是 A 的 recirc copy，B' 同理）。
+- 此时 `S1` 看到的顺序是 `A → B`（A 和 B'），而 `S2` 看到的是 `B → A`（B 和 A'），从而违反“副本顺序一致性”。  
+  这就是“插入干扰”的含义：**B 的处理被插在 A 的两次发送之间**。注意这完全不需要跨节点共享寄存器，纯消息交错就能触发功能性错误。
+
+再给一个“为什么泵会中断”的例子（和 Netchain/DistCache 更接近）：
+
+- 真实自增通常带 guard：`if (role==MASTER && op==WRITE && hit(table)) { R[idx]++; }`
+- 干扰包（failover/timer/recovery）可能把 `role_reg` 改成 BACKUP 或让命中条件变 miss。结果是：第一次 `WRITE` 能自增，但后面自增被截断——这就是“伪泵”的典型来源。
+
+有了这些例子，再回到“并发 pump”的两种目标强度就清晰了：
+
+**A. 存在某个调度可以一直泵（existential schedule pump）**  
+目标是“找 bug（UNSAFE）”：只要存在一条执行能把寄存器推到翻转前沿并触发错误就够了。  
+在我们的 pass-atomic 语义下，“fork 一堆线程”本质只是“下一步 nondet 选哪个 actor 跑一次原子 pass”，因此这类 pump 最容易落地（也是 V0/V1 的主线）。
+
+**B. 对干扰鲁棒的泵（interference-robust pump）**  
+目标是“不会被其它包/事件打断”。工程上你必须证明一件很具体的事：  
+**哪些插入的包/事件与这次 `R[idx]++` 无关（或可交换），因此不会改变净效应？**  
+这就是 POR/DPOR 背后的 commutativity/independence 直觉；GemCutter 的 sequentialization 也依赖类似思想来减少交错 [14]。
+
+对我们当前系统（务实版）：V0/V1 以 A 为主（让 UNSAFE 更快、witness 可审计）。如果要升级到 B，下一步应利用 P4B 的 state R/W（细化到 object×index）把“影响目标槽位/guard 的事件集合”做成可证明的闭包条件，再用 closure_check 反例做 CEGAR 精化。
+
+**并发下为什么“pump 可行，但 closure_check 直接搬过去会变味”？**  
+这是因为两者在验证逻辑上一个是“找存在”（UNSAFE/可达性），一个是“证成立”（SAFE/全称）：
+
+- `pump`：我们把“存在一个 +1 闭合循环”编码成 `assert false` 可达性问题。只要 **存在** 某条调度/输入能走到错误点，工具就会给 witness。  
+- `closure_check`：我们想证明的是一个“摘要步”对所有执行都成立（从任意 `wrap_closure_seq0 != MAX` 出发，跑完一个 round 后一定净 +1 且投影恢复）。这本质上是 **对 round 内所有 nondet 选择的全称性质**。
+
+在 fork 并发 harness 里，round 内最大的 nondet 就是“下一步哪个线程拿到锁”。如果你不固定它，`closure_check` 会变成在问：  
+**“不管怎么调度（甚至 env 多注入几次/节点多跑几次），只要跑完一段你定义的‘round’，就一定净 +1 并回到投影类吗？”**  
+这已经接近 B（鲁棒）而不是 A（存在性）了，所以往往证明不了，也不符合我们 V0/V1 的目标。
+
+因此 V0/V1 的工程策略是：把 schedule 明确化（sequential harness 的 `procurator_phase`），把“round”定义成一个固定的顺序列表，然后对这个固定 round 做 `closure_check`。这等价于：**我们选择了一条调度 A，并证明在该调度的一个周期下确实是闭包 +1**。  
+
+更关键的是：这不会让后续的“并发找 bug”变得不 sound。原因很简单：在我们采用 pass-atomic（全局锁）时，fork harness 里的并发语义本质也是“每一步 nondet 选一个 actor 跑一次原子 pass”，因此它**包含所有顺序调度作为特例**。所以只要我们用 `entry_check + closure_check` 证明“按调度 A 可以推进到临界前沿”，那么“临界状态附近（例如 `MAX`）”在并发模型里同样是可达的；接下来再用 **并发 harness 的 confirm** 去探索翻转后的交错，就能得到对并发 bug 也合理的 witness。
+
+若你坚持在 fork harness 上做同样的事，本质上也需要引入类似的 phase 变量/调度契约（否则 round 无法无歧义定义）。
+
+> 这里常见的误解是把“公平性（fairness，不饿死）”当作 closure_check 的关键。公平性是一个 **liveness 假设**（“最终会发生”），它并不能自动给你一个“固定长度的 round”，也不能阻止 round 内被插入额外的 env 注入/额外的节点 pass。要让 closure_check 回到我们想要的“loop-free 摘要证明”，最直接的方法仍然是：把调度在模型里写死（phase/round-robin），而不是事后用公平性去约束所有可能的并发交错。
+
+进一步说：**sequential harness 的 closure_check 并不是在宣称“真实系统会按这个顺序跑完一轮”**。它只是把“调度”当作反例/证据的一部分：我们选定一个具体顺序（round-robin），然后证明“如果按这个顺序重复执行，并且输入满足 `.prop` 约束，那么寄存器每轮净 +1 且回到同一投影类”。这足以推出 **存在一条执行** 能到达 `MAX-1`（从而支撑 fast-forward 的合理性）；但它不等价于“所有公平调度下都必然到达 `MAX-1`”。后者是 liveness（甚至是策略/对抗环境）问题，超出 V0/V1 的目标。
+
+**为什么“已经有 A 了”还要考虑 B？（你提出的疑问）**  
+如果你的目标只是 **找 bug（证明存在一条执行能触发 UNSAFE）**，那么 A 通常就够了，B 确实更难、也未必值得做。我们考虑 B 的主要原因不是“对所有调度都必须到达 MAX-1”，而是三点工程动机：
+
+1) **减少伪泵/提高可解释性**：A 很容易“只增一次”，但并不能推出“能增 65535 次”；B（或更弱的 repeatability/closure 精化）是在补这个缺口。  
+2) **减少对特定调度的依赖**：有些泵只有在非常脆弱的调度下才成立；B 相当于证明“一类插入的包/事件不会影响泵”，让结论不那么依赖某个极端的 interleaving。  
+3) **让自动化更稳**：当验证器需要在海量交错里“猜”那条脆弱调度时会非常慢；把无关 step 证明为可交换/无关，可以显著缩小搜索空间（这也是 POR/commutativity 的直觉来源）。
+
+**再回答一个更直接的问题：为什么 nondet 的 pump 似乎能“推出 MAX-1 可达”？**  
+严格来说：**pump 阶段本身并不会让求解器真的跑到 `MAX-1`**。它只做了一件事：让求解器找一个 “前缀 + 循环段（lasso）” 的 witness，使得：
+
+- 在某个 cutpoint 状态 `S` 之后，
+- 再次回到 cutpoint 的状态 `S'`，
+- 并且在我们选择的“投影/闭包条件”下 `S` 与 `S'` 等价，同时目标寄存器净 `+1`。
+
+如果这个等价关系足够强（例如等价于“真正回到同一状态”，或满足我们想要的闭包谓词 `P`），那么你就可以把同一个循环段重复执行 `k` 次：每重复一次净 `+1`，从而在数学上推出“存在一条执行”能把寄存器推进到任意值（包括 `MAX-1`）。这一步不需要显式展开 `2^w-1` 次，而是基于“循环可重复”做归纳推理。
+
+但注意这也是我们反复强调要做 closure_check/精化的原因：如果你的投影太弱，`S` 与 `S'` 只是在“你没看的那些变量”上发生了变化，那么循环段可能根本 **不可重复**。一个典型反例是：
+
+- 第一次 `WRITE` 时 `seq_reg[idx]++`，同时把一个隐藏状态位 `stop := true`；
+- 之后 `stop==true` 时 `WRITE` 不再自增；
+- 若 `stop` 没被纳入投影，pump 可能仍然“看到一次 +1”，但它无法支撑“能泵到 MAX-1”。
+
+因此，**“pump → MAX-1 可达”并不是自动成立的**：它依赖“循环段真的可重复”的闭包证据。A 给的是存在性循环证据；closure_check/repeatability/CEGAR 的作用就是把这份证据补强到足以支撑 `MAX` 快进。
+
 ### 5.4 confirm：在全语义模型里快速触发真实断言
 
 confirm 阶段更简单：在进入 `while(true)` 前插入：
@@ -482,6 +646,12 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 - `closure_check`（SAFE 证明）：优先用不输出 witness 的 reachability 流水线，减少开销
 - `confirm`（UNSAFE 找 bug）：用带 WitnessPrinter 的 reachability 流水线输出 GraphML
 
+**关于 fork 并发 vs 顺序 harness 的工具选择**
+
+- 如果输入 Boogie 含 `fork`（concurrent harness），优先使用 **GemCutter**（并发验证器）；很多顺序后端并不支持带 `fork` 的 Boogie。
+- 如果输入 Boogie 不含 `fork`（sequential harness），则可以使用 TraceAbstraction/Automizer 等顺序后端做证明/找 bug。
+- 本报告的 wrap-around 任务生成器目前强制 `--boogie-harness sequential`（见 `dslc/workflows/wraparound.py`），因为它需要稳定定位 `mainProcedure/while(true)` 并插桩；把它推广到 fork harness 需要单独的变换/或先做等价顺序化。
+
 其中 `confirm` 使用的“ReachSafety + Witness”流水线为：
 
 - toolchain：`Procurator/argo/code/spec/config/ReachSafety-Witness.xml`
@@ -582,7 +752,7 @@ call __wraparound_assert(bvule.bv16$builtin(s2_sequence_reg__dbg0, s1_sequence_r
 
 ### 8.1 当前 wrap-around 加速的边界
 
-- **依赖 sequential harness 形状**：变换目前要求存在 `mainProcedure()` + `while(true)` + `call main()` 的结构，因此主要服务于 sequential harness（并发 harness 需单独适配插桩点）。
+- **依赖 sequential harness 形状**：变换目前要求存在 `mainProcedure()` + `while(true)` + `call main()` 的结构，因此主要服务于 sequential harness。对于 fork 并发 harness，当前推荐做法是：直接生成等价的 sequential harness 来做 wrap-around（在 pass-atomic + 全局锁 的语义下两者只是编码不同）；若要直接在 fork 程序上插桩，需要单独适配 cutpoint/round 的定位与插桩点。
 - **投影选择会影响健全性/性能**：
   - 投影太弱：可能出现“伪泵循环”（循环在真实状态空间不可重复），导致 confirm 从 MAX 出发能触发 bug，但 pump 的“可达性证据”不够强。
   - 投影太强：很难闭合循环，pump 变慢或找不到 witness。

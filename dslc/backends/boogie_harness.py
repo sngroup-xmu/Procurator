@@ -416,6 +416,18 @@ class BoogieHarnessEmitter:
                 lines.append(f"var {a}_pkt_external: bool;\n")
             lines.append("\n")
 
+            if self._two_slot_inbox_enabled(k):
+                lines.append("// Two-slot inbox mailbox (on-wire packet vars only)\n")
+                for a in node_aliases:
+                    for v in self._inbox_on_wire_vars(a):
+                        vt = self._node_var_types.get(a, {}).get(v, "")
+                        if vt == "Ref" or vt.endswith("Ref"):
+                            continue
+                        typ = self._prefix_node_type(a, vt)
+                        lines.append(f"var {self._inbox_slot_var(a, 0, v)}: {typ};\n")
+                        lines.append(f"var {self._inbox_slot_var(a, 1, v)}: {typ};\n")
+                lines.append("\n")
+
             # Host packet fields (mirror the connected node's packet/metadata vars).
             if host_aliases:
                 lines.append("// Host packet fields (mirrors connected node symbols)\n")
@@ -543,6 +555,18 @@ class BoogieHarnessEmitter:
             lines.append(f"var {a}_pkt_external: bool;\n")
         lines.append("\n")
 
+        if self._two_slot_inbox_enabled(k):
+            lines.append("// Two-slot inbox mailbox (on-wire packet vars only)\n")
+            for a in node_aliases:
+                for v in self._inbox_on_wire_vars(a):
+                    vt = self._node_var_types.get(a, {}).get(v, "")
+                    if vt == "Ref" or vt.endswith("Ref"):
+                        continue
+                    typ = self._prefix_node_type(a, vt)
+                    lines.append(f"var {self._inbox_slot_var(a, 0, v)}: {typ};\n")
+                    lines.append(f"var {self._inbox_slot_var(a, 1, v)}: {typ};\n")
+            lines.append("\n")
+
         # Host packet fields (mirror the connected node's packet/metadata vars).
         if host_aliases:
             lines.append("// Host packet fields (mirrors connected node symbols)\n")
@@ -618,6 +642,10 @@ class BoogieHarnessEmitter:
             for v in self._node_input_vars.get(src, []):
                 if _is_on_wire_packet_var(v) and v in src_decl and v in dst_decl:
                     modifies.append(f"{dst}_{v}")
+            if self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
+                for v in self._inbox_on_wire_vars(dst):
+                    modifies.append(self._inbox_slot_var(dst, 0, v))
+                    modifies.append(self._inbox_slot_var(dst, 1, v))
             if emit_trace:
                 modifies.append(self._trace_enqueue_exec_name(src, dst))
                 if "seq" in trace_types:
@@ -687,6 +715,10 @@ class BoogieHarnessEmitter:
         out.append(f"procedure {src}__enqueue_{dst}() returns()\n")
         mod: List[str] = [f"{dst}_inbox_count", f"{dst}_pkt_external"]
         mod.extend(f"{dst}_{v}" for v in copy_vars)
+        if self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
+            for v in self._inbox_on_wire_vars(dst):
+                mod.append(self._inbox_slot_var(dst, 0, v))
+                mod.append(self._inbox_slot_var(dst, 1, v))
         emit_trace = self._emit_trace and self._harness_mode == "sequential"
         trace_types = self._trace_field_types(src) if emit_trace else {}
         if emit_trace:
@@ -704,6 +736,8 @@ class BoogieHarnessEmitter:
         for v in copy_vars:
             out.append(f"  {dst}_{v} := {src}_{v};\n")
         out.append(f"  {dst}_pkt_external := false;\n")
+        if self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
+            out.append(self._emit_inbox_store_from_active(dst, slot_expr=f"{dst}_inbox_count", indent="  "))
         out.append(f"  {dst}_inbox_count := {dst}_inbox_count + 1;\n")
         if emit_trace:
             out.append(f"  {self._trace_enqueue_exec_name(src, dst)}[procurator_step] := true;\n")
@@ -841,6 +875,15 @@ class BoogieHarnessEmitter:
         for n in inject_targets:
             for v in self._node_input_vars.get(n, []):
                 env_modifies.add(f"{n}_{v}")
+        # Env blocks may update DSL state (global or node-local).
+        env_modifies.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
+        for n in inject_targets:
+            env_modifies.update(f"{n}_dsl_{name}" for name in self._dsl_node_vars.get(n, {}).keys())
+        if self._two_slot_inbox_enabled(k):
+            for n in inject_targets:
+                for v in self._inbox_on_wire_vars(n):
+                    env_modifies.add(self._inbox_slot_var(n, 0, v))
+                    env_modifies.add(self._inbox_slot_var(n, 1, v))
         env_modifies.add("procurator_lock")
         out.append(
             "  modifies "
@@ -980,9 +1023,12 @@ class BoogieHarnessEmitter:
             out.append(f"{indent}// DSL assertions\n")
             out.append(assert_lines)
 
-        # Restore ingress mailbox state unless we just enqueued a recirculated packet (self-enqueue overwrites mailbox).
+        # Restore ingress mailbox state. In the legacy single-slot model, we skip the restore
+        # when `p4b_recirculate` is set because self-enqueue "keeps" the packet by overwriting
+        # the mailbox. In the two-slot inbox model (k==2), the recirculated packet is stored
+        # in a dedicated slot, so restoring is always safe and preserves other pending packets.
         if snap:
-            if "p4b_recirculate" in clone_flags:
+            if "p4b_recirculate" in clone_flags and not self._two_slot_inbox_enabled(k):
                 out.append(f"{indent}if (!{node}_p4b_recirculate) {{\n")
                 for v in snap:
                     out.append(f"{indent}  {node}_{v} := {self._ingress_saved_var(node, v)};\n")
@@ -1024,6 +1070,10 @@ class BoogieHarnessEmitter:
         modifies_set.update(self._node_mainprocedure_modifies.get(node, set()))
         # Havoc writes to these globals, so they must be listed in modifies.
         modifies_set.update(f"{node}_{v}" for v in input_vars)
+        if self._two_slot_inbox_enabled(k):
+            for v in self._inbox_on_wire_vars(node):
+                modifies_set.add(self._inbox_slot_var(node, 0, v))
+                modifies_set.add(self._inbox_slot_var(node, 1, v))
         # DSL locals are modeled as globals and may be modified by node statements.
         modifies_set.update(f"{node}_dsl_{name}" for name in self._dsl_node_vars.get(node, {}).keys())
         modifies_set.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
@@ -1061,6 +1111,10 @@ class BoogieHarnessEmitter:
                 for v in self._node_input_vars.get(node, []):
                     if v in self._node_declared_vars.get(node, set()) and v in dst_decl:
                         modifies_set.add(f"{l.dst}_{v}")
+                if self._two_slot_inbox_enabled(k) and l.dst in self._spec.imports:
+                    for v in self._inbox_on_wire_vars(l.dst):
+                        modifies_set.add(self._inbox_slot_var(l.dst, 0, v))
+                        modifies_set.add(self._inbox_slot_var(l.dst, 1, v))
 
         out: List[str] = []
         out.append(f"procedure {node}Thread() returns()\n")
@@ -1080,6 +1134,18 @@ class BoogieHarnessEmitter:
                         out.append(f"        assume {other}_inbox_count == 0;\n")
             out.append("        procurator_lock := 1;\n")
             out.append("      }\n")
+            if self._two_slot_inbox_enabled(k):
+                out.append("      // Two-slot inbox: pick a pending packet (Bag semantics)\n")
+                out.append(f"      if ({node}_inbox_count == 1) {{\n")
+                out.append(self._emit_inbox_load_to_active(node, slot=0, indent="        "))
+                out.append("      } else {\n")
+                out.append("        if (*) {\n")
+                out.append(self._emit_inbox_load_to_active(node, slot=0, indent="          "))
+                out.append(self._emit_inbox_shift_slot1_to_slot0(node, indent="          "))
+                out.append("        } else {\n")
+                out.append(self._emit_inbox_load_to_active(node, slot=1, indent="          "))
+                out.append("        }\n")
+                out.append("      }\n")
             out.append(f"      {node}_inbox_count := {node}_inbox_count - 1;\n")
             if dsl_stmt_lines:
                 out.append("      // DSL statements (per-pass instrumentation)\n")
@@ -1131,6 +1197,18 @@ class BoogieHarnessEmitter:
                         out.append(f"        assume {other}_inbox_count == 0;\n")
             out.append("        procurator_lock := 1;\n")
             out.append("      }\n")
+            if self._two_slot_inbox_enabled(k):
+                out.append("      // Two-slot inbox: pick a pending packet (Bag semantics)\n")
+                out.append(f"      if ({node}_inbox_count == 1) {{\n")
+                out.append(self._emit_inbox_load_to_active(node, slot=0, indent="        "))
+                out.append("      } else {\n")
+                out.append("        if (*) {\n")
+                out.append(self._emit_inbox_load_to_active(node, slot=0, indent="          "))
+                out.append(self._emit_inbox_shift_slot1_to_slot0(node, indent="          "))
+                out.append("        } else {\n")
+                out.append(self._emit_inbox_load_to_active(node, slot=1, indent="          "))
+                out.append("        }\n")
+                out.append("      }\n")
             out.append(f"      {node}_inbox_count := {node}_inbox_count - 1;\n")
             out.append(
                 self._emit_ingress_stage_body(
@@ -1192,6 +1270,10 @@ class BoogieHarnessEmitter:
         }
         modifies_set.update(f"{host}_{v}" for v in host_vars)
         modifies_set.update(f"{target}_{v}" for v in copy_vars)
+        if self._two_slot_inbox_enabled(k) and target in self._spec.imports:
+            for v in self._inbox_on_wire_vars(target):
+                modifies_set.add(self._inbox_slot_var(target, 0, v))
+                modifies_set.add(self._inbox_slot_var(target, 1, v))
         modifies_set.update(f"{host}_dsl_{name}" for name in self._dsl_host_vars.get(host, {}).keys())
         modifies_set.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
 
@@ -1217,6 +1299,8 @@ class BoogieHarnessEmitter:
         for v in copy_vars:
             out.append(f"        {target}_{v} := {host}_{v};\n")
         out.append(f"        {target}_pkt_external := true;\n")
+        if self._two_slot_inbox_enabled(k) and target in self._spec.imports:
+            out.append(self._emit_inbox_store_from_active(target, slot_expr=f"{target}_inbox_count", indent="        "))
         out.append(f"        {target}_inbox_count := {target}_inbox_count + 1;\n")
         out.append("      }\n")
         out.append("    }\n")
@@ -1248,6 +1332,12 @@ class BoogieHarnessEmitter:
         start_modifies.add("procurator_lock")
         start_modifies.update(f"{a}_inbox_count" for a in node_aliases + host_aliases)
         start_modifies.update(f"{a}_pkt_external" for a in node_aliases + host_aliases)
+        k = self._spec.global_decl.queue_capacity if self._spec.global_decl.queue_capacity is not None else 5
+        if self._two_slot_inbox_enabled(k):
+            for a in node_aliases:
+                for v in self._inbox_on_wire_vars(a):
+                    start_modifies.add(self._inbox_slot_var(a, 0, v))
+                    start_modifies.add(self._inbox_slot_var(a, 1, v))
         for a in node_aliases:
             if self._is_two_stage_node(a):
                 start_modifies.add(f"{a}_egress_count")
@@ -1354,6 +1444,12 @@ class BoogieHarnessEmitter:
             mods.add("procurator_lock")
         mods.update(f"{a}_inbox_count" for a in node_aliases + host_aliases)
         mods.update(f"{a}_pkt_external" for a in node_aliases + host_aliases)
+        k = self._spec.global_decl.queue_capacity if self._spec.global_decl.queue_capacity is not None else 5
+        if self._two_slot_inbox_enabled(k):
+            for a in node_aliases:
+                for v in self._inbox_on_wire_vars(a):
+                    mods.add(self._inbox_slot_var(a, 0, v))
+                    mods.add(self._inbox_slot_var(a, 1, v))
         for a in node_aliases:
             if self._is_two_stage_node(a):
                 mods.add(f"{a}_egress_count")
@@ -2020,6 +2116,18 @@ class BoogieHarnessEmitter:
         if deterministic:
             out.append(f"{indent}if ({node}_inbox_count > 0) {{\n")
         out.append(f"{indent}assume {node}_inbox_count > 0;\n")
+        if self._two_slot_inbox_enabled(k):
+            out.append(f"{indent}// Two-slot inbox: pick a pending packet (Bag semantics)\n")
+            out.append(f"{indent}if ({node}_inbox_count == 1) {{\n")
+            out.append(self._emit_inbox_load_to_active(node, slot=0, indent=indent + "  "))
+            out.append(f"{indent}}} else {{\n")
+            out.append(f"{indent}  if (*) {{\n")
+            out.append(self._emit_inbox_load_to_active(node, slot=0, indent=indent + "    "))
+            out.append(self._emit_inbox_shift_slot1_to_slot0(node, indent=indent + "    "))
+            out.append(f"{indent}  }} else {{\n")
+            out.append(self._emit_inbox_load_to_active(node, slot=1, indent=indent + "    "))
+            out.append(f"{indent}  }}\n")
+            out.append(f"{indent}}}\n")
         if self._por_enabled and self._por_guard_enabled:
             guards = self._por_guards.get(node, [])
             if guards:
@@ -2078,6 +2186,18 @@ class BoogieHarnessEmitter:
         if deterministic:
             out.append(f"{indent}if ({node}_inbox_count > 0) {{\n")
         out.append(f"{indent}assume {node}_inbox_count > 0;\n")
+        if self._two_slot_inbox_enabled(k):
+            out.append(f"{indent}// Two-slot inbox: pick a pending packet (Bag semantics)\n")
+            out.append(f"{indent}if ({node}_inbox_count == 1) {{\n")
+            out.append(self._emit_inbox_load_to_active(node, slot=0, indent=indent + "  "))
+            out.append(f"{indent}}} else {{\n")
+            out.append(f"{indent}  if (*) {{\n")
+            out.append(self._emit_inbox_load_to_active(node, slot=0, indent=indent + "    "))
+            out.append(self._emit_inbox_shift_slot1_to_slot0(node, indent=indent + "    "))
+            out.append(f"{indent}  }} else {{\n")
+            out.append(self._emit_inbox_load_to_active(node, slot=1, indent=indent + "    "))
+            out.append(f"{indent}  }}\n")
+            out.append(f"{indent}}}\n")
         if self._por_enabled and self._por_guard_enabled:
             guards = self._por_guards.get(node, [])
             if guards:
@@ -2161,6 +2281,8 @@ class BoogieHarnessEmitter:
                 out.append(f"{indent}assume {self._expr_to_boogie(expr, current_node=dst)};\n")
             for expr in self._spec.global_decl.assume_exprs:
                 out.append(f"{indent}assume {self._expr_to_boogie(expr, current_node=dst)};\n")
+        if self._two_slot_inbox_enabled(k):
+            out.append(self._emit_inbox_store_from_active(dst, slot_expr=f"{dst}_inbox_count", indent=indent))
         out.append(f"{indent}{dst}_inbox_count := {dst}_inbox_count + 1;\n")
         if deterministic:
             out.append(f"{indent}}}\n")
@@ -2170,8 +2292,82 @@ class BoogieHarnessEmitter:
         out: List[str] = []
         # Internal enqueue (recirculate/i2i): keep current packet fields intact.
         out.append(f"{indent}assume {dst}_inbox_count < {k};\n")
+        if self._two_slot_inbox_enabled(k):
+            out.append(self._emit_inbox_store_from_active(dst, slot_expr=f"{dst}_inbox_count", indent=indent))
         out.append(f"{indent}{dst}_pkt_external := false;\n")
         out.append(f"{indent}{dst}_inbox_count := {dst}_inbox_count + 1;\n")
+        return "".join(out)
+
+    def _two_slot_inbox_enabled(self, k: int) -> bool:
+        """
+        Enable a two-slot mailbox model when `queue_capacity == 2`.
+
+        Rationale: the default single-slot mailbox is an aggressive abstraction
+        that cannot faithfully represent two distinct pending packets at a node.
+        Many concurrency bugs (e.g., overlapping recirculations) require at least
+        two buffered packets. We keep this path gated to `k==2` to avoid impacting
+        existing benchmarks that rely on the legacy behavior for k!=2.
+        """
+
+        return int(k) == 2
+
+    def _inbox_on_wire_vars(self, node: str) -> List[str]:
+        declared = self._node_declared_vars.get(node, set())
+        out: List[str] = []
+        for v in self._node_input_vars.get(node, []):
+            if not _is_on_wire_packet_var(v):
+                continue
+            if v not in declared:
+                continue
+            out.append(v)
+        return out
+
+    def _inbox_slot_var(self, node: str, slot: int, base: str) -> str:
+        return f"{node}_mb{slot}_{base}"
+
+    def _emit_inbox_store_from_active(self, node: str, *, slot_expr: str, indent: str) -> str:
+        """
+        Store the current active packet fields (`{node}_{hdr.*}`) into the inbox mailbox
+        slot selected by `slot_expr` (expected 0 or 1).
+        """
+
+        vars_ = self._inbox_on_wire_vars(node)
+        if not vars_:
+            return ""
+        out: List[str] = []
+        out.append(f"{indent}if ({slot_expr} == 0) {{\n")
+        for v in vars_:
+            out.append(f"{indent}  {self._inbox_slot_var(node, 0, v)} := {node}_{v};\n")
+        out.append(f"{indent}}} else {{\n")
+        for v in vars_:
+            out.append(f"{indent}  {self._inbox_slot_var(node, 1, v)} := {node}_{v};\n")
+        out.append(f"{indent}}}\n")
+        return "".join(out)
+
+    def _emit_inbox_load_to_active(self, node: str, *, slot: int, indent: str) -> str:
+        """
+        Load inbox mailbox slot `slot` into the active packet variables (`{node}_{hdr.*}`).
+        """
+
+        vars_ = self._inbox_on_wire_vars(node)
+        if not vars_:
+            return ""
+        out: List[str] = []
+        for v in vars_:
+            out.append(f"{indent}{node}_{v} := {self._inbox_slot_var(node, slot, v)};\n")
+        return "".join(out)
+
+    def _emit_inbox_shift_slot1_to_slot0(self, node: str, *, indent: str) -> str:
+        """
+        Shift slot1 -> slot0 after consuming slot0 (two-slot inbox model).
+        """
+
+        vars_ = self._inbox_on_wire_vars(node)
+        if not vars_:
+            return ""
+        out: List[str] = []
+        for v in vars_:
+            out.append(f"{indent}{self._inbox_slot_var(node, 0, v)} := {self._inbox_slot_var(node, 1, v)};\n")
         return "".join(out)
 
     def _boogie_port_const(self, port: str, egress_type: str) -> str:

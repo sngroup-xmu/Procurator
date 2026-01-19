@@ -20,6 +20,7 @@ from .boogie_pipeline import split_pipeline_stages
 from .boogie_prefix import BoogiePrefixer, dedup_bvbuiltin_decls, ultimate_rewrite_bvbuiltin_attrs
 from .boogie_registers import collect_register_arrays, instrument_register_writes
 from .boogie_seeds import build_slicing_plan
+from .boogie_common import is_packet_var, is_skipped_input_var
 
 
 @dataclass(frozen=True)
@@ -112,8 +113,13 @@ class BoogieBackend:
                     out_meta=str(meta_path),
                     slicing_vars=slicing_plan.slicing_vars.get(alias),
                     disable_slicing=not enable_slicing,
-                    # If slicing is enabled, dslc supplies its own control seeds.
-                    keep_control_seeds=not enable_slicing,
+                    # Always keep P4B slicing control seeds that influence
+                    # communication behavior (forward/drop/clone/recirc).
+                    #
+                    # Without these, slicing can remove e.g. `p4b_recirculate := true`,
+                    # making distributed harnesses miss real interleavings and report
+                    # false SAFE results.
+                    keep_control_seeds=True,
                 )
                 raw_text = raw_path.read_text(encoding="utf-8", errors="replace")
                 try:
@@ -121,10 +127,12 @@ class BoogieBackend:
                 except Exception:
                     meta_obj = None
 
-            required_vars = sorted(
-                set(slicing_plan.required_packet_vars.get(alias, []))
-                | set(slicing_plan.forced_packet_inputs.get(alias, []))
-            )
+            # Declare packet vars referenced by the DSL/spec so the merged program is well-typed.
+            #
+            # NOTE: We intentionally do not treat "slicing seeds" as required declarations:
+            # seeds include heuristic `_0` variants to match possible P4B naming, and eagerly
+            # declaring them can bloat the state space with unused ghost vars (e.g., `hdr.foo_0`).
+            required_vars = sorted(set(slicing_plan.required_packet_vars.get(alias, [])))
             raw_text = patch_missing_var_decls(raw_text, meta=meta_obj, required_vars=required_vars)
 
             if not looks_like_bpl(raw_text):
@@ -137,10 +145,18 @@ class BoogieBackend:
                 raw_text
             )
             if enable_slicing and prune_env_inputs:
+                # Keep packet vars that were selected as slicing seeds *and* actually exist in the
+                # (possibly sliced) Boogie output. This keeps env havoc and forwarding-field copying
+                # aligned with the sliced program without introducing undeclared ghost vars.
+                force_keep = [
+                    v
+                    for v in (slicing_plan.slicing_vars.get(alias, []) if enable_slicing else [])
+                    if is_packet_var(v) and not is_skipped_input_var(v) and v in declared
+                ]
                 input_vars = filter_input_vars_by_usage(
                     raw_text,
                     input_vars,
-                    force_keep=slicing_plan.forced_packet_inputs.get(alias),
+                    force_keep=force_keep,
                 )
 
             node_info[alias] = _BoogieNodeInfo(

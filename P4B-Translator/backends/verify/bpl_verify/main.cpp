@@ -73,7 +73,8 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
         return 2;
     }
 
-    if (caseName != "netchain_seq" && caseName != "distcache_reg_alias") {
+    if (caseName != "netchain_seq" && caseName != "distcache_reg_alias" &&
+        caseName != "recirc_meta_flow") {
         std::cerr << "[SELFTEST] unknown case: " << caseName << "\n";
         return 2;
     }
@@ -159,6 +160,51 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
             slicedProgram->apply(col);
             expect(col.names.count("cm3_reg_0") > 0, "expected sliced IR contains Declaration_Instance cm3_reg_0");
             expect(col.names.count("cm4_reg_0") > 0, "expected sliced IR contains Declaration_Instance cm4_reg_0");
+        }
+    } else if (caseName == "recirc_meta_flow") {
+        // Cross-stage slicing regression: Ingress defines metadata that Egress reads.
+        //
+        // This case expects a P4 program where:
+        //   - MyIngress assigns meta.do_recirculate (e.g., 0/1)
+        //   - MyEgress reads meta.do_recirculate to decide recirculation
+        //
+        // Slicing must not delete the ingress assignment when the egress read is kept,
+        // otherwise meta.do_recirculate becomes an unconstrained input and the model
+        // is no longer faithful.
+        expect(_setContains(sres.keepVarNames, "meta.do_recirculate"),
+               "expected keepVarNames contains meta.do_recirculate");
+
+        if (slicedProgram) {
+            class IngressMetaAssignFinder : public Inspector {
+             public:
+                bool inIngress = false;
+                bool foundAssign = false;
+
+                bool preorder(const IR::P4Control* ctrl) override {
+                    inIngress = (ctrl && ctrl->name.name == "MyIngress");
+                    return inIngress;
+                }
+
+                bool preorder(const IR::AssignmentStatement* stmt) override {
+                    if (!inIngress || !stmt || !stmt->left) {
+                        return false;
+                    }
+                    auto member = stmt->left->to<IR::Member>();
+                    if (!member || member->member.name != "do_recirculate") {
+                        return false;
+                    }
+                    auto base = member->expr->to<IR::PathExpression>();
+                    if (base && base->path && base->path->name.name == "meta") {
+                        foundAssign = true;
+                    }
+                    return false;
+                }
+            };
+
+            IngressMetaAssignFinder finder;
+            slicedProgram->apply(finder);
+            expect(finder.foundAssign,
+                   "expected sliced IR retains at least one assignment to meta.do_recirculate in MyIngress");
         }
     }
 
