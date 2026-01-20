@@ -43,6 +43,44 @@ procedure mainProcedure() returns()
         self.assertIn("call __wraparound_assert(true);", out)
         self.assertIn("if (s1_sequence_reg[0bv32] != 65535bv16)", out)
 
+    def test_confirm_inserts_fast_forward_with_bounded_loop(self) -> None:
+        src = """
+var procurator_step: int;
+var s1_sequence_reg:[bv32]bv16;
+
+procedure {:inline 1} s1_sequence_reg.write(i:bv32, v:bv16)
+  modifies s1_sequence_reg;
+{
+  s1_sequence_reg[i] := v;
+}
+
+procedure main() returns()
+  modifies procurator_step, s1_sequence_reg;
+{
+  assert true;
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, s1_sequence_reg;
+{
+  procurator_step := 0;
+  while (procurator_step < 10) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="s1_sequence_reg",
+            accel_regs=["s1_sequence_reg"],
+        )
+        self.assertIn("call s1_sequence_reg.write(0bv32, 65535bv16);", out)
+        self.assertLess(out.index("call s1_sequence_reg.write"), out.index("while (procurator_step < 10)"))
+        self.assertIn("call __wraparound_assert(true);", out)
+        self.assertIn("if (s1_sequence_reg[0bv32] != 65535bv16)", out)
+
     def test_confirm_inserts_fast_forward_in_concurrent_harness(self) -> None:
         src = """
 var s1_sequence_reg:[bv32]bv16;
@@ -108,6 +146,29 @@ procedure mainProcedure() returns()
         out = unroll_mainprocedure_loop_text(bpl_text=src, steps=3)
         self.assertIn("// UNROLLED 3 steps", out)
         self.assertNotIn("while (true)", out)
+        self.assertEqual(out.count("call main();"), 3)
+
+    def test_unroll_replaces_bounded_while_loop(self) -> None:
+        src = """
+var procurator_step: int;
+procedure main() returns()
+  modifies procurator_step;
+{
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step;
+{
+  procurator_step := 0;
+  while (procurator_step < 5) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = unroll_mainprocedure_loop_text(bpl_text=src, steps=3)
+        self.assertIn("// UNROLLED 3 steps", out)
+        self.assertNotIn("while (procurator_step < 5)", out)
         self.assertEqual(out.count("call main();"), 3)
 
     def test_pump_instruments_main_procedure(self) -> None:
