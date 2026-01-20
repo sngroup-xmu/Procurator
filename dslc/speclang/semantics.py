@@ -9,6 +9,7 @@ from lark import Tree, Token
 _DSL_CONFIG_DIRECTIVES: Set[str] = {
     # Per-node directive
     "external_input",
+    "sink",
     # Global directive
     "queue_capacity",
     "max_steps",

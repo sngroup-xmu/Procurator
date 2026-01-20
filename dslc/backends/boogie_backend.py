@@ -50,6 +50,24 @@ def _extract_mainprocedure_modifies(prefixed_bpl: str, alias: str) -> set[str]:
     return {x for x in items if x}
 
 
+def _node_needs_two_stage(prefixed_bpl: str, alias: str) -> bool:
+    """
+    Heuristic: enable the (more expensive) two-stage ingress/egress scheduling only
+    for nodes whose P4B-translated Boogie program can emit cross-pass events.
+
+    Rationale:
+      - Recirculation/clone split a logical "send" across multiple passes.
+      - Modeling these effects as separate stages is useful to expose interleavings.
+      - For nodes without such effects, forcing two-stage adds unnecessary actions
+        and can significantly slow down TraceAbstraction.
+    """
+    # P4B uses these boolean flags to represent extern-triggered events.
+    rx = re.compile(
+        rf"\b{re.escape(alias)}_p4b_(?:recirculate|clone_i2e|clone_e2e|clone_i2i)\b\s*:=\s*true\b"
+    )
+    return bool(rx.search(prefixed_bpl))
+
+
 class BoogieBackend:
     def __init__(self, p4b_bin: Optional[str] = None):
         self._p4b_bin = p4b_bin
@@ -185,6 +203,8 @@ class BoogieBackend:
         node_pipeline_stages = {}
         if pipeline_two_stage:
             for alias, prefixed in node_prefixed.items():
+                if not _node_needs_two_stage(prefixed, alias):
+                    continue
                 stages = split_pipeline_stages(prefixed, alias)
                 if stages:
                     node_pipeline_stages[alias] = stages

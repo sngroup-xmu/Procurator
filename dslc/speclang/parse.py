@@ -14,6 +14,7 @@ class SpecParseError(ValueError):
 
 _DSL_CONFIG_DIRECTIVES = {
     "external_input",
+    "sink",
     "queue_capacity",
     "max_steps",
     "deterministic_scheduler",
@@ -103,6 +104,12 @@ def parse_model(spec_text: str) -> SpecModel:
                             raise SpecParseError("external_input must be true/false")
                         nd.external_input = rhs_val
                         continue
+                    if var_name == "sink":
+                        rhs_val = _bool_literal(rhs_tree)
+                        if rhs_val is None:
+                            raise SpecParseError("sink must be true/false")
+                        nd.sink = rhs_val
+                        continue
 
                 if tt == "assume_statement":
                     nd.assume_exprs.extend(_extract_bool_exprs(stmt))
@@ -150,6 +157,12 @@ def parse_model(spec_text: str) -> SpecModel:
                         rhs_val = _bool_literal(rhs_tree)
                         if rhs_val is None:
                             raise SpecParseError("external_input must be true/false")
+                        # Ignore on hosts.
+                        continue
+                    if var_name == "sink":
+                        rhs_val = _bool_literal(rhs_tree)
+                        if rhs_val is None:
+                            raise SpecParseError("sink must be true/false")
                         # Ignore on hosts.
                         continue
 

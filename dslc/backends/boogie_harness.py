@@ -76,6 +76,8 @@ class BoogieHarnessEmitter:
             h: set(self._host_input_vars.get(h, [])) for h in self._host_to_node.keys()
         }
         self._max_env_inputs = max_env_inputs
+        max_steps = spec.global_decl.max_steps
+        self._max_steps: Optional[int] = max_steps if isinstance(max_steps, int) and max_steps > 0 else None
         # Step-indexed trace maps are intentionally disabled by default since they make loop proofs harder.
         self._emit_trace = False
         self._por_enabled = por_enabled
@@ -249,8 +251,12 @@ class BoogieHarnessEmitter:
             if l.src != node:
                 continue
             dst = l.dst
-            writes.add(_RwKey(obj=f"{dst}_inbox_count"))
-            writes.add(_RwKey(obj=f"{dst}_pkt_external"))
+            if not self._is_sink_node(dst):
+                writes.add(_RwKey(obj=f"{dst}_inbox_count"))
+                writes.add(_RwKey(obj=f"{dst}_pkt_external"))
+            else:
+                for v in self._collect_dsl_modified_boogie_vars(dst):
+                    writes.add(_RwKey(obj=v))
             src_decl = self._node_declared_vars.get(node, set())
             dst_decl = self._get_declared_vars(dst)
             for v in self._node_input_vars.get(node, []):
@@ -322,6 +328,19 @@ class BoogieHarnessEmitter:
                     continue
                 self._dsl_host_vars[host][var_name] = _dsl_type_to_boogie(typ)
 
+    def _validate_sink_nodes(self, sink_nodes: Sequence[str]) -> None:
+        if not sink_nodes:
+            return
+        outgoing = {l.src for l in self._spec.links}
+        for n in sink_nodes:
+            nd = self._spec.nodes.get(n, NodeDecl(name=n))
+            if nd.external_input is True:
+                raise BoogieBackendError(f"node '{n}' is marked sink=true but also external_input=true")
+            if nd.env_statements:
+                raise BoogieBackendError(f"node '{n}' is marked sink=true but defines an env{{...}} block")
+            if n in outgoing:
+                raise BoogieBackendError(f"node '{n}' is marked sink=true but has outgoing topology links")
+
     def _emit_bitvector_helpers(self) -> str:
         return (
             "function bvule.bv16(left:bv16, right:bv16) returns(bool);\n"
@@ -340,7 +359,11 @@ class BoogieHarnessEmitter:
         if k <= 0:
             raise ValueError(f"queue_capacity must be > 0, got {k}")
 
-        node_aliases = list(self._spec.imports.keys())
+        all_node_aliases = list(self._spec.imports.keys())
+        sink_nodes = [n for n in all_node_aliases if self._is_sink_node(n)]
+        self._validate_sink_nodes(sink_nodes)
+        # Scheduled nodes are the ones that actually execute P4 passes (threads / scheduler actions).
+        node_aliases = [n for n in all_node_aliases if n not in sink_nodes]
         host_aliases = list(self._spec.hosts.keys())
         if self._por_enabled and self._por_guard_enabled:
             self._por_guards = self._compute_por_guards(node_aliases)
@@ -362,17 +385,19 @@ class BoogieHarnessEmitter:
             # A global lock to realize pass-atomic semantics without large atomic blocks.
             # We keep atomic blocks minimal (lock acquire/release only), to avoid Ultimate's atomic composition issues.
             lines.append("var procurator_lock: int;\n\n")
+            if self._max_steps is not None:
+                lines.append("var procurator_step: int;\n\n")
 
             # DSL locals as globals
             if (
                 self._dsl_global_vars
-                or any(self._dsl_node_vars.get(a) for a in node_aliases)
+                or any(self._dsl_node_vars.get(a) for a in all_node_aliases)
                 or any(self._dsl_host_vars.get(h) for h in host_aliases)
             ):
                 lines.append("// DSL state variables (modeled as Boogie globals)\n")
                 for name, typ in sorted(self._dsl_global_vars.items()):
                     lines.append(f"var dsl_{name}: {typ};\n")
-                for n in node_aliases:
+                for n in all_node_aliases:
                     for name, typ in sorted(self._dsl_node_vars.get(n, {}).items()):
                         lines.append(f"var {n}_dsl_{name}: {typ};\n")
                 for h in host_aliases:
@@ -406,7 +431,11 @@ class BoogieHarnessEmitter:
                         if not isinstance(vt, str) or not vt.strip():
                             continue
                         typ = self._prefix_node_type(a, vt)
-                        lines.append(f"var {self._egress_mailbox_var(a, v)}: {typ};\n")
+                        if self._two_slot_egress_enabled(k):
+                            lines.append(f"var {self._egress_slot_var(a, 0, v)}: {typ};\n")
+                            lines.append(f"var {self._egress_slot_var(a, 1, v)}: {typ};\n")
+                        else:
+                            lines.append(f"var {self._egress_mailbox_var(a, v)}: {typ};\n")
                         lines.append(f"var {self._ingress_saved_var(a, v)}: {typ};\n")
                 lines.append("\n")
 
@@ -489,10 +518,12 @@ class BoogieHarnessEmitter:
         if emit_helpers:
             lines.append(self._emit_bitvector_helpers())
 
-        # Note: we intentionally keep the sequential harness unbounded (Ultimate can reason about loops).
-        # global.max_steps is ignored here; use it only in bounded/BMC workflows outside this backend.
+        # By default we keep the sequential harness unbounded (Ultimate can reason about loops).
+        # If `global.max_steps` is set, we emit a bounded loop to support fast bug-finding runs.
         lines.append("var procurator_step: int;\n")
-        if self._spec.global_decl.deterministic_scheduler is True:
+        if self._accumulate_global_assertions():
+            lines.append("var procurator_bad: bool;\n")
+        if self._needs_deterministic_phase_var():
             # Avoid integer modulo in the scheduler encoding (helps Ultimate on deep loops).
             lines.append("var procurator_phase: int;\n")
         lines.append("\n")
@@ -500,13 +531,13 @@ class BoogieHarnessEmitter:
         # DSL locals as globals
         if (
             self._dsl_global_vars
-            or any(self._dsl_node_vars.get(a) for a in node_aliases)
+            or any(self._dsl_node_vars.get(a) for a in all_node_aliases)
             or any(self._dsl_host_vars.get(h) for h in host_aliases)
         ):
             lines.append("// DSL state variables (modeled as Boogie globals)\n")
             for name, typ in sorted(self._dsl_global_vars.items()):
                 lines.append(f"var dsl_{name}: {typ};\n")
-            for n in node_aliases:
+            for n in all_node_aliases:
                 for name, typ in sorted(self._dsl_node_vars.get(n, {}).items()):
                     lines.append(f"var {n}_dsl_{name}: {typ};\n")
             for h in host_aliases:
@@ -546,7 +577,11 @@ class BoogieHarnessEmitter:
                     if not isinstance(vt, str) or not vt.strip():
                         continue
                     typ = self._prefix_node_type(a, vt)
-                    lines.append(f"var {self._egress_mailbox_var(a, v)}: {typ};\n")
+                    if self._two_slot_egress_enabled(k):
+                        lines.append(f"var {self._egress_slot_var(a, 0, v)}: {typ};\n")
+                        lines.append(f"var {self._egress_slot_var(a, 1, v)}: {typ};\n")
+                    else:
+                        lines.append(f"var {self._egress_mailbox_var(a, v)}: {typ};\n")
                     lines.append(f"var {self._ingress_saved_var(a, v)}: {typ};\n")
             lines.append("\n")
 
@@ -602,6 +637,40 @@ class BoogieHarnessEmitter:
 
         return "".join(lines)
 
+    def _needs_deterministic_phase_var(self) -> bool:
+        """
+        Whether the sequential harness needs a runtime scheduler phase variable.
+
+        When `global.max_steps` is small (<= 1000), we unroll `mainProcedure` for fast bug finding.
+        In that case, we can emit the deterministic round-robin schedule directly in `mainProcedure`
+        and avoid introducing a phase variable (which otherwise creates many spurious paths for
+        Ultimate's TraceAbstraction).
+        """
+
+        if self._spec.global_decl.deterministic_scheduler is not True:
+            return False
+        if self._max_steps is not None and self._max_steps <= 1000:
+            return False
+        return True
+
+    def _accumulate_global_assertions(self) -> bool:
+        """
+        Whether to convert per-step global assertions into a single end-of-run assertion.
+
+        TraceAbstraction can struggle when the same global assertion is checked at many locations
+        (e.g., once per node pass) in a bounded, unrolled harness. In bounded bug-finding mode, we
+        accumulate all global assertion violations in a boolean flag and assert it at the end.
+
+        This is semantics-preserving for safety: a violation at any step sets the flag permanently.
+        """
+
+        return (
+            self._harness_mode == "sequential"
+            and self._max_steps is not None
+            and self._max_steps <= 1000
+            and bool(self._spec.global_decl.assert_exprs)
+        )
+
     def _emit_forward_proc(self, src: str, k: int) -> str:
         port_map: Dict[str, str] = {}
         wildcard_dst: Optional[str] = None
@@ -634,15 +703,19 @@ class BoogieHarnessEmitter:
         emit_trace = self._emit_trace and self._harness_mode == "sequential"
         trace_types = self._trace_field_types(src) if emit_trace else {}
         for dst in dsts:
-            modifies.append(f"{dst}_inbox_count")
-            modifies.append(f"{dst}_pkt_external")
+            if not self._is_sink_node(dst):
+                modifies.append(f"{dst}_inbox_count")
+                modifies.append(f"{dst}_pkt_external")
+            else:
+                # Sink/observer nodes execute DSL instrumentation at enqueue-time.
+                modifies.extend(self._collect_dsl_modified_boogie_vars(dst))
             # Enqueue preserves on-wire packet fields (headers only).
             src_decl = self._node_declared_vars.get(src, set())
             dst_decl = self._get_declared_vars(dst)
             for v in self._node_input_vars.get(src, []):
                 if _is_on_wire_packet_var(v) and v in src_decl and v in dst_decl:
                     modifies.append(f"{dst}_{v}")
-            if self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
+            if not self._is_sink_node(dst) and self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
                 for v in self._inbox_on_wire_vars(dst):
                     modifies.append(self._inbox_slot_var(dst, 0, v))
                     modifies.append(self._inbox_slot_var(dst, 1, v))
@@ -711,11 +784,16 @@ class BoogieHarnessEmitter:
             if _is_on_wire_packet_var(v) and v in src_decl and v in dst_decl:
                 copy_vars.append(v)
 
+        dst_is_sink = self._is_sink_node(dst)
         out: List[str] = []
         out.append(f"procedure {src}__enqueue_{dst}() returns()\n")
-        mod: List[str] = [f"{dst}_inbox_count", f"{dst}_pkt_external"]
+        mod: List[str] = []
+        if not dst_is_sink:
+            mod.extend([f"{dst}_inbox_count", f"{dst}_pkt_external"])
         mod.extend(f"{dst}_{v}" for v in copy_vars)
-        if self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
+        if dst_is_sink:
+            mod.extend(self._collect_dsl_modified_boogie_vars(dst))
+        if not dst_is_sink and self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
             for v in self._inbox_on_wire_vars(dst):
                 mod.append(self._inbox_slot_var(dst, 0, v))
                 mod.append(self._inbox_slot_var(dst, 1, v))
@@ -731,14 +809,29 @@ class BoogieHarnessEmitter:
                 mod.append(self._trace_enqueue_key_name(src, dst))
         out.append("  modifies " + ", ".join(sorted(set(mod))) + ";\n")
         out.append("{\n")
-        out.append(f"  assume {dst}_inbox_count < {k};\n")
-        # Store the packet fields (single slot) and mark as forwarded
+        if not dst_is_sink:
+            out.append(f"  assume {dst}_inbox_count < {k};\n")
+        # Store the packet fields (single slot)
         for v in copy_vars:
             out.append(f"  {dst}_{v} := {src}_{v};\n")
-        out.append(f"  {dst}_pkt_external := false;\n")
-        if self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
-            out.append(self._emit_inbox_store_from_active(dst, slot_expr=f"{dst}_inbox_count", indent="  "))
-        out.append(f"  {dst}_inbox_count := {dst}_inbox_count + 1;\n")
+        if dst_is_sink:
+            dsl_stmt_lines = self._emit_node_pass_statements(dst, indent="  ")
+            if dsl_stmt_lines:
+                out.append("  // Sink/observer node: execute DSL instrumentation at enqueue-time\n")
+                out.append(dsl_stmt_lines)
+            assert_lines = self._emit_assert_lines(
+                self._spec.nodes.get(dst, NodeDecl(name=dst)).assert_exprs,
+                indent="  ",
+                current_node=dst,
+            )
+            if assert_lines:
+                out.append("  // Sink/observer node: local DSL assertions\n")
+                out.append(assert_lines)
+        else:
+            out.append(f"  {dst}_pkt_external := false;\n")
+            if self._two_slot_inbox_enabled(k) and dst in self._spec.imports:
+                out.append(self._emit_inbox_store_from_active(dst, slot_expr=f"{dst}_inbox_count", indent="  "))
+            out.append(f"  {dst}_inbox_count := {dst}_inbox_count + 1;\n")
         if emit_trace:
             out.append(f"  {self._trace_enqueue_exec_name(src, dst)}[procurator_step] := true;\n")
             if "seq" in trace_types:
@@ -756,7 +849,13 @@ class BoogieHarnessEmitter:
         return self._node_declared_vars.get(name, set())
 
     def _is_two_stage_node(self, node: str) -> bool:
-        return node in self._two_stage_nodes
+        # Sink/observer nodes are never scheduled to run P4, so the two-stage encoding
+        # (ingress/egress split) is meaningless for them and should be disabled.
+        return node in self._two_stage_nodes and not self._is_sink_node(node)
+
+    def _is_sink_node(self, node: str) -> bool:
+        nd = self._spec.nodes.get(node)
+        return bool(nd is not None and nd.sink is True)
 
     def _ingress_proc_name(self, node: str) -> str:
         return f"{node}__procurator_ingress"
@@ -864,7 +963,9 @@ class BoogieHarnessEmitter:
 
     def _emit_env_thread(self, k: int) -> str:
         # Determine which nodes can receive external inputs.
-        nodes = list(self._spec.imports.keys())
+        nodes = [n for n in self._spec.imports.keys() if not self._is_sink_node(n)]
+        if not nodes:
+            raise BoogieBackendError("EnvThread requires at least one non-sink node")
         marked = [n for n in nodes if self._spec.nodes.get(n, NodeDecl(name=n)).external_input is True]
         inject_targets = marked if marked else nodes  # compatibility fallback
 
@@ -885,24 +986,56 @@ class BoogieHarnessEmitter:
                     env_modifies.add(self._inbox_slot_var(n, 0, v))
                     env_modifies.add(self._inbox_slot_var(n, 1, v))
         env_modifies.add("procurator_lock")
+        if self._max_steps is not None:
+            env_modifies.add("procurator_step")
         out.append(
             "  modifies "
             + ", ".join(sorted(env_modifies))
             + ";\n"
         )
         out.append("{\n")
-        out.append("  while (true) {\n")
+        if self._max_steps is None:
+            out.append("  while (true) {\n")
+        else:
+            out.append(f"  while (procurator_step < {self._max_steps}) {{\n")
         out.append("    // Nondeterministically inject an external packet into one ingress node\n")
-        for n in inject_targets:
-            out.append("      if (*) {\n")
-            out.append("        atomic {\n")
-            out.append("          assume procurator_lock == 0;\n")
-            out.append("          procurator_lock := 1;\n")
-            out.append("        }\n")
-            out.append(self._emit_external_enqueue_stmt(n, k, indent="        ", deterministic=False))
-            out.append("        atomic {\n")
-            out.append("          procurator_lock := 0;\n")
-            out.append("        }\n")
+        # Important: avoid a stuttering EnvThread iteration that neither injects
+        # nor increments procurator_step. Otherwise, even with max_steps, the
+        # overall system remains unbounded and TraceAbstraction may diverge.
+        if len(inject_targets) == 1:
+            n = inject_targets[0]
+            out.append("      atomic {\n")
+            out.append("        assume procurator_lock == 0;\n")
+            if self._max_steps is not None:
+                out.append(f"        assume procurator_step < {self._max_steps};\n")
+            out.append("        procurator_lock := 1;\n")
+            out.append("      }\n")
+            out.append(self._emit_external_enqueue_stmt(n, k, indent="      ", deterministic=False))
+            out.append("      atomic {\n")
+            if self._max_steps is not None:
+                out.append("        procurator_step := procurator_step + 1;\n")
+            out.append("        procurator_lock := 0;\n")
+            out.append("      }\n")
+        else:
+            for i, n in enumerate(inject_targets):
+                if i == 0:
+                    out.append("      if (*) {\n")
+                elif i == len(inject_targets) - 1:
+                    out.append("      } else {\n")
+                else:
+                    out.append("      } else if (*) {\n")
+                out.append("        atomic {\n")
+                out.append("          assume procurator_lock == 0;\n")
+                if self._max_steps is not None:
+                    out.append(f"          assume procurator_step < {self._max_steps};\n")
+                out.append("          procurator_lock := 1;\n")
+                out.append("        }\n")
+                out.append(self._emit_external_enqueue_stmt(n, k, indent="        ", deterministic=False))
+                out.append("        atomic {\n")
+                if self._max_steps is not None:
+                    out.append("          procurator_step := procurator_step + 1;\n")
+                out.append("          procurator_lock := 0;\n")
+                out.append("        }\n")
             out.append("      }\n")
         out.append("  }\n")
         out.append("}\n")
@@ -914,6 +1047,8 @@ class BoogieHarnessEmitter:
         out: List[str] = []
         out.append("// Two-stage pipeline wrappers (split ingress/egress)\n")
         for node in sorted(self._two_stage_nodes):
+            if self._is_sink_node(node):
+                continue
             stages = self._node_pipeline_stages.get(node)
             if not stages:
                 continue
@@ -955,16 +1090,23 @@ class BoogieHarnessEmitter:
             out.append(dsl_stmt_lines)
         out.append(f"{indent}call {self._ingress_proc_name(node)}();\n")
         snap = self._two_stage_snapshot_var_bases(node)
-        if snap:
-            out.append(f"{indent}// Snapshot per-packet state for deferred egress.\n")
-            for v in snap:
-                out.append(f"{indent}{self._egress_mailbox_var(node, v)} := {node}_{v};\n")
         out.append(f"{indent}// Schedule egress for the original packet.\n")
         out.append(f"{indent}assume {node}_egress_count < {k};\n")
+        if snap:
+            out.append(f"{indent}// Snapshot per-packet state for deferred egress.\n")
+            if self._two_slot_egress_enabled(k):
+                out.append(self._emit_egress_store_from_active(node, slot_expr=f"{node}_egress_count", indent=indent))
+            else:
+                for v in snap:
+                    out.append(f"{indent}{self._egress_mailbox_var(node, v)} := {node}_{v};\n")
         out.append(f"{indent}{node}_egress_count := {node}_egress_count + 1;\n")
         if "p4b_clone_i2e" in clone_flags:
             out.append(f"{indent}if ({node}_p4b_clone_i2e) {{\n")
             out.append(f"{indent}  assume {node}_egress_count < {k};\n")
+            if snap and self._two_slot_egress_enabled(k):
+                out.append(
+                    self._emit_egress_store_from_active(node, slot_expr=f"{node}_egress_count", indent=indent + "  ")
+                )
             out.append(f"{indent}  {node}_egress_count := {node}_egress_count + 1;\n")
             out.append(f"{indent}}}\n")
         if "p4b_clone_i2i" in clone_flags:
@@ -988,20 +1130,41 @@ class BoogieHarnessEmitter:
         out: List[str] = []
         snap = self._two_stage_snapshot_var_bases(node)
         if snap:
-            out.append(f"{indent}// Two-stage: swap in the pending egress packet snapshot.\n")
+            out.append(f"{indent}// Two-stage: swap in one pending egress packet snapshot.\n")
             for v in snap:
                 out.append(f"{indent}{self._ingress_saved_var(node, v)} := {node}_{v};\n")
-            for v in snap:
-                out.append(f"{indent}{node}_{v} := {self._egress_mailbox_var(node, v)};\n")
+            if self._two_slot_egress_enabled(k):
+                out.append(f"{indent}// Two-slot egress queue: pick a pending snapshot (Bag semantics)\n")
+                out.append(f"{indent}if ({node}_egress_count == 1) {{\n")
+                out.append(self._emit_egress_load_to_active(node, slot=0, indent=indent + "  "))
+                out.append(f"{indent}}} else {{\n")
+                out.append(f"{indent}  if (*) {{\n")
+                out.append(self._emit_egress_load_to_active(node, slot=0, indent=indent + "    "))
+                out.append(self._emit_egress_shift_slot1_to_slot0(node, indent=indent + "    "))
+                out.append(f"{indent}  }} else {{\n")
+                out.append(self._emit_egress_load_to_active(node, slot=1, indent=indent + "    "))
+                out.append(f"{indent}  }}\n")
+                out.append(f"{indent}}}\n")
+            else:
+                for v in snap:
+                    out.append(f"{indent}{node}_{v} := {self._egress_mailbox_var(node, v)};\n")
+        out.append(f"{indent}{node}_egress_count := {node}_egress_count - 1;\n")
 
         out.append(f"{indent}call {self._egress_proc_name(node)}();\n")
         if "p4b_clone_e2e" in clone_flags:
             out.append(f"{indent}if ({node}_p4b_clone_e2e) {{\n")
+            out.append(f"{indent}  assume {node}_egress_count < {k};\n")
             if snap:
                 out.append(f"{indent}  // Snapshot the cloned packet for the next egress pass.\n")
-                for v in snap:
-                    out.append(f"{indent}  {self._egress_mailbox_var(node, v)} := {node}_{v};\n")
-            out.append(f"{indent}  assume {node}_egress_count < {k};\n")
+                if self._two_slot_egress_enabled(k):
+                    out.append(
+                        self._emit_egress_store_from_active(
+                            node, slot_expr=f"{node}_egress_count", indent=indent + "  "
+                        )
+                    )
+                else:
+                    for v in snap:
+                        out.append(f"{indent}  {self._egress_mailbox_var(node, v)} := {node}_{v};\n")
             out.append(f"{indent}  {node}_egress_count := {node}_egress_count + 1;\n")
             out.append(f"{indent}}}\n")
         if "p4b_recirculate" in clone_flags:
@@ -1065,6 +1228,8 @@ class BoogieHarnessEmitter:
 
         modifies_set = set()
         modifies_set.add("procurator_lock")
+        if self._max_steps is not None:
+            modifies_set.add("procurator_step")
         modifies_set.add(f"{node}_inbox_count")
         modifies_set.add(f"{node}_pkt_external")
         modifies_set.update(self._node_mainprocedure_modifies.get(node, set()))
@@ -1100,18 +1265,27 @@ class BoogieHarnessEmitter:
             for v in self._two_stage_snapshot_var_bases(node):
                 # Two-stage pipeline: egress step swaps/restores the active packet globals.
                 modifies_set.add(f"{node}_{v}")
-                modifies_set.add(self._egress_mailbox_var(node, v))
+                if self._two_slot_egress_enabled(k):
+                    modifies_set.add(self._egress_slot_var(node, 0, v))
+                    modifies_set.add(self._egress_slot_var(node, 1, v))
+                else:
+                    modifies_set.add(self._egress_mailbox_var(node, v))
                 modifies_set.add(self._ingress_saved_var(node, v))
         for l in self._spec.links:
             if l.src == node:
-                modifies_set.add(f"{l.dst}_inbox_count")
-                modifies_set.add(f"{l.dst}_pkt_external")
+                if not self._is_sink_node(l.dst):
+                    modifies_set.add(f"{l.dst}_inbox_count")
+                    modifies_set.add(f"{l.dst}_pkt_external")
+                else:
+                    # Sink/observer nodes execute DSL instrumentation at enqueue-time, so the
+                    # sender thread must account for those side effects as well.
+                    modifies_set.update(self._collect_dsl_modified_boogie_vars(l.dst))
                 # enqueue copies packet fields
                 dst_decl = self._get_declared_vars(l.dst)
                 for v in self._node_input_vars.get(node, []):
                     if v in self._node_declared_vars.get(node, set()) and v in dst_decl:
                         modifies_set.add(f"{l.dst}_{v}")
-                if self._two_slot_inbox_enabled(k) and l.dst in self._spec.imports:
+                if not self._is_sink_node(l.dst) and self._two_slot_inbox_enabled(k) and l.dst in self._spec.imports:
                     for v in self._inbox_on_wire_vars(l.dst):
                         modifies_set.add(self._inbox_slot_var(l.dst, 0, v))
                         modifies_set.add(self._inbox_slot_var(l.dst, 1, v))
@@ -1120,11 +1294,15 @@ class BoogieHarnessEmitter:
         out.append(f"procedure {node}Thread() returns()\n")
         out.append("  modifies " + ", ".join(sorted(modifies_set)) + ";\n")
         out.append("{\n")
-        out.append("  while (true) {\n")
+        if self._max_steps is None:
+            out.append("  while (true) {\n")
+        else:
+            out.append(f"  while (procurator_step < {self._max_steps}) {{\n")
         if not two_stage:
-            out.append("    if (*) {\n")
             out.append("      atomic {\n")
             out.append("        assume procurator_lock == 0;\n")
+            if self._max_steps is not None:
+                out.append(f"        assume procurator_step < {self._max_steps};\n")
             out.append(f"        assume {node}_inbox_count > 0;\n")
             if self._por_enabled and self._por_guard_enabled:
                 guards = self._por_guards.get(node, [])
@@ -1180,14 +1358,21 @@ class BoogieHarnessEmitter:
                 out.append("      // DSL assertions\n")
                 out.append(assert_lines)
             out.append("      atomic {\n")
+            if self._max_steps is not None:
+                out.append("        procurator_step := procurator_step + 1;\n")
             out.append("        procurator_lock := 0;\n")
             out.append("      }\n")
-            out.append("    }\n")
         else:
             # Ingress stage
+            # Avoid stutter steps: the fork/interleaving semantics already model
+            # nondeterministic scheduling. Explicit `if (*) { ... }` wrappers
+            # introduce always-enabled self-loops that keep the system unbounded
+            # even under max_steps.
             out.append("    if (*) {\n")
             out.append("      atomic {\n")
             out.append("        assume procurator_lock == 0;\n")
+            if self._max_steps is not None:
+                out.append(f"        assume procurator_step < {self._max_steps};\n")
             out.append(f"        assume {node}_inbox_count > 0;\n")
             if self._por_enabled and self._por_guard_enabled:
                 guards = self._por_guards.get(node, [])
@@ -1220,17 +1405,19 @@ class BoogieHarnessEmitter:
                 )
             )
             out.append("      atomic {\n")
+            if self._max_steps is not None:
+                out.append("        procurator_step := procurator_step + 1;\n")
             out.append("        procurator_lock := 0;\n")
             out.append("      }\n")
-            out.append("    }\n")
+            out.append("    } else {\n")
             # Egress stage
-            out.append("    if (*) {\n")
             out.append("      atomic {\n")
             out.append("        assume procurator_lock == 0;\n")
+            if self._max_steps is not None:
+                out.append(f"        assume procurator_step < {self._max_steps};\n")
             out.append(f"        assume {node}_egress_count > 0;\n")
             out.append("        procurator_lock := 1;\n")
             out.append("      }\n")
-            out.append(f"      {node}_egress_count := {node}_egress_count - 1;\n")
             out.append(
                 self._emit_egress_stage_body(
                     node,
@@ -1241,6 +1428,8 @@ class BoogieHarnessEmitter:
                 )
             )
             out.append("      atomic {\n")
+            if self._max_steps is not None:
+                out.append("        procurator_step := procurator_step + 1;\n")
             out.append("        procurator_lock := 0;\n")
             out.append("      }\n")
             out.append("    }\n")
@@ -1330,6 +1519,8 @@ class BoogieHarnessEmitter:
         #  - variables that may be modified by forked procedures (fork behaves like a call wrt modifies checks).
         start_modifies: set[str] = set()
         start_modifies.add("procurator_lock")
+        if self._max_steps is not None:
+            start_modifies.add("procurator_step")
         start_modifies.update(f"{a}_inbox_count" for a in node_aliases + host_aliases)
         start_modifies.update(f"{a}_pkt_external" for a in node_aliases + host_aliases)
         k = self._spec.global_decl.queue_capacity if self._spec.global_decl.queue_capacity is not None else 5
@@ -1343,11 +1534,15 @@ class BoogieHarnessEmitter:
                 start_modifies.add(f"{a}_egress_count")
                 for v in self._two_stage_snapshot_var_bases(a):
                     start_modifies.add(f"{a}_{v}")
-                    start_modifies.add(self._egress_mailbox_var(a, v))
+                    if self._two_slot_egress_enabled(k):
+                        start_modifies.add(self._egress_slot_var(a, 0, v))
+                        start_modifies.add(self._egress_slot_var(a, 1, v))
+                    else:
+                        start_modifies.add(self._egress_mailbox_var(a, v))
                     start_modifies.add(self._ingress_saved_var(a, v))
         # DSL locals are globals and may be initialized here.
         start_modifies.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
-        for a in node_aliases:
+        for a in self._spec.imports.keys():
             start_modifies.update(f"{a}_dsl_{name}" for name in self._dsl_node_vars.get(a, {}).keys())
         for h in host_aliases:
             start_modifies.update(f"{h}_dsl_{name}" for name in self._dsl_host_vars.get(h, {}).keys())
@@ -1375,9 +1570,13 @@ class BoogieHarnessEmitter:
         for h in host_aliases:
             start_modifies.update(f"{h}_{v}" for v in self._host_input_vars.get(h, []))
         for l in self._spec.links:
-            # forwarding updates inbox counters
-            start_modifies.add(f"{l.dst}_inbox_count")
-            start_modifies.add(f"{l.dst}_pkt_external")
+            if not self._is_sink_node(l.dst):
+                # forwarding updates inbox counters
+                start_modifies.add(f"{l.dst}_inbox_count")
+                start_modifies.add(f"{l.dst}_pkt_external")
+            else:
+                # Sink/observer nodes execute DSL instrumentation at enqueue-time.
+                start_modifies.update(self._collect_dsl_modified_boogie_vars(l.dst))
             # enqueue copies packet fields
             dst_decl = self._get_declared_vars(l.dst)
             for v in self._node_input_vars.get(l.src, []):
@@ -1386,6 +1585,8 @@ class BoogieHarnessEmitter:
         out.append("  modifies " + ", ".join(sorted(start_modifies)) + ";\n")
         out.append("{\n")
         out.append("  procurator_lock := 0;\n")
+        if self._max_steps is not None:
+            out.append("  procurator_step := 0;\n")
         out.append("  // initialize inboxes\n")
         for a in node_aliases + host_aliases:
             out.append(f"  {a}_inbox_count := 0;\n")
@@ -1455,11 +1656,15 @@ class BoogieHarnessEmitter:
                 mods.add(f"{a}_egress_count")
                 for v in self._two_stage_snapshot_var_bases(a):
                     mods.add(f"{a}_{v}")
-                    mods.add(self._egress_mailbox_var(a, v))
+                    if self._two_slot_egress_enabled(k):
+                        mods.add(self._egress_slot_var(a, 0, v))
+                        mods.add(self._egress_slot_var(a, 1, v))
+                    else:
+                        mods.add(self._egress_mailbox_var(a, v))
                     mods.add(self._ingress_saved_var(a, v))
 
         mods.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
-        for a in node_aliases:
+        for a in self._spec.imports.keys():
             mods.update(f"{a}_dsl_{name}" for name in self._dsl_node_vars.get(a, {}).keys())
         for h in host_aliases:
             mods.update(f"{h}_dsl_{name}" for name in self._dsl_host_vars.get(h, {}).keys())
@@ -1513,8 +1718,11 @@ class BoogieHarnessEmitter:
             mods.update(f"{h}_{v}" for v in self._host_input_vars.get(h, []))
 
         for l in self._spec.links:
-            mods.add(f"{l.dst}_inbox_count")
-            mods.add(f"{l.dst}_pkt_external")
+            if not self._is_sink_node(l.dst):
+                mods.add(f"{l.dst}_inbox_count")
+                mods.add(f"{l.dst}_pkt_external")
+            else:
+                mods.update(self._collect_dsl_modified_boogie_vars(l.dst))
             dst_decl = self._get_declared_vars(l.dst)
             for v in self._node_input_vars.get(l.src, []):
                 if v in self._node_declared_vars.get(l.src, set()) and v in dst_decl:
@@ -1863,14 +2071,25 @@ class BoogieHarnessEmitter:
         """
         self._trace_node_ids = {n: i + 1 for i, n in enumerate(node_aliases)}
         deterministic = self._spec.global_decl.deterministic_scheduler is True
+        needs_phase = self._needs_deterministic_phase_var()
+        deterministic_unroll = (
+            deterministic
+            and not needs_phase
+            and self._max_steps is not None
+            and self._max_steps <= 1000
+        )
         mods = self._compute_harness_modifies(node_aliases, host_aliases, include_lock=False)
         mods.add("procurator_step")
-        if deterministic:
+        if self._accumulate_global_assertions():
+            mods.add("procurator_bad")
+        if needs_phase:
             mods.add("procurator_phase")
 
         actions: List[tuple[str, str]] = []
         if env_thread_enabled:
-            nodes = list(self._spec.imports.keys())
+            nodes = [n for n in self._spec.imports.keys() if not self._is_sink_node(n)]
+            if not nodes:
+                raise BoogieBackendError("env_thread requires at least one non-sink node")
             marked = [n for n in nodes if self._spec.nodes.get(n, NodeDecl(name=n)).external_input is True]
             inject_targets = marked if marked else nodes  # compatibility fallback
             for n in inject_targets:
@@ -1888,67 +2107,74 @@ class BoogieHarnessEmitter:
 
         out: List[str] = []
 
-        out.append("procedure main() returns()\n")
-        if mods:
-            out.append("  modifies " + ", ".join(sorted(mods)) + ";\n")
-        out.append("{\n")
-        out.append("  // One scheduler step: pick exactly one action.\n")
-        if self._spec.global_decl.deterministic_scheduler is True:
-            out.append("  // Scheduler: deterministic round-robin over the action list.\n")
+        if not deterministic_unroll:
+            out.append("procedure main() returns()\n")
+            if mods:
+                out.append("  modifies " + ", ".join(sorted(mods)) + ";\n")
+            out.append("{\n")
+            out.append("  // One scheduler step: pick exactly one action.\n")
+            if needs_phase:
+                out.append("  // Scheduler: deterministic round-robin over the action list.\n")
 
-        indent = "    "
-        trace_reset = self._emit_trace_step_reset(node_aliases, indent=indent)
-        if trace_reset:
-            out.append(f"{indent}// Reset trace flags for this step.\n")
-            out.append(trace_reset)
+            indent = "    "
+            trace_reset = self._emit_trace_step_reset(node_aliases, indent=indent)
+            if trace_reset:
+                out.append(f"{indent}// Reset trace flags for this step.\n")
+                out.append(trace_reset)
 
-        period = len(actions) if actions else 0
-        for i, (kind, name) in enumerate(actions):
-            if deterministic:
-                cond = f"(procurator_phase == {i})"
-                head = f"if {cond}" if i == 0 else f"}} else if {cond}"
-            else:
-                head = "if (*)" if i == 0 else "} else if (*)"
-            out.append("  " + head + " {\n")
-            if kind == "env_inject":
-                out.append(f"{indent}// env inject -> {name}\n")
-                out.append(self._emit_external_enqueue_stmt(name, k, indent=indent, deterministic=deterministic))
-            elif kind == "host_send":
-                out.append(f"{indent}// host send -> {name}\n")
-                out.append(self._emit_sequential_host_send_step(name, k=k, indent=indent, deterministic=deterministic))
-            elif kind == "host_recv":
-                out.append(f"{indent}// host recv -> {name}\n")
-                out.append(self._emit_sequential_host_recv_step(name, indent=indent, deterministic=deterministic))
-            elif kind == "node_pass":
-                out.append(f"{indent}// node pass -> {name}\n")
-                out.append(self._emit_sequential_node_pass_step(name, k=k, indent=indent, deterministic=deterministic))
-            elif kind == "node_ingress":
-                out.append(f"{indent}// node ingress -> {name}\n")
-                out.append(self._emit_sequential_node_ingress_step(name, k=k, indent=indent, deterministic=deterministic))
-            elif kind == "node_egress":
-                out.append(f"{indent}// node egress -> {name}\n")
-                out.append(self._emit_sequential_node_egress_step(name, k=k, indent=indent, deterministic=deterministic))
-            else:
-                raise AssertionError(f"unhandled sequential action: {kind}")
+            period = len(actions) if actions else 0
+            for i, (kind, name) in enumerate(actions):
+                if needs_phase:
+                    cond = f"(procurator_phase == {i})"
+                    head = f"if {cond}" if i == 0 else f"}} else if {cond}"
+                else:
+                    head = "if (*)" if i == 0 else "} else if (*)"
+                out.append("  " + head + " {\n")
+                if kind == "env_inject":
+                    out.append(f"{indent}// env inject -> {name}\n")
+                    out.append(self._emit_external_enqueue_stmt(name, k, indent=indent, deterministic=deterministic))
+                elif kind == "host_send":
+                    out.append(f"{indent}// host send -> {name}\n")
+                    out.append(
+                        self._emit_sequential_host_send_step(name, k=k, indent=indent, deterministic=deterministic)
+                    )
+                elif kind == "host_recv":
+                    out.append(f"{indent}// host recv -> {name}\n")
+                    out.append(self._emit_sequential_host_recv_step(name, indent=indent, deterministic=deterministic))
+                elif kind == "node_pass":
+                    out.append(f"{indent}// node pass -> {name}\n")
+                    out.append(self._emit_sequential_node_pass_step(name, k=k, indent=indent, deterministic=deterministic))
+                elif kind == "node_ingress":
+                    out.append(f"{indent}// node ingress -> {name}\n")
+                    out.append(
+                        self._emit_sequential_node_ingress_step(name, k=k, indent=indent, deterministic=deterministic)
+                    )
+                elif kind == "node_egress":
+                    out.append(f"{indent}// node egress -> {name}\n")
+                    out.append(
+                        self._emit_sequential_node_egress_step(name, k=k, indent=indent, deterministic=deterministic)
+                    )
+                else:
+                    raise AssertionError(f"unhandled sequential action: {kind}")
 
-        if actions:
-            out.append("  } else {\n")
-            if deterministic:
-                out.append(f"{indent}assume false;\n")
-            else:
-                out.append(f"{indent}// idle\n")
-            out.append("  }\n")
+            if actions:
+                out.append("  } else {\n")
+                if needs_phase:
+                    out.append(f"{indent}assume false;\n")
+                else:
+                    out.append(f"{indent}// idle\n")
+                out.append("  }\n")
 
-        if deterministic:
-            # Next action in the fixed round-robin schedule.
-            out.append(f"{indent}if (procurator_phase == {period - 1}) {{\n")
-            out.append(f"{indent}  procurator_phase := 0;\n")
-            out.append(f"{indent}}} else {{\n")
-            out.append(f"{indent}  procurator_phase := procurator_phase + 1;\n")
-            out.append(f"{indent}}}\n")
+            if needs_phase:
+                # Next action in the fixed round-robin schedule.
+                out.append(f"{indent}if (procurator_phase == {period - 1}) {{\n")
+                out.append(f"{indent}  procurator_phase := 0;\n")
+                out.append(f"{indent}}} else {{\n")
+                out.append(f"{indent}  procurator_phase := procurator_phase + 1;\n")
+                out.append(f"{indent}}}\n")
 
-        out.append("}\n")
-        out.append("\n")
+            out.append("}\n")
+            out.append("\n")
 
         # mainProcedure: one-time init + infinite loop
         out.append("procedure mainProcedure() returns()\n")
@@ -1989,12 +2215,51 @@ class BoogieHarnessEmitter:
         out.append("\n")
 
         out.append("  procurator_step := 0;\n")
-        if deterministic:
+        if self._accumulate_global_assertions():
+            out.append("  procurator_bad := false;\n")
+        if needs_phase:
             out.append("  procurator_phase := 0;\n")
-        out.append("  while (true) {\n")
-        out.append("    call main();\n")
-        out.append("    procurator_step := procurator_step + 1;\n")
-        out.append("  }\n")
+        # For bug-finding we prefer bounded *unrolling* when max_steps is small. This avoids
+        # loop reasoning overhead in TraceAbstraction and typically finds shallow counterexamples
+        # much faster than a bounded while-loop.
+        if deterministic_unroll:
+            trace_reset = self._emit_trace_step_reset(node_aliases, indent="  ")
+            period = len(actions) if actions else 0
+            for step in range(self._max_steps or 0):
+                if trace_reset:
+                    out.append("  // Reset trace flags for this step.\n")
+                    out.append(trace_reset)
+                if period:
+                    kind, name = actions[step % period]
+                    out.append(f"  // step {step}: {kind} -> {name}\n")
+                    if kind == "env_inject":
+                        out.append(self._emit_external_enqueue_stmt(name, k, indent="  ", deterministic=True))
+                    elif kind == "host_send":
+                        out.append(self._emit_sequential_host_send_step(name, k=k, indent="  ", deterministic=True))
+                    elif kind == "host_recv":
+                        out.append(self._emit_sequential_host_recv_step(name, indent="  ", deterministic=True))
+                    elif kind == "node_pass":
+                        out.append(self._emit_sequential_node_pass_step(name, k=k, indent="  ", deterministic=True))
+                    elif kind == "node_ingress":
+                        out.append(self._emit_sequential_node_ingress_step(name, k=k, indent="  ", deterministic=True))
+                    elif kind == "node_egress":
+                        out.append(self._emit_sequential_node_egress_step(name, k=k, indent="  ", deterministic=True))
+                    else:
+                        raise AssertionError(f"unhandled deterministic action: {kind}")
+                out.append("  procurator_step := procurator_step + 1;\n")
+        elif self._max_steps is not None and self._max_steps <= 1000:
+            for _ in range(self._max_steps):
+                out.append("  call main();\n")
+                out.append("  procurator_step := procurator_step + 1;\n")
+        else:
+            out.append("  while (true) {\n" if self._max_steps is None else f"  while (procurator_step < {self._max_steps}) {{\n")
+            out.append("    call main();\n")
+            out.append("    procurator_step := procurator_step + 1;\n")
+            out.append("  }\n")
+        if self._accumulate_global_assertions():
+            out.append("\n")
+            out.append("  // end-of-run check for accumulated global assertion violations\n")
+            out.append("  assert !procurator_bad;\n")
         out.append("}\n")
 
         return "".join(out)
@@ -2007,7 +2272,9 @@ class BoogieHarnessEmitter:
         # Keep ULTIMATE.start as entry for existing scripts/toolchains; the real init happens in mainProcedure.
         mods = self._compute_harness_modifies(node_aliases, host_aliases, include_lock=False)
         mods.add("procurator_step")
-        if self._spec.global_decl.deterministic_scheduler is True:
+        if self._accumulate_global_assertions():
+            mods.add("procurator_bad")
+        if self._needs_deterministic_phase_var():
             mods.add("procurator_phase")
         out: List[str] = []
         out.append("procedure ULTIMATE.start() returns()\n")
@@ -2089,20 +2356,24 @@ class BoogieHarnessEmitter:
     def _emit_sequential_node_pass_step(self, node: str, *, k: int, indent: str, deterministic: bool) -> str:
         input_vars = self._node_input_vars.get(node, [])
 
-        assert_lines = "".join(
-            [
-                self._emit_assert_lines(
-                    self._spec.nodes.get(node, NodeDecl(name=node)).assert_exprs,
-                    indent=indent,
-                    current_node=node,
-                ),
-                self._emit_assert_lines(
+        node_assert_lines = self._emit_assert_lines(
+            self._spec.nodes.get(node, NodeDecl(name=node)).assert_exprs,
+            indent=indent,
+            current_node=node,
+        )
+        global_assert_lines = ""
+        global_track_lines = ""
+        if self._spec.global_decl.assert_exprs:
+            if self._accumulate_global_assertions():
+                for expr in self._spec.global_decl.assert_exprs:
+                    bpl = self._expr_to_boogie(expr, current_node=node, prefer_reg_dbg=True)
+                    global_track_lines += f"{indent}procurator_bad := procurator_bad || !({bpl});\n"
+            else:
+                global_assert_lines = self._emit_assert_lines(
                     self._spec.global_decl.assert_exprs,
                     indent=indent,
                     current_node=node,
-                ),
-            ]
-        )
+                )
 
         dsl_stmt_lines = self._emit_node_pass_statements(node, indent=indent)
 
@@ -2161,7 +2432,7 @@ class BoogieHarnessEmitter:
                 out.append(f"{indent}{node}_{flag} := false;\n")
         out.append(f"{indent}call {node}_Forward();\n")
         trace_lines = self._emit_trace_assignments(node, indent=indent, stage_id=3)
-        dbg_needed = bool(assert_lines or trace_lines)
+        dbg_needed = bool(node_assert_lines or global_assert_lines or trace_lines)
         if dbg_needed:
             dbg = self._emit_register_debug_assignments(indent=indent)
             if dbg:
@@ -2170,9 +2441,15 @@ class BoogieHarnessEmitter:
         if trace_lines:
             out.append(f"{indent}// Trace snapshot\n")
             out.append(trace_lines)
-        if assert_lines:
-            out.append(f"{indent}// DSL assertions\n")
-            out.append(assert_lines)
+        if node_assert_lines:
+            out.append(f"{indent}// DSL assertions (node-local)\n")
+            out.append(node_assert_lines)
+        if global_track_lines:
+            out.append(f"{indent}// Global assertions (accumulated into procurator_bad)\n")
+            out.append(global_track_lines)
+        if global_assert_lines:
+            out.append(f"{indent}// Global assertions\n")
+            out.append(global_assert_lines)
         if deterministic:
             out.append(f"{indent}}}\n")
         return "".join(out)
@@ -2250,7 +2527,6 @@ class BoogieHarnessEmitter:
         if deterministic:
             out.append(f"{indent}if ({node}_egress_count > 0) {{\n")
         out.append(f"{indent}assume {node}_egress_count > 0;\n")
-        out.append(f"{indent}{node}_egress_count := {node}_egress_count - 1;\n")
         out.append(
             self._emit_egress_stage_body(
                 node,
@@ -2311,6 +2587,18 @@ class BoogieHarnessEmitter:
 
         return int(k) == 2
 
+    def _two_slot_egress_enabled(self, k: int) -> bool:
+        """
+        Enable a two-slot mailbox model for the two-stage egress queue when `queue_capacity == 2`.
+
+        Rationale: the two-stage pipeline can have multiple pending "egress events" per node
+        (e.g., two packets between ingress and egress, or a packet plus a clone). If we only keep
+        a single egress snapshot and a counter, the later event overwrites the earlier snapshot,
+        which under-approximates packet-level behavior and may hide ordering bugs.
+        """
+
+        return self._two_slot_inbox_enabled(k)
+
     def _inbox_on_wire_vars(self, node: str) -> List[str]:
         declared = self._node_declared_vars.get(node, set())
         out: List[str] = []
@@ -2324,6 +2612,54 @@ class BoogieHarnessEmitter:
 
     def _inbox_slot_var(self, node: str, slot: int, base: str) -> str:
         return f"{node}_mb{slot}_{base}"
+
+    def _egress_slot_var(self, node: str, slot: int, base: str) -> str:
+        return f"{node}__eg_mb{slot}_{base}"
+
+    def _emit_egress_store_from_active(self, node: str, *, slot_expr: str, indent: str) -> str:
+        """
+        Store the current active packet snapshot (`{node}_*`) into the two-slot egress mailbox
+        slot selected by `slot_expr` (expected 0 or 1).
+        """
+
+        snap = self._two_stage_snapshot_var_bases(node)
+        if not snap:
+            return ""
+        out: List[str] = []
+        out.append(f"{indent}if ({slot_expr} == 0) {{\n")
+        for v in snap:
+            out.append(f"{indent}  {self._egress_slot_var(node, 0, v)} := {node}_{v};\n")
+        out.append(f"{indent}}} else {{\n")
+        for v in snap:
+            out.append(f"{indent}  {self._egress_slot_var(node, 1, v)} := {node}_{v};\n")
+        out.append(f"{indent}}}\n")
+        return "".join(out)
+
+    def _emit_egress_load_to_active(self, node: str, *, slot: int, indent: str) -> str:
+        """
+        Load two-slot egress mailbox slot `slot` into the active packet variables (`{node}_*`).
+        """
+
+        snap = self._two_stage_snapshot_var_bases(node)
+        if not snap:
+            return ""
+        out: List[str] = []
+        for v in snap:
+            out.append(f"{indent}{node}_{v} := {self._egress_slot_var(node, slot, v)};\n")
+        return "".join(out)
+
+    def _emit_egress_shift_slot1_to_slot0(self, node: str, *, indent: str) -> str:
+        """
+        Shift egress slot1 -> slot0 after consuming slot0 (two-slot egress model).
+        """
+
+        snap = self._two_stage_snapshot_var_bases(node)
+        if not snap:
+            return ""
+        out: List[str] = []
+        for v in snap:
+            out.append(f"{indent}{self._egress_slot_var(node, 0, v)} := {self._egress_slot_var(node, 1, v)};\n")
+        return "".join(out)
 
     def _emit_inbox_store_from_active(self, node: str, *, slot_expr: str, indent: str) -> str:
         """
@@ -2593,8 +2929,9 @@ class BoogieHarnessEmitter:
                     out.append(f"  dsl_{var_name} := dsl_{var_name} + {rhs};\n")
                 continue
 
-        # per-node: initialize node DSL locals from var_decl only (assignments are per-pass)
-        for node in node_aliases:
+        # per-node: initialize node DSL locals from var_decl only (assignments are per-pass).
+        # NOTE: include sink/observer nodes as well since their DSL statements may run at enqueue-time.
+        for node in self._spec.imports.keys():
             nd = self._spec.nodes.get(node, NodeDecl(name=node))
             for stmt in nd.statements:
                 if not isinstance(stmt, Tree) or str(stmt.data) != "var_decl":

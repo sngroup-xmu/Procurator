@@ -78,6 +78,7 @@ _RE_PROC_MAIN = re.compile(r"^procedure\s+mainProcedure\(\)\s+returns\(\)\s*$")
 _RE_PROC_SCHED = re.compile(r"^procedure\s+main\(\)\s+returns\(\)\s*$")
 _RE_PROC_ULTIMATE_START = re.compile(r"^procedure\s+ULTIMATE\.start\(\)\s+returns\(\)\s*$")
 _RE_WHILE_TRUE = re.compile(r"^\s*while\s*\(\s*true\s*\)\s*(\{\s*)?$")
+_RE_WHILE_STEP_BOUND = re.compile(r"^\s*while\s*\(\s*procurator_step\s*<[^)]*\)\s*(\{\s*)?$")
 _RE_ASSERT_STMT = re.compile(r"^(?P<indent>\s*)assert\b")
 _RE_ASSIGN_STMT = re.compile(r"^(?P<indent>\s*)(?P<lhs>[A-Za-z0-9_.]+)\s*:=\s*")
 _RE_PHASE_WRAP = re.compile(r"\bif\s*\(\s*procurator_phase\s*==\s*(?P<n>\d+)\s*\)\s*\{")
@@ -352,6 +353,11 @@ def _inline_deterministic_round_into_mainprocedure(lines: List[str], period: int
         repl.extend(body)
         repl.append(f"{indent}procurator_phase := {next_phase};\n")
         lines[idx : idx + 1] = repl
+
+
+def _is_mainprocedure_loop_header(line: str) -> bool:
+    stripped = line.strip()
+    return _RE_WHILE_TRUE.match(stripped) is not None or _RE_WHILE_STEP_BOUND.match(stripped) is not None
 
 
 def analyze_bpl_for_wraparound(
@@ -908,11 +914,13 @@ def instrument_bpl_text(
             )
             while_idx = None
             for i in range(body_open_idx + 1, body_close_idx + 1):
-                if _RE_WHILE_TRUE.match(lines[i].strip()):
+                if _is_mainprocedure_loop_header(lines[i]):
                     while_idx = i
                     break
             if while_idx is None:
-                raise WraparoundTransformError("while(true) loop not found in mainProcedure")
+                raise WraparoundTransformError(
+                    "mainProcedure loop not found (expected while(true) or while (procurator_step < ...))"
+                )
             lines.insert(while_idx, confirm_block)
             _rewrite_asserts_as_calls(lines)
             lines.append(_emit_gated_assert_wrapper_proc(cfg))
@@ -986,7 +994,7 @@ def instrument_bpl_text(
     ):
         while_idx = None
         for i in range(insert_locals_at, len(lines)):
-            if _RE_WHILE_TRUE.match(lines[i].strip()):
+            if _is_mainprocedure_loop_header(lines[i]):
                 while_idx = i
                 break
         if while_idx is not None:
@@ -1087,11 +1095,13 @@ def unroll_mainprocedure_loop_text(*, bpl_text: str, steps: int) -> str:
 
     while_idx = None
     for i in range(body_open_idx + 1, len(no_nl_lines)):
-        if _RE_WHILE_TRUE.match(no_nl_lines[i].strip()):
+        if _is_mainprocedure_loop_header(no_nl_lines[i]):
             while_idx = i
             break
     if while_idx is None:
-        raise WraparoundTransformError("while(true) loop not found in mainProcedure for unroll")
+        raise WraparoundTransformError(
+            "mainProcedure loop not found for unroll (expected while(true) or while (procurator_step < ...))"
+        )
 
     open_idx = None
     if "{" in no_nl_lines[while_idx]:

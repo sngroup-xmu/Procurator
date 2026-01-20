@@ -25,6 +25,10 @@ class NodeDecl:
     name: str
     # None means "not specified in DSL" (we keep this so backends can provide a compatibility default)
     external_input: Optional[bool] = None
+    # None means "not specified in DSL".
+    # When true, this node is treated as a sink/observer: it is not scheduled to execute a P4 pass.
+    # Instead, its per-pass DSL statements are executed at enqueue-time and the packet is dropped.
+    sink: Optional[bool] = None
     statements: List[Tree] = field(default_factory=list)
     env_statements: List[Tree] = field(default_factory=list)
     assume_exprs: List[Tree] = field(default_factory=list)

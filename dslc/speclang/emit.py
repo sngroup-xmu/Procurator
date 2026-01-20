@@ -111,6 +111,10 @@ def emit_spec_text(
             lines.append("  external_input = true;")
         elif node.external_input is False:
             lines.append("  external_input = false;")
+        if node.sink is True:
+            lines.append("  sink = true;")
+        elif node.sink is False:
+            lines.append("  sink = false;")
 
         for expr in node.assume_exprs:
             lines.append("  assume {")
