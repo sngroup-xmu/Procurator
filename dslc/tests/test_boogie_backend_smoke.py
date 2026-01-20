@@ -47,10 +47,11 @@ global {{
         # Per-pass assignment should be emitted in the node thread
         self.assertRegex(text, r"\bs1_dsl_Counter\s*:=\s*s1_dsl_Counter\s*\+\s*1;")
 
-    def test_concurrent_harness_allows_idling_steps(self) -> None:
-        # For the "sequential witness is a legal concurrent interleaving" argument, we
-        # want threads to be able to do nothing at a scheduling point. Our harness
-        # emits an outer `if (*)` guard for EnvThread injection and node passes.
+    def test_concurrent_harness_is_stutter_free(self) -> None:
+        # Regression/performance: avoid encoding explicit “do nothing” steps with
+        # `if (*) { ... }` wrappers inside thread loops. These stuttering steps
+        # introduce always-enabled self-loops that can make TraceAbstraction
+        # diverge (even when the system is logically bounded via max_steps).
         repo_root = Path(__file__).resolve().parents[2]
         bpl = repo_root / "Procurator" / "argo" / "code" / "Translator" / "feature-testcases" / "bool" / "out.bpl"
         self.assertTrue(bpl.exists())
@@ -71,14 +72,19 @@ global {{
             outp = compile_spec_text(spec_text=spec, backend="boogie", out=out_bpl, boogie_harness="concurrent")
             text = outp.artifacts["bpl"].read_text(encoding="utf-8", errors="replace")
 
-        self.assertRegex(
-            text,
-            r"(?s)procedure EnvThread\(\) returns\(\).*?while\s*\(\s*true\s*\)\s*\{.*?if\s*\(\s*\*\s*\)",
-        )
-        self.assertRegex(
-            text,
-            r"(?s)procedure s1Thread\(\) returns\(\).*?while\s*\(\s*true\s*\)\s*\{.*?if\s*\(\s*\*\s*\)",
-        )
+        # With a single inject target and k==1, there should be no `if (*)` in either thread.
+        env_start = text.find("procedure EnvThread()")
+        self.assertNotEqual(env_start, -1)
+        env_end = text.find("procedure s1Thread()", env_start)
+        self.assertNotEqual(env_end, -1)
+        env_body = text[env_start:env_end]
+        self.assertNotIn("if (*)", env_body)
+
+        thr_start = env_end
+        thr_end = text.find("procedure ULTIMATE.start()", thr_start)
+        self.assertNotEqual(thr_end, -1)
+        thr_body = text[thr_start:thr_end]
+        self.assertNotIn("if (*)", thr_body)
 
     def test_concurrent_harness_two_slot_inbox_k2(self) -> None:
         # Regression: for queue_capacity==2 we must materialize two inbox mailboxes and
