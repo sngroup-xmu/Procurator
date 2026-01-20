@@ -11,6 +11,7 @@
 header fanout_t {
     bit<1> pass;
     bit<1> write_id;
+    bit<1> primary;
 }
 
 struct headers {
@@ -60,4 +61,3 @@ V1Switch(
     MyComputeChecksum(),
     MyDeparser()
 ) main;
-

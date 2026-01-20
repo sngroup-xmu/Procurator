@@ -20,8 +20,9 @@ topology {
 node t {
   external_input = true;
 
-  // Inject alternating writes: A then B then A then B ...
-  // The ordering bug manifests once S1 observes A->B while S2 observes B->A.
+  // Inject alternating write IDs: A then B then A then B ...
+  // LB choice is independent of write_id and is modeled as an unconstrained
+  // header bit `hdr.fanout.primary` (havoc'ed by the harness at injection time).
   env {
     hdr.fanout.valid = true;
     hdr.fanout.pass = 0;
@@ -36,6 +37,7 @@ node t {
 }
 
 node s1 {
+  sink = true;
   // Record the first two arrivals at S1.
   if (hdr.fanout.valid == true) {
     if (hdr.fanout.write_id == 0) {
@@ -55,6 +57,7 @@ node s1 {
 }
 
 node s2 {
+  sink = true;
   // Record the first two arrivals at S2.
   if (hdr.fanout.valid == true) {
     if (hdr.fanout.write_id == 0) {
@@ -77,6 +80,8 @@ global {
   // This microbenchmark requires two distinct pending packets at T to reproduce
   // the A, B, A', B' ordering.
   queue_capacity = 2;
+  // Bounded bug-finding: tuned for single-pass (no two-stage) scheduling.
+  max_steps = 20;
 
   // DSL state: 2 means "unset" (write_id is 0/1).
   int phase = 0;
@@ -86,7 +91,9 @@ global {
   int s2_second = 2;
 
   assert {
-    !(s1_first == 0 && s1_second == 1 && s2_first == 1 && s2_second == 0);
+    !(
+      (s1_first == 0 && s1_second == 1 && s2_first == 1 && s2_second == 0) ||
+      (s1_first == 1 && s1_second == 0 && s2_first == 0 && s2_second == 1)
+    );
   };
 }
-

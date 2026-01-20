@@ -15,7 +15,8 @@
 
 header fanout_t {
     bit<1> pass;
-    bit<1> write_id; // 0=A, 1=B
+    bit<1> write_id; // payload id: 0=A, 1=B
+    bit<1> primary;  // load-balancer choice: 0->S1, 1->S2 (independent of write_id)
 }
 
 struct headers {
@@ -50,7 +51,7 @@ control MyIngress(inout headers hdr,
         if (hdr.fanout.isValid()) {
             if (hdr.fanout.pass == 0) {
                 // First pass: send one copy, then recirculate for the second copy.
-                if (hdr.fanout.write_id == 0) {
+                if (hdr.fanout.primary == 0) {
                     standard_metadata.egress_spec = 1;
                 } else {
                     standard_metadata.egress_spec = 2;
@@ -59,7 +60,7 @@ control MyIngress(inout headers hdr,
                 meta.do_recirculate = 1;
             } else {
                 // Second pass: send to the other replica.
-                if (hdr.fanout.write_id == 0) {
+                if (hdr.fanout.primary == 0) {
                     standard_metadata.egress_spec = 2;
                 } else {
                     standard_metadata.egress_spec = 1;
