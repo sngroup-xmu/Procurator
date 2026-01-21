@@ -73,8 +73,8 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
         return 2;
     }
 
-    if (caseName != "netchain_seq" && caseName != "distcache_reg_alias" &&
-        caseName != "recirc_meta_flow") {
+    if (caseName != "netchain_seq" && caseName != "netchain_pop_front" &&
+        caseName != "distcache_reg_alias" && caseName != "recirc_meta_flow") {
         std::cerr << "[SELFTEST] unknown case: " << caseName << "\n";
         return 2;
     }
@@ -205,6 +205,45 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
             slicedProgram->apply(finder);
             expect(finder.foundAssign,
                    "expected sliced IR retains at least one assignment to meta.do_recirculate in MyIngress");
+        }
+    } else if (caseName == "netchain_pop_front") {
+        // Header-stack slicing regression: preserve hdr.overlay.pop_front(1) when
+        // slicing for stack elements (e.g., hdr.overlay.0.swip). pop_front is a
+        // semantic write to the whole header stack and must not be dropped as
+        // "side-effect free" with respect to per-index fields.
+
+        expect(_setContains(sres.keepVarNames, "hdr.overlay.0.swip"),
+               "expected keepVarNames contains hdr.overlay.0.swip");
+
+        if (slicedProgram) {
+            class PopFrontFinder : public Inspector {
+             public:
+                bool found = false;
+
+                bool preorder(const IR::MethodCallExpression* call) override {
+                    if (!call || !call->method) {
+                        return false;
+                    }
+                    auto member = call->method->to<IR::Member>();
+                    if (!member || member->member.name != "pop_front") {
+                        return false;
+                    }
+                    auto receiver = member->expr->to<IR::Member>();
+                    if (!receiver || receiver->member.name != "overlay") {
+                        return false;
+                    }
+                    auto base = receiver->expr->to<IR::PathExpression>();
+                    if (base && base->path && base->path->name.name == "hdr") {
+                        found = true;
+                    }
+                    return false;
+                }
+            };
+
+            PopFrontFinder finder;
+            slicedProgram->apply(finder);
+            expect(finder.found,
+                   "expected sliced IR retains hdr.overlay.pop_front(...) method call");
         }
     }
 

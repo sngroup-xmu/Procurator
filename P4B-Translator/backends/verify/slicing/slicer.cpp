@@ -96,6 +96,15 @@ static void addVarKey(std::set<VarKey, VarKeyLess>& dst, VarKey key) {
         return;
     }
     dst.insert(key);
+    // Header stacks need a coarse-grained base key to preserve stack operations
+    // (e.g., pop_front) during slicing. Otherwise, dependencies like
+    //   hdr.overlay.pop_front(1)  ->  hdr.overlay[0].swip
+    // are missed because the method call does not mention per-index fields.
+    if (key.base == "hdr" && key.segs.size() >= 2 && isIndexSegment(key.segs[1])) {
+        VarKey stackBase = key;
+        stackBase.segs.resize(1);
+        dst.insert(stackBase);
+    }
     // Keep header fields field-sensitive: adding parent keys like `hdr.nc_hdr`
     // for every field access (e.g., `hdr.nc_hdr.seq`) creates spurious
     // dependencies across unrelated fields and prevents slicing from pruning
@@ -647,6 +656,21 @@ static void collectStmtUsesDefs(const IR::Statement* stmt,
                 }
             }
             handled = true;
+        } else if (methodName == "pop_front") {
+            // Conservatively model header-stack pop_front as a write to the
+            // stack receiver (which may shift the element fields).
+            if (receiver) {
+                collectExprKeys(receiver, out.uses, typeMap);
+                collectExprKeys(receiver, out.defs, typeMap);
+            }
+            if (mce->arguments) {
+                for (auto arg : *mce->arguments) {
+                    if (arg && arg->expression) {
+                        collectExprKeys(arg->expression, out.uses, typeMap);
+                    }
+                }
+            }
+            handled = true;
         }
         if (!handled) {
             collectExprKeys(mce, out.uses, typeMap);
@@ -863,6 +887,19 @@ static void fillNodeUsesDefs(NodeInfo& node,
                             collectExprKeys(arg->expression, node.uses, typeMap);
                         }
                         argIdx++;
+                    }
+                }
+                handled = true;
+            } else if (methodName == "pop_front") {
+                if (receiver) {
+                    collectExprKeys(receiver, node.uses, typeMap);
+                    collectExprKeys(receiver, node.defs, typeMap);
+                }
+                if (expr && expr->arguments) {
+                    for (auto arg : *expr->arguments) {
+                        if (arg && arg->expression) {
+                            collectExprKeys(arg->expression, node.uses, typeMap);
+                        }
                     }
                 }
                 handled = true;
