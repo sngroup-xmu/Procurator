@@ -57,6 +57,8 @@ class BoogieHarnessEmitter:
         por_guard_enabled: bool = True,
         harness_mode: str = "concurrent",
         pipeline_two_stage: bool = True,
+        max_steps: Optional[int] = None,
+        honor_spec_max_steps: bool = False,
     ):
         self._spec = spec
         self._node_input_vars = node_input_vars  # alias -> raw var names (no prefix)
@@ -76,8 +78,26 @@ class BoogieHarnessEmitter:
             h: set(self._host_input_vars.get(h, [])) for h in self._host_to_node.keys()
         }
         self._max_env_inputs = max_env_inputs
-        max_steps = spec.global_decl.max_steps
-        self._max_steps: Optional[int] = max_steps if isinstance(max_steps, int) and max_steps > 0 else None
+        # NOTE: `max_steps` is a *bounded bug-finding* knob (BMC-style). It is sound for UNSAFE
+        # witnesses (the returned counterexample is concrete), but SAFE results are only within
+        # the bound.
+        #
+        # To avoid silently changing semantics across the repository, we do NOT honor
+        # `global.max_steps` from the DSL spec by default; it is only used when
+        # `honor_spec_max_steps` is explicitly enabled.
+        self._spec_max_steps: Optional[int] = (
+            int(spec.global_decl.max_steps) if spec.global_decl.max_steps is not None else None
+        )
+        eff_max_steps: Optional[int]
+        if max_steps is not None:
+            eff_max_steps = int(max_steps)
+        elif honor_spec_max_steps:
+            eff_max_steps = self._spec_max_steps
+        else:
+            eff_max_steps = None
+        if eff_max_steps is not None and eff_max_steps <= 0:
+            raise ValueError(f"max_steps must be > 0, got {eff_max_steps}")
+        self._max_steps = eff_max_steps
         # Step-indexed trace maps are intentionally disabled by default since they make loop proofs harder.
         self._emit_trace = False
         self._por_enabled = por_enabled
@@ -518,8 +538,7 @@ class BoogieHarnessEmitter:
         if emit_helpers:
             lines.append(self._emit_bitvector_helpers())
 
-        # By default we keep the sequential harness unbounded (Ultimate can reason about loops).
-        # If `global.max_steps` is set, we emit a bounded loop to support fast bug-finding runs.
+        # Sequential harness is unbounded by default. A bounded run can be enabled via `max_steps`.
         lines.append("var procurator_step: int;\n")
         if self._accumulate_global_assertions():
             lines.append("var procurator_bad: bool;\n")
@@ -641,7 +660,7 @@ class BoogieHarnessEmitter:
         """
         Whether the sequential harness needs a runtime scheduler phase variable.
 
-        When `global.max_steps` is small (<= 1000), we unroll `mainProcedure` for fast bug finding.
+        When `max_steps` is small (<= 1000), we unroll `mainProcedure` for fast bug finding.
         In that case, we can emit the deterministic round-robin schedule directly in `mainProcedure`
         and avoid introducing a phase variable (which otherwise creates many spurious paths for
         Ultimate's TraceAbstraction).
@@ -1913,15 +1932,60 @@ class BoogieHarnessEmitter:
     def _emit_trace_step_reset(self, node_aliases: List[str], *, indent: str) -> str:
         if not self._emit_trace or not node_aliases:
             return ""
+        def try_zero(typ: str) -> Optional[str]:
+            typ = typ.strip()
+            if typ == "bool":
+                return "false"
+            if typ == "int":
+                return "0"
+            if typ.startswith("bv") and typ[2:].isdigit():
+                return f"0{typ}"
+            return None
+
         out: List[str] = []
         out.append(f"{indent}trace_node_id[procurator_step] := 0;\n")
         out.append(f"{indent}trace_stage[procurator_step] := 0;\n")
         for node in node_aliases:
             out.append(f"{indent}{self._trace_node_exec_name(node)}[procurator_step] := false;\n")
+            types = self._trace_field_types(node)
+            if "seq" in types:
+                out.append(
+                    f"{indent}{self._trace_node_seq_name(node)}[procurator_step] := {self._render_value_zero(types['seq'])};\n"
+                )
+            if "op" in types:
+                out.append(
+                    f"{indent}{self._trace_node_op_name(node)}[procurator_step] := {self._render_value_zero(types['op'])};\n"
+                )
+            if "key" in types:
+                out.append(
+                    f"{indent}{self._trace_node_key_name(node)}[procurator_step] := {self._render_value_zero(types['key'])};\n"
+                )
+        for regs in self._node_register_arrays.values():
+            for name, (_, elem_type) in sorted(regs.items()):
+                out.append(f"{indent}{self._trace_reg_wrote_any_name(name)}[procurator_step] := false;\n")
+                out.append(f"{indent}{self._trace_reg_wrote_index0_name(name)}[procurator_step] := false;\n")
+                zero = try_zero(elem_type)
+                if zero is None:
+                    continue
+                out.append(f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {zero};\n")
+                out.append(f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {zero};\n")
         for link in self._spec.links:
             out.append(
                 f"{indent}{self._trace_enqueue_exec_name(link.src, link.dst)}[procurator_step] := false;\n"
             )
+            types = self._trace_field_types(link.src)
+            if "seq" in types:
+                out.append(
+                    f"{indent}{self._trace_enqueue_seq_name(link.src, link.dst)}[procurator_step] := {self._render_value_zero(types['seq'])};\n"
+                )
+            if "op" in types:
+                out.append(
+                    f"{indent}{self._trace_enqueue_op_name(link.src, link.dst)}[procurator_step] := {self._render_value_zero(types['op'])};\n"
+                )
+            if "key" in types:
+                out.append(
+                    f"{indent}{self._trace_enqueue_key_name(link.src, link.dst)}[procurator_step] := {self._render_value_zero(types['key'])};\n"
+                )
         return "".join(out)
 
     def _emit_trace_assignments(self, node: str, *, indent: str, stage_id: int) -> str:

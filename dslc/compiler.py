@@ -38,6 +38,8 @@ def compile_spec_text(
     por_guard_enabled: bool = True,
     boogie_harness: str = "concurrent",
     pipeline_two_stage: bool = True,
+    max_steps: Optional[int] = None,
+    honor_spec_max_steps: bool = False,
 ) -> CompileOutput:
     """
     Compile a DSL spec into a backend artifact.
@@ -102,6 +104,8 @@ def compile_spec_text(
             por_guard_enabled=por_guard_enabled,
             boogie_harness=boogie_harness,
             pipeline_two_stage=pipeline_two_stage,
+            max_steps=max_steps,
+            honor_spec_max_steps=honor_spec_max_steps,
         )
         return CompileOutput(backend="boogie", artifacts={"bpl": out_path})
 
@@ -130,6 +134,8 @@ def compile_spec_file(
     por_guard_enabled: bool = True,
     boogie_harness: str = "concurrent",
     pipeline_two_stage: bool = True,
+    max_steps: Optional[int] = None,
+    honor_spec_max_steps: bool = False,
 ) -> CompileOutput:
     spec_text = spec_path.read_text(encoding="utf-8")
     return compile_spec_text(
@@ -149,6 +155,8 @@ def compile_spec_file(
         por_guard_enabled=por_guard_enabled,
         boogie_harness=boogie_harness,
         pipeline_two_stage=pipeline_two_stage,
+        max_steps=max_steps,
+        honor_spec_max_steps=honor_spec_max_steps,
     )
 
 
@@ -194,6 +202,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default="spec",
         help="Environment model for external inputs: 'spec' applies assume constraints, 'max' makes them fully nondet.",
     )
+    ap.add_argument(
+        "--max-steps",
+        type=int,
+        default=None,
+        help="Bound the number of Procurator steps (BMC-style bug finding). UNSAFE is sound; SAFE is only within the bound. Default: unbounded.",
+    )
+    ap.add_argument(
+        "--use-spec-max-steps",
+        action="store_true",
+        help="Honor `global.max_steps` from the DSL spec (disabled by default to avoid silently changing semantics).",
+    )
 
     ap.add_argument(
         "--p4c-translator-bin",
@@ -215,6 +234,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     por_enabled = args.por
     boogie_harness = args.boogie_harness
     pipeline_two_stage = not args.no_two_stage
+    max_steps = args.max_steps
+    honor_spec_max_steps = bool(args.use_spec_max_steps)
+
+    if max_steps is not None and max_steps <= 0:
+        raise SystemExit("[ERR] --max-steps must be > 0")
 
     p4c_bin = Path(args.p4c_translator_bin) if args.p4c_translator_bin else None
     # Prefer docker wrapper by default (works once the p4b docker image is built).
@@ -238,6 +262,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             por_guard_enabled=True,
             boogie_harness=boogie_harness,
             pipeline_two_stage=pipeline_two_stage,
+            max_steps=max_steps,
+            honor_spec_max_steps=honor_spec_max_steps,
         )
     except Exception as e:
         raise SystemExit(f"[ERR] {e}") from e

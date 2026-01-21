@@ -85,6 +85,8 @@ class BoogieBackend:
         por_guard_enabled: bool = True,
         boogie_harness: str = "concurrent",
         pipeline_two_stage: bool = True,
+        max_steps: Optional[int] = None,
+        honor_spec_max_steps: bool = False,
     ) -> Path:
         boogie_harness = boogie_harness.lower().strip()
         if boogie_harness not in {"concurrent", "sequential"}:
@@ -256,6 +258,8 @@ class BoogieBackend:
             por_guard_enabled=por_guard_enabled,
             harness_mode=boogie_harness,
             pipeline_two_stage=pipeline_two_stage,
+            max_steps=max_steps,
+            honor_spec_max_steps=honor_spec_max_steps,
         )
         helpers = emitter.emit_helpers()
         harness = emitter.emit(emit_helpers=False)

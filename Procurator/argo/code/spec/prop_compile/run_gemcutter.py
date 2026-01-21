@@ -40,10 +40,23 @@ def _default_paths(spec_path: Path) -> tuple[Path, Path, Path]:
 
 
 def _extract_result(log_text: str) -> Optional[str]:
+    last: Optional[str] = None
     for line in log_text.splitlines():
         if "RESULT:" in line:
-            return line.strip()
-    return None
+            last = line.strip()
+    return last
+
+
+def _extract_result_from_file(log_path: Path) -> Optional[str]:
+    last: Optional[str] = None
+    try:
+        with log_path.open("r", encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if "RESULT:" in line:
+                    last = line.strip()
+    except FileNotFoundError:
+        return None
+    return last
 
 
 def _is_unsafe(log_text: str) -> bool:
@@ -68,6 +81,8 @@ def _run_one(
     por_enabled: bool,
     boogie_harness: str,
     pipeline_two_stage: bool,
+    max_steps: Optional[int],
+    honor_spec_max_steps: bool,
     ultimate: Optional[Path],
     toolchain: Path,
     settings: Path,
@@ -87,6 +102,8 @@ def _run_one(
         por_guard_enabled=True,
         boogie_harness=boogie_harness,
         pipeline_two_stage=pipeline_two_stage,
+        max_steps=max_steps,
+        honor_spec_max_steps=honor_spec_max_steps,
     )
     print(f"[OK] bpl: {job.out_bpl}")
 
@@ -110,22 +127,21 @@ def _run_one(
     env["HOME"] = str(job.ultimate_home)
     env["JAVA_TOOL_OPTIONS"] = f"-Duser.home={job.ultimate_home}"
     job.log_path.parent.mkdir(parents=True, exist_ok=True)
-    if ultimate_async:
-        with job.log_path.open("w", encoding="utf-8") as log_file:
-            proc = subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, text=True, env=env)
-        print(f"[RUN] Ultimate running in background (pid={proc.pid}).")
-        print(f"[LOG] {job.log_path}")
-        return 0
-    proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=env)
-    job.log_path.write_text(proc.stdout, encoding="utf-8")
+    with job.log_path.open("w", encoding="utf-8") as log_file:
+        proc = subprocess.Popen(cmd, stdout=log_file, stderr=subprocess.STDOUT, text=True, env=env)
+        if ultimate_async:
+            print(f"[RUN] Ultimate running in background (pid={proc.pid}).")
+            print(f"[LOG] {job.log_path}")
+            return 0
+        returncode = proc.wait()
 
-    result_line = _extract_result(proc.stdout)
+    result_line = _extract_result_from_file(job.log_path)
     if result_line:
         print(f"[RESULT] {result_line}")
     else:
         print("[RESULT] No RESULT line found; check log.")
     print(f"[LOG] {job.log_path}")
-    return proc.returncode
+    return returncode
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -139,6 +155,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         choices=["spec", "max"],
         default="spec",
         help="Environment model: 'spec' applies assume constraints, 'max' makes inputs fully nondet",
+    )
+    ap.add_argument(
+        "--max-steps",
+        type=int,
+        default=None,
+        help="Bound the number of Procurator steps (BMC-style bug finding). UNSAFE is sound; SAFE is only within the bound. Default: unbounded.",
+    )
+    ap.add_argument(
+        "--use-spec-max-steps",
+        action="store_true",
+        help="Honor `global.max_steps` from the DSL spec (disabled by default).",
     )
     ap.add_argument(
         "--no-prune",
@@ -185,12 +212,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument(
         "--toolchain",
         default="",
-        help="Ultimate toolchain XML (default: concurrent/bpl ReachSafety.xml)",
+        help="Ultimate toolchain XML (default: Procurator spec/config ReachSafety-Witness.xml)",
     )
     ap.add_argument(
         "--settings",
         default="",
-        help="Ultimate settings EPF (default: Procurator spec/config ReachSafety-32bit-GemCutter-ALL.epf)",
+        help="Ultimate settings EPF (default: Procurator spec/config ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf)",
     )
     ap.add_argument("--log", default="", help="Log file path (default: repo/.tmp/dslc/<spec>.gemcutter.log)")
 
@@ -209,7 +236,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     toolchain = (
         Path(args.toolchain).resolve()
         if args.toolchain
-        else root / "ultimate" / "trunk" / "examples" / "concurrent" / "bpl" / "regression" / "ReachSafety.xml"
+        else root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-Witness.xml"
     )
     settings = (
         Path(args.settings).resolve()
@@ -220,7 +247,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         / "code"
         / "spec"
         / "config"
-        / "ReachSafety-32bit-GemCutter-ALL.epf"
+        / "ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf"
     )
 
     p4b_bin = Path(args.p4b_bin).resolve() if args.p4b_bin else None
@@ -232,6 +259,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     por_enabled = args.por
     boogie_harness = args.boogie_harness
     pipeline_two_stage = not args.no_two_stage
+    max_steps = args.max_steps
+    honor_spec_max_steps = bool(args.use_spec_max_steps)
+
+    if max_steps is not None and max_steps <= 0:
+        raise SystemExit("[ERR] --max-steps must be > 0")
 
     ultimate = Path(args.ultimate).resolve() if args.ultimate else None
     if ultimate and not ultimate.exists():
@@ -265,6 +297,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             por_enabled=por_enabled,
             boogie_harness=boogie_harness,
             pipeline_two_stage=pipeline_two_stage,
+            max_steps=max_steps,
+            honor_spec_max_steps=honor_spec_max_steps,
             ultimate=ultimate,
             toolchain=toolchain,
             settings=settings,
@@ -322,6 +356,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 por_enabled=por_enabled,
                 boogie_harness=boogie_harness,
                 pipeline_two_stage=pipeline_two_stage,
+                max_steps=max_steps,
+                honor_spec_max_steps=honor_spec_max_steps,
                 ultimate=ultimate,
                 toolchain=toolchain,
                 settings=settings,

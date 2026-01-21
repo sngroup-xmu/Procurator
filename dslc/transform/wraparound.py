@@ -85,6 +85,14 @@ _RE_PHASE_WRAP = re.compile(r"\bif\s*\(\s*procurator_phase\s*==\s*(?P<n>\d+)\s*\
 _RE_PHASE_RESET = re.compile(r"\bprocurator_phase\s*:=\s*0\s*;")
 _RE_STEP_INC = re.compile(r"^\s*procurator_step\s*:=\s*procurator_step\s*\+\s*1\s*;\s*$")
 _RE_CALL_MAIN = re.compile(r"^\s*call\s+main\(\)\s*;\s*$")
+_RE_ASSUME_FORALL_BV32_INIT = re.compile(
+    r"^(?P<indent>\s*)assume\s*\(\s*forall\s+(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*bv32\s*::\s*"
+    r"(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P=var)\s*\]\s*==\s*(?P<value>[^)]+?)\s*\)\s*;\s*$"
+)
+_RE_ASSUME_BV32_INDEX_INIT = re.compile(
+    r"^\s*assume\s+(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P<idx>\d+)bv32\s*\]\s*==\s*(?P<value>[^;]+?)\s*;\s*$"
+)
+_RE_BVULE_BV32_CALL = re.compile(r"bvule\.bv32(?:\$builtin)?\(\s*(?P<a>[^,]+?)\s*,\s*(?P<b>\d+)bv32\s*\)")
 
 _PUMP_ERROR_PROC = "__wraparound_pump_error"
 _PUMP_ASSERT_MARKER = "WRAPAROUND_PUMP_ASSERT"
@@ -92,6 +100,8 @@ _ENTRY_ERROR_PROC = "__wraparound_entry_error"
 _ENTRY_ASSERT_MARKER = "WRAPAROUND_ENTRY_ASSERT"
 _ASSERT_WRAPPER_PROC = "__wraparound_assert"
 _CLOSURE_UNROLL_MARKER_PREFIX = "// UNROLLED"
+
+_MAX_FORALL_INIT_EXPANSION = 64
 
 
 def _sanitize_local(name: str) -> str:
@@ -674,6 +684,109 @@ def _strip_step_increments(lines: List[str]) -> None:
             lines[i] = ""
 
 
+def _normalize_boogie_expr(expr: str) -> str:
+    return re.sub(r"\s+", "", expr)
+
+
+def _infer_reg_bv32_index_upper_bound(lines: Sequence[str], reg_var: str) -> Optional[int]:
+    write_pat = re.compile(rf"\bcall\s+{re.escape(reg_var)}\.write\(\s*(?P<idx>[^,]+?)\s*,")
+    read_pat = re.compile(rf"\b{re.escape(reg_var)}\.read\(\s*{re.escape(reg_var)}\s*,\s*(?P<idx>[^)]+?)\s*\)")
+
+    idx_exprs: set[str] = set()
+    for ln in lines:
+        m = write_pat.search(ln)
+        if m:
+            idx_exprs.add(m.group("idx").strip())
+        for m in read_pat.finditer(ln):
+            idx_exprs.add(m.group("idx").strip())
+
+    if not idx_exprs:
+        return None
+
+    expr_to_bound: Dict[str, int] = {}
+    for ln in lines:
+        for m in _RE_BVULE_BV32_CALL.finditer(ln):
+            a_norm = _normalize_boogie_expr(m.group("a"))
+            b = int(m.group("b"))
+            prev = expr_to_bound.get(a_norm)
+            if prev is None or b > prev:
+                expr_to_bound[a_norm] = b
+
+    bounds: List[int] = []
+    for idx in idx_exprs:
+        b = expr_to_bound.get(_normalize_boogie_expr(idx))
+        if b is not None:
+            bounds.append(b)
+    return max(bounds) if bounds else None
+
+
+def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
+    """
+    Replace quantified `[bv32]` array initializations with finite instantiations.
+
+    Some backends emit register initialization as:
+      assume (forall i:bv32 :: reg[i] == 0bvW);
+    These quantifiers can make the entry/closure checks in wraparound time out
+    or return UNKNOWN. For wraparound stages we only need initial values for the
+    indices that can be accessed, which are typically bounded to a small range
+    by prior slicing/register-index analysis.
+    """
+
+    explicit: Dict[Tuple[str, str], set[int]] = {}
+    for ln in lines:
+        m = _RE_ASSUME_BV32_INDEX_INIT.match(ln.strip())
+        if not m:
+            continue
+        key = (m.group("array"), _normalize_boogie_expr(m.group("value")))
+        explicit.setdefault(key, set()).add(int(m.group("idx")))
+
+    i = 0
+    while i < len(lines):
+        m = _RE_ASSUME_FORALL_BV32_INIT.match(lines[i].strip())
+        if not m:
+            i += 1
+            continue
+
+        indent = m.group("indent")
+        reg = m.group("array")
+        value = m.group("value").strip()
+        value_norm = _normalize_boogie_expr(value)
+        key = (reg, value_norm)
+
+        inferred_bound = _infer_reg_bv32_index_upper_bound(lines, reg)
+        inferred_indices: set[int] = set()
+        if inferred_bound is not None:
+            if inferred_bound >= _MAX_FORALL_INIT_EXPANSION:
+                raise WraparoundTransformError(
+                    f"cannot eliminate quantified init for {reg}: inferred index upper bound {inferred_bound} "
+                    f">= {_MAX_FORALL_INIT_EXPANSION} (increase pruning or lower the bound)"
+                )
+            inferred_indices = set(range(inferred_bound + 1))
+
+        already = explicit.get(key, set())
+        if inferred_bound is None and not already:
+            # We cannot infer a finite index domain and there is no existing
+            # finite instantiation to rely on. Keep the quantified init to
+            # preserve semantics (even if this makes the check harder).
+            i += 1
+            continue
+
+        missing = sorted(inferred_indices - already)
+
+        if not missing:
+            # Either (1) we already have per-index init assumptions for all
+            # indices that can be accessed, or (2) we inferred an empty/covered
+            # domain. In either case, the quantified init is unnecessary for
+            # wraparound stages and can be dropped to avoid solver UNKNOWN/timeouts.
+            del lines[i]
+            continue
+
+        repl: List[str] = [f"{indent}assume {reg}[{k}bv32] == {value};\n" for k in missing]
+        lines[i : i + 1] = repl
+        explicit[key] = already.union(inferred_indices)
+        i += len(repl)
+
+
 def _emit_assert_wrapper_proc() -> str:
     return (
         f"procedure {{:inline 1}} {_ASSERT_WRAPPER_PROC}(cond: bool) returns()\n"
@@ -790,6 +903,7 @@ def instrument_bpl_text(
         _strip_debug_snapshot_for_pump(lines)
         _strip_step_increments(lines)
         _inline_deterministic_round_into_mainprocedure(lines, period)
+        _rewrite_forall_bv32_array_inits(lines)
 
         no_nl_lines = [ln.rstrip("\n") for ln in lines]
         _, _, body_close_idx = _find_procedure_block(no_nl_lines, _RE_PROC_MAIN)
@@ -814,6 +928,7 @@ def instrument_bpl_text(
         _strip_debug_snapshot_for_pump(lines)
         _strip_step_increments(lines)
         _inline_deterministic_round_into_mainprocedure(lines, period)
+        _rewrite_forall_bv32_array_inits(lines)
         unrolled = "".join(lines)
         no_nl_lines = [ln.rstrip("\n") for ln in lines]
         var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])

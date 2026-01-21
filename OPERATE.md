@@ -348,7 +348,9 @@ cd /root/p4-verify
 PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
   --spec Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate
+  --ultimate UGemCutter-linux/Ultimate \
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf
 ```
 
 产物（默认在 `.tmp/dslc/`）：
@@ -378,7 +380,9 @@ cd /root/p4-verify
 PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate
+  --ultimate UGemCutter-linux/Ultimate \
+  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
+  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf
 ```
 
 产物同样在 `.tmp/dslc/`：`netchain_bug_s1s2_fastforward.*`（`.bpl/.log/.graphml`）。

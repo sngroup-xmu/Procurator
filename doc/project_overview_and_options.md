@@ -89,8 +89,13 @@ DSL 语法在 `dslc/speclang/grammar.py`，模型结构在 `dslc/speclang/model.
 - `queue_capacity = <int>;`
   - 控制 Bag(K) 中的 K（`inbox_count < K` 约束）。
 - `max_steps = <int>;`
-  - **注意：Boogie 后端目前刻意忽略它**（`dslc/backends/boogie_harness.py` 里有注释：保持 unbounded loop，让 Ultimate 自己处理循环）。
-  - 你可以把它当成“以后做 BMC/有界验证”的输入接口，但当前 GemCutter harness 不使用它做 cut。
+  - 用途：**有界 bug-finding（BMC-style）**，限制 Procurator 的“调度步数/step 数”。
+  - 重要：这不是“证明 SAFE”的解法；若启用该边界，**UNSAFE 反例依然 sound**，但 SAFE 结论只在该 bound 内成立。
+  - 为避免仓库里旧 spec 的 `max_steps`（常见是 10^5 量级）**被默默启用导致语义/性能变化**，Boogie 后端默认 **不读取** `.prop` 里的 `global.max_steps`。
+    - 显式启用方式：
+      - `python -m dslc.compiler --max-steps N ...` 或
+      - `run_gemcutter.py --max-steps N ...` 或
+      - 若你确实想让 `.prop` 里的 `global.max_steps` 生效：加 `--use-spec-max-steps`。
 - `deterministic_scheduler = true|false;`
   - 只影响 **Boogie sequential harness**：true 时生成 round-robin 调度（避免 nondet 分支、避免 modulo），便于 debug 深循环。
 - `env_thread = true|false;`
@@ -159,7 +164,7 @@ Boogie 后端按单一职责拆成多个模块：
    - 生成一个 `while(true) { call main(); procurator_step++; }` 的单线程调度器；
    - 如果 `global.deterministic_scheduler=true`，调度器用 `procurator_phase` 做 round-robin（避免 modulo），减少求解器负担，适合 debug 深循环；
    - 为避免 deterministic round-robin 因“动作暂时不可执行”（例如 `host_recv` 时 host inbox 为空）而死锁：deterministic 模式下每个动作都用 `if (enabled) { ... }` 包裹，`enabled` 不满足则该步为 no-op（idle）；
-   - **`global.max_steps` 在这里被忽略**（当前就是 unbounded）。
+   - 默认是 unbounded；若通过命令行启用 `--max-steps N`（或 `--use-spec-max-steps`），则会生成有界 driver（并在 N 小时偏向 unroll 以加速找浅反例）。
 
 ### 4.3 两段式 pipeline（不是优化，是语义选择）
 
@@ -243,6 +248,9 @@ Boogie 后端按单一职责拆成多个模块：
   - 后台跑 Ultimate，log 会持续更新（适合长跑）
 - `--ultimate-timeout-seconds 0`
   - 0 表示不设超时（你现在就在用这个模式）
+- `--toolchain <xml>` / `--settings <epf>`
+  - 选择 Ultimate 的分析流水线与参数。
+  - 当前仓库默认用 `Procurator/argo/code/spec/config/ReachSafety-Witness.xml` + `ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`：更偏向 **bug-finding + witness 产出**（避免 2GiB / Z3 per-query timeout / POR 组合导致“浅 bug 也跑不出来”）。
 
 ### 5.2 编译器入口：`python3 -m dslc.compiler`
 
@@ -258,7 +266,7 @@ Boogie 后端按单一职责拆成多个模块：
 - `deterministic_scheduler`
 - `env_thread`
 - `host_eager`
-- `max_steps`（Boogie 后端目前不使用）
+- `max_steps`（Boogie 默认不从 `.prop` 启用；需 `--max-steps` 或 `--use-spec-max-steps`）
 - `symmetry(s1,s2,...)`（Boogie 后端会加入 inbox_count 的对称性破缺约束）
 
 ---
@@ -369,9 +377,9 @@ DSL 写法：`global { symmetry(s1, s2, s3); }`
    - wrap-around bug 往往只需要单一包形状反复出现；
    - spec 层面的 `assume`/`env` 如果没收紧到“几乎只有一条路径”，求解器会在无关路径上浪费巨大时间。
 
-5) **把 `max_steps` 做成“外部 BMC driver”的一部分（而不是后端硬编码）**
-   - 现在 Boogie 后端明确选择 unbounded；
-   - 但工程上可以提供一个“有界 bug-finding 模式”：在外层 driver 生成 `for i in 0..N { step(); assert; }` 的 BMC harness（N 来自 `global.max_steps`），不改变后端默认语义。
+5) **把 `max_steps` 做成“可选的外部 BMC driver”（而不是默认语义）**
+   - 默认：Boogie harness 是 unbounded，让 Ultimate 自己对循环做证明/抽象；
+   - 可选：通过 `--max-steps N`（或 `--use-spec-max-steps`）把 driver 变成 “最多跑 N 次 step” 的 BMC-style bug-finding 模式，用于浅反例或快速 sanity check。
 
 ---
 
