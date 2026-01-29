@@ -122,35 +122,36 @@ Java/runtime note:
 - Example prefix:
   `JAVA_HOME=/home/smy/.cursor-server/data/User/globalStorage/pleiades.java-extension-pack-jdk/java/latest PATH=$JAVA_HOME/bin:$PATH`
 
-No-prune (recommended for translation debugging):
+Disable slicing/pruning (recommended for translation debugging):
 
 ```bash
-PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec <spec.prop> \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --no-prune \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf
+  --no-slicing \
+  --no-env-prune \
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-witness.epf
 ```
 
-Pruning (default on, disable with `--no-prune`) with internal SMTInterpol:
+Pruning (default on) with internal SMTInterpol:
 
 ```bash
-PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec <spec.prop> \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 Compose mode (split global conjuncts into local specs and run in parallel):
 
 ```
-PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec <spec.prop> \
   --compose \
   --compose-max-nodes 2 \
@@ -159,18 +160,18 @@ PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutt
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 Outputs (compose mode):
-- Specs, BPLs, logs are under `.tmp/dslc/compose/<spec-tag>/`
-- `<spec-tag>` is `<spec-stem>` unless the file name is `spec.prop`, in which case it uses the parent folder name.
+- Compose artifacts are under `<out_dir>/compose/` (where `<out_dir>` is the per-run directory printed by `procurator`).
 
 Outputs (default):
-- Boogie program: `.tmp/dslc/<spec>.bpl`
-- Ultimate log: `.tmp/dslc/<spec>.gemcutter.log`
-- GraphML witness: `.tmp/dslc/<spec>.bpl-witness.graphml`
+- Per-run output dir (no cache): `.tmp/procurator/verify/<spec>/<run_id>/`
+- Boogie program: `<out_dir>/<spec>.bpl`
+- Ultimate log: `<out_dir>/gemcutter.log` (or `<spec>.gemcutter.log` if `--out` is provided)
+- GraphML witness: `<out_dir>/<spec>.bpl-witness.graphml` (if UNSAFE)
 
 ## How to Read the Trace (GraphML witness)
 
@@ -261,3 +262,20 @@ Latest internal SMTInterpol re-runs (2026-01-07, slicer fix for RegisterAction/e
 ## Notes on Max-Env Inputs
 
 When `external_input = true` and `--env max` is selected, inputs are fully nondeterministic. Any UNSAFE result means a counterexample exists within this over-approximation and is encoded in the witness.
+
+## Benchmark Summary (No-cache, 2026-01-30)
+
+The runs below were executed with the current `./bin/procurator` CLI, which always creates a *fresh* per-run output directory under `.tmp/procurator/...` (no reuse of old `.bpl`, Ultimate HOME, or logs).
+
+Common Ultimate settings:
+- Ultimate binary: `.tmp/orphan-worktree-20260129-005608/UGemCutter-linux/Ultimate`
+- Settings: `dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-no-por.epf`
+- Toolchain timeout: `180s` (verify: per run; wraparound: per stage)
+
+| bug / benchmark | spec | optimized (default slicing + env-prune unless noted) | opt time (s) | opt result | baseline (ablation) | base time (s) | base result | OOM? | pseudo? / notes |
+|---|---|---:|---:|---|---:|---:|---|---|---|
+| Netchain fast-forward | `Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop` | `verify --env spec --use-spec-max-steps` | 53 | UNSAFE | `verify --no-slicing --no-env-prune --env spec --use-spec-max-steps` | 127 | UNSAFE | no | UNSAFE is sound under the encoded harness + spec env constraints. |
+| ATP bound bug | `Procurator/argo/code/spec/bench/atp_bug.prop` | `verify --env max --max-steps 5` | 32 | UNSAFE | `verify --no-slicing --no-env-prune --env max --max-steps 5` | 36 | UNSAFE | no | UNSAFE is sound under `env=max` over-approximation. |
+| DistCache leaf pktloss clone/drop | `Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop` | `verify --boogie-harness sequential --env spec --max-steps 5` | 108 | UNSAFE | `verify --no-slicing --no-env-prune --boogie-harness sequential --env spec --max-steps 5` | 115 | toolchain no result | yes | Baseline run hits Z3 OOM (`(error \"out of memory\")`, -memory:2024). Optimized run avoids OOM and produces a witness. |
+| DistCache P2C consistency (hard) | `Procurator/argo/code/spec/bench/distcache_bug.prop` | `verify --env spec --max-steps 10` | 226 | TIMEOUT | `verify --no-slicing --no-env-prune --env spec --max-steps 10` | 253 | TIMEOUT | no | Still open at this bound; needs more pruning / different settings / smaller model. |
+| DistCache leafload wrap-around (needs closure) | `Procurator/argo/code/spec/bench/distcache_leafload_wraparound.prop` | `wraparound (closure_check SAFE; confirm UNSAFE)` | 385 | UNSAFE | `verify --env spec` (unbounded proof attempt) | 211 | TIMEOUT | no | Optimized run is *soundly* UNSAFE because `closure_check` proves the pre-wrap “+1 per round” closure under a deterministic round, so reaching `MAX-1` then flipping is justified. |
