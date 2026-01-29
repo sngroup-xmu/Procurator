@@ -37,8 +37,8 @@ procedure mainProcedure() returns()
             pump_reg="s1_sequence_reg",
             accel_regs=["s1_sequence_reg"],
         )
-        self.assertIn("call s1_sequence_reg.write(0bv32, 65535bv16);", out)
-        self.assertLess(out.index("call s1_sequence_reg.write"), out.index("while (true)"))
+        self.assertIn("s1_sequence_reg[0bv32] := 65535bv16;", out)
+        self.assertLess(out.index("s1_sequence_reg[0bv32] := 65535bv16;"), out.index("while (true)"))
         self.assertNotIn("wrap_snap_taken", out)
         self.assertIn("call __wraparound_assert(true);", out)
         self.assertIn("if (s1_sequence_reg[0bv32] != 65535bv16)", out)
@@ -76,8 +76,8 @@ procedure mainProcedure() returns()
             pump_reg="s1_sequence_reg",
             accel_regs=["s1_sequence_reg"],
         )
-        self.assertIn("call s1_sequence_reg.write(0bv32, 65535bv16);", out)
-        self.assertLess(out.index("call s1_sequence_reg.write"), out.index("while (procurator_step < 10)"))
+        self.assertIn("s1_sequence_reg[0bv32] := 65535bv16;", out)
+        self.assertLess(out.index("s1_sequence_reg[0bv32] := 65535bv16;"), out.index("while (procurator_step < 10)"))
         self.assertIn("call __wraparound_assert(true);", out)
         self.assertIn("if (s1_sequence_reg[0bv32] != 65535bv16)", out)
 
@@ -120,8 +120,10 @@ procedure ULTIMATE.start() returns()
             pump_reg="s1_sequence_reg",
             accel_regs=["s1_sequence_reg"],
         )
-        self.assertIn("call s1_sequence_reg.write(0bv32, 65535bv16);", out)
-        self.assertLess(out.index("call s1_sequence_reg.write"), out.index("fork 0 EnvThread();"))
+        self.assertIn("s1_sequence_reg[0bv32] := 65535bv16;", out)
+        # Keep scalar mirrors consistent when they exist.
+        self.assertIn("s1_sequence_reg__last0_value := 65535bv16;", out)
+        self.assertLess(out.index("s1_sequence_reg[0bv32] := 65535bv16;"), out.index("fork 0 EnvThread();"))
         self.assertIn("call __wraparound_assert(true);", out)
         self.assertIn("if (s1_sequence_reg__last0_value != 65535bv16)", out)
 
@@ -341,8 +343,8 @@ procedure mainProcedure() returns()
         self.assertIn("var wrap_closure_seq0: bv16;", out)
         self.assertIn("havoc wrap_closure_seq0;", out)
         self.assertIn("assume wrap_closure_seq0 != 65535bv16;", out)
-        self.assertIn("call s1_sequence_reg.write(0bv32, wrap_closure_seq0);", out)
-        self.assertIn("call s2_sequence_reg.write(0bv32, wrap_closure_seq0);", out)
+        self.assertIn("s1_sequence_reg[0bv32] := wrap_closure_seq0;", out)
+        self.assertIn("s2_sequence_reg[0bv32] := wrap_closure_seq0;", out)
         self.assertLess(out.index("var wrap_closure_seq0"), out.index("havoc wrap_closure_seq0"))
 
         # Closure: +1 for all accelerated regs, and return to the cutpoint.

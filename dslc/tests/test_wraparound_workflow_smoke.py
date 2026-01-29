@@ -86,4 +86,4 @@ global {{
             confirm_bpl = Path(cand0["bpl"]["confirm"])
             self.assertTrue(confirm_bpl.exists())
             confirm_text = confirm_bpl.read_text(encoding="utf-8", errors="replace")
-            self.assertIn("call s1_sequence_reg.write(0bv32, 65535bv16);", confirm_text)
+            self.assertIn("s1_sequence_reg[0bv32] := 65535bv16;", confirm_text)
