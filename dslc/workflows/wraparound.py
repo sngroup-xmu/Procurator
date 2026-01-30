@@ -135,6 +135,7 @@ def generate_wraparound_tasks(
     out_dir = (out_dir or _default_out_dir(spec_path=spec_path)).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    base_bpl_provided = base_bpl is not None
     if base_bpl is None:
         base_bpl = out_dir / f"{spec_path.stem}.bpl"
     base_bpl = base_bpl.resolve()
@@ -151,8 +152,11 @@ def generate_wraparound_tasks(
     if confirm_harness not in {"sequential", "concurrent"}:
         raise WraparoundWorkflowError(f"unsupported confirm_harness: {confirm_harness}")
 
-    # 1) Compile base model (if needed).
-    if not base_bpl.exists():
+    # 1) Compile base model.
+    #
+    # To avoid confusing implicit caching, we only skip compilation when the caller
+    # explicitly supplies an existing `base_bpl` (e.g., unit tests or manual reuse).
+    if not base_bpl_provided:
         compile_spec_file(
             spec_path=spec_path,
             backend="boogie",
@@ -171,23 +175,22 @@ def generate_wraparound_tasks(
     confirm_base_bpl = base_bpl
     if confirm_harness != boogie_harness:
         confirm_base_bpl = out_dir / f"{spec_path.stem}.{confirm_harness}.bpl"
-        if not confirm_base_bpl.exists():
-            if p4b_bin is None:
-                raise WraparoundWorkflowError("p4b_bin is required to compile confirm_base_bpl")
-            compile_spec_file(
-                spec_path=spec_path,
-                backend="boogie",
-                out=confirm_base_bpl,
-                p4b_bin=p4b_bin,
-                work_dir=work_dir / f"confirm-{confirm_harness}",
-                max_env_inputs=max_env_inputs,
-                enable_slicing=enable_slicing,
-                prune_env_inputs=prune_env_inputs,
-                por_enabled=por_enabled,
-                por_guard_enabled=True,
-                boogie_harness=confirm_harness,
-                pipeline_two_stage=pipeline_two_stage,
-            )
+        if p4b_bin is None:
+            raise WraparoundWorkflowError("p4b_bin is required to compile confirm_base_bpl")
+        compile_spec_file(
+            spec_path=spec_path,
+            backend="boogie",
+            out=confirm_base_bpl,
+            p4b_bin=p4b_bin,
+            work_dir=work_dir / f"confirm-{confirm_harness}",
+            max_env_inputs=max_env_inputs,
+            enable_slicing=enable_slicing,
+            prune_env_inputs=prune_env_inputs,
+            por_enabled=por_enabled,
+            por_guard_enabled=True,
+            boogie_harness=confirm_harness,
+            pipeline_two_stage=pipeline_two_stage,
+        )
 
     bpl_text = base_bpl.read_text(encoding="utf-8", errors="replace")
     meta_by_node = _read_meta_by_node(spec_text=spec_text, work_dir=work_dir if work_dir.exists() else None)

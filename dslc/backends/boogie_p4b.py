@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import List, Optional, Sequence
@@ -70,6 +71,25 @@ class P4BTranslator:
         cmd = build_cmd(use_goto=True)
         run(cmd)
 
+        # Correctness guardrail: sliced Boogie must be well-formed.
+        #
+        # If slicing keeps a `.read/.write` call, the corresponding register var
+        # and helper decls must also be present. Otherwise downstream tools fail
+        # with confusing type errors. We treat this as a translator bug and fail
+        # fast (no silent fallback to unsliced programs).
+        if not disable_slicing:
+            bad = _detect_missing_read_write_decls(Path(out_bpl))
+            if bad:
+                raise P4BTranslatorError(
+                    "P4B slicing produced invalid Boogie (dangling `.read/.write` without decls).\n"
+                    "This indicates a translator/slicer bug; refusing to continue.\n"
+                    f"missing bases: {', '.join(bad)}\n"
+                    f"out_bpl: {out_bpl}\n"
+                    "You may temporarily re-run with `disable_slicing=True` to debug, but\n"
+                    "the recommended fix is to repair the translator so slicing preserves\n"
+                    "the required register declarations."
+                )
+
 
 def _default_p4c_include_paths(p4b_bin: str) -> List[str]:
     """
@@ -105,3 +125,44 @@ def _default_p4c_include_paths(p4b_bin: str) -> List[str]:
             dedup.append(p)
     return dedup
 
+
+_RE_READ_CALL = re.compile(r"\b(?P<base>[A-Za-z_][A-Za-z0-9_]*)\.read\(\s*(?P=base)\s*,")
+_RE_WRITE_CALL = re.compile(r"\bcall\s+(?P<base>[A-Za-z_][A-Za-z0-9_]*)\.write\(")
+_RE_VAR_DECL = re.compile(r"^\s*var\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:", re.MULTILINE)
+_RE_FUNC_DECL = re.compile(r"^\s*function\b.*\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\.read\b", re.MULTILINE)
+# Allow optional Boogie attributes between `procedure` and the name, e.g.:
+#   procedure {:inline 1} sequence_reg.write(...)
+_RE_PROC_DECL = re.compile(
+    r"^\s*procedure(?:\s*\{:[^}]+\}\s*)*\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\.write\b",
+    re.MULTILINE,
+)
+
+
+def _detect_missing_read_write_decls(bpl_path: Path) -> List[str]:
+    """
+    Heuristic sanity check for sliced Boogie output.
+
+    Returns a list of base names that appear in `.read/.write` calls but do not
+    have corresponding declarations in the file.
+    """
+    try:
+        text = bpl_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return []
+
+    bases: set[str] = set()
+    bases.update(m.group("base") for m in _RE_READ_CALL.finditer(text))
+    bases.update(m.group("base") for m in _RE_WRITE_CALL.finditer(text))
+    if not bases:
+        return []
+
+    declared_vars = {m.group("name") for m in _RE_VAR_DECL.finditer(text)}
+    declared_reads = {m.group("name") for m in _RE_FUNC_DECL.finditer(text)}
+    declared_writes = {m.group("name") for m in _RE_PROC_DECL.finditer(text)}
+
+    missing: List[str] = []
+    for b in sorted(bases):
+        # Most `.read` calls are on arrays; require both the array var and its helper decls.
+        if b not in declared_vars or b not in declared_reads or b not in declared_writes:
+            missing.append(b)
+    return missing

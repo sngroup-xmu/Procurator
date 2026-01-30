@@ -11,11 +11,11 @@
 ## 1. 输入与产物（对齐）
 
 - Spec：`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`
-- Base Boogie（不快进）：`.tmp/dslc/netchain_bug_s1s2.tight.seq.bpl`
-- V0-0 Confirm 变体（快进到 `MAX`）：`.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.bpl`
-- Confirm + suffix 展开（unroll 3）：`.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl`
-- Ultimate log：`.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.gemcutter.log`
-- Ultimate violation witness（GraphML）：`.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl-witness.graphml`
+- 产物位置：每次运行会输出一个 `<OUT_DIR>`（形如 `.tmp/procurator/wraparound/<spec>/<run_id>/`）
+  - Base Boogie（sequential harness）：`<OUT_DIR>/<stem>.base.bpl`
+  - Confirm 变体（快进到 `MAX`）：`<OUT_DIR>/<stem>.confirm.bpl`（由 `--confirm-unroll 3` 控制后缀展开步数）
+  - Ultimate log：`<OUT_DIR>/<stem>.confirm.gemcutter.log`
+  - Ultimate violation witness（GraphML）：`<OUT_DIR>/<stem>.confirm.bpl-witness.graphml`
 
 ---
 
@@ -33,7 +33,7 @@
 实现位置：
 
 - 变换：`dslc/transform/wraparound.py: _emit_confirm_init()`
-- 入口脚本：`Procurator/argo/code/spec/prop_compile/run_wraparound.py`
+- 入口命令：`./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）
 
 ### 2.2 Suffix（unroll 3）
 
@@ -57,17 +57,17 @@
 
 实际运行使用：
 
-- Toolchain：`Procurator/argo/code/spec/config/ReachSafety-Witness.xml`
-- Settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf`
+- Toolchain：`dslc/toolchain/ultimate/ReachSafety-Witness.xml`
+- Settings：`dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-witness.epf`
 - Ultimate 超时按需设置（例如 `--core.toolchain.timeout.in.seconds=600` 或 0 禁用）
 
 对应 log：
 
-- `.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.gemcutter.log`
+- `<OUT_DIR>/<stem>.confirm.gemcutter.log`
 
 关键结论：
 
-- Ultimate 报告 `UNSAFE`，并写出 witness：`.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl-witness.graphml`
+  - Ultimate 报告 `UNSAFE`，并写出 witness：`<OUT_DIR>/<stem>.confirm.bpl-witness.graphml`
 
 ---
 
@@ -75,10 +75,10 @@
 
 ### 4.1 关键语义链路（从 witness 中可见）
 
-`confirm.unroll3` witness 里能直接看到：
+`confirm` witness 里能直接看到：
 
 1) 先把寄存器写到 `MAX`
-   - `.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl-witness.graphml` 中包含：
+   - `<OUT_DIR>/<stem>.confirm.bpl-witness.graphml` 中包含：
      - `call s1_sequence_reg.write(0bv32, 65535bv16);`
      - `call s2_sequence_reg.write(0bv32, 65535bv16);`
 
@@ -127,60 +127,40 @@ V0-1 的目标是把 “快进到 `MAX`” 从一个假设（confirm-only）变�
 一次命令跑通证明 + 找 bug（推荐）：
 
 ```
-python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \\
+./bin/procurator wraparound \\
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop \\
-  --base-bpl .tmp/dslc/netchain_bug_s1s2.tight.seq.bpl \\
+  --p4b-bin P4B-Translator/build-host/p4c-translator \\
   --ultimate UGemCutter-linux/Ultimate \\
   --stages closure_check,confirm \\
-  --unroll confirm=3 \\
-  --require-closure \\
-  --ultimate-timeout-seconds 0
+  --confirm-unroll 3 \\
+  --timeout-seconds 0
 ```
 
 ### 5.2 产物对齐（V0-1 主线）
 
-`run_wraparound.py` 会生成并对齐这些文件名（同一个 stem）：
+`./bin/procurator wraparound` 每次运行会输出一个 `<OUT_DIR>`（形如 `.tmp/procurator/wraparound/<spec>/<run_id>/`），并在其中对齐这些工件（同一个 stem）：
 
 - 证明工件（SAFE）：
-  - `.tmp/dslc/netchain_bug_s1s2.tight.seq.closure_check.bpl`
-  - `.tmp/dslc/netchain_bug_s1s2.tight.seq.closure_check.gemcutter.log`
+  - `<OUT_DIR>/<stem>.closure_check.bpl`
+  - `<OUT_DIR>/<stem>.closure_check.gemcutter.log`
 - 反例工件（UNSAFE）：
-  - `.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl`
-  - `.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.gemcutter.log`
-  - `.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl-witness.graphml`
+  - `<OUT_DIR>/<stem>.confirm.bpl`
+  - `<OUT_DIR>/<stem>.confirm.gemcutter.log`
+  - `<OUT_DIR>/<stem>.confirm.bpl-witness.graphml`
 
-### 5.3 工程化小结：缓存（让日常迭代变成秒级/分钟级）
+### 5.3 工程化小结：no-cache（避免误用旧产物）
 
-`run_wraparound.py` 会在 **log/witness 已存在且新于输入 `.bpl`** 时自动跳过对应 stage 的 Ultimate 运行：
-
-- 首次跑（或模型变了）仍需要 `closure_check`（~数分钟） + `confirm`（~1 分钟）。
-- 后续在同一份 `.bpl` 不变的情况下，对应 stage 会直接 `[SKIP]`。
-- 如需强制重跑（刷新 log/witness），加 `--rerun`。
+默认每次运行使用新的 `<OUT_DIR>`，不会隐式复用旧的 `.bpl/log/witness`。如果你需要复现/对照同一路径，可显式指定 `--out-dir <dir>`。
 
 ### 5.4 （可选）先跑 pump 做诊断
 
 当 `closure_check` 证明不了时，推荐先用 `pump` 拿 witness：
 
 ```
-python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \\
+./bin/procurator wraparound \\
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop \\
-  --base-bpl .tmp/dslc/netchain_bug_s1s2.tight.seq.bpl \\
+  --p4b-bin P4B-Translator/build-host/p4c-translator \\
   --ultimate UGemCutter-linux/Ultimate \\
   --stages pump \\
-  --ultimate-timeout-seconds 0
-```
-
-### 5.5 （可选）pump 提速：仅对 pump 使用 IcfgTransformation(Jordan)
-
-实测 Netchain 上 `LOOP_ACCELERATION_JORDAN` 对 `pump` 有一定收益（但仍是分钟级），因此推荐只用于 pump（不影响主线 `closure_check`）：
-
-```
-python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \\
-  --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop \\
-  --base-bpl .tmp/dslc/netchain_bug_s1s2.tight.seq.bpl \\
-  --ultimate UGemCutter-linux/Ultimate \\
-  --stages pump \\
-  --pump-toolchain Procurator/argo/code/spec/config/ReachSafety-Transformed-Witness.xml \\
-  --pump-settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness-jordan.epf \\
-  --ultimate-timeout-seconds 0
+  --timeout-seconds 0
 ```

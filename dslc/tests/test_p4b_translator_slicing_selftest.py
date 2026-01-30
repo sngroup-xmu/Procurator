@@ -1,12 +1,24 @@
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
 
 class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
+    def _p4b_bin(self, repo_root: Path) -> Path:
+        # This repo builds the verify backend translator under backends/verify/.
+        candidates = [
+            repo_root / "P4B-Translator" / "build-host" / "backends" / "verify" / "p4c-translator",
+            repo_root / "P4B-Translator" / "build-host" / "p4c-translator",
+        ]
+        for p in candidates:
+            if p.exists():
+                return p
+        return candidates[0]
+
     def test_netchain_seq_seed_slicing(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
-        p4b_bin = repo_root / "P4B-Translator" / "build-host" / "p4c-translator"
+        p4b_bin = self._p4b_bin(repo_root)
         if not p4b_bin.exists():
             self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
 
@@ -31,7 +43,7 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
 
     def test_netchain_pop_front_header_stack_slicing(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
-        p4b_bin = repo_root / "P4B-Translator" / "build-host" / "p4c-translator"
+        p4b_bin = self._p4b_bin(repo_root)
         if not p4b_bin.exists():
             self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
 
@@ -56,7 +68,7 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
 
     def test_distcache_register_alias_seed_slicing(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
-        p4b_bin = repo_root / "P4B-Translator" / "build-host" / "p4c-translator"
+        p4b_bin = self._p4b_bin(repo_root)
         if not p4b_bin.exists():
             self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
 
@@ -81,9 +93,38 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
+    def test_distcache_parser_select_fields_not_dropped(self) -> None:
+        """Regression: parser select fields must remain declared under slicing."""
+
+        repo_root = Path(__file__).resolve().parents[2]
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "distcache" / "leafswitch" / "netcache.p4"
+        entries = (
+            repo_root / "Procurator" / "argo" / "code" / "dataset" / "distcache" / "leafswitch" / "flow_entries.txt"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not entries.exists() or not p4include.is_dir():
+            self.skipTest("missing DistCache dataset or p4include")
+
+        cmd = [
+            str(p4b_bin),
+            "-I",
+            str(p4include),
+            "--goto",
+            "--bmv2cmds",
+            str(entries),
+            "--slicing-vars=hdr.op_hdr.optype",
+            "--slicing-selftest=distcache_parser_select",
+            str(p4),
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
     def test_recirc_meta_flow_cross_stage_slicing(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
-        p4b_bin = repo_root / "P4B-Translator" / "build-host" / "p4c-translator"
+        p4b_bin = self._p4b_bin(repo_root)
         if not p4b_bin.exists():
             self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
 
@@ -102,6 +143,67 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
             str(p4),
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    def test_atp_register_slicing_emits_register_decls(self) -> None:
+        """Regression: slicing must not leave dangling register reads/writes without decls."""
+
+        repo_root = Path(__file__).resolve().parents[2]
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "ATP" / "p4src" / "p4ml_lc_16.p4"
+        entries = repo_root / "Procurator" / "argo" / "code" / "dataset" / "ATP" / "p4src" / "atp" / "flow.txt"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not entries.exists() or not p4include.is_dir():
+            self.skipTest("missing ATP dataset or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "out.bpl"
+            cmd = [
+                str(p4b_bin),
+                "-I",
+                str(p4include),
+                "--goto",
+                "--bmv2cmds",
+                str(entries),
+                "--slicing-vars=hdr.p4ml_agtr_index.agtr",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+            import re
+
+            # Collect base names for register read/write call sites.
+            read_bases = set(
+                m.group("base")
+                for m in re.finditer(
+                    r"\b(?P<base>[A-Za-z_][A-Za-z0-9_]*)\.read\(\s*(?P=base)\s*,", text
+                )
+            )
+            write_bases = set(
+                m.group("base")
+                for m in re.finditer(r"\bcall\s+(?P<base>[A-Za-z_][A-Za-z0-9_]*)\.write\(", text)
+            )
+            bases = sorted(read_bases | write_bases)
+            self.assertTrue(bases, "expected at least one register read/write in ATP output")
+
+            decl_vars = set(m.group("name") for m in re.finditer(r"^\s*var\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:", text, re.M))
+            decl_reads = set(
+                m.group("name")
+                for m in re.finditer(r"^\s*function\b.*\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\.read\b", text, re.M)
+            )
+            decl_writes = set(
+                m.group("name")
+                for m in re.finditer(r"^\s*procedure\b\s+.*\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\.write\b", text, re.M)
+            )
+
+            missing = [b for b in bases if b not in decl_vars or b not in decl_reads or b not in decl_writes]
+            self.assertEqual(missing, [], f"missing register decls for bases: {missing}")
 
 
 if __name__ == "__main__":

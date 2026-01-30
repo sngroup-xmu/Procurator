@@ -52,11 +52,12 @@
 
 ### 2.2 关键代码入口（你应从哪里读）
 
-- DSL 编译入口：`dslc/compiler.py`
+- 统一 CLI 入口：`./bin/procurator`（`compile/verify/wraparound/ablation/smoke`）
+- DSL 编译库入口：`dslc/compiler.py`
 - Boogie 后端（语义编码的核心）：`dslc/backends/boogie_backend.py` + `dslc/backends/boogie_harness.py`（入口：`dslc/backends/boogie.py`）
 - wrap-around 加速变换：`dslc/transform/wraparound.py`
 - wrap-around 任务生成（不跑求解器）：`dslc/workflows/wraparound.py`
-- 一键跑 wrap-around 管线：`Procurator/argo/code/spec/prop_compile/run_wraparound.py`
+- 一键跑 wrap-around 管线：`./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）
 
 ---
 
@@ -621,14 +622,14 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 
 - 通过解析 Boogie 声明找出目标寄存器数组的位宽（`[bvX]bvW`）：`analyze_bpl_for_wraparound`
 - 只在 `mainProcedure()` 内插桩，保证变换局部化
-- 为了让 “witness 缓存” 稳定生效：如果输出内容不变，就不重写 `.bpl`（避免 mtime 总变化）：`instrument_bpl_file`/`unroll_mainprocedure_loop_file`
+- 为了便于回归/对照：如果输出内容不变，就不重写 `.bpl`（减少无意义的 mtime 变化）：`instrument_bpl_file`/`unroll_mainprocedure_loop_file`
 
 ### 6.3 端到端脚本（产物对齐 + 可复现）
 
 实现文件：
 
 - `dslc/workflows/wraparound.py`：只生成产物（base `.bpl` + staged `.bpl` + manifest），不跑 Ultimate
-- `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：runner（可 end-to-end，也可用 `--base-bpl` 复用已有 base）
+- `dslc/cli/wraparound.py`：端到端 runner（入口：`./bin/procurator wraparound`，默认 no-cache，每次运行在新的 `<OUT_DIR>` 下产物隔离）
 
 它负责把多个部件串起来：
 
@@ -636,8 +637,7 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 2. 从 `.prop` 的 `global assert` 自动推断（目标寄存器名、idx）：
    - 例如 `s1_sequence_reg_0[0] >= s2_sequence_reg_0[0]`
 3. 生成各 stage `.bpl`：closure_check/pump/accel/accel_probe/confirm
-4. 调 Ultimate CLI 跑，并把日志写到 `.tmp/dslc/*.gemcutter.log`
-5. 默认复用已有产物（log/witness 新于输入 `.bpl` 时自动跳过该 stage）
+4. （可选）调 Ultimate CLI 跑，并把日志写到 `<OUT_DIR>/*.gemcutter.log`（以及 witness 到 `<OUT_DIR>/*.bpl-witness.graphml`）
 
 ### 6.4 Ultimate 工具链配置
 
@@ -654,21 +654,21 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 
 其中 `confirm` 使用的“ReachSafety + Witness”流水线为：
 
-- toolchain：`Procurator/argo/code/spec/config/ReachSafety-Witness.xml`
-- settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf`
+- toolchain：`dslc/toolchain/ultimate/ReachSafety-Witness.xml`
+- settings：`dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-witness.epf`
   - 外部求解器：Z3（ALL）
   - 启用 WitnessPrinter：输出 `*.bpl-witness.graphml`
 
 `entry_check / closure_check` 使用的配置为：
 
-- toolchain：`Procurator/argo/code/spec/config/ClosureCheck-ReachSafety.xml`（不含 WitnessPrinter，避免 correctness witness 的已知崩溃）
-- entry_check settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf`（更偏 bug-finding/可达性，避免在 Netchain 上出现病态长时间）
-- closure_check settings：`Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`
+- toolchain：`dslc/toolchain/ultimate/ClosureCheck-ReachSafety.xml`（不含 WitnessPrinter，避免 correctness witness 的已知崩溃）
+- entry_check settings：`dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-witness.epf`（更偏 bug-finding/可达性，避免在 Netchain 上出现病态长时间）
+- closure_check settings：`dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`
   - 关闭 per-query Z3 timeout（避免 UNKNOWN）
   - `HoareAnnotationPositions=None`（避免 SAFE 后的额外 simplify 卡顿）
   - 关闭并发 POR（sequential round proof 不需要）
 
-此外，我们也提供了一个带 `icfgtransformation` 的 toolchain，用于后续 loop acceleration 实验（本报告不把它纳入主结果）：`Procurator/argo/code/spec/config/ReachSafety-Transformed-Witness.xml`。
+此外，我们也提供了一个带 `icfgtransformation` 的 toolchain，用于后续 loop acceleration 实验（本报告不把它纳入主结果）：`dslc/toolchain/ultimate/ReachSafety-Transformed-Witness.xml`。
 
 ---
 
@@ -712,12 +712,12 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 
 | 基准 | 阶段 | 输入 BPL | 结果 | elapsed_s (s) | witness 大小 |
 |---|---|---|---|---:|---:|
-| Netchain | entry_check | `.tmp/dslc/netchain_bug_s1s2.entry_check.bpl` | UNSAFE | 355.4 | — |
-| Netchain | closure_check | `.tmp/dslc/netchain_bug_s1s2.s1_sequence_reg_idx0_global_asserts.closure_check.bpl` | SAFE | 507.4 | — |
-| Netchain | confirm.unroll3 | `.tmp/dslc/netchain_bug_s1s2.s1_sequence_reg_idx0_global_asserts.confirm.unroll3.bpl` | UNSAFE | 69.6 | 553,381 B |
-| DistCache | entry_check | `.tmp/dslc/distcache_leafload_wraparound.entry_check.bpl` | UNSAFE | 104.8 | — |
-| DistCache | closure_check | `.tmp/dslc/distcache_leafload_wraparound.clientTrack_partitionswitchIngress_leafload_reg_idx2_boogie_counter_write_clientTrack_leafload_0_idx_from_global_assume_2.closure_check.bpl` | SAFE | 79.9 | — |
-| DistCache | confirm.unroll3 | `.tmp/dslc/distcache_leafload_wraparound.clientTrack_partitionswitchIngress_leafload_reg_idx2_boogie_counter_write_clientTrack_leafload_0_idx_from_global_assume_2.confirm.unroll3.bpl` | UNSAFE | 57.2 | 511,951 B |
+| Netchain | entry_check | `<OUT_DIR>/netchain_bug_s1s2.entry_check.bpl` | UNSAFE | 355.4 | — |
+| Netchain | closure_check | `<OUT_DIR>/netchain_bug_s1s2.s1_sequence_reg_idx0_global_asserts.closure_check.bpl` | SAFE | 507.4 | — |
+| Netchain | confirm.unroll3 | `<OUT_DIR>/netchain_bug_s1s2.s1_sequence_reg_idx0_global_asserts.confirm.unroll3.bpl` | UNSAFE | 69.6 | 553,381 B |
+| DistCache | entry_check | `<OUT_DIR>/distcache_leafload_wraparound.entry_check.bpl` | UNSAFE | 104.8 | — |
+| DistCache | closure_check | `<OUT_DIR>/distcache_leafload_wraparound.clientTrack_partitionswitchIngress_leafload_reg_idx2_boogie_counter_write_clientTrack_leafload_0_idx_from_global_assume_2.closure_check.bpl` | SAFE | 79.9 | — |
+| DistCache | confirm.unroll3 | `<OUT_DIR>/distcache_leafload_wraparound.clientTrack_partitionswitchIngress_leafload_reg_idx2_boogie_counter_write_clientTrack_leafload_0_idx_from_global_assume_2.confirm.unroll3.bpl` | UNSAFE | 57.2 | 511,951 B |
 
 **端到端结论（本次的主线）**
 
@@ -732,14 +732,14 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 call __wraparound_assert(bvule.bv16$builtin(s2_sequence_reg__dbg0, s1_sequence_reg__dbg0));
 ```
 
-即验证 `s2_seq <= s1_seq`（等价于 `s1_seq >= s2_seq`）。在触发点的 valuation（见 `.tmp/dslc/netchain_bug_s1s2.s1_sequence_reg_idx0_global_asserts.confirm.unroll3.gemcutter.log`）包含：
+即验证 `s2_seq <= s1_seq`（等价于 `s1_seq >= s2_seq`）。在触发点的 valuation（见 `<OUT_DIR>/netchain_bug_s1s2...confirm.unroll3.gemcutter.log`）包含：
 
 - `old(s1_sequence_reg__dbg0)=0bv16`
 - `s2_sequence_reg__dbg0=65535bv16`
 
 因此 `65535 <= 0` 为假，断言被真实违反，这与“翻转导致关系断裂”的预期一致。
 
-对 DistCache（clientTrack-only）同理：在触发点的 valuation（见 `.tmp/dslc/distcache_leafload_wraparound.clientTrack_partitionswitchIngress_leafload_reg_idx2_boogie_counter_write_clientTrack_leafload_0_idx_from_global_assume_2.confirm.unroll3.gemcutter.log`）包含：
+对 DistCache（clientTrack-only）同理：在触发点的 valuation（见 `<OUT_DIR>/distcache_leafload_wraparound...confirm.unroll3.gemcutter.log`）包含：
 
 - `clientTrack_leafload_0=0bv32`
 - `clientTrack_partitionswitchIngress_leafload_reg__last_index=2bv32`
@@ -780,38 +780,35 @@ call __wraparound_assert(bvule.bv16$builtin(s2_sequence_reg__dbg0, s1_sequence_r
 
 **直接复现本报告的认证版（entry_check + closure_check → confirm）结果（推荐）**
 
-- 产物与日志位置（Netchain / DistCache 都是 `.tmp/dslc/` 下）：
-  - `.bpl`：`.tmp/dslc/netchain_bug_s1s2*.bpl` 与 `.tmp/dslc/distcache_leafload_wraparound*.bpl`
-  - log：对应的 `*.gemcutter.log`
-  - witness：对应的 `*.bpl-witness.graphml`（主要看 confirm 阶段）
+- 产物与日志位置：每次运行会输出一个新的 `<OUT_DIR>`（形如 `.tmp/procurator/wraparound/<spec>/<run_id>/`）：
+  - base `.bpl`：`<OUT_DIR>/<stem>.base.bpl`
+  - stage `.bpl`：`<OUT_DIR>/<stem>.<stage>.bpl`
+  - log：`<OUT_DIR>/<stem>.<stage>.gemcutter.log`
+  - witness：`<OUT_DIR>/<stem>.<stage>.bpl-witness.graphml`（主要看 confirm 阶段）
 
 **命令（示例）**
 
 使用 wraparound runner（会自动编译 base `.bpl`，默认跑 `entry_check,closure_check,confirm`，并在满足 soundness gate 时输出 `[CERT] UNSAFE`）：
 
 ```
-python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \
+./bin/procurator wraparound \
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop \
-  --p4b-bin P4B-Translator/build-host/backends/verify/p4c-translator \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate ./UGemCutter-linux/Ultimate \
-  --boogie-harness sequential \
-  --env spec \
-  --unroll confirm=3 \
-  --rerun
+  --stages closure_check,confirm \
+  --confirm-unroll 3
 ```
 
 ```
-python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \
+./bin/procurator wraparound \
   --spec Procurator/argo/code/spec/bench/distcache_leafload_wraparound.prop \
-  --p4b-bin P4B-Translator/build-host/backends/verify/p4c-translator \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate ./UGemCutter-linux/Ultimate \
-  --boogie-harness sequential \
-  --env spec \
-  --unroll confirm=3 \
-  --rerun
+  --stages closure_check,confirm \
+  --confirm-unroll 3
 ```
 
-> 如果你只想复跑 Ultimate 而不重新编译 base，可以先保留生成的 base `.bpl`，用 `--base-bpl` 指定它；并用 `--rerun` 控制是否复用 witness。
+> `./bin/procurator wraparound` 默认 no-cache：每次 run 都在新的 `<OUT_DIR>` 下产物隔离。如果你想复现/对照同一路径，可显式指定 `--out-dir <dir>`。
 
 ---
 

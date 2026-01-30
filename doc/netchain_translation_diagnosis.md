@@ -10,7 +10,7 @@
 2) **sliced（剪枝）**：用于验证加速；按“性质 seeds”做 backward slice，删掉看起来“与 seeds 无关”的语句/表/动作。
    - 理想情况下它应当保持 seeds 的语义；但当 seeds 选取过宽/过窄，或模型/环境约束表达不当时，会表现为过近似/欠近似，从而出现伪反例（false positive）或漏报（false negative）。
 
-因此，“P4 源码 vs `.tmp/dslc/netchain_bug.bpl`”看到的缺失，常常不是 translator 不会翻译，而是被 slicing 删掉了。
+因此，“P4 源码 vs `<OUT_DIR>/netchain_bug.bpl`”看到的缺失，常常不是 translator 不会翻译，而是被 slicing 删掉了。
 
 补充：当前 seeds 的设计遵循“职责分离”——
 - `assume/assert`（约束可行性/性质可观测量）参与 seeds；
@@ -18,6 +18,11 @@
 - 有拓扑时由系统层补充转发/事件控制相关 seeds（否则 P4B slicer 本身不知道我们的分布式 harness/topology 语义）。
 
 ## 1. 推荐的复现/对比方式（两份输出对照）
+
+本文统一用 `<OUT_DIR>` 表示“本次实验输出目录”。你可以手动指定一个固定目录（便于对照/引用行号），也可以直接把 `procurator` 打印出来的输出目录当作 `<OUT_DIR>`：
+
+- 手动指定（示例）：`OUT_DIR=$PWD/.tmp/procurator/manual/netchain_diag`
+- 自动生成：不传 `--out/--work-dir` 时，`./bin/procurator compile/verify` 会在 `.tmp/procurator/.../<run_id>/` 下创建新的目录（no-cache 默认），其父目录即可视为 `<OUT_DIR>`。
 
 ### 1.1 生成 unsliced（语义对照基线）
 
@@ -27,15 +32,32 @@ P4B-Translator/build-host/p4c-translator \
   Procurator/argo/code/dataset/Netchain/netchain_16.p4 \
   --bmv2cmds Procurator/argo/code/dataset/Netchain/commands_1.txt \
   --no-slicing \
-  -o .tmp/dslc/_noslice_s1.bpl \
-  --meta-out .tmp/dslc/_noslice_s1.meta.json
+  -o <OUT_DIR>/_noslice_s1.bpl \
+  --meta-out <OUT_DIR>/_noslice_s1.meta.json
 ```
 
 ### 1.2 生成 sliced（验证加速用产物）
 
-用我们验证管线生成：  
-`PYTHONPATH=. . .venv/bin/activate && python ... run_gemcutter.py ...`  
-输出通常在：`.tmp/dslc/netchain_bug.bpl` 和 `.tmp/dslc/netchain_bug.work/*.raw.bpl`。
+用 `procurator` 直接生成（建议先只编译，便于定位“翻译 vs slicing”差异）：
+
+```bash
+./bin/procurator compile \
+  --spec Procurator/argo/code/spec/bench/netchain_bug.prop \
+  --out <OUT_DIR>/netchain_bug.bpl \
+  --work-dir <OUT_DIR>/netchain_bug.work
+```
+
+如需在同一份 `.bpl` 上跑 Ultimate/GemCutter（可选）：
+
+```bash
+./bin/procurator verify \
+  --spec Procurator/argo/code/spec/bench/netchain_bug.prop \
+  --out <OUT_DIR>/netchain_bug.bpl \
+  --work-dir <OUT_DIR>/netchain_bug.work \
+  --ultimate <PATH_TO_ULTIMATE>
+```
+
+输出通常在：`<OUT_DIR>/netchain_bug.bpl` 和 `<OUT_DIR>/netchain_bug.work/*.raw.bpl`。
 
 ## 2. 逐项差异：根因与结论
 
@@ -47,7 +69,7 @@ P4B-Translator/build-host/p4c-translator \
 你关注到 parser 里有 `packet.extract(...)`，在 `.bpl` 中看到 `s1_packet_in.extract(...)` 等调用。
 
 **结论**  
-这部分大体是符合预期的：在 goto 版本（dslc 默认生成 `--goto`）里，extract 会以过程调用形式出现，例如 `.tmp/dslc/netchain_bug.bpl` 中 `parse_overlay` 会调用：
+这部分大体是符合预期的：在 goto 版本（dslc 默认生成 `--goto`）里，extract 会以过程调用形式出现，例如 `<OUT_DIR>/netchain_bug.bpl` 中 `parse_overlay` 会调用：
 
 ```
 call s1_packet_in.extract.headers.overlay.next(s1_hdr.overlay);
@@ -58,14 +80,14 @@ call s1_packet_in.extract.headers.overlay.next(s1_hdr.overlay);
 ### 2.2 ingress：没调 `get_sequence.apply()` / `get_sequence_act` 空 / `read_value.apply()` 缺失
 
 **现象**（多发生在 sliced 输出）  
-在 `.tmp/dslc/netchain_bug.work/s1.raw.bpl` 里：
+在 `<OUT_DIR>/netchain_bug.work/s1.raw.bpl` 里：
 - `get_sequence_0.apply()` 不见了（ingress 不再调用）
 - `get_sequence_act()` 变成空过程
 - `read_value_0.apply()` 不再被调用（对应分支直接空）
 
 **根因**  
 这是 **P4B slicing（剪枝）** 的结果，不是 translator “不会翻译”：
-- 在 unsliced 输出 `.tmp/dslc/_noslice_s1.bpl` 中，`get_sequence_0.apply()` 和 `read_value_0.apply()` 都存在且被 ingress 调用。
+- 在 unsliced 输出 `<OUT_DIR>/_noslice_s1.bpl` 中，`get_sequence_0.apply()` 和 `read_value_0.apply()` 都存在且被 ingress 调用。
 - sliced 输出会把它们当作“与 slicing 种子无关”，从而删掉表调用或删空动作体，把相关变量变成“外部输入般的 nondet”。
 
 **为什么会影响语义/可能导致伪反例？（关键例子）**  
@@ -116,7 +138,7 @@ BMV2 CLI 命令解析的 `split()` 有一个边界条件 bug：当最后 token �
 `P4B-Translator/backends/verify/translate/bmv2.cpp`：修正 `split()` 的尾 token 处理（`idx1 < str.length()`）。
 
 **修复后验证**  
-重新编译 `p4c-translator` 并生成 `.tmp/dslc/_noslice_s1.bpl` 或 `.tmp/dslc/netchain_bug.bpl`，应能看到 `2028` 分支出现 `index := 4bv16;`。
+重新编译 `p4c-translator` 并生成 `<OUT_DIR>/_noslice_s1.bpl` 或 `<OUT_DIR>/netchain_bug.bpl`，应能看到 `2028` 分支出现 `index := 4bv16;`。
 
 ### 2.5 `maintain_sequence_act` 少 read / `assign_value_act` 少 `value_reg.write` / `drop_packet_act` 少 `mark_to_drop` / `gen_reply_act` 少 `udp.dstPort=8889`
 
@@ -129,7 +151,7 @@ BMV2 CLI 命令解析的 `split()` 有一个边界条件 bug：当最后 token �
 
 1) 默认用 sliced 模型跑（快，bug-finding 强）。  
 2) 一旦 UNSAFE：自动触发 “确证”：
-   - 用 `run_gemcutter.py --no-prune` 或更保守的 slicing 重新跑一次（同样的 env 约束/同样的 trace 引导）
+   - 用 `./bin/procurator verify --no-slicing`（禁用 slicing）或更保守的 slicing 重新跑一次（同样的 env 约束/同样的 trace 引导）
    - 若 UNSAFE 仍成立，认为是更可信的真实反例；否则把它当作伪反例并记录“被哪条语义补全消掉”。
 
 这相当于对 slicing 抽象做一个轻量的 CEGAR（反例驱动精化），可以把我们之前踩到的“伪反例”系统化收敛掉，而不需要一开始就把模型做得很重。
@@ -219,7 +241,7 @@ Netchain 的 `sequence_reg` 是 `bv16`（16 位无符号 bitvector），按模 `
 
 **症状**
 
-- slicing 后“跑不出”预期反例（或反例形状变得很奇怪），但 `run_gemcutter.py --no-prune`（禁用 slicing+env prune）又能跑出；
+- slicing 后“跑不出”预期反例（或反例形状变得很奇怪），但 `./bin/procurator verify --no-slicing`（禁用 slicing）又能跑出；
 - 或者 slicing 后寄存器相关数组/索引没有被有效约束，性能极差；
 - 或者 Boogie 里出现 ill-typed 的索引约束（Ultimate typecheck 失败）。
 
@@ -298,15 +320,14 @@ s2_sequence_reg_0[0] = 65535;
 ### 4.5 最小复现命令（无超时）
 
 ```bash
-. .venv/bin/activate
-PYTHONPATH=. python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --ultimate-timeout-seconds 0
 ```
 
-日志默认在：`.tmp/dslc/netchain_bug_s1s2_fastforward.gemcutter.log`。如果你看到类似：
+运行时会输出一个 `<OUT_DIR>`（形如 `.tmp/procurator/verify/<spec>/<run_id>/`）。日志默认在：`<OUT_DIR>/gemcutter.log`。如果你看到类似：
 
 - `s1_sequence_reg__dbg0=0bv16`
 - `s2_sequence_reg__dbg0=65535bv16`
@@ -324,17 +345,17 @@ PYTHONPATH=. python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
 
 - P4：`Procurator/argo/code/dataset/Netchain/netchain_16.p4`
 - 控制面：`Procurator/argo/code/dataset/Netchain/commands_1.txt`、`Procurator/argo/code/dataset/Netchain/commands_2.txt`
-- Boogie：`.tmp/dslc/netchain_bug_s1s2.seq.bpl`
+- Boogie：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl`
 
-### 5.0 先看 `.tmp/dslc/netchain_bug_s1s2.seq.bpl` 的结构（哪些是 P4 翻译，哪些是 harness）
+### 5.0 先看 `<OUT_DIR>/netchain_bug_s1s2.seq.bpl` 的结构（哪些是 P4 翻译，哪些是 harness）
 
 这份 `.bpl` 是“节点 P4 翻译 + 分布式 harness”拼在一起的：
 
-- `// ===== BEGIN NODE s1 (prefixed) =====`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:10`）到 `// ===== END NODE s1 =====`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:1125`）
+- `// ===== BEGIN NODE s1 (prefixed) =====`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:10`）到 `// ===== END NODE s1 =====`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:1125`）
   - 这部分基本就是把 `netchain_16.p4` 翻译成 Boogie，并加上 `s1_` 前缀（同一份 P4 实例化成节点 s1）。
-- `// ===== BEGIN NODE s2 (prefixed) =====`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:1127`）到 `// ===== END NODE s2 =====`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2176`）
+- `// ===== BEGIN NODE s2 (prefixed) =====`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:1127`）到 `// ===== END NODE s2 =====`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2176`）
   - 同理，加上 `s2_` 前缀（节点 s2）。
-- `// ===== BEGIN ENQUEUE PROCEDURES =====`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2178`）之后
+- `// ===== BEGIN ENQUEUE PROCEDURES =====`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2178`）之后
   - 这是 **分布式/调度/环境注入** 的 Boogie harness（不属于 P4 语言本身），例如 `s1__enqueue_s2`、scheduler、assert 检查点等。
 
 所以做“P4 vs Boogie 翻译正确性”对照时，优先看 **NODE s1/s2** 两段。
@@ -344,35 +365,35 @@ PYTHONPATH=. python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
 P4 parser 在 `netchain_16.p4:105` 开始：
 
 - P4：`parse_ethernet`（`netchain_16.p4:109`）  
-  Boogie：`s1_State$ParserImpl$parse_ethernet`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:381`）
+  Boogie：`s1_State$ParserImpl$parse_ethernet`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:381`）
   - P4：`packet.extract(hdr.ethernet)`（`netchain_16.p4:110`）  
-    Boogie：`call s1_packet_in.extract(s1_hdr.ethernet)`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:382`）
+    Boogie：`call s1_packet_in.extract(s1_hdr.ethernet)`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:382`）
   - P4：`select(hdr.ethernet.etherType)`（`netchain_16.p4:111`）  
-    Boogie：用 `goto` + `assume` 分出两支（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:383-391`）
+    Boogie：用 `goto` + `assume` 分出两支（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:383-391`）
 
 - P4：`parse_ipv4`（`netchain_16.p4:116`）  
-  Boogie：`s1_State$ParserImpl$parse_ipv4`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:393`）
+  Boogie：`s1_State$ParserImpl$parse_ipv4`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:393`）
   - P4：`hdr.ipv4.protocol = 8w17`（`netchain_16.p4:118`）  
-    Boogie：`s1_hdr.ipv4.protocol := 17bv8`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:395`）
+    Boogie：`s1_hdr.ipv4.protocol := 17bv8`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:395`）
 
 - P4：`parse_udp`（`netchain_16.p4:144`）  
-  Boogie：`s1_State$ParserImpl$parse_udp`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:442`）
+  Boogie：`s1_State$ParserImpl$parse_udp`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:442`）
   - P4：`hdr.udp.dstPort = 16w8888`（`netchain_16.p4:146`）  
-    Boogie：`s1_hdr.udp.dstPort := 8888bv16`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:444`）
+    Boogie：`s1_hdr.udp.dstPort := 8888bv16`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:444`）
 
 - P4：`parse_overlay`（`netchain_16.p4:133`）  
-  Boogie：`s1_State$ParserImpl$parse_overlay`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:426`）
+  Boogie：`s1_State$ParserImpl$parse_overlay`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:426`）
   - P4：`packet.extract(hdr.overlay.next)`（`netchain_16.p4:134`）  
-    Boogie：`call s1_packet_in.extract.headers.overlay.next(s1_hdr.overlay)`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:427`）
+    Boogie：`call s1_packet_in.extract.headers.overlay.next(s1_hdr.overlay)`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:427`）
   - P4：`select(hdr.overlay.last.swip)`（`netchain_16.p4:135`）  
-    Boogie：`assume (s1_hdr.overlay.last.swip == 0bv32)` 分支到 `parse_nc_hdr`，否则回到 `parse_overlay`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:430-436`）
+    Boogie：`assume (s1_hdr.overlay.last.swip == 0bv32)` 分支到 `parse_nc_hdr`，否则回到 `parse_overlay`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:430-436`）
 
 - P4：`parse_nc_hdr`（`netchain_16.p4:125`）  
-  Boogie：`s1_State$ParserImpl$parse_nc_hdr`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:410`）
+  Boogie：`s1_State$ParserImpl$parse_nc_hdr`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:410`）
 
 **重要的建模抽象（不是翻译 bug）**
 
-- `s1_packet_in.extract(...)` 在 `.bpl` 里是“声明 + ensures”，没有实现（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:932-937`）：
+- `s1_packet_in.extract(...)` 在 `.bpl` 里是“声明 + ensures”，没有实现（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:932-937`）：
   - 它只保证 `hdr.xxx` 变成 valid（`ensures (s1_isValid[s1_header] == true)`），字段值本身仍然来自环境注入（符号化）。
   - 这也是为什么 `.prop` 里要用 `assume` 把 `hdr.*` 收紧成“像 Promela host 发的包”。
 
@@ -380,27 +401,27 @@ P4 parser 在 `netchain_16.p4:105` 开始：
 
 P4 的 ingress apply 在 `netchain_16.p4:324` 开始，对应：
 
-- Boogie：`procedure {:inline 1} s1_ingress()`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:793-833`）
-- Boogie：`procedure {:inline 1} s2_ingress()`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:1844-1884`）
+- Boogie：`procedure {:inline 1} s1_ingress()`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:793-833`）
+- Boogie：`procedure {:inline 1} s2_ingress()`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:1844-1884`）
 
 以 s1 为例（结构几乎 1:1）：
 
 - P4：`if (hdr.nc_hdr.isValid())`（`netchain_16.p4:325`）  
-  Boogie：`if(s1_isValid[s1_hdr.nc_hdr])`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:796`）
+  Boogie：`if(s1_isValid[s1_hdr.nc_hdr])`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:796`）
 
 - P4：`get_my_address.apply()`（`netchain_16.p4:326`）  
-  Boogie：`call s1_get_my_address_0.apply()`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:797`）
+  Boogie：`call s1_get_my_address_0.apply()`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:797`）
 
 - P4：`find_index.apply(); get_sequence.apply();`（`netchain_16.p4:328-329`）  
-  Boogie：`call s1_find_index_0.apply(); call s1_get_sequence_0.apply();`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:799-800`）
+  Boogie：`call s1_find_index_0.apply(); call s1_get_sequence_0.apply();`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:799-800`）
 
 - P4：`if (hdr.nc_hdr.op == 8w10) read_value.apply();`（`netchain_16.p4:330-332`）  
-  Boogie：`if((s1_hdr.nc_hdr.op == 10bv8)) call s1_read_value_0.apply();`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:801-803`）
+  Boogie：`if((s1_hdr.nc_hdr.op == 10bv8)) call s1_read_value_0.apply();`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:801-803`）
 
 - P4：写路径（`netchain_16.p4:334-345`）  
-  Boogie：写路径（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:805-816`）
-  - `role == 100` 时先 `maintain_sequence`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:806-808`）
-  - `role == 100 || hdr.nc_hdr.seq > meta.sequence_md.seq` 时走 `assign_value; pop_chain`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:809-812`）
+  Boogie：写路径（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:805-816`）
+  - `role == 100` 时先 `maintain_sequence`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:806-808`）
+  - `role == 100 || hdr.nc_hdr.seq > meta.sequence_md.seq` 时走 `assign_value; pop_chain`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:809-812`）
 
 **你之前关心的“多了一个 `&& (seq != meta.seq)`”**
 
@@ -417,31 +438,31 @@ P4 的 ingress apply 在 `netchain_16.p4:324` 开始，对应：
 P4 ingress action 定义从 `netchain_16.p4:177` 开始。下面列出我们这次排查中最关键的几个（你之前列的那些“缺失点”也在这里）：
 
 - `assign_value_act`：`netchain_16.p4:177-180`  
-  ↔ `s1_assign_value_act`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:489-497`  
+  ↔ `s1_assign_value_act`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:489-497`  
   - 已包含 `sequence_reg.write(...)` 和 `value_reg.write(...)`（你之前提的 “value_reg write 缺失” 在当前输出里已修复）。
 
 - `drop_packet_act`：`netchain_16.p4:181-183`  
-  ↔ `s1_drop_packet_act`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:516-520`  
-  - Boogie 里对应 `call s1_mark_to_drop()`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:519`），不再是空动作。
+  ↔ `s1_drop_packet_act`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:516-520`  
+  - Boogie 里对应 `call s1_mark_to_drop()`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:519`），不再是空动作。
 
 - `pop_chain_act`（含 `hdr.overlay.pop_front(1)`）：`netchain_16.p4:184-189`  
-  ↔ `s1_pop_chain_act`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:951-987`  
-  - `pop_front(1)` 在 Boogie 里被展开成“字段搬移 + valid 搬移 + 最后一个置 invalid”（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:955-984`），这也是你之前怀疑 “pop_front 没实现” 的核心点。
+  ↔ `s1_pop_chain_act`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:951-987`  
+  - `pop_front(1)` 在 Boogie 里被展开成“字段搬移 + valid 搬移 + 最后一个置 invalid”（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:955-984`），这也是你之前怀疑 “pop_front 没实现” 的核心点。
 
 - `gen_reply_act`（含 `hdr.udp.dstPort = 8889`）：`netchain_16.p4:194-201`  
-  ↔ `s1_gen_reply_act`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:721-730`  
-  - `udp.dstPort := 8889bv16` 已存在（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:729`）。
+  ↔ `s1_gen_reply_act`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:721-730`  
+  - `udp.dstPort := 8889bv16` 已存在（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:729`）。
 
 - `get_sequence_act`（read 序列号寄存器）：`netchain_16.p4:222-224`  
-  ↔ `s1_get_sequence_act`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:784-790`  
-  - `s1_meta.sequence_md.seq := s1_sequence_reg.read(...)`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:789`）
+  ↔ `s1_get_sequence_act`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:784-790`  
+  - `s1_meta.sequence_md.seq := s1_sequence_reg.read(...)`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:789`）
 
 - `maintain_sequence_act`（+1, write-back, read-back）：`netchain_16.p4:229-233`  
-  ↔ `s1_maintain_sequence_act`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:913-923`  
-  - “write 后再 read 回 hdr.nc_hdr.seq” 已存在（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:920-923`）。
+  ↔ `s1_maintain_sequence_act`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:913-923`  
+  - “write 后再 read 回 hdr.nc_hdr.seq” 已存在（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:920-923`）。
 
 - `read_value_act`：`netchain_16.p4:234-236`  
-  ↔ `s1_read_value_act`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:1059-1064`
+  ↔ `s1_read_value_act`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:1059-1064`
 
 ### 5.4 控制面表项：`commands_*.txt` ↔ Boogie 的 if-else 表展开
 
@@ -449,17 +470,17 @@ P4 ingress action 定义从 `netchain_16.p4:177` 开始。下面列出我们这�
 
 - `get_my_address` 默认项：
   - `commands_1.txt:18`：`table_set_default get_my_address get_my_address_act 10.0.100.1 100`  
-    ↔ `s1_get_my_address_0.apply`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:733-744`（`sw_ip := 167797761bv32; sw_role := 100bv16`）
+    ↔ `s1_get_my_address_0.apply`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:733-744`（`sw_ip := 167797761bv32; sw_role := 100bv16`）
   - `commands_2.txt:20`：`... 10.0.100.2 101`  
-    ↔ `s2_get_my_address_0.apply`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:1783-1795`（`sw_ip := 167797762bv32; sw_role := 101bv16`）
+    ↔ `s2_get_my_address_0.apply`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:1783-1795`（`sw_ip := 167797762bv32; sw_role := 101bv16`）
 
 - `find_index` 的 2024..2028 映射：
   - `commands_1.txt:20-24`  
-    ↔ `s1_find_index_0.apply`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:645-687`（你之前指出的 `2028 => 4` 分支缺失，现在已经是 `index := 4bv16`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:678-683`）
+    ↔ `s1_find_index_0.apply`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:645-687`（你之前指出的 `2028 => 4` 分支缺失，现在已经是 `index := 4bv16`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:678-683`）
 
 - `ipv4_route`：
   - `commands_1.txt:1-5`、`commands_2.txt:1-5`  
-    ↔ `s1_ipv4_route_0.apply`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:835+`）、`s2_ipv4_route_0.apply`（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:1886+`）
+    ↔ `s1_ipv4_route_0.apply`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:835+`）、`s2_ipv4_route_0.apply`（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:1886+`）
 
 ### 5.5 分布式语义（harness）里最关键的“保真点”
 
@@ -471,24 +492,24 @@ P4 ingress action 定义从 `netchain_16.p4:177` 开始。下面列出我们这�
 
 对应的 Boogie 位置是 enqueue：
 
-- `s1__enqueue_s2()`：`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2179-2225`
+- `s1__enqueue_s2()`：`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2179-2225`
 
-你可以看到它只复制 `s2_hdr.* := s1_hdr.*`（例如 `.tmp/dslc/netchain_bug_s1s2.seq.bpl:2183-2222`），没有任何 `s2_meta.* := s1_meta.*`。
+你可以看到它只复制 `s2_hdr.* := s1_hdr.*`（例如 `<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2183-2222`），没有任何 `s2_meta.* := s1_meta.*`。
 
 这点如果做错，会制造大量“伪反例/漏判”（因为 meta 被错误共享，等价于把多个节点当成同一个进程）。
 
 #### 5.5.2 scheduler 是“串行化的 pass step”（当前是 deterministic round-robin）
 
-`.tmp/dslc/netchain_bug_s1s2.seq.bpl` 的调度入口在 `safety_checker_step()`（大约从 `.tmp/dslc/netchain_bug_s1s2.seq.bpl:2332` 开始）。
+`<OUT_DIR>/netchain_bug_s1s2.seq.bpl` 的调度入口在 `safety_checker_step()`（大约从 `<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2332` 开始）。
 
 当前实现是按 `procurator_phase` 做 round-robin：
 
-- phase 0：env 注入到 s1（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2336`）
-- phase 1：s1 ingress pass（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2438`）
-- phase 2：s1 egress + enqueue（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2462`）
-- phase 3：s2 ingress pass（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2507`）
-- phase 4：s2 egress（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2531`）
-- 然后 `procurator_phase := procurator_phase + 1` / 归零（`.tmp/dslc/netchain_bug_s1s2.seq.bpl:2579-2582`）
+- phase 0：env 注入到 s1（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2336`）
+- phase 1：s1 ingress pass（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2438`）
+- phase 2：s1 egress + enqueue（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2462`）
+- phase 3：s2 ingress pass（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2507`）
+- phase 4：s2 egress（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2531`）
+- 然后 `procurator_phase := procurator_phase + 1` / 归零（`<OUT_DIR>/netchain_bug_s1s2.seq.bpl:2579-2582`）
 
 这解释了为什么它叫“串行化输出”：每一步只做一件事（注入/某节点 ingress/某节点 egress），而不是把多个线程并发跑。
 

@@ -96,6 +96,18 @@ static void addVarKey(std::set<VarKey, VarKeyLess>& dst, VarKey key) {
         return;
     }
     dst.insert(key);
+    // If validity is tracked as a separate field key, also keep the underlying
+    // header Ref key. This is required because the Boogie encoding indexes
+    // `isValid : [Ref]bool` by the Ref itself (e.g., `isValid[hdr.overlay.7]`),
+    // so dropping `hdr.overlay.7` while keeping `hdr.overlay.7.valid` makes the
+    // sliced program ill-typed.
+    if (key.base == "hdr" && !key.segs.empty() && key.segs.back() == "valid") {
+        VarKey refKey = key;
+        refKey.segs.pop_back();
+        if (!refKey.segs.empty()) {
+            dst.insert(refKey);
+        }
+    }
     // Header stacks need a coarse-grained base key to preserve stack operations
     // (e.g., pop_front) during slicing. Otherwise, dependencies like
     //   hdr.overlay.pop_front(1)  ->  hdr.overlay[0].swip
@@ -163,6 +175,13 @@ static void addHeaderValidKey(std::set<VarKey, VarKeyLess>& dst, const IR::Expre
         return;
     }
     if (!base.segs.empty()) {
+        // In the Boogie encoding, header validity is modeled via the global
+        // map `isValid : [Ref]bool` indexed by the header Ref (e.g.,
+        // `isValid[hdr.overlay.7]`). If we keep/seed `.valid` we must also
+        // keep the corresponding Ref key itself; otherwise slicing may drop
+        // the `var hdr.overlay.7 : Ref;` declaration while still emitting
+        // `isValid[hdr.overlay.7]` uses, leading to ill-typed Boogie.
+        insertVarKey(dst, base);
         VarKey valid = base;
         valid.segs.push_back("valid");
         insertVarKey(dst, valid);
@@ -174,6 +193,9 @@ static void addSeedVarKey(std::set<VarKey, VarKeyLess>& dst, const VarKey& key) 
         return;
     }
     if (key.base == "hdr" && key.segs.size() == 1 && !isIndexSegment(key.segs[0])) {
+        // Seeding a header name (e.g., `hdr.ipv4`) should keep both the header
+        // Ref and its validity bit.
+        insertVarKey(dst, key);
         VarKey valid = key;
         valid.segs.push_back("valid");
         insertVarKey(dst, valid);
@@ -196,6 +218,9 @@ static void addSeedVarKey(std::set<VarKey, VarKeyLess>& dst, const VarKey& key) 
         } else {
             header.segs.resize(1);
         }
+        // Keep both the header Ref key and its validity bit.
+        VarKey headerRef = header;
+        insertVarKey(dst, headerRef);
         header.segs.push_back("valid");
         insertVarKey(dst, header);
     }
@@ -457,6 +482,67 @@ static void collectExprKeys(const IR::Expression* expr,
     }
 }
 
+// Header-stack pop_front shifts element fields and validity across all indices.
+// If we slice without modeling these implicit reads/writes, the pruned program can
+// still translate into Boogie that references stack elements/fields whose declarations
+// were filtered out, leading to ill-typed Boogie.
+static bool collectHeaderStackPopFrontKeys(const IR::Expression* receiver,
+                                           std::set<VarKey, VarKeyLess>& uses,
+                                           std::set<VarKey, VarKeyLess>& defs,
+                                           P4::TypeMap* typeMap) {
+    if (!receiver || !typeMap) {
+        return false;
+    }
+    const IR::Type* recvType = typeMap->getType(receiver);
+    auto stack = recvType ? recvType->to<IR::Type_Stack>() : nullptr;
+    if (!stack || !stack->sizeKnown()) {
+        return false;
+    }
+    VarKey base;
+    if (!buildVarKey(receiver, base) || base.base.empty() || base.segs.empty()) {
+        return false;
+    }
+
+    const IR::Type* elemType = nullptr;
+    if (stack->elementType) {
+        elemType = typeMap->getTypeType(stack->elementType, true);
+    }
+    const IR::Type_Header* elemHeader = elemType ? elemType->to<IR::Type_Header>() : nullptr;
+
+    std::vector<std::string> fieldNames;
+    if (elemHeader) {
+        fieldNames.reserve(elemHeader->fields.size());
+        for (const auto* f : elemHeader->fields) {
+            if (f) {
+                fieldNames.push_back(f->name.name.c_str());
+            }
+        }
+    }
+
+    // pop_front mutates the entire stack; conservatively treat all elements and their
+    // fields/validity as both read and written.
+    const unsigned sz = stack->getSize();
+    for (unsigned i = 0; i < sz; ++i) {
+        VarKey elem = base;
+        elem.segs.push_back(std::to_string(i));
+        addVarKey(uses, elem);
+        addVarKey(defs, elem);
+
+        VarKey valid = elem;
+        valid.segs.push_back("valid");
+        addVarKey(uses, valid);
+        addVarKey(defs, valid);
+
+        for (const auto& fname : fieldNames) {
+            VarKey field = elem;
+            field.segs.push_back(fname);
+            addVarKey(uses, field);
+            addVarKey(defs, field);
+        }
+    }
+    return true;
+}
+
 static void mergeSets(std::set<VarKey, VarKeyLess>& dst,
                       const std::set<VarKey, VarKeyLess>& src) {
     dst.insert(src.begin(), src.end());
@@ -657,11 +743,12 @@ static void collectStmtUsesDefs(const IR::Statement* stmt,
             }
             handled = true;
         } else if (methodName == "pop_front") {
-            // Conservatively model header-stack pop_front as a write to the
-            // stack receiver (which may shift the element fields).
             if (receiver) {
-                collectExprKeys(receiver, out.uses, typeMap);
-                collectExprKeys(receiver, out.defs, typeMap);
+                if (!collectHeaderStackPopFrontKeys(receiver, out.uses, out.defs, typeMap)) {
+                    // Fallback: treat it as a read+write to the receiver.
+                    collectExprKeys(receiver, out.uses, typeMap);
+                    collectExprKeys(receiver, out.defs, typeMap);
+                }
             }
             if (mce->arguments) {
                 for (auto arg : *mce->arguments) {
@@ -892,8 +979,10 @@ static void fillNodeUsesDefs(NodeInfo& node,
                 handled = true;
             } else if (methodName == "pop_front") {
                 if (receiver) {
-                    collectExprKeys(receiver, node.uses, typeMap);
-                    collectExprKeys(receiver, node.defs, typeMap);
+                    if (!collectHeaderStackPopFrontKeys(receiver, node.uses, node.defs, typeMap)) {
+                        collectExprKeys(receiver, node.uses, typeMap);
+                        collectExprKeys(receiver, node.defs, typeMap);
+                    }
                 }
                 if (expr && expr->arguments) {
                     for (auto arg : *expr->arguments) {
@@ -1508,6 +1597,9 @@ class RegisterIndexCollector : public Inspector {
 
 class RegisterUseCollector : public Inspector {
  public:
+    explicit RegisterUseCollector(P4::ReferenceMap* refMap) : refMap(refMap) {}
+
+    P4::ReferenceMap* refMap;
     std::set<std::string> regs;
 
     bool preorder(const IR::MethodCallExpression* mce) override {
@@ -1526,7 +1618,16 @@ class RegisterUseCollector : public Inspector {
         if (name != "read" && name != "write") {
             return false;
         }
-        regs.insert(base->path->name.toString().c_str());
+        std::string regName;
+        if (refMap && base->path) {
+            if (auto decl = refMap->getDeclaration(base->path, false)) {
+                regName = decl->getName().name.c_str();
+            }
+        }
+        if (regName.empty()) {
+            regName = base->path->name.toString().c_str();
+        }
+        regs.insert(regName);
         return false;
     }
 };
@@ -3346,7 +3447,6 @@ def_done:
         };
 
         std::unordered_map<cstring, std::vector<cstring>> succ;
-        std::unordered_map<cstring, std::vector<cstring>> pred;
         for (auto& kv : states) {
             auto st = kv.second;
             if (!st || !st->selectExpression) {
@@ -3354,87 +3454,47 @@ def_done:
             }
             if (auto pe = st->selectExpression->to<IR::PathExpression>()) {
                 succ[kv.first].push_back(pe->path->name);
-                pred[pe->path->name].push_back(kv.first);
             } else if (auto se = st->selectExpression->to<IR::SelectExpression>()) {
                 for (auto sc : se->selectCases) {
                     if (sc && sc->state) {
                         succ[kv.first].push_back(sc->state->path->name);
-                        pred[sc->state->path->name].push_back(kv.first);
                     }
                 }
             }
         }
 
-        auto intersectsSeeds = [&](const UsesDefs& ud) -> bool {
-            for (const auto& v : ud.uses) {
-                if (parserSeedVars.count(v)) {
-                    return true;
-                }
-            }
-            for (const auto& v : ud.defs) {
-                if (parserSeedVars.count(v)) {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        std::unordered_set<cstring> targetStates;
-        for (auto& kv : states) {
-            auto st = kv.second;
-            if (!st) {
-                continue;
-            }
-            UsesDefs ud;
-            for (auto comp : st->components) {
-                auto stmt = comp->to<IR::Statement>();
-                if (!stmt) {
+        // Parser slicing is tricky: pruning only the parser statements (e.g., packet.extract)
+        // while leaving the parser state machine structure intact can make header fields
+        // unconstrained yet still used in select expressions, leading to ill-typed Boogie
+        // and (worse) spurious behaviors. To keep the sliced model sound for bug-finding,
+        // we conservatively keep all parser states that are reachable from the start state.
+        std::unordered_set<cstring> keepStates;
+        if (states.count("start")) {
+            std::deque<cstring> todo;
+            keepStates.insert("start");
+            todo.push_back("start");
+            while (!todo.empty()) {
+                auto cur = todo.front();
+                todo.pop_front();
+                auto it = succ.find(cur);
+                if (it == succ.end()) {
                     continue;
                 }
-                collectStmtUsesDefs(stmt, ud, typeMap);
-            }
-            if (intersectsSeeds(ud)) {
-                targetStates.insert(kv.first);
-                continue;
-            }
-            if (st->selectExpression) {
-                std::set<VarKey, VarKeyLess> selUses;
-                collectSelectUses(st->selectExpression, selUses);
-                for (const auto& v : selUses) {
-                    if (parserSeedVars.count(v)) {
-                        targetStates.insert(kv.first);
-                        break;
+                for (auto s : it->second) {
+                    if (states.count(s) == 0) {
+                        continue;
+                    }
+                    if (!keepStates.count(s)) {
+                        keepStates.insert(s);
+                        todo.push_back(s);
                     }
                 }
             }
-        }
-
-        std::unordered_set<cstring> keepStates = targetStates;
-        std::deque<cstring> todo;
-        for (auto s : targetStates) {
-            todo.push_back(s);
-        }
-        while (!todo.empty()) {
-            auto cur = todo.front();
-            todo.pop_front();
-            auto it = pred.find(cur);
-            if (it == pred.end()) {
-                continue;
-            }
-            for (auto p : it->second) {
-                if (!keepStates.count(p)) {
-                    keepStates.insert(p);
-                    todo.push_back(p);
-                }
-            }
-        }
-        // Ensure parser has at least the start state; if no targets, keep all.
-        if (keepStates.empty()) {
+        } else {
+            // Fallback: if no explicit start state exists, keep all parser states.
             for (const auto& kv : states) {
                 keepStates.insert(kv.first);
             }
-        } else if (states.count("start")) {
-            keepStates.insert("start");
         }
 
         for (auto s : keepStates) {
@@ -3486,7 +3546,7 @@ def_done:
         if (iter + 1 < kFixpointMaxIterations) {
             // Recompute action summaries from the sliced IR to avoid summary pollution
             // (e.g., unrelated vars kept only because they appear in an unsliced action).
-            const IR::P4Program* slicedForSummary = applySlice(program, keepStmtIds);
+            const IR::P4Program* slicedForSummary = applySlice(program, keepStmtIds, refMap);
             ActionTableCollector summaryCollector;
             slicedForSummary->apply(summaryCollector);
 
@@ -3524,7 +3584,7 @@ def_done:
 
     std::unordered_set<std::string> forcedKeepNames;
     // Collect kept variables from kept statements and seeds.
-    const IR::P4Program* slicedForVars = applySlice(program, keepStmtIds);
+    const IR::P4Program* slicedForVars = applySlice(program, keepStmtIds, refMap);
     AllVarCollector varCollector(typeMap);
     slicedForVars->apply(varCollector);
 
@@ -3614,7 +3674,7 @@ def_done:
         return name;
     };
 
-    RegisterUseCollector regUseCollector;
+    RegisterUseCollector regUseCollector(refMap);
     slicedForVars->apply(regUseCollector);
     if (opts.debug) {
         std::cerr << "[slicer] registers in kept slice=" << regUseCollector.regs.size() << "\n";
@@ -3861,7 +3921,8 @@ class SliceRegisterDeclPruner : public Transform {
 
 class SliceRegisterUseCollector : public Inspector {
  public:
-    explicit SliceRegisterUseCollector(const std::set<std::string>& regs) : declRegs(regs) {}
+    SliceRegisterUseCollector(const std::set<std::string>& regs, P4::ReferenceMap* refMap)
+        : declRegs(regs), refMap(refMap) {}
 
     std::unordered_set<std::string> used;
 
@@ -3869,7 +3930,15 @@ class SliceRegisterUseCollector : public Inspector {
         if (!pe || !pe->path) {
             return false;
         }
-        std::string name = pe->path->name.toString().c_str();
+        std::string name;
+        if (refMap) {
+            if (auto decl = refMap->getDeclaration(pe->path, false)) {
+                name = decl->getName().name.c_str();
+            }
+        }
+        if (name.empty()) {
+            name = pe->path->name.toString().c_str();
+        }
         if (declRegs.count(name) > 0) {
             used.insert(name);
             return false;
@@ -3890,10 +3959,12 @@ class SliceRegisterUseCollector : public Inspector {
 
  private:
     const std::set<std::string>& declRegs;
+    P4::ReferenceMap* refMap;
 };
 
 const IR::P4Program* applySlice(const IR::P4Program* program,
                                 const std::unordered_set<int>& keepStatementIds,
+                                P4::ReferenceMap* refMap,
                                 const std::unordered_set<cstring>* keepVarNames) {
     if (keepStatementIds.empty()) {
         return program;
@@ -3916,7 +3987,7 @@ const IR::P4Program* applySlice(const IR::P4Program* program,
         return sliced;
     }
 
-    SliceRegisterUseCollector regUseCollector(regDeclCollector.regs);
+    SliceRegisterUseCollector regUseCollector(regDeclCollector.regs, refMap);
     sliced->apply(regUseCollector);
 
     std::unordered_set<std::string> keepRegs = std::move(regUseCollector.used);

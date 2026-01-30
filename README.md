@@ -13,11 +13,13 @@ This repository vendors:
 
 ## Repository Layout
 
-- `Procurator/argo/code/spec`: DSL specs and compiler entrypoints
-- `Procurator/argo/code/dataset`: P4 programs and control-plane entries
+- `dslc/`: DSL compiler + harness generator + workflows (**the only supported entrypoint is `./bin/procurator`**)
+- `Procurator/`: legacy dataset/specs kept as inputs (not used as an entrypoint)
 - `P4B-Translator`: P4 -> Boogie translator (p4c-based)
 - `UGemCutter-linux`: Ultimate CLI bundle (GemCutter + witness printer)
-- `.tmp/dslc`: generated Boogie + logs + witnesses (created at runtime)
+- `dslc/toolchain/ultimate/`: Ultimate toolchain/settings presets (EPF/XML)
+- `.tmp/procurator/`: per-run outputs (Boogie, logs, witnesses). By default, each
+  invocation uses a fresh run directory to avoid silently reusing cached artifacts.
 
 ## System Requirements
 
@@ -41,7 +43,7 @@ sudo apt-get install -y \
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  -r Procurator/argo/code/spec/prop_compile/requirements.txt
+  -r dslc/requirements.txt
 ```
 
 ## Build P4B-Translator (P4 -> Boogie)
@@ -102,35 +104,34 @@ UGemCutter-linux/Ultimate
 
 ## Boogie Usage
 
-1) Compile DSL -> Boogie:
+1) Compile DSL -> Boogie (no cache by default):
 
 ```bash
-PYTHONPATH=. .venv/bin/python -m dslc.compiler \
-  --backend boogie \
+./bin/procurator compile \
   --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --out .tmp/dslc/boogie_smoke.bpl \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --work-dir .tmp/dslc/boogie_smoke.work
 ```
 
-2) Run Ultimate on the Boogie program:
+The command prints the output directory under:
+`.tmp/procurator/compile/<spec>/<run_id>/`.
+
+2) Compile + run Ultimate/GemCutter:
 
 ```bash
-UGemCutter-linux/Ultimate \
-  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  -s  Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf \
-  -i  .tmp/dslc/boogie_smoke.bpl
+./bin/procurator verify \
+  --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate
 ```
 
-Outputs go to `.tmp/dslc/`:
-- `*.bpl`: generated Boogie
-- `*.gemcutter.log`: Ultimate log
-- `*.bpl-witness.graphml`: counterexample witness (if UNSAFE)
+Outputs go to a fresh per-run directory under:
+`.tmp/procurator/verify/<spec>/<run_id>/`.
 
 ## Spec Language (DSL)
 
 A spec file (`*.prop`) glues P4 programs, topology, environment, and safety
-properties. The compiler lives in `dslc` and is used by `run_gemcutter.py`.
+properties. The compiler lives in `dslc` and is typically driven via the
+single entrypoint `./bin/procurator`.
 
 Minimal skeleton:
 
@@ -223,9 +224,9 @@ Expression notes:
 
 Runtime knobs:
 
-- `run_gemcutter.py --env max` ignores `assume` on external inputs and uses
-  fully nondeterministic packets.
-- `--no-prune` disables pruning (DAG-based slicing + env-input pruning); useful for Gecko/DistCache in this repo.
+- `./bin/procurator verify --env max` ignores `assume` on external inputs and uses fully nondeterministic packets.
+- `--no-slicing` disables P4 slicing (more conservative, but much more expensive).
+- `--no-env-prune` disables env-input pruning based on sliced Boogie usage.
 
 ## Benchmark Runs (Max-Env)
 
@@ -237,74 +238,73 @@ Set environment once:
 ```bash
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
-export PYTHONPATH=.
 ```
+
+Note: by default each invocation creates a fresh output directory (no cache) under:
+`.tmp/procurator/verify/<spec>/<run_id>/` and prints the `.bpl`/`.gemcutter.log` paths.
 
 ATP:
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/atp_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 NetChain:
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/test/netchain_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 P4XOS:
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/p4xos_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
-DistCache (use --no-prune to avoid missing header fields):
+DistCache (often needs slicing disabled to avoid missing header fields):
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/distcache_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --no-prune \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --no-slicing \
+  --no-env-prune \
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
-Gecko (Tofino JSON, use --no-prune):
+Gecko (Tofino JSON; slicing is often disabled for debugging):
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/gecko_bug1_timer_loss.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --no-prune \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --no-slicing \
+  --no-env-prune \
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 ## Troubleshooting
@@ -317,4 +317,4 @@ Gecko (Tofino JSON, use --no-prune):
 - Gold linker crashes:
   - Configure P4B-Translator with `-DP4C_USE_GOLD=OFF`.
 - Undeclared identifiers in Boogie for DistCache:
-  - Re-run with `--no-prune`.
+  - Re-run with `--no-slicing --no-env-prune`.

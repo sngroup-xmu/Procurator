@@ -21,7 +21,8 @@ topology {{
 
 node s1 {{
   external_input = true;
-  // Assume-only packet field: should NOT become a slicing seed.
+  // Assume-only packet field: must remain declared (i.e., becomes a slicing seed),
+  // otherwise the compiled harness would reference an undeclared packet var.
   assume {{ hdr.h.a == 1; }};
 }}
 
@@ -52,7 +53,7 @@ global {{
         self.assertIn("meta.x", s2_seeds)
         self.assertNotIn("meta.x", s1_seeds)  # not on-wire
 
-        self.assertNotIn("hdr.h.a", s1_seeds)  # assume-only
+        self.assertIn("hdr.h.a", s1_seeds)  # assume-only, but required for well-typedness
         self.assertIn("hdr.h.a", set(plan.required_packet_vars.get("s1", [])))
 
 

@@ -50,7 +50,7 @@ Ultimate 的 CLI 运行由两部分组成：
 
 核心原理：CEGAR + 反例路径可行性检查 + 插值/谓词精化。
 
-你们的 GemCutter settings（如 `Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL.epf`）还启用了并发相关策略：
+你们的 GemCutter settings（如 `dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf`）还启用了并发相关策略：
 
 - 并发自动机：`PARTIAL_ORDER_FA`
 - 并发 POR：`PERSISTENT_SLEEP_NEW_STATES_FIXEDORDER`
@@ -299,7 +299,7 @@ v0 在本仓库已经落地成“外部编排 + Boogie→Boogie 变换”的工�
 
 1) `dslc/transform/wraparound.py`：Boogie→Boogie 变换（生成 `closure_check/confirm` 等阶段 `.bpl`）
 2) `dslc/workflows/wraparound.py`：产物生成器（base 编译 + 候选推断 + staged `.bpl` + manifest；不跑 Ultimate）
-3) `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：外部编排 runner（按阶段生成 `.bpl` + 跑 Ultimate）
+3) `./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）：端到端 runner（按阶段生成 `.bpl` + 跑 Ultimate；默认 no-cache，每次 run 产物隔离）
 4) Netchain（`Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop`）作为最小可复现实验：在 minutes 级触发翻转反例
 
 ### 6.2 v1（2~6 周内目标）
@@ -310,7 +310,7 @@ v0 在本仓库已经落地成“外部编排 + Boogie→Boogie 变换”的工�
 2) 选择路线 A（Boogie→Boogie）做 Ultimate 插件原型：
    - 插入点：`boogie.preprocessor` 后
    - 功能：自动注入 pump-probe/accel（MVP）
-3) 新建一个 toolchain XML（例如 `Procurator/argo/code/spec/config/ReachSafety-WrapAccel.xml`）：
+3) 新建一个 toolchain XML（例如 `dslc/toolchain/ultimate/ReachSafety-WrapAccel.xml`）：
    - 在 `boogie.preprocessor` 与 `rcfgbuilder` 之间插入你的新插件
 4) 形成端到端命令：
    - `Ultimate -tc ReachSafety-WrapAccel.xml -s <GemCutter.epf> -i <bpl>`
@@ -331,7 +331,7 @@ v0 在本仓库已经落地成“外部编排 + Boogie→Boogie 变换”的工�
 ## 8. 与当前仓库代码的结合点（指路）
 
 - Boogie harness/系统级语义生成：`dslc/backends/boogie_backend.py` / `dslc/backends/boogie_harness.py`
-- 一键跑 Ultimate：`Procurator/argo/code/spec/prop_compile/run_gemcutter.py`
+- 一键跑 Ultimate：`./bin/procurator verify`（实现：`dslc/cli/gemcutter.py`）
 - 现成 reachability toolchain：`ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety.xml`
 - 现成 LTL toolchain（可选）：`ultimate/trunk/examples/toolchains/LTLAutomizer.xml`
 - PDR/Sifa/CHC 作为备选：`ultimate/trunk/examples/programs/regression/bpl/PdrAutomizerBpl.epf`、`ultimate/trunk/examples/toolchains/Sifa.xml`、`ultimate/trunk/examples/toolchains/BoogieToChcToTreeAutomizer.xml`
@@ -488,7 +488,7 @@ V1 的核心是让“闭包泵证明”只跑在少量真正相关的寄存器�
   - `register_updates.py`: 扫描 `reg.read/write`，提取候选 `(+delta)` 写点与 idx
   - `projection_cegar.py`: witness→投影精化策略
 - `dslc/transform/wraparound.py`：只做 Boogie→Boogie 语义保持的插桩/变换（closure_check/confirm/…）
-- `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：外部编排与实验脚本（批量跑、多候选并行、产物整理）
+- `./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）：端到端编排与实验入口（批量/多候选可扩展；默认 no-cache）
 
 ### 9.9 里程碑（建议）
 
@@ -549,7 +549,7 @@ V1 的核心是让“闭包泵证明”只跑在少量真正相关的寄存器�
 
 - `boogie 后端`只负责“把系统语义编译成 base `.bpl`”；
 - `wraparound`作为**独立模块/管线**，在 base `.bpl` 之上做“候选推断 + 插桩 + 生成多个验证任务（.bpl）”；
-- “跑 Ultimate/GemCutter”仍然由一个 runner 脚本负责（可以留在 `Procurator/.../prop_compile`，也可以后续搬到 `dslc/toolchain/`），避免编译器同时承担执行/资源管理。
+- “跑 Ultimate/GemCutter”由 `./bin/procurator wraparound`（`dslc/cli/wraparound.py`）负责执行/资源管理，避免编译器同时承担执行职责。
 
 ### A.1 代码落点（现状 vs 目标）
 
@@ -561,11 +561,11 @@ V1 的核心是让“闭包泵证明”只跑在少量真正相关的寄存器�
   - `dslc/analysis/wraparound_candidates.py`：从 spec 的 global assert（NetChain-style）或 P4B meta（DistCache-style）推断候选 `WraparoundCandidate`。
   - `dslc/transform/wraparound.py`：对 base `.bpl` 做 `ENTRY_CHECK/CLOSURE_CHECK/PUMP/ACCEL/CONFIRM` 等阶段变换。
 - runner（外部编排）：
-  - `Procurator/argo/code/spec/prop_compile/run_wraparound.py`：端到端串联编译 → 候选 → 多阶段 `.bpl` → 调 Ultimate。
+  - `./bin/procurator wraparound`（`dslc/cli/wraparound.py`）：端到端串联编译 → 候选 → 多阶段 `.bpl` → 调 Ultimate（默认 no-cache）。
 
-**目标（把“编排产物生成”搬进 dslc 的独立模块）**
+**目标（把“产物生成”独立为可复用模块）**
 
-- 新增：`dslc/workflows/wraparound.py`（或 `dslc/pipelines/wraparound.py`）
+- 已有：`dslc/workflows/wraparound.py`（产物生成器）
   - 输入：`spec_path`, `p4b_bin`, `out_dir`, `dslc 编译参数（prune/por/harness/...）`
   - 输出：
     - base `.bpl`（沿用 `dslc/compiler.py` 的 boogie backend）

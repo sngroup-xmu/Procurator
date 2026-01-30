@@ -13,32 +13,31 @@
 
 - 变换：`dslc/transform/wraparound.py`
   - 新增 `WraparoundStage.CLOSURE_CHECK`（生成 loop-free 的 `closure_check` 证明任务）
-- 一键脚本：`Procurator/argo/code/spec/prop_compile/run_wraparound.py`
+- 一键命令：`./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）
   - 支持 `--stages closure_check,confirm`
-  - 支持 `--require-closure`（`closure_check` 不是 `correct` 时拒绝跑 confirm/accel）
+  - 默认 soundness guard：只有当 `closure_check` 被证明 `SAFE` 才会继续跑 `confirm`（如需诊断可加 `--allow-unsound-confirm`）
 - Ultimate 配置：
-  - `Procurator/argo/code/spec/config/ClosureCheck-ReachSafety.xml`（closure_check 用；无 WitnessPrinter）
-  - `Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`（closure_check 用；Hoare=None、无 per-query 超时、无 POR）
+  - `dslc/toolchain/ultimate/ClosureCheck-ReachSafety.xml`（closure_check 用；无 WitnessPrinter）
+  - `dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`（closure_check 用；Hoare=None、无 per-query 超时、无 POR）
 
 ### 0.2 Netchain 实测结果（2 节点）
 
 - `closure_check`：SAFE（`RESULT: ... correct`），`OverallTime: 400.2s`
-  - log：`.tmp/dslc/netchain_bug_s1s2.tight.seq.closure_check.gemcutter.log`
+  - log：`<OUT_DIR>/<stem>.closure_check.gemcutter.log`
 - `confirm.unroll3`：UNSAFE（`RESULT: ... incorrect`），`OverallTime: 69.7s`
-  - log：`.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.gemcutter.log`
-  - witness：`.tmp/dslc/netchain_bug_s1s2.tight.seq.confirm.unroll3.bpl-witness.graphml`
+  - log：`<OUT_DIR>/<stem>.confirm.gemcutter.log`
+  - witness：`<OUT_DIR>/<stem>.confirm.bpl-witness.graphml`
 
 ### 0.3 一键复现命令（推荐）
 
 ```
-python3 Procurator/argo/code/spec/prop_compile/run_wraparound.py \
+./bin/procurator wraparound \
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2.prop \
-  --base-bpl .tmp/dslc/netchain_bug_s1s2.tight.seq.bpl \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate ./UGemCutter-linux/Ultimate \
   --stages closure_check,confirm \
-  --unroll confirm=3 \
-  --require-closure \
-  --ultimate-timeout-seconds 0
+  --confirm-unroll 3 \
+  --timeout-seconds 0
 ```
 
 ## 1. Netchain 基准与我们要证明的东西
@@ -178,7 +177,7 @@ closure pump 的证明把问题拆成两件“深度无关”的子问题：
 
 由于我们把它做成 loop-free，一般不需要插值就能判定 SAFE，因此可以优先复用你们现有的 reachability toolchain：
 
-- toolchain：`Procurator/argo/code/spec/config/ReachSafety-Witness.xml`（或 `ultimate/.../ReachSafety.xml`）
+- toolchain：`dslc/toolchain/ultimate/ReachSafety-Witness.xml`（或 `ultimate/.../ReachSafety.xml`）
 - settings：沿用 GemCutter EPF（witness 可选）
 
 如果仍然慢/卡住，再按“更强的证明工具”逐级尝试：
@@ -246,15 +245,15 @@ Ultimate 自带的 `icfgtransformation` 里有多种 loop acceleration（Jordan/
    - 插入 `havoc wrap_closure_seq0` + `reg.write(idx, wrap_closure_seq0)` + snapshot + closure asserts
    - 断言点合并：`assert e` → `call __wraparound_assert(e)`（减少 error locations）
 
-2) `Procurator/argo/code/spec/prop_compile/run_wraparound.py`
-   - 支持 `--stages closure_check,pump,accel,accel_probe,confirm`
-   - 支持 `--require-closure`：`closure_check` 不是 `correct` 时拒绝跑 confirm/accel
+2) `./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）
+   - 支持 `--stages closure_check,pump,accel,confirm`
+   - 默认 soundness guard：`closure_check` 不是 `SAFE` 时跳过 `confirm`（诊断用可加 `--allow-unsound-confirm`）
    - Ultimate 日志流式写入（长跑不再“无输出”）
-   - stage 输出：`.tmp/dslc/<stem>.*.bpl` + `*.gemcutter.log`（confirm 默认输出 witness）
+   - stage 输出：`<OUT_DIR>/<stem>.*.bpl` + `*.gemcutter.log`（confirm 默认输出 witness）
 
 3) Ultimate 配置与调优
-   - `Procurator/argo/code/spec/config/ClosureCheck-ReachSafety.xml`
-   - `Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`
+   - `dslc/toolchain/ultimate/ClosureCheck-ReachSafety.xml`
+   - `dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`
 
 ---
 

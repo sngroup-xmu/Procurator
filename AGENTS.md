@@ -1,5 +1,5 @@
 以下内容分两部分：
-
+# 注意：需要每次修改完之后对于之前能找到的bug，之前翻译正确的p4程序，都依旧能够正常工作。这需要设计并运行回归测试。
 1. **Procurator（分布式 P4 状态化验证）设计文档（可直接丢进 agent 工具作为执行规范）**——各小节均给出参考依据与引用。
 2. **技术选型建议：P4b / GemCutter / Deagle 怎么看、怎么先试**（以最快起实验结果为目标）。
 
@@ -76,7 +76,8 @@
 **基准/规格/脚本**
 
 - `Procurator/argo/code/spec/bench/*.prop`：系统级基准规格（Netchain/DistCache/Gecko/...）。
-- `Procurator/argo/code/spec/prop_compile/*`：运行 Ultimate/GemCutter、抽 witness/日志、wraparound 实验脚本等。
+- `bin/procurator` + `dslc/cli/*`：当前唯一推荐入口（compile/verify/wraparound/ablation/smoke；no-cache 默认）。
+- `Procurator/argo/code/spec/prop_compile/*`：历史遗留脚本目录（已逐步替换为 `procurator` CLI；不建议再直接使用/依赖）。
 
 ### 0.3 当前主要“优化开关”与落点（设计 ↔ 实现对齐）
 
@@ -130,7 +131,11 @@
        - `ENTRY_CHECK`：检查 base harness 是否可达（避免 env/表项不一致导致的“空模型”伪结论）。
        - `CLOSURE_CHECK`：把 `mainProcedure` unroll 一个调度轮次，插入闭包断言（证明“泵”闭包性）。
        - `PUMP/ACCEL/CONFIRM`：在 cutpoint 周围插桩、选择性剥离无关断言/调试快照、并在 `confirm` 前 fast-forward 到 `MAX`。
-     - **实验驱动脚本**：`Procurator/argo/code/spec/prop_compile/run_wraparound.py` 负责编译 base `.bpl`、读取 `.work/*.meta.json`、为每个候选生成多阶段 `.bpl` 并调用 Ultimate 跑日志。
+     - **实验驱动 CLI**：`./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）负责：
+       - 编译 base `.bpl`（sequential harness，no-cache：每次 run 创建新的 `<OUT_DIR>`）
+       - 读取 `<OUT_DIR>/work/*.meta.json`
+       - 推断候选并生成多阶段 `.bpl`（`closure_check/pump/accel/confirm`）
+       - （可选）调用 Ultimate 跑日志，并为每个 stage 隔离 Ultimate HOME/工作区
    - 一个重要的工程优化点：当目标是固定槽（例如 `reg[0]`），系统 Boogie 里通常会有标量镜像（如 `<reg>__last0_value`）；`dslc/transform/wraparound.py` 会优先用该标量而非数组读写（显著减少 SMT 的 array 负担）。
 
 ### 0.4 例子：Netchain 在 `seq_reg` 断言种子下，切片应保留什么/剪掉什么

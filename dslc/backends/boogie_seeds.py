@@ -232,6 +232,17 @@ def build_slicing_plan(
         scan_required_only_stmts(node=target, stmts=hd.env_statements)
 
     if enable_slicing:
+        # Correctness: if the spec references a packet var (even only in assume/env),
+        # it must remain part of the sliced Boogie program. Otherwise we either:
+        #   (a) end up patching in "ghost" vars (unsound), or
+        #   (b) generate ill-typed Boogie (hard-to-debug downstream failures).
+        #
+        # We keep this strictly packet-scoped to avoid pulling in unrelated harness-only
+        # variables (e.g., inbox_count) as slicing seeds.
+        for node, reqs in required_packet.items():
+            for v in reqs:
+                add_seed(seeds, node, v)
+
         # System-level communication seeds:
         # P4B slicing runs per-node and does not see our harness/topology semantics, so we must
         # conservatively keep control variables that affect cross-node communication.
@@ -258,7 +269,10 @@ def build_slicing_plan(
         for node in list(seeds.keys()):
             for v in extra:
                 add_seed(seeds, node, v)
-                note_required_packet(node, v)
+                # NOTE: These are system-level "keep if present" control seeds. They are not
+                # spec-authored references, and may not exist in all architectures/translated
+                # Boogie units (e.g., v1model uses `standard_metadata.egress_port`, Tofino uses
+                # `eg_intr_md.egress_port`). Keep them as slicing seeds, but don't require them.
 
     slicing_vars: Dict[str, List[str]] = {k: sorted(v) for k, v in seeds.items()}
     if enable_slicing and spec.links:

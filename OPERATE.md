@@ -35,7 +35,7 @@ CCACHE_DISABLE=1 cmake --build . --target p4c-translator -j"$(nproc)"
 ```bash
 cd /root/p4-verify
 python3 -m venv .venv
-.venv/bin/python -m pip install -r Procurator/argo/code/spec/prop_compile/requirements.txt
+.venv/bin/python -m pip install -r dslc/requirements.txt
 ```
 
 #### 1.2.1 DSL 语法参考（最小示例 + 完整示例）
@@ -124,13 +124,12 @@ global {
 #### 1.3 DSL → 并发 Boogie（会调用 host `p4c-translator` 生成每个节点 `.bpl` 并前缀化 + harness）
 
 ```bash
-mkdir -p .tmp/dslc
-PYTHONPATH=. .venv/bin/python -m dslc.compiler \
-  --backend boogie \
+mkdir -p .tmp/procurator/manual
+./bin/procurator compile \
   --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --out .tmp/dslc/boogie_smoke.bpl \
+  --out .tmp/procurator/manual/boogie_smoke.bpl \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --work-dir .tmp/dslc/boogie_smoke.work
+  --work-dir .tmp/procurator/manual/boogie_smoke.work
 ```
 
 #### 1.3.1 Gecko（Tofino JSON）Boogie 运行（包含手动 ENV 约束）
@@ -139,8 +138,7 @@ Gecko 需要手动约束输入包（例如 `ether_type=0x5555`），使用 DSL �
 
 ```bash
 mkdir -p .tmp/gecko_run
-PYTHONPATH=. .venv/bin/python -m dslc.compiler \
-  --backend boogie \
+./bin/procurator compile \
   --spec Procurator/argo/code/spec/test/gecko.prop \
   --out .tmp/gecko_run/gecko.bpl \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
@@ -156,8 +154,9 @@ PYTHONPATH=. .venv/bin/python -m dslc.compiler \
 #### 1.4 GemCutter 结构 smoke（不跑 Ultimate，仅检查 fork/atomic/ULTIMATE.start）
 
 ```bash
-PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/gemcutter_smoke.py \
-  --bpl .tmp/dslc/boogie_smoke.bpl
+./bin/procurator smoke \
+  --bpl .tmp/procurator/manual/boogie_smoke.bpl \
+  --harness concurrent
 ```
 
 #### 1.5 真跑 Ultimate/GemCutter（运行 zip 中的 Ultimate）
@@ -167,13 +166,13 @@ PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/gemcutter_s
 ```bash
 UGemCutter-linux/Ultimate --version
 UGemCutter-linux/Ultimate \
-  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  -s Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf \
-  -i .tmp/dslc/boogie_smoke.bpl \
-  > .tmp/dslc/boogie_smoke.gemcutter.log 2>&1
+  -tc dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  -s dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-witness.epf \
+  -i .tmp/procurator/manual/boogie_smoke.bpl \
+  > .tmp/procurator/manual/boogie_smoke.gemcutter.log 2>&1
 
 grep -nE 'RESULT|AllSpecificationsHoldResult|proved your program|incorrect|Exception' \
-  .tmp/dslc/boogie_smoke.gemcutter.log | tail -n 50
+  .tmp/procurator/manual/boogie_smoke.gemcutter.log | tail -n 50
 ```
 
 Gecko 对应的运行示例（使用 Internal SMTInterpol 设置）：
@@ -183,16 +182,17 @@ env HOME="$PWD/.tmp/ultimate_home" \
 JAVA_TOOL_OPTIONS="-Duser.home=$PWD/.tmp/ultimate_home" \
 UGemCutter-linux/Ultimate \
   -data .tmp/ultimate_ws \
-  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  -s Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf \
+  -tc dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  -s dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf \
   -i .tmp/gecko_run/gecko.bpl \
   > .tmp/gecko_run/gecko.gemcutter.log 2>&1
 
 rg -n "RESULT|AllSpecificationsHoldResult|Exception|TypeError" .tmp/gecko_run/gecko.gemcutter.log | tail -n 50
 ```
 
-补充：对照 prune vs no-prune（slicing+env prune 开关）时，建议用 `run_gemcutter.py` 的 `--out/--work-dir/--log`
-指定不同路径，避免覆盖同一份 `.bpl/.log/.graphml`。
+补充：对照 prune vs no-prune（slicing+env prune 开关）时，建议用 `./bin/procurator verify` 的 `--out/--work-dir/--log`
+指定不同路径，避免覆盖同一份 `.bpl/.log/.graphml`。推荐直接使用
+`./bin/procurator verify`（默认每次运行都会创建新的输出目录，不复用缓存）。
 
 #### 1.6 故障排查与“真证明”确认
 
@@ -229,9 +229,9 @@ rg -n "RESULT|AllSpecificationsHoldResult|Exception|TypeError" .tmp/gecko_run/ge
 
 ```bash
 UGemCutter-linux/Ultimate \
-  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  -s Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-witness.epf \
-  -i .tmp/dslc/boogie_smoke.bpl \
+  -tc dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  -s dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-witness.epf \
+  -i .tmp/procurator/manual/boogie_smoke.bpl \
   > /tmp/boogie_smoke_gemcutter.log 2>&1
 
 grep -nE 'SyntaxErrorResult|TypeErrorResult|AllSpecificationsHoldResult|program does not contain any specification|RESULT:' \
@@ -345,31 +345,31 @@ cd /root/p4-verify
 
 ```bash
 cd /root/p4-verify
-PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf
 ```
 
-产物（默认在 `.tmp/dslc/`）：
-- `.tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl`
-- `.tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.gemcutter.log`
-- `.tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml`
+产物会写入一个新的输出目录（不复用缓存），形如：
+`.tmp/procurator/verify/distcache_leaf_pktloss_clone_drop_bug/<run_id>/`
+其中包含 `.bpl/.gemcutter.log/.bpl-witness.graphml` 等文件。
 
 从 witness 核对“是真功能性 bug”（核心三点都要同时出现）：
 
 ```bash
-rg -n "leaf_eg_port_forward_tbl_0\\.hit := true" .tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml
-rg -n "call leaf_forward_netcache_getreq_pop_clone_for_pktloss_and_getreq" .tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml
-rg -n "assert leaf_drop" .tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml
+OUT_DIR="<paste the printed output dir here>"
+rg -n "leaf_eg_port_forward_tbl_0\\.hit := true" "$OUT_DIR"/*.bpl-witness.graphml
+rg -n "call leaf_forward_netcache_getreq_pop_clone_for_pktloss_and_getreq" "$OUT_DIR"/*.bpl-witness.graphml
+rg -n "assert leaf_drop" "$OUT_DIR"/*.bpl-witness.graphml
 ```
 
 解释口径（和 P4 对齐）：
 - witness 里会走到 `eg_port_forward_tbl` 并命中 `forward_netcache_getreq_pop_clone_for_pktloss_and_getreq`（这条 action 的 P4 实现缺少 drop）。
 - 因为这条 action 没有 `mark_to_drop(...)`，所以 pass 结束时 `leaf_drop == false`，从而违反 `assert leaf_drop;`。
-- **对照 prune vs no-prune**：用 `--no-prune` 重跑应出现相同的 action 调用与同一条断言点（区别主要是 BPL/witness 更大、求解更慢）。
+- **对照 prune vs no-prune**：用 `--no-slicing --no-env-prune` 重跑应出现相同的 action 调用与同一条断言点（区别主要是 BPL/witness 更大、求解更慢）。
 
 #### 7.2 Netchain：`seq` 翻转（wrap-around）导致的 s1/s2 不一致（fastforward 版）
 
@@ -377,12 +377,13 @@ rg -n "assert leaf_drop" .tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-wit
 
 ```bash
 cd /root/p4-verify
-PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf
 ```
 
-产物同样在 `.tmp/dslc/`：`netchain_bug_s1s2_fastforward.*`（`.bpl/.log/.graphml`）。
+产物同样会写入一个新的输出目录（不复用缓存），形如：
+`.tmp/procurator/verify/netchain_bug_s1s2_fastforward/<run_id>/`。

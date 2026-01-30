@@ -74,7 +74,8 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
     }
 
     if (caseName != "netchain_seq" && caseName != "netchain_pop_front" &&
-        caseName != "distcache_reg_alias" && caseName != "recirc_meta_flow") {
+        caseName != "distcache_reg_alias" && caseName != "distcache_parser_select" &&
+        caseName != "recirc_meta_flow") {
         std::cerr << "[SELFTEST] unknown case: " << caseName << "\n";
         return 2;
     }
@@ -161,6 +162,16 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
             expect(col.names.count("cm3_reg_0") > 0, "expected sliced IR contains Declaration_Instance cm3_reg_0");
             expect(col.names.count("cm4_reg_0") > 0, "expected sliced IR contains Declaration_Instance cm4_reg_0");
         }
+    } else if (caseName == "distcache_parser_select") {
+        // DistCache parser slicing regression: parser select expressions use header fields (e.g.,
+        // hdr.vallen_hdr.vallen, hdr.shadowtype_hdr.shadowtype). If the slicer prunes parser
+        // extract statements or drops these select fields from keepVarNames, the Boogie
+        // translation becomes ill-typed (undeclared identifiers) and can introduce spurious
+        // behaviors due to unconstrained header fields.
+        expect(_setContains(sres.keepVarNames, "hdr.vallen_hdr.vallen"),
+               "expected keepVarNames contains hdr.vallen_hdr.vallen");
+        expect(_setContains(sres.keepVarNames, "hdr.shadowtype_hdr.shadowtype"),
+               "expected keepVarNames contains hdr.shadowtype_hdr.shadowtype");
     } else if (caseName == "recirc_meta_flow") {
         // Cross-stage slicing regression: Ingress defines metadata that Egress reads.
         //
@@ -214,6 +225,17 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
 
         expect(_setContains(sres.keepVarNames, "hdr.overlay.0.swip"),
                "expected keepVarNames contains hdr.overlay.0.swip");
+        // pop_front shifts validity/fields across the whole stack. If slicing does not model
+        // these implicit dependencies, the pruned program can still translate into Boogie that
+        // references missing stack element declarations (ill-typed Boogie).
+        for (int i = 0; i < 10; ++i) {
+            const std::string ref = std::string("hdr.overlay.") + std::to_string(i);
+            expect(_setContains(sres.keepVarNames, ref.c_str()),
+                   "expected keepVarNames contains " + ref);
+            const std::string swip = ref + ".swip";
+            expect(_setContains(sres.keepVarNames, swip.c_str()),
+                   "expected keepVarNames contains " + swip);
+        }
 
         if (slicedProgram) {
             class PopFrontFinder : public Inspector {
@@ -442,7 +464,7 @@ int main(int argc, char *const argv[]) {
         if (doSlicing) {
             if (!sres.keepStatementIds.empty()) {
                 if (!options.loadIRFromJson) {
-                    program = P4Verify::applySlice(program, sres.keepStatementIds, &sres.keepVarNames);
+                    program = P4Verify::applySlice(program, sres.keepStatementIds, &refMap, &sres.keepVarNames);
                 } else if (options.slicingDebug) {
                     std::cerr << "[slicer] skipping statement pruning for JSON IR\n";
                 }
@@ -486,7 +508,7 @@ int main(int argc, char *const argv[]) {
 
     std::ostream* out = openFile(options.outputBplFile, false);
     if (out != nullptr) {
-        Translator translator(*out, options, bMV2CmdsAnalyzer);
+        Translator translator(*out, options, bMV2CmdsAnalyzer, &refMap);
 
         if(options.p4ltlSpec){
             std::ifstream fin(options.p4ltlFile);

@@ -76,7 +76,7 @@ Leaf egress 里有一个“pktloss tolerance”状态机：
 
 ### 2.3 witness 如何体现（路径与违反）
 
-在 `.tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml` 中，可以看到：
+在 `<OUT_DIR>/<stem>.bpl-witness.graphml` 中，可以看到：
 
 - 进入 table：
   - `enterFunction`: `leaf_eg_port_forward_tbl_0.apply`
@@ -97,23 +97,23 @@ Leaf egress 里有一个“pktloss tolerance”状态机：
 ### 3.1 Leaf pktloss-clone bug
 
 ```bash
-PYTHONPATH=. .venv/bin/python Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate
 ```
 
-输出 witness：`.tmp/dslc/distcache_leaf_pktloss_clone_drop_bug.bpl-witness.graphml`
+运行时会输出一个 `<OUT_DIR>`（形如 `.tmp/procurator/verify/<spec>/<run_id>/`）。输出 witness：`<OUT_DIR>/<spec>.bpl-witness.graphml`
 
 ### 3.2 DistCache P2C 一致性（伪反例修复后）
 
 ```bash
-PYTHONPATH=. .venv/bin/python -m dslc.compiler \
-  --backend boogie \
+./bin/procurator compile \
   --spec Procurator/argo/code/spec/bench/distcache_bug.prop \
-  --out .tmp/dslc/distcache_bug.bpl \
+  --backend boogie \
+  --out .tmp/procurator/manual/distcache_bug.bpl \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --work-dir .tmp/dslc/distcache_bug.work
+  --work-dir .tmp/procurator/manual/distcache_bug.work
 ```
 
 若要跑 Ultimate（可能较慢，且期望不再出现“瞬间 UNSAFE”）：
@@ -121,7 +121,6 @@ PYTHONPATH=. .venv/bin/python -m dslc.compiler \
 ```bash
 UGemCutter-linux/Ultimate \
   -tc ultimate/trunk/examples/concurrent/bpl/regression/ReachSafety.xml \
-  -s Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-ALL.epf \
-  -i .tmp/dslc/distcache_bug.bpl
+  -s dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf \
+  -i .tmp/procurator/manual/distcache_bug.bpl
 ```
-

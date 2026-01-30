@@ -1,4 +1,5 @@
 #include "translate.h"
+#include "frontends/common/resolveReferences/referenceMap.h"
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
@@ -28,8 +29,9 @@ static std::string getExternBaseName(const IR::Expression* expr) {
     return "";
 }
 
-Translator::Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnalyzer* bMV2CmdsAnalyzer) 
-    : out(out), options(options), bMV2CmdsAnalyzer(bMV2CmdsAnalyzer){
+Translator::Translator(std::ostream &out, P4VerifyOptions &options,
+                       BMV2CmdsAnalyzer* bMV2CmdsAnalyzer, P4::ReferenceMap* refMap)
+    : out(out), options(options), bMV2CmdsAnalyzer(bMV2CmdsAnalyzer), refMap(refMap){
     // init main procedure
     currentReturnVar = "";
     inParser = false;
@@ -2922,7 +2924,15 @@ cstring Translator::translate(const IR::Member *member){
 }
 
 cstring Translator::translate(const IR::PathExpression *pathExpression){
-    cstring name = translate(pathExpression->path);
+    cstring name = nullptr;
+    if (refMap && pathExpression && pathExpression->path) {
+        if (auto decl = refMap->getDeclaration(pathExpression->path, false)) {
+            name = translate(decl->getName());
+        }
+    }
+    if (name.isNullOrEmpty()) {
+        name = translate(pathExpression->path);
+    }
     if (name.find("ig_intr_") != nullptr && name.find(".") != nullptr) {
         if (!isGlobalVariable(name)) {
             forcedKeepVars.insert(name);

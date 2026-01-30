@@ -16,6 +16,9 @@
 
 class P4LTLTranslator;
 class CPIRule;
+namespace P4 {
+class ReferenceMap;
+}  // namespace P4
 
 class Translator{
 private:
@@ -62,6 +65,7 @@ private:
 	std::set<cstring> assertionStatements;
 	int switchStatementCount = 0;
 	BMV2CmdsAnalyzer* bMV2CmdsAnalyzer;
+	P4::ReferenceMap* refMap = nullptr;
 
 	bool addTableRules = true;
 
@@ -99,7 +103,9 @@ private:
 	P4LTLTranslator* ltlTranslator;
 
 public:
-	Translator(std::ostream &out, P4VerifyOptions &options, BMV2CmdsAnalyzer* bMV2CmdsAnalyzer = nullptr);
+	Translator(std::ostream &out, P4VerifyOptions &options,
+	           BMV2CmdsAnalyzer* bMV2CmdsAnalyzer = nullptr,
+	           P4::ReferenceMap* refMap = nullptr);
 	void writeToFile();
 	void writeMetaToFile(std::ostream &metaOut) const;
 	

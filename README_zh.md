@@ -16,7 +16,7 @@ DSL spec (.prop) -> Boogie (.bpl) -> Ultimate/GemCutter -> witness/trace
 - `Procurator/argo/code/dataset`：P4 程序与控制面 entries
 - `P4B-Translator`：P4 -> Boogie 翻译器（基于 p4c）
 - `UGemCutter-linux`：Ultimate CLI 包（GemCutter + witness printer）
-- `.tmp/dslc`：运行时生成的 Boogie / 日志 / witness
+- `.tmp/procurator/`：每次运行的输出目录（Boogie / 日志 / witness）。默认每次执行都会创建新的 run 目录，不复用缓存。
 
 ## 系统依赖
 
@@ -37,7 +37,7 @@ sudo apt-get install -y \
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  -r Procurator/argo/code/spec/prop_compile/requirements.txt
+  -r dslc/requirements.txt
 ```
 
 ## 构建 P4B-Translator（P4 -> Boogie）
@@ -75,30 +75,29 @@ UGemCutter-linux/Ultimate
 
 ## Boogie 用法
 
-1) DSL -> Boogie：
+1) DSL -> Boogie（默认不复用缓存）：
 
 ```bash
-PYTHONPATH=. .venv/bin/python -m dslc.compiler \
-  --backend boogie \
+./bin/procurator compile \
   --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --out .tmp/dslc/boogie_smoke.bpl \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --work-dir .tmp/dslc/boogie_smoke.work
 ```
 
-2) Ultimate/GemCutter 运行 Boogie：
+命令会打印输出目录（形如：`.tmp/procurator/compile/<spec>/<run_id>/`）。
+
+2) 编译 + 运行 Ultimate/GemCutter：
 
 ```bash
-UGemCutter-linux/Ultimate \
-  -tc Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  -s  Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf \
-  -i  .tmp/dslc/boogie_smoke.bpl
+./bin/procurator verify \
+  --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
+  --p4b-bin P4B-Translator/build-host/p4c-translator \
+  --ultimate UGemCutter-linux/Ultimate
 ```
 
-输出在 `.tmp/dslc/`：
-- `*.bpl`：Boogie 程序
-- `*.gemcutter.log`：Ultimate 日志
-- `*.bpl-witness.graphml`：反例 witness（若 UNSAFE）
+输出在一个新的 per-run 目录下（形如：`.tmp/procurator/verify/<spec>/<run_id>/`），包含：
+- `.bpl`：Boogie 程序
+- `.gemcutter.log`：Ultimate 日志
+- `.bpl-witness.graphml`：反例 witness（若 UNSAFE）
 
 ## DSL 规格怎么写
 
@@ -194,8 +193,9 @@ global {
 
 运行选项：
 
-- `run_gemcutter.py --env max`：忽略 `assume`，使用完全非确定输入。
-- `--no-prune`：关闭剪枝（DAG-based slicing + env 输入剪枝）。Gecko/DistCache 在本仓库可能需要关闭以对齐语义。
+- `./bin/procurator verify --env max`：忽略 `assume`，使用完全非确定输入。
+- `--no-slicing`：关闭 P4 slicing（会明显扩大状态空间）。
+- `--no-env-prune`：关闭基于 sliced Boogie 的 env 输入剪枝（更保守，但更贵）。
 
 ## Benchmark 运行（Max-Env）
 
@@ -204,74 +204,73 @@ global {
 ```bash
 export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
-export PYTHONPATH=.
 ```
+
+说明：默认每次执行都会生成一个新的输出目录（不复用缓存），产物位于：
+`.tmp/procurator/verify/<spec>/<run_id>/`，并在终端打印 `.bpl` 与 `.gemcutter.log` 的路径。
 
 ATP：
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/atp_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 NetChain：
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/test/netchain_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 P4XOS：
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/p4xos_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
-DistCache（建议 `--no-prune`）：
+DistCache（建议关闭 slicing 对齐语义：`--no-slicing --no-env-prune`）：
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/distcache_bug.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --no-prune \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --no-slicing \
+  --no-env-prune \
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
-Gecko（Tofino JSON，建议 `--no-prune`）：
+Gecko（Tofino JSON，建议关闭 slicing：`--no-slicing --no-env-prune`）：
 
 ```bash
-.venv/bin/python \
-  Procurator/argo/code/spec/prop_compile/run_gemcutter.py \
+./bin/procurator verify \
   --spec Procurator/argo/code/spec/bench/gecko_bug1_timer_loss.prop \
   --p4b-bin P4B-Translator/build-host/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --no-prune \
-  --toolchain Procurator/argo/code/spec/config/ReachSafety-Witness.xml \
-  --settings Procurator/argo/code/spec/config/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --no-slicing \
+  --no-env-prune \
+  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 ## 常见问题

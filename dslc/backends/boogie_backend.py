@@ -11,7 +11,6 @@ from .boogie_bpl import (
     collect_input_vars_and_egress_type,
     filter_input_vars_by_usage,
     looks_like_bpl,
-    patch_missing_var_decls,
 )
 from .boogie_errors import BoogieBackendError
 from .boogie_harness import BoogieHarnessEmitter
@@ -66,6 +65,36 @@ def _node_needs_two_stage(prefixed_bpl: str, alias: str) -> bool:
         rf"\b{re.escape(alias)}_p4b_(?:recirculate|clone_i2e|clone_e2e|clone_i2i)\b\s*:=\s*true\b"
     )
     return bool(rx.search(prefixed_bpl))
+
+
+def _resolve_declared_name(declared: set[str], base: str) -> Optional[str]:
+    """
+    Resolve a spec-level name against a raw Boogie unit's declared globals.
+
+    This mirrors the `_0`-suffix resolution in `boogie_harness_dsl.py` but
+    operates on *unprefixed* names (the per-node raw .bpl scope).
+
+    We use this to fail fast when the spec references packet vars that do not
+    exist in the imported/translated program (instead of silently patching in
+    ghost declarations).
+    """
+
+    base_name = base
+    suffix = ""
+    if "[" in base:
+        base_name, rest = base.split("[", 1)
+        suffix = "[" + rest
+
+    candidates: List[str] = [base_name]
+    if base_name.endswith("_0"):
+        candidates.append(base_name[:-2])
+    else:
+        candidates.append(base_name + "_0")
+
+    for cand in candidates:
+        if cand and (cand + suffix) in declared:
+            return cand + suffix
+    return None
 
 
 class BoogieBackend:
@@ -148,13 +177,6 @@ class BoogieBackend:
                     meta_obj = None
 
             # Declare packet vars referenced by the DSL/spec so the merged program is well-typed.
-            #
-            # NOTE: We intentionally do not treat "slicing seeds" as required declarations:
-            # seeds include heuristic `_0` variants to match possible P4B naming, and eagerly
-            # declaring them can bloat the state space with unused ghost vars (e.g., `hdr.foo_0`).
-            required_vars = sorted(set(slicing_plan.required_packet_vars.get(alias, [])))
-            raw_text = patch_missing_var_decls(raw_text, meta=meta_obj, required_vars=required_vars)
-
             if not looks_like_bpl(raw_text):
                 raise BoogieBackendError(
                     f"Input for node '{alias}' does not look like Boogie (.bpl). "
@@ -164,6 +186,22 @@ class BoogieBackend:
             input_vars, egress_t, declared, var_types, egress_var, type_defs = collect_input_vars_and_egress_type(
                 raw_text
             )
+
+            # Correctness: any packet var referenced by the spec must resolve to an existing
+            # declared Boogie global (possibly via `_0` suffix). Otherwise we'd end up
+            # synthesizing "ghost" packet vars that are disconnected from the actual P4
+            # semantics (unsound), or we'd pass ill-typed Boogie to Ultimate (confusing).
+            for req in slicing_plan.required_packet_vars.get(alias, []):
+                if _resolve_declared_name(declared, req) is None:
+                    raise BoogieBackendError(
+                        f"Spec references packet var '{req}' for node '{alias}', but it is not declared by the "
+                        f"imported/translated Boogie program.\n"
+                        "This usually means either:\n"
+                        "  (a) the spec references a non-existent P4 field, or\n"
+                        "  (b) the translator/slicer dropped the field declarations (translator bug).\n"
+                        "Fix the spec or repair the translator; refusing to auto-declare ghost vars."
+                    )
+
             if enable_slicing and prune_env_inputs:
                 # Keep packet vars that were selected as slicing seeds *and* actually exist in the
                 # (possibly sliced) Boogie output. This keeps env havoc and forwarding-field copying

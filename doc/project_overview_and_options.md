@@ -30,39 +30,99 @@
 
 ## 2. Repo 里的关键入口
 
-### 2.1 DSL 编译器入口
+### 2.1 统一入口：`procurator` CLI（推荐）
 
-- `dslc/compiler.py`：通用编译入口（支持 `--backend promela|boogie`）。
-  - 用法示例（只编译 Boogie，不跑 Ultimate）：
-    - `python3 -m dslc.compiler --backend boogie --spec <x.prop> --out <x.bpl> --p4b-bin <p4b-translator> --work-dir <dir>`
+仓库内的所有“编译/验证/加速/消融/冒烟”流程，统一从一个入口调用：
 
-### 2.2 “编译 + 跑 GemCutter”的一键入口
+- `./bin/procurator compile ...`
+- `./bin/procurator verify ...`
+- `./bin/procurator wraparound ...`
+- `./bin/procurator ablation ...`
+- `./bin/procurator smoke ...`（结构冒烟：不跑 Ultimate）
 
-- `Procurator/argo/code/spec/prop_compile/run_gemcutter.py`：常用一键脚本
-  - 负责：调用 `dslc.compiler.compile_spec_file(...)` 生成 `.bpl`，再调用 Ultimate CLI 跑 GemCutter，并把日志写到 `.tmp/dslc/*.gemcutter.log`。
+所有命令默认 **no-cache**：若你不显式指定 `--out/--out-dir`，它会为每次运行创建一个新的目录：
 
-### 2.3 消融实验脚本
+- `.tmp/procurator/<command>/<spec>/<run_id>/`
 
-- `Procurator/argo/code/spec/prop_compile/run_ablation.py`：当前主要做 **symmetry / property-split** 两类消融矩阵。
+（CLI 会在输出里打印 `[OUT] <run_dir>`；文档里提到的 `<OUT_DIR>` 指这个目录。）
 
-### 2.4 Wrap-around 加速实验入口（V0-0/V0-1）
+### 2.2 只编译（不跑 Ultimate）
 
-- `Procurator/argo/code/spec/prop_compile/run_wraparound.py`
-  - 生成并（可选）运行 `closure_check/pump/accel/accel_probe/confirm` 变体，用于 “寄存器翻转（wrap-around）” 这类深前缀 bug 的加速实验。
-  - `closure_check`（V0-1 主线）：生成 loop-free 的证明任务，证明 round 的闭包 + 净 `+1`（closure pump），作为 `MAX` 可达的证据。
-  - `confirm`（V0-0）：在进入循环前把目标寄存器槽位写到 `MAX`，再用很短的 unroll suffix 检查是否能触发断言违反。
-  - `pump`（可选诊断）：找 “`+1` 的泵循环 witness”（存在性证据），用于定位闭包谓词/投影缺口（CEGAR/调试）。
-  - `accel_probe`：只验证“加速触发条件可达”，便于诊断 `accel` 为什么跑不出来（同样输出 witness）。
-  - `accel`（实验中）：把“检测到泵循环”编码到模型里，并在模型中执行加速写回；当前仍可能超时，推荐先用 `closure_check -> confirm` 两段式跑通端到端。
-  - 工程化特性：
-    - 默认 stages 为 `closure_check,confirm`；`--rerun` 可强制重跑并刷新输出
-    - `--require-closure`：`closure_check` 不是 `correct` 时拒绝跑 confirm/accel（soundness guard）
-    - 复用输出（log/witness）：当输出新于输入 `.bpl` 时，对应 stage 会直接 `[SKIP]`（便于把“日常复跑”降到秒级/分钟级）
-    - 支持对单独 stage 覆盖 toolchain/settings（例如只对 `pump` 启用 `icfgtransformation`）
+```bash
+./bin/procurator compile \
+  --spec <x.prop> \
+  --backend boogie \
+  --out <x.bpl> \
+  --p4b-bin <p4c-translator> \
+  --work-dir <dir>
+```
 
-- `dslc/workflows/wraparound.py`（推荐：只生成产物，不跑求解器）
-  - `python3 -m dslc.workflows.wraparound --spec <x.prop> --out-dir <dir> --p4b-bin <p4c-translator>`
-  - 输出：base `.bpl`、各阶段 `.bpl`、以及 `wraparound.manifest.json`（供 runner/回归/实验对齐使用）
+> 兼容：仍可 `python3 -m dslc compile ...`（同一套 CLI），但推荐直接用 `./bin/procurator`。
+
+### 2.3 “编译 + 跑 GemCutter”（找 bug / 证明）
+
+```bash
+./bin/procurator verify \
+  --spec <x.prop> \
+  --ultimate <Ultimate> \
+  --timeout-seconds 1200
+```
+
+输出（默认）：
+
+- `<OUT_DIR>/<spec>.bpl`
+- `<OUT_DIR>/gemcutter.log`
+- `<OUT_DIR>/ultimate-home/`（Ultimate 的工作目录/缓存，按 run 隔离）
+
+### 2.4 消融实验脚本（symmetry / property-split 等）
+
+```bash
+./bin/procurator ablation \
+  --spec <x.prop> \
+  --ultimate <Ultimate> \
+  --timeout-seconds 1200
+```
+
+> 该命令同样默认 no-cache：每次 run 在新的 `<OUT_DIR>` 下记录日志/时间。
+
+### 2.5 Wrap-around 加速实验入口（V0-0/V0-1）
+
+```bash
+./bin/procurator wraparound \
+  --spec <x.prop> \
+  --ultimate <Ultimate> \
+  --timeout-seconds 1200
+```
+
+该流程会在 `<OUT_DIR>` 下生成并（可选）运行多个变体（stage），用于 “寄存器翻转（wrap-around）” 这类深前缀 bug 的加速实验：
+
+- `closure_check`（V0-1 主线）：生成 proof-friendly 的任务，检查“每轮净 +1 且闭包成立”的充分条件（作为 `MAX-1` 可达的证据）。
+- `confirm`（V0-0）：在进入循环前把目标寄存器槽位写到 `MAX`，再用很短的 unroll suffix 检查是否能触发断言违反（产 witness）。
+- `pump/accel`：诊断/实验用 stage（可通过 `--stages ...` 开关选择）。
+
+**soundness guard（默认开启）**：
+
+- 只有当 `closure_check` 被证明 `SAFE`，才会继续跑 `confirm`；否则 `confirm` 会被跳过。
+- 如需纯诊断（可能不 sound），显式加 `--allow-unsound-confirm`。
+
+### 2.6 只生成 wraparound 产物（不跑 Ultimate）
+
+`dslc/workflows/wraparound.py` 是一个产物生成器（用于脚本化/回归/实验对齐）：
+
+```bash
+python3 -m dslc.workflows.wraparound \
+  --spec <x.prop> \
+  --out-dir <dir> \
+  --p4b-bin <p4c-translator>
+```
+
+输出：
+
+- base `.bpl`
+- 每个候选的 staged `.bpl`
+- `wraparound.manifest.json`
+
+> 默认不做“隐式缓存”：只有在你显式提供 `--base-bpl`（已有 Boogie）时，才会跳过编译阶段。
 
 ---
 
@@ -93,8 +153,8 @@ DSL 语法在 `dslc/speclang/grammar.py`，模型结构在 `dslc/speclang/model.
   - 重要：这不是“证明 SAFE”的解法；若启用该边界，**UNSAFE 反例依然 sound**，但 SAFE 结论只在该 bound 内成立。
   - 为避免仓库里旧 spec 的 `max_steps`（常见是 10^5 量级）**被默默启用导致语义/性能变化**，Boogie 后端默认 **不读取** `.prop` 里的 `global.max_steps`。
     - 显式启用方式：
-      - `python -m dslc.compiler --max-steps N ...` 或
-      - `run_gemcutter.py --max-steps N ...` 或
+      - `./bin/procurator compile --max-steps N ...` 或
+      - `./bin/procurator verify --max-steps N ...` 或
       - 若你确实想让 `.prop` 里的 `global.max_steps` 生效：加 `--use-spec-max-steps`。
 - `deterministic_scheduler = true|false;`
   - 只影响 **Boogie sequential harness**：true 时生成 round-robin 调度（避免 nondet 分支、避免 modulo），便于 debug 深循环。
@@ -225,17 +285,15 @@ Boogie 后端按单一职责拆成多个模块：
 
 ## 5. “有哪些选项可以调”：CLI 与 DSL 两层
 
-### 5.1 运行脚本（推荐入口）：`run_gemcutter.py`
-
-文件：`Procurator/argo/code/spec/prop_compile/run_gemcutter.py`
+### 5.1 运行入口（推荐）：`./bin/procurator verify`
 
 常用选项：
 
 - `--env spec|max`
   - `spec`：注入时应用 `.prop` 里的 assume/env 约束（推荐）
   - `max`：输入完全 nondet（havoc，不加 assume），用于“最坏环境”压力测试
-- `--no-prune`
-  - 关闭 slicing + env-input pruning（会更慢，但更接近“全语义”）
+- `--no-slicing` / `--no-env-prune`
+  - 分别关闭 P4 slicing 与 env 输入裁剪（会更慢，但更接近“全语义”）
 - `--por`
   - 开启 commutativity-based POR（目前实现是“基于读写冲突的 guard 偏序”，不是完整 POR）
 - `--boogie-harness concurrent|sequential`
@@ -250,13 +308,11 @@ Boogie 后端按单一职责拆成多个模块：
   - 0 表示不设超时（你现在就在用这个模式）
 - `--toolchain <xml>` / `--settings <epf>`
   - 选择 Ultimate 的分析流水线与参数。
-  - 当前仓库默认用 `Procurator/argo/code/spec/config/ReachSafety-Witness.xml` + `ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`：更偏向 **bug-finding + witness 产出**（避免 2GiB / Z3 per-query timeout / POR 组合导致“浅 bug 也跑不出来”）。
+  - 当前仓库默认用 `dslc/toolchain/ultimate/ReachSafety-Witness.xml` + `ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por.epf`：更偏向 **bug-finding + witness 产出**（避免 2GiB / Z3 per-query timeout / POR 组合导致“浅 bug 也跑不出来”）。
 
-### 5.2 编译器入口：`python3 -m dslc.compiler`
+### 5.2 只编译入口：`./bin/procurator compile`
 
-文件：`dslc/compiler.py`
-
-它提供的核心开关基本与 `run_gemcutter.py` 一致（`--env/--no-prune/--por/--boogie-harness/--no-two-stage`），区别是它**只负责编译**，不负责跑 Ultimate。
+它提供的核心开关与 `verify` 基本一致（`--env/--no-slicing/--no-env-prune/--por/--boogie-harness/--no-two-stage`），区别是它**只负责编译**，不负责跑 Ultimate。
 
 ### 5.3 DSL 配置（写在 `.prop` 里）
 

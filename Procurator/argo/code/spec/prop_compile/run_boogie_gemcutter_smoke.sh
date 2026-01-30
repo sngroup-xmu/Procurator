@@ -89,22 +89,19 @@ rm -rf "$OUT_DIR"
 mkdir -p "$OUT_DIR"
 
 echo "[RUN] compile DSL -> Boogie: $SPEC"
-"$REPO_ROOT/.venv/bin/python" -m dslc.compiler \
-  --backend boogie \
-  --spec "$SPEC" \
-  --out "$OUT_BPL" \
-  --p4b-bin "$P4B_BIN" \
-  --work-dir "$WORK_DIR"
-
-echo "[RUN] structural + Ultimate smoke"
+echo "[RUN] verify (compile + Ultimate/GemCutter): $SPEC"
 # Ultimate settings typically reference solver as plain `z3`, so ensure Ultimate's directory is on PATH.
 ULT_DIR="$(cd "$(dirname "$ULTIMATE_BIN")" && pwd)"
 export PATH="$ULT_DIR:$PATH"
-"$REPO_ROOT/.venv/bin/python" "$REPO_ROOT/Procurator/argo/code/spec/prop_compile/gemcutter_smoke.py" \
-  --bpl "$OUT_BPL" \
-  --ultimate-run "$ULTIMATE_BIN" \
+"$REPO_ROOT/bin/procurator" verify \
+  --spec "$SPEC" \
+  --out "$OUT_BPL" \
+  --work-dir "$WORK_DIR" \
+  --p4b-bin "$P4B_BIN" \
+  --ultimate "$ULTIMATE_BIN" \
   --toolchain "$TOOLCHAIN" \
   --settings "$SETTINGS" \
+  --log "$LOG" \
   > "$LOG" 2>&1 || true
 
 echo "[LOG] $LOG"
