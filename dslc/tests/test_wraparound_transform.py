@@ -4,6 +4,41 @@ from dslc.transform.wraparound import WraparoundStage, instrument_bpl_text, unro
 
 
 class TestWraparoundTransform(unittest.TestCase):
+    def test_index_expr_is_zero_extended_to_reg_index_width(self) -> None:
+        # Regression: meta-derived wraparound candidates often use bv16 switch indices
+        # (e.g., `meta.spineswitchidx`) while P4B emits register arrays indexed by bv32.
+        # Wraparound stages must coerce the index expression to bv32 (e.g., `0bv16++idx16`)
+        # or the generated Boogie becomes ill-typed.
+        src = """
+var procurator_step: int;
+var idx16: bv16;
+var r:[bv32]bv32;
+
+procedure main() returns()
+  modifies idx16, r;
+{
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, idx16, r;
+{
+  procurator_step := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.PUMP,
+            pump_reg="r",
+            accel_regs=[],
+            index_expr="idx16",
+        )
+        self.assertIn("0bv16++idx16", out)
+        self.assertNotIn("r[idx16]", out)
+
     def test_confirm_inserts_fast_forward(self) -> None:
         src = """
 var procurator_step: int;

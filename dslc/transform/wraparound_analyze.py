@@ -42,6 +42,58 @@ def _find_reg_decl(lines: Sequence[str], reg_var: str) -> Optional[Tuple[int, in
     return None
 
 
+_RE_BV_TYPE = re.compile(r"^bv(?P<w>\d+)$")
+_RE_BV_LIT = re.compile(r"^(?P<val>\d+)bv(?P<w>\d+)$")
+_RE_SIMPLE_VAR = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+
+def _coerce_bv_expr_to_width(var_types: Dict[str, str], expr: str, *, target_w: int) -> str:
+    """Best-effort coerce a Boogie expression to bv<target_w> by zero-extension.
+
+    Wraparound candidates from meta often reference P4 metadata fields (e.g.,
+    `meta.spineswitchidx`) whose bitwidth is smaller than the register index
+    width emitted by P4B (typically bv32). The original program uses explicit
+    zero-extension (e.g., `0bv16++meta.spineswitchidx`). For wraparound stages
+    we need the index expression to typecheck against the register array type.
+
+    We only handle the common/simple cases here:
+      - plain variables that appear in `var_types` as `bvN`
+      - bitvector literals like `7bv16`
+
+    For complex expressions, we return `expr` unchanged and let Boogie/U.
+    typecheck catch mismatches (with a clear error).
+    """
+
+    e = expr.strip()
+    if not e:
+        return e
+
+    # bv literal (e.g., 7bv16)
+    m = _RE_BV_LIT.match(e)
+    if m:
+        src_w = int(m.group("w"))
+        if src_w == target_w:
+            return e
+        if src_w < target_w:
+            return f"0bv{target_w - src_w}++{e}"
+        raise WraparoundTransformError(f"index expr width bv{src_w} > bv{target_w}: {expr}")
+
+    # plain var (e.g., clientTrack_meta.spineswitchidx)
+    if _RE_SIMPLE_VAR.match(e):
+        t = var_types.get(e)
+        if t:
+            mt = _RE_BV_TYPE.match(t)
+            if mt:
+                src_w = int(mt.group("w"))
+                if src_w == target_w:
+                    return e
+                if src_w < target_w:
+                    return f"0bv{target_w - src_w}++{e}"
+                raise WraparoundTransformError(f"index expr width bv{src_w} > bv{target_w}: {expr}")
+
+    return e
+
+
 def _collect_queue_like_vars(var_types: Dict[str, str]) -> List[str]:
     out: List[str] = []
     for name, typ in var_types.items():
@@ -304,6 +356,12 @@ def analyze_bpl_for_wraparound(
     if decl is None:
         raise WraparoundTransformError(f"register not found: {pump_reg}")
     index_w, elem_w = decl
+
+    # If the caller passes an index expression (typically inferred from meta),
+    # ensure it typechecks against the register index width.
+    if index_expr is not None:
+        index_expr = _coerce_bv_expr_to_width(var_types, index_expr, target_w=index_w)
+
     use_last0 = index_expr is None and index_value == 0 and f"{pump_reg}__last0_value" in var_types
     idx_value: Optional[int] = None if index_expr is not None else index_value
     pump_target = WraparoundTarget(
@@ -368,4 +426,3 @@ def analyze_bpl_for_wraparound(
         step_op=step_op,
         step_delta_bv=delta_bv,
     )
-
