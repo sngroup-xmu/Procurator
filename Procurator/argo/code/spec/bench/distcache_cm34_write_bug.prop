@@ -8,7 +8,9 @@
 //
 // Property idea:
 //   - After one leaf pipeline pass, both cm3_reg/cm4_reg must have been written at least once.
-//   - We check this via dslc's Boogie-level register instrumentation: `<reg>__wrote_any`.
+//   - We check this via dslc's Boogie-level register instrumentation:
+//       `<node>_<reg>__wrote_any`
+//     (node prefix avoids collisions in multi-node specs).
 
 import leaf from "../../dataset/distcache/leafswitch/netcache.p4"
   entries "./distcache_leaf_cm_hotness_entries_min.txt";
@@ -37,8 +39,11 @@ global {
   env_thread = false;
   host_eager = true;
   deterministic_scheduler = true;
+  // Two-stage harness: host_send, host_recv, node_ingress, node_egress.
+  // Bounding to 4 steps is sufficient to cover one full leaf pass for this spec.
+  max_steps = 4;
 
   assert {
-    netcacheEgress_cm3_reg__wrote_any && netcacheEgress_cm4_reg__wrote_any;
+    leaf_netcacheEgress_cm3_reg__wrote_any && leaf_netcacheEgress_cm4_reg__wrote_any;
   };
 }

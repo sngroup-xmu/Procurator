@@ -7,7 +7,7 @@
 //   - Always send `GETREQ_INSWITCH` for a cached key (idx=7 in flow_entries.txt).
 //   - Assume the cached slot is `latest` so `update_cache_frequency()` runs.
 //
-// Then we rely on the wraparound pipeline (`run_wraparound.py`) to fast-forward
+// Then we rely on the wraparound pipeline (`./bin/procurator wraparound`) to fast-forward
 // the target register cell to MAX and confirm the next +1 wraps to 0, violating
 // the assertion.
 

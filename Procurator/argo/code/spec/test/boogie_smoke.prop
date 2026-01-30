@@ -3,9 +3,9 @@
 // Notes:
 // - Uses a repo-shipped P4_16 program (`dataset/ipv4/basic.p4`) for each node.
 // - Intended to be compiled with:
-//     PYTHONPATH=. .venv/bin/python -m dslc.compiler \
-//       --backend boogie \
+//     ./bin/procurator compile \
 //       --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
+//       --backend boogie \
 //       --out /tmp/boogie_smoke.bpl \
 //       --p4b-bin P4B-Translator/build-host/p4c-translator \
 //       --work-dir /tmp/boogie_smoke.work
@@ -32,4 +32,3 @@ node s2 {
 global {
   queue_capacity = 2;
 }
-
