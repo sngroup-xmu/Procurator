@@ -189,6 +189,11 @@ def instrument_bpl_text(
         )
 
         confirm_block = _emit_confirm_init(var_types, cfg)
+        target_read = (
+            cfg.pump_target.last0_value_var
+            if cfg.pump_target.use_last0_value
+            else f"{cfg.pump_target.reg_var}[{cfg.pump_target.index_expr}]"
+        )
 
         # Try sequential harness first (mainProcedure + while(true)).
         try:
@@ -205,6 +210,21 @@ def instrument_bpl_text(
                     "mainProcedure loop not found (expected while(true) or while (procurator_step < ...))"
                 )
             lines.insert(while_idx, confirm_block)
+
+            # If the spec uses a two-phase env script (`dsl_pump_mode`), drive it from the
+            # current value of the pumped register:
+            #   - while reg==MAX, keep injecting the +1 update packet (to trigger MAX->0);
+            #   - once reg!=MAX, switch to the functional suffix packets (e.g., P2C query).
+            if var_types.get("dsl_pump_mode") == "bool":
+                max_expr = cfg.pump_target.max_elem_expr
+                for i in range(while_idx + 1, body_close_idx + 1):
+                    if lines[i].lstrip().startswith("call main();"):
+                        indent = re.match(r"^(\s*)", lines[i])
+                        indent = indent.group(1) if indent else ""
+                        # Insert a real Boogie statement line (with newline), not a literal "\n".
+                        lines.insert(i, f"{indent}dsl_pump_mode := ({target_read} == {max_expr});\n")
+                        break
+
             _rewrite_asserts_as_calls(lines)
             lines.append(_emit_gated_assert_wrapper_proc(cfg))
             return "".join(lines)
@@ -351,4 +371,3 @@ def instrument_bpl_file(
         if old == out:
             return
     out_path.write_text(out, encoding="utf-8")
-
