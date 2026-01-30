@@ -167,6 +167,12 @@ class BoogieHarnessSequentialMixin:
         for a in node_aliases + host_aliases:
             out.append(f"  {a}_inbox_count := 0;\n")
             out.append(f"  {a}_pkt_external := false;\n")
+        out.append("  // initialize P4B event flags (clone/recirculate)\n")
+        for n in node_aliases:
+            declared = self._node_declared_vars.get(n, set())
+            for f in ("p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i", "p4b_recirculate"):
+                if f in declared:
+                    out.append(f"  {n}_{f} := false;\n")
         if self._two_stage_nodes:
             out.append("  // initialize pending egress counters\n")
             for a in node_aliases:
@@ -272,13 +278,58 @@ class BoogieHarnessSequentialMixin:
         node = self._host_to_node.get(host)
         if not node:
             raise BoogieBackendError(f"host '{host}' missing connect target")
+        host_eager = self._spec.global_decl.host_eager is True
+        host_vars = self._host_input_vars.get(host, [])
+        host_decl = self._host_declared_vars.get(host, set())
+        target_decl = self._node_declared_vars.get(node, set())
+        copy_vars: List[str] = []
+        for v in host_vars:
+            if v in host_decl and v in target_decl:
+                copy_vars.append(v)
+
         out: List[str] = []
-        if deterministic:
+        # In deterministic schedule mode, the scheduler already fixes *when* the host-send action
+        # happens. When host_eager=true we model that the injection happens whenever this action
+        # is selected; otherwise, we keep the original nondet "may send" semantics.
+        if deterministic and not host_eager:
             out.append(f"{indent}if (*) {{\n")
             indent = indent + "  "
-        out.append(f"{indent}// inject packet into connected node\n")
-        out.append(self._emit_external_enqueue_stmt(node, k, indent=indent, deterministic=deterministic))
+
+        out.append(f"{indent}// inject packet into connected node (host -> node)\n")
         if deterministic:
+            out.append(f"{indent}if ({node}_inbox_count < {k}) {{\n")
+            indent2 = indent + "  "
+        else:
+            indent2 = indent
+
+        out.append(f"{indent2}assume {node}_inbox_count < {k};\n")
+
+        # Construct a fresh host packet, then copy it into the node mailbox. This keeps
+        # host.env { ... } semantics consistent across concurrent vs sequential harnesses.
+        for v in host_vars:
+            out.append(f"{indent2}havoc {host}_{v};\n")
+        if not self._max_env_inputs:
+            env_lines = self._emit_host_env_inject_statements(host, indent=indent2)
+            if env_lines:
+                out.append(env_lines)
+            hd = self._spec.hosts.get(host)
+            if hd:
+                for expr in hd.assume_exprs:
+                    out.append(f"{indent2}assume {self._expr_to_boogie(expr, current_node=host)};\n")
+            for expr in self._spec.global_decl.assume_exprs:
+                out.append(f"{indent2}assume {self._expr_to_boogie(expr, current_node=host)};\n")
+
+        for v in copy_vars:
+            out.append(f"{indent2}{node}_{v} := {host}_{v};\n")
+        out.append(f"{indent2}{node}_pkt_external := true;\n")
+        if self._two_slot_inbox_enabled(k):
+            out.append(self._emit_inbox_store_from_active(node, slot_expr=f"{node}_inbox_count", indent=indent2))
+        out.append(f"{indent2}{node}_inbox_count := {node}_inbox_count + 1;\n")
+
+        if deterministic:
+            out.append(f"{indent}}}\n")
+
+        if deterministic and not host_eager:
             out.append(f"{indent[:-2]}}}\n")
         return "".join(out)
 

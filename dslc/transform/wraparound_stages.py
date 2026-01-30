@@ -106,6 +106,10 @@ def _emit_closure_setup(var_types: Dict[str, str], cfg: WraparoundConfig) -> str
     # some proof tasks (FloydHoare permissible-variable check).
     for t in cfg.accel_targets:
         lines.append(_emit_inline_reg_write(var_types, t, value_expr="wrap_closure_seq0"))
+    # Many specs use `dsl_pump_mode` to separate a pumping prefix from a functional suffix
+    # (e.g., DistCache wraparound bugs). For closure_check we always want the pumping shape.
+    if var_types.get("dsl_pump_mode") == "bool":
+        lines.append("  dsl_pump_mode := true;\n")
     for v in cfg.proj_vars:
         local = f"wrap_closure_snap_{_sanitize_local(v)}"
         lines.append(f"  {local} := {v};\n")
@@ -134,6 +138,10 @@ def _emit_local_decls(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
     p = cfg.pump_target
     lines: List[str] = []
     lines.append("  // wraparound v0-1 instrumentation (generated)\n")
+    # `procurator_phase` is updated inside `main()` (scheduler), so we must snapshot it
+    # before calling `main()` if we want cutpoints like `(procurator_phase == 0)` to
+    # refer to the *current* step (not the next one).
+    lines.append("  var wrap_phase_before: int;\n")
     lines.append("  var wrap_snap_taken: bool;\n")
     lines.append("  var wrap_snap_step: int;\n")
     lines.append("  var wrap_loop_len: int;\n")
@@ -150,6 +158,11 @@ def _emit_local_decls(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
             continue
         local = f"wrap_snap_{_sanitize_local(v)}"
         lines.append(f"  var {local}: {t};\n")
+        # For PUMP/ACCEL we compare projection variables at the cutpoint *before* calling `main()`,
+        # because the selected action can mutate these variables (e.g., host_send bumps inbox_count).
+        if v != "procurator_phase":
+            pre = f"wrap_pre_{_sanitize_local(v)}"
+            lines.append(f"  var {pre}: {t};\n")
 
     lines.append("\n")
     lines.append("  wrap_snap_taken := false;\n")
@@ -168,19 +181,35 @@ def _emit_step_block(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
     proj_eq_checks: List[str] = []
     for v in cfg.proj_vars:
         local = f"wrap_snap_{_sanitize_local(v)}"
-        proj_snap_assigns.append(f"          {local} := {v};\n")
-        proj_eq_checks.append(f"        wrap_proj_ok := wrap_proj_ok && ({v} == {local});\n")
+        # We compare/snapshot projection vars at the *beginning* of the step, before calling `main()`.
+        # Special-case `procurator_phase` (already captured as wrap_phase_before). For other vars, we
+        # capture their pre-values into `wrap_pre_*` locals.
+        pre_expr = "wrap_phase_before" if v == "procurator_phase" else f"wrap_pre_{_sanitize_local(v)}"
+        proj_snap_assigns.append(f"          {local} := {pre_expr};\n")
+        proj_eq_checks.append(f"        wrap_proj_ok := wrap_proj_ok && ({pre_expr} == {local});\n")
 
     lines: List[str] = []
     target_read = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
+    lines.append("    wrap_phase_before := procurator_phase;\n")
     lines.append(f"    wrap_target_old := {target_read};\n")
+    for v in cfg.proj_vars:
+        if v == "procurator_phase":
+            continue
+        if v not in var_types:
+            continue
+        pre = f"wrap_pre_{_sanitize_local(v)}"
+        lines.append(f"    {pre} := {v};\n")
     lines.append("    call main();\n")
     lines.append(f"    wrap_target_new := {target_read};\n")
-    lines.append(f"    if ({cfg.cutpoint_cond}) {{\n")
+    # Evaluate cutpoints in terms of the phase at the beginning of the step.
+    cut_cond = cfg.cutpoint_cond
+    cut_cond = re.sub(r"\bprocurator_phase\b", "wrap_phase_before", cut_cond)
+    lines.append(f"    if ({cut_cond}) {{\n")
     lines.append("      if (!wrap_snap_taken) {\n")
     lines.append("        wrap_snap_taken := true;\n")
     lines.append("        wrap_snap_step := procurator_step;\n")
-    lines.append("        wrap_target_snap := wrap_target_new;\n")
+    # Snapshot the target and projection at the cutpoint *before* executing the step.
+    lines.append("        wrap_target_snap := wrap_target_old;\n")
     for a in proj_snap_assigns:
         lines.append(a)
     lines.append("      }\n")
@@ -191,7 +220,7 @@ def _emit_step_block(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
         for chk in proj_eq_checks:
             lines.append(chk)
         lines.append(
-            f"        if (wrap_proj_ok && (wrap_target_new == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
+            f"        if (wrap_proj_ok && (wrap_target_old == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
         )
         lines.append("          wrap_loop_len := procurator_step - wrap_snap_step;\n")
         lines.append(f"          call {_PUMP_ERROR_PROC}();\n")
@@ -203,7 +232,7 @@ def _emit_step_block(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
         for chk in proj_eq_checks:
             lines.append(chk)
         lines.append(
-            f"        if (wrap_proj_ok && (wrap_target_new == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
+            f"        if (wrap_proj_ok && (wrap_target_old == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
         )
         lines.append("          wrap_accel_done := true;\n")
         for t in cfg.accel_targets:
@@ -216,7 +245,7 @@ def _emit_step_block(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
         for chk in proj_eq_checks:
             lines.append(chk)
         lines.append(
-            f"        if (wrap_proj_ok && (wrap_target_new == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
+            f"        if (wrap_proj_ok && (wrap_target_old == {_step_update_expr(cfg, 'wrap_target_snap')})) {{\n"
         )
         lines.append("          wrap_accel_done := true;\n")
         lines.append(f"          call {_PUMP_ERROR_PROC}();\n")

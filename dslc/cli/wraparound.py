@@ -45,6 +45,10 @@ def _result_is_safe(res_line: str) -> bool:
     res = res_line.strip()
     return ("RESULT: SAFE" in res) or ("proved your program to be correct" in res)
 
+def _result_is_unsafe(res_line: str) -> bool:
+    res = res_line.strip()
+    return ("RESULT: UNSAFE" in res) or ("proved your program to be incorrect" in res)
+
 
 def _infer_regs_from_asserts(spec_text: str) -> tuple[list[str], int]:
     # Heuristic: extract array-like references from `assert { ... }` blocks.
@@ -126,15 +130,18 @@ def _resolve_default_toolchains(
     a toolchain without the witness printer plugin for closure_check.
     """
 
-    toolchain = (
-        Path(toolchain_arg).expanduser().resolve()
-        if toolchain_arg
-        else (
-            (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml").resolve()
-            if (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml").exists()
-            else (root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-Witness.xml").resolve()
-        )
-    )
+    if toolchain_arg:
+        toolchain = Path(toolchain_arg).expanduser().resolve()
+    else:
+        tc_no_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety.xml"
+        tc_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml"
+        tc_legacy = root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-Witness.xml"
+        if tc_no_witness.exists():
+            toolchain = tc_no_witness.resolve()
+        elif tc_witness.exists():
+            toolchain = tc_witness.resolve()
+        else:
+            toolchain = tc_legacy.resolve()
 
     closure_toolchain = (
         Path(closure_toolchain_arg).expanduser().resolve()
@@ -147,6 +154,125 @@ def _resolve_default_toolchains(
     )
 
     return toolchain, closure_toolchain
+
+
+_RE_PROP_IMPORT_ENTRIES = re.compile(r"\bentries\s+\"([^\"]+)\"\s*;", flags=re.MULTILINE)
+_RE_BMV2_TABLE_ADD_RANGE = re.compile(
+    r"^\s*table_add\s+(?P<table>\S+)\s+\S+\s+(?P<optype>0x[0-9a-fA-F]+)\s+(?P<lo>0x[0-9a-fA-F]+)->(?P<hi>0x[0-9a-fA-F]+)\s+=>",
+    flags=re.MULTILINE,
+)
+_RE_BMV2_TABLE_ADD_RANGE_EPORT = re.compile(
+    r"^\s*table_add\s+(?P<table>\S+)\s+\S+\s+(?P<optype>0x[0-9a-fA-F]+)\s+(?P<lo>0x[0-9a-fA-F]+)->(?P<hi>0x[0-9a-fA-F]+)\s+=>\s*(?P<eport>0x[0-9a-fA-F]+)\s*(?:#.*)?$",
+    flags=re.MULTILINE,
+)
+
+
+def _infer_distcache_hash_caps(spec_text: str, *, spec_dir: Path) -> dict[str, int]:
+    """
+    Infer "hash output caps" from BMv2 command files referenced in the spec.
+
+    Motivation:
+      DistCache computes `meta.hashval_for_{partition,spine_partition}` via `hash(...)` and then
+      uses range tables (`hash_{leaf,spine}_partition_tbl`) to set `meta.{leaf,spine}switchidx`,
+      which indexes `leafload_reg/spineload_reg`.
+
+      In verification we often abstract hash by `havoc` (P4B), so without additional constraints,
+      the hash outputs can miss the configured range entries and the register index becomes
+      nondeterministic, breaking closure proofs.
+
+    This helper reads `table_add hash_{leaf,spine}_partition_tbl ... <lo>-><hi>` lines and
+    returns caps for the corresponding hash outputs: `hi` (inclusive).
+    """
+
+    caps: dict[str, int] = {}
+    entries_paths = [m.group(1) for m in _RE_PROP_IMPORT_ENTRIES.finditer(spec_text)]
+    for rel in entries_paths:
+        p = (spec_dir / rel).resolve()
+        if not p.exists():
+            continue
+        txt = p.read_text(encoding="utf-8", errors="replace")
+        for m in _RE_BMV2_TABLE_ADD_RANGE.finditer(txt):
+            table = m.group("table")
+            hi = int(m.group("hi"), 16)
+            # Table->hash-output mapping for DistCache clientTrack.
+            if "hash_leaf_partition_tbl" in table:
+                caps["hashval_for_partition"] = max(caps.get("hashval_for_partition", -1), hi)
+            if "hash_spine_partition_tbl" in table:
+                caps["hashval_for_spine_partition"] = max(caps.get("hashval_for_spine_partition", -1), hi)
+    return {k: v for k, v in caps.items() if v >= 0}
+
+
+def _infer_distcache_partition_eports(spec_text: str, *, spec_dir: Path) -> dict[str, int]:
+    """
+    Infer DistCache clientTrack partition egress ports from BMv2 command files.
+
+    The partition tables map hash ranges to fixed eports (leaf=0x2, spine=0x3 in the
+    shipped DistCache benchmarks). These values are then used as register indices.
+    """
+
+    ports: dict[str, int] = {}
+    entries_paths = [m.group(1) for m in _RE_PROP_IMPORT_ENTRIES.finditer(spec_text)]
+    for rel in entries_paths:
+        p = (spec_dir / rel).resolve()
+        if not p.exists():
+            continue
+        txt = p.read_text(encoding="utf-8", errors="replace")
+        for m in _RE_BMV2_TABLE_ADD_RANGE_EPORT.finditer(txt):
+            table = m.group("table")
+            eport = int(m.group("eport"), 16)
+            if "hash_leaf_partition_tbl" in table:
+                ports["leaf_eport"] = eport
+            if "hash_spine_partition_tbl" in table:
+                ports["spine_eport"] = eport
+    return ports
+
+
+def _apply_hash_caps_to_bpl(bpl_text: str, *, node_prefixes: Sequence[str], caps: dict[str, int]) -> str:
+    """
+    Patch Boogie text to add extra `assume` constraints on hash outputs.
+
+    We target P4B's translation of `hash(result, ...)`, which emits:
+      havoc <result>;
+      assume(buge.bvW(<result>, <from>) && bule.bvW(<result>, <to>));
+
+    We add:
+      assume(bule.bvW(<result>, <cap>bvW));
+    """
+
+    if not caps:
+        return bpl_text
+
+    # Avoid fragile multi-line regex substitutions: Ultimate logs and generated Boogie
+    # can differ slightly in whitespace. We patch line-by-line.
+    lines = bpl_text.splitlines(keepends=True)
+    wanted: list[tuple[str, int]] = []
+    for suffix, cap in caps.items():
+        for pref in node_prefixes:
+            wanted.append((f"{pref}_meta.{suffix}", cap))
+
+    out_lines: list[str] = []
+    for line in lines:
+        out_lines.append(line)
+        stripped = line.strip()
+        if not stripped.startswith("assume("):
+            continue
+        if "buge.bv" not in stripped or "bule.bv" not in stripped:
+            continue
+        for var, cap in wanted:
+            if var not in stripped:
+                continue
+            # Only patch assumes that constrain `var` to a from..to range (P4B hash translation).
+            # Example:
+            #   assume(buge.bv16(var, 0bv16) && bule.bv16(var, 32768bv16));
+            m = re.search(r"buge\.bv(\d+)\(", stripped)
+            if not m:
+                continue
+            bv = m.group(1)
+            indent = re.match(r"^[ \t]*", line).group(0)  # type: ignore[union-attr]
+            out_lines.append(f"{indent}assume(bule.bv{bv}({var}, {cap}bv{bv}));\n")
+            break
+
+    return "".join(out_lines)
 
 
 def _run_ultimate(
@@ -254,6 +380,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default="closure_check,pump,accel,confirm",
         help="Comma-separated stages: closure_check,pump,accel,confirm (default: closure_check,pump,accel,confirm)",
     )
+    ap.add_argument(
+        "--soundness",
+        default="closure",
+        choices=["closure", "cegis", "none"],
+        help=(
+            "Soundness gate for CONFIRM:\n"
+            "  - closure: require CLOSURE_CHECK == SAFE (default)\n"
+            "  - cegis: require PUMP to find a repeatable +1 cycle (UNSAFE at pump marker)\n"
+            "  - none: always run confirm (diagnostic only)"
+        ),
+    )
     ap.add_argument("--pump-reg", default="", help="Boogie global register array variable to pump (e.g., s1_sequence_reg_0)")
     ap.add_argument(
         "--accel-regs",
@@ -289,6 +426,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--allow-unsound-confirm",
         action="store_true",
         help="Allow running CONFIRM even if CLOSURE_CHECK did not prove SAFE (diagnostic only; UNSAFE may be unsound)",
+    )
+    ap.add_argument(
+        "--proj-vars",
+        default="",
+        help=(
+            "Comma-separated projection vars for wraparound stages (overrides inferred/default proj vars). "
+            "Useful for CEGIS/CEGAR experiments that refine the closure/pump context."
+        ),
     )
     ap.add_argument(
         "--no-resource-limits",
@@ -350,6 +495,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     base_text = base_bpl.read_text(encoding="utf-8", errors="replace")
     meta_by_node = _load_meta_by_node(work_dir)
 
+    # DistCache-specific: infer and apply "hash caps" to stabilize partition indices.
+    # This is used by wraparound closure_check to avoid nondet misses on range tables.
+    hash_caps = _infer_distcache_hash_caps(spec_text, spec_dir=spec_path.parent)
+    if hash_caps:
+        # Heuristic: apply to all node prefixes we see in the compiled BPL (alias_meta.*).
+        node_prefixes = sorted(set(re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)_meta\.", base_text)))
+        patched = _apply_hash_caps_to_bpl(base_text, node_prefixes=node_prefixes, caps=hash_caps)
+        if patched != base_text:
+            base_text = patched
+            base_bpl.write_text(base_text, encoding="utf-8")
+            print(f"[NOTE] applied hash caps for closure stability: {hash_caps}")
+
+    # DistCache-specific: infer stable partition eports that act as register indices.
+    partition_ports = _infer_distcache_partition_eports(spec_text, spec_dir=spec_path.parent)
+
     cand: Optional[WraparoundCandidate] = None
     cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=base_text, meta_by_node=meta_by_node)
     if cands:
@@ -379,11 +539,45 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     # If the user forces a concrete index, we treat it as authoritative.
     if args.index >= 0:
         index_expr = None
+    elif cand is not None and index_expr is not None and partition_ports:
+        # DistCache specialization: `meta.{leaf,spine}switchidx` is computed by range tables and may
+        # not be initialized at the closure setup point. If we can infer the fixed eport values
+        # from the BMv2 command files, prefer a concrete index for wraparound stages.
+        if ("leafload" in pump_reg) and ("leaf_eport" in partition_ports) and ("leafswitchidx" in index_expr):
+            index_expr = None
+            index_value = partition_ports["leaf_eport"]
+        if ("spineload" in pump_reg) and ("spine_eport" in partition_ports) and ("spineswitchidx" in index_expr):
+            index_expr = None
+            index_value = partition_ports["spine_eport"]
+    elif index_expr is None and partition_ports:
+        # If index is not specified by the user nor inferred from the spec/meta, and we
+        # recognize the DistCache clientTrack partition ports, use them as a better default
+        # than "0". This keeps closure_check sound for wraparound counters that are indexed
+        # by fixed eports (leaf=2, spine=3).
+        if ("leafload" in pump_reg) and ("leaf_eport" in partition_ports):
+            index_value = partition_ports["leaf_eport"]
+        if ("spineload" in pump_reg) and ("spine_eport" in partition_ports):
+            index_value = partition_ports["spine_eport"]
 
     step_op = cand.step_op if cand else "add"
     step_delta = int(cand.step_delta) if cand and cand.step_delta is not None else 1
-    proj_vars = list(cand.proj_vars) if (cand and cand.proj_vars) else None
+    if args.proj_vars.strip():
+        proj_vars = [x.strip() for x in args.proj_vars.split(",") if x.strip()]
+    else:
+        proj_vars = list(cand.proj_vars) if (cand and cand.proj_vars) else None
     cutpoint_cond = cand.cutpoint_cond if cand else None
+
+    # DistCache specialization: the hash outputs and derived switch indices are per-packet values
+    # that can legitimately change within/after a round (P4B models hash as havoc). For wraparound
+    # pumping we only need the mailbox counts / scheduler phase to stay stable.
+    if (not args.proj_vars.strip()) and proj_vars and partition_ports:
+        drop_suffixes = (
+            ".leafswitchidx",
+            ".spineswitchidx",
+            ".hashval_for_partition",
+            ".hashval_for_spine_partition",
+        )
+        proj_vars = [v for v in proj_vars if not v.endswith(drop_suffixes)]
 
     accel_regs: list[str]
     if args.accel_regs.strip():
@@ -409,6 +603,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 log_path=out_dir / f"{stem}.{s}.gemcutter.log",
             )
         )
+
+    # If we use the CEGIS soundness gate, we need the pump stage result even if the
+    # caller didn't request generating/running it explicitly.
+    if args.soundness == "cegis":
+        names = {j.name for j in stage_jobs}
+        if "pump" not in names:
+            stage_jobs.insert(
+                0,
+                _Stage(
+                    name="pump",
+                    bpl_path=out_dir / f"{stem}.pump.bpl",
+                    log_path=out_dir / f"{stem}.pump.gemcutter.log",
+                ),
+            )
 
     # The wraparound transform already strips unrelated asserts for ENTRY_CHECK/CLOSURE_CHECK/PUMP/ACCEL_PROBE.
     # Keep this split for readability and future extensions.
@@ -550,16 +758,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     ultimate_home_root = out_dir / "ultimate-home"
     closure_safe: Optional[bool] = None
+    pump_found: Optional[bool] = None
     closure_requested = any(j.name == "closure_check" for j in stage_jobs)
 
     for job in stage_jobs:
+        # Avoid correctness-witness generation for stages that are expected to be SAFE/UNKNOWN,
+        # because some Ultimate versions crash (NPE) when printing correctness witnesses.
+        # For bug finding we only need witnesses for CONFIRM.
         stage_settings = closure_settings if job.name == "closure_check" else settings
-        stage_toolchain = closure_toolchain if job.name == "closure_check" else toolchain
+        stage_toolchain = closure_toolchain if job.name in {"closure_check", "pump", "accel"} else toolchain
         print(f"[STAGE] {job.name} (pump={pump_reg}, accel={accel_regs}, index={index_value})")
-        if job.name == "confirm" and closure_requested and (not args.allow_unsound_confirm):
-            if closure_safe is not True:
-                print("[SKIP] confirm is skipped because closure_check was not proven SAFE")
-                continue
+        if job.name == "confirm":
+            if args.soundness == "closure" and closure_requested and (not args.allow_unsound_confirm):
+                if closure_safe is not True:
+                    print("[SKIP] confirm is skipped because closure_check was not proven SAFE")
+                    continue
+            if args.soundness == "cegis":
+                if pump_found is not True:
+                    print("[SKIP] confirm is skipped because pump CEGIS did not find a repeatable +1 cycle")
+                    continue
 
         _run_ultimate(
             ultimate=ultimate,
@@ -572,10 +789,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             resource_limits=not args.no_resource_limits,
         )
 
-        if job.name == "closure_check":
+        if job.name in {"closure_check", "pump"}:
             txt = job.log_path.read_text(encoding="utf-8", errors="replace")
             res = _extract_result_line(txt) or ""
-            closure_safe = _result_is_safe(res)
+            if job.name == "closure_check":
+                closure_safe = _result_is_safe(res)
+            else:
+                # For PUMP, UNSAFE means we found a +1 cycle under the chosen projection.
+                pump_found = _result_is_unsafe(res)
 
     return 0
 

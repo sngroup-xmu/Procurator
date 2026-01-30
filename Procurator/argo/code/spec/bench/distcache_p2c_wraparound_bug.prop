@@ -1,0 +1,99 @@
+// DistCache (clientTrack-only): P2C wrong-choice caused by load-counter wraparound.
+//
+// Problem (functional, not "wraparound for wraparound's sake"):
+//   - `poweroftwochoice()` chooses spine if `leafload > spineload`, else leaf.
+//   - `leafload/spineload` are 32-bit counters stored in registers.
+//   - When a counter wraps (2^32-1 -> 0), the raw comparison can flip, causing
+//     an obviously wrong load-balancing decision (choose the overloaded side).
+//
+// This benchmark is designed to be run via the wraparound pipeline:
+//   `./bin/procurator wraparound --spec .../distcache_p2c_wraparound_bug.prop ...`
+//
+// Key idea:
+//   - Confirm stage fast-forwards `leafload` to MAX (2^32-1).
+//   - First injected packet forces the `update_leaf_load` (+1) path, causing MAX->0.
+//   - Second injected packet forces the P2C query (optype=0x30) and checks the
+//     decision using *functional expectation*: after overflow, the leaf is still
+//     "more loaded" than a small spineload, so the decision must be spine.
+//
+// Notes:
+//   - This is a *sound* bug finding result only when `closure_check` is SAFE
+//     (meaning the +1 summary used for fast-forwarding is closed under the chosen
+//     projection), i.e., overflow is reachable from initial states modeled.
+
+import clientTrack from "../../dataset/distcache/clientrackswitch/partitionswitch.p4"
+  entries "../../dataset/distcache/clientrackswitch/clienttrack_entries.txt";
+
+topology {}
+
+host io {
+  connect clientTrack;
+  env {
+    // Parser reachability: DistCache uses reserved UDP port 5008 for op packets.
+    hdr.ethernet_hdr.valid = true;
+    hdr.ipv4_hdr.valid = true;
+    hdr.udp_hdr.valid = true;
+    hdr.op_hdr.valid = true;
+    hdr.ethernet_hdr.etherType = 2048; // 0x0800 IPv4
+    hdr.ipv4_hdr.protocol = 17;        // UDP
+    hdr.udp_hdr.dstPort = 5008;
+
+    // Keep hash keys stable so indices stay constant.
+    hdr.op_hdr.keylolo = 0;
+    hdr.op_hdr.keylohi = 0;
+    hdr.op_hdr.keyhilo = 0;
+    hdr.op_hdr.keyhihilo = 0;
+    hdr.op_hdr.keyhihihi = 0;
+
+    // In the clientTrack P4, leaf/spine switch indices are selected via
+    // `hash_leaf_partition_tbl` / `hash_spine_partition_tbl` using the hash
+    // outputs `meta.hashval_for_{partition,spine_partition}`. The BMv2 entries
+    // map the range [0..15] to eport=2 (leaf) and eport=3 (spine) for optype=0x2009.
+    //
+    // We treat these hash outputs as environment-controlled (they are havoced by the
+    // harness anyway), and pin them to a value in the configured range so the
+    // update action consistently touches a fixed register slot.
+    meta.hashval_for_partition = 0;
+    meta.hashval_for_spine_partition = 0;
+
+    // Avoid unintended forwarding matches; makes queue behavior simpler.
+    hdr.ipv4_hdr.dstAddr = 0;
+
+    // Two-phase script controlled by a DSL local boolean `pump_mode`:
+    //   - pump_mode=true  => inject update_leaf_load (monotone +1), used by closure/pump/accel.
+    //   - pump_mode=false => inject P2C query (functional suffix), used by confirm after overflow.
+    //
+    // The wraparound pipeline sets/updates `dsl_pump_mode` (the Boogie name for `pump_mode`)
+    // automatically in generated Boogie:
+    //   - closure_check/pump/accel keep it true to obtain a closed +1 summary;
+    //   - confirm sets it according to the current leafload value so that the first round
+    //     overflows MAX->0 (still pump_mode=true) and the next round runs the query.
+    if (pump_mode) {
+      hdr.op_hdr.optype = 8201; // 0x2009 update_leaf_load
+    } else {
+      hdr.op_hdr.optype = 48;   // 0x30 poweroftwochoice (P2C query)
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 6; // enough for host->switch send + two passes
+
+  // Default to "pump mode"; wraparound stages may override it.
+  bool pump_mode = true;
+
+  // Functional check (evaluated on every pass):
+  // When processing the P2C query packet (optype 0x30) and observing `leafload==0`,
+  // we interpret that as an overflow event (confirm stage sets leafload to MAX).
+  // In that case, choosing leaf is incorrect for load balancing: leaf must be
+  // treated as "very loaded", so the system should choose spine.
+  assert {
+    (clientTrack_hdr.op_hdr.optype != 48)
+      || (clientTrack_leafload_0 != 0)
+      || (clientTrack_meta.is_spine == 1);
+  };
+}
