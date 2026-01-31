@@ -285,3 +285,23 @@ Times below are wall-clock seconds for the full `procurator` invocation (P4B com
 | DistCache P2C consistency (hard) | `Procurator/argo/code/spec/bench/distcache_bug.prop` | `verify --env spec --max-steps 10` | 641.83 | TIMEOUT | `verify --no-slicing --no-env-prune --env spec --max-steps 10` | 661.04 | TIMEOUT | no | Still open at this bound; needs stronger pruning / different settings / smaller model. |
 | DistCache leafload wrap-around (closure + confirm) | `Procurator/argo/code/spec/bench/distcache_leafload_wraparound.prop` | `wraparound --toolchain ClosureCheck-ReachSafety.xml` | 422.75 | closure_check SAFE; confirm UNSAFE | `wraparound --no-slicing --toolchain ClosureCheck-ReachSafety.xml` | 864.45 | closure_check SAFE; confirm UNSAFE | no | UNSAFE is *sound* here because confirm runs only after closure_check proves SAFE (closure of the per-round +1 summary), justifying reachability of `MAX-1` before the flip. |
 | DistCache P2C wrong-choice after overflow | `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop` | `wraparound --stages closure_check,confirm --confirm-unroll 6` | 242.3 | closure_check SAFE; confirm UNSAFE | `wraparound --no-slicing --no-two-stage --stages closure_check,confirm --confirm-unroll 6` | 337.6 | closure_check SAFE; confirm UNSAFE | no | Functional wraparound bug: overflow flips the load comparison and yields a wrong P2C decision (`meta.is_spine`). UNSAFE is sound because confirm only runs after closure_check proves SAFE. |
+
+<!-- E2E_ABLATIONS_START -->
+
+## E2E Ablations (Auto-Generated)
+
+Generated on 2026-01-31 10:12:17 using Ultimate `/mnt/e/p4-verify/.tmp/orphan-worktree-20260129-005608/UGemCutter-linux/Ultimate`.
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes |
+|---|---|---|---|---|---|---|---|---|
+| Netchain fast-forward | `Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop` | `verify (slicing)` | 49.8 | UNSAFE | `verify --no-slicing --no-env-prune` | 60.0 | UNSAFE | see per-run dirs under `.tmp/procurator/verify/` |
+| ATP bound bug | `Procurator/argo/code/spec/bench/atp_bug.prop` | `verify (slicing)` | 26.0 | UNSAFE | `verify --no-slicing --no-env-prune` | 32.9 | UNSAFE | see per-run dirs under `.tmp/procurator/verify/` |
+| DistCache leaf pktloss clone/drop | `Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop` | `verify (slicing)` | 162.3 | UNSAFE | `verify --no-slicing --no-env-prune` | 521.2 | UNSAFE | see per-run dirs under `.tmp/procurator/verify/` |
+| DistCache CM3/CM4 write wiring | `Procurator/argo/code/spec/bench/distcache_cm34_write_bug.prop` | `verify (slicing)` | 147.3 | UNSAFE | `verify --no-slicing --no-env-prune` | 563.9 | UNSAFE | see per-run dirs under `.tmp/procurator/verify/` |
+| DistCache spine cache_frequency idx | `Procurator/argo/code/spec/bench/distcache_spine_cache_frequency_idx_bug.prop` | `verify (slicing)` | 65.1 | UNSAFE | `verify --no-slicing --no-env-prune` | 565.9 | TIMEOUT | see per-run dirs under `.tmp/procurator/verify/` |
+| DistCache P2C consistency (hard) | `Procurator/argo/code/spec/bench/distcache_bug.prop` | `verify (slicing)` | 584.8 | TIMEOUT | `verify --no-slicing --no-env-prune` | 599.3 | TIMEOUT | see per-run dirs under `.tmp/procurator/verify/` |
+| DistCache leafload wrap-around | `Procurator/argo/code/spec/bench/distcache_leafload_wraparound.prop` | `wraparound (slicing)` | 168.3 | closure_check SAFE; confirm UNSAFE | `wraparound --no-slicing --no-two-stage` | 191.1 | closure_check SAFE; confirm UNSAFE | UNSAFE is sound only when closure_check is SAFE (enforced by --soundness closure) |
+| DistCache P2C wrong-choice after overflow | `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop` | `wraparound (slicing)` | 268.8 | closure_check SAFE; confirm UNSAFE | `wraparound --no-slicing --no-two-stage` | 297.8 | closure_check SAFE; confirm UNSAFE | UNSAFE is sound only when closure_check is SAFE (enforced by --soundness closure) |
+
+
+<!-- E2E_ABLATIONS_END -->
