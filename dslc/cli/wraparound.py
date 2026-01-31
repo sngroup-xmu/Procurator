@@ -376,6 +376,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     ap.add_argument("--timeout-seconds", type=int, default=1200, help="Ultimate timeout per stage (default: 1200s)")
     ap.add_argument(
+        "--cegis",
+        action="store_true",
+        help=(
+            "Run the iterative CEGIS pipeline (ENTRY_CHECK -> CLOSURE_CHECK -> CONFIRM) "
+            "with automatic refinement. This is the recommended mode for wraparound bugs."
+        ),
+    )
+    ap.add_argument(
+        "--cegis-max-iters",
+        type=int,
+        default=6,
+        help="Max refinement iterations for --cegis (default: 6).",
+    )
+    ap.add_argument(
         "--stages",
         default="closure_check,pump,accel,confirm",
         help="Comma-separated stages: closure_check,pump,accel,confirm (default: closure_check,pump,accel,confirm)",
@@ -473,6 +487,75 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "missing --p4b-bin (and no default P4B translator found at "
             "`P4B-Translator/build-host/p4c-translator` or `dslc/toolchain/p4b_docker.sh`)"
         )
+
+    # Iterative CEGIS mode: delegate to the workflow runner and keep this CLI thin.
+    if args.cegis:
+        if not args.ultimate:
+            raise SystemExit("--cegis requires --ultimate (path to Ultimate CLI executable)")
+        ultimate = Path(args.ultimate).expanduser().resolve()
+
+        toolchain, closure_toolchain = _resolve_default_toolchains(
+            root=root,
+            toolchain_arg=args.toolchain,
+            closure_toolchain_arg=args.closure_toolchain,
+        )
+        settings = (
+            Path(args.settings).expanduser().resolve()
+            if args.settings
+            else (
+                (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-witness.epf").resolve()
+                if (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-witness.epf").exists()
+                else (
+                    root
+                    / "Procurator"
+                    / "argo"
+                    / "code"
+                    / "spec"
+                    / "config"
+                    / "ReachSafety-32bit-GemCutter-ALL-witness.epf"
+                ).resolve()
+            )
+        )
+        closure_settings = (
+            Path(args.closure_settings).expanduser().resolve()
+            if args.closure_settings
+            else (
+                (root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-32bit-GemCutter-ALL-witness.epf").resolve()
+                if (root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-32bit-GemCutter-ALL-witness.epf").exists()
+                else (
+                    root
+                    / "Procurator"
+                    / "argo"
+                    / "code"
+                    / "spec"
+                    / "config"
+                    / "ClosureCheck-32bit-GemCutter-ALL-witness.epf"
+                ).resolve()
+            )
+        )
+        if not closure_settings.exists():
+            closure_settings = settings
+
+        from dslc.workflows.wraparound_cegis import run_wraparound_cegis
+
+        manifest_path = run_wraparound_cegis(
+            spec_path=spec_path,
+            out_dir=out_dir,
+            p4b_bin=p4b_bin,
+            ultimate=ultimate,
+            timeout_seconds=args.timeout_seconds,
+            resource_limits=not args.no_resource_limits,
+            enable_slicing=not args.no_slicing,
+            pipeline_two_stage=not args.no_two_stage,
+            confirm_unroll=args.confirm_unroll,
+            max_iters=args.cegis_max_iters,
+            toolchain=toolchain,
+            closure_toolchain=closure_toolchain,
+            settings=settings,
+            closure_settings=closure_settings,
+        )
+        print(f"[OK] cegis manifest: {manifest_path}")
+        return 0
 
     # Compile base BPL (sequential harness; no trace arrays).
     compile_spec_file(
