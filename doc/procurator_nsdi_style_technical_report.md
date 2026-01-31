@@ -649,6 +649,8 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 2) **CONFIRM（后缀 bug finding）**：在 fast-forward 到 `MAX` 后，用 two-phase env（`dsl_pump_mode`）触发 `MAX->0` 并注入功能性后缀（例如 P2C query），直接寻找功能断言的反例。
 3) **CLOSURE_CHECK（证实 fast-forward sound）**：仅当 CONFIRM 找到 `UNSAFE` 时执行。它证明：在 pumping 输入形状下，从 cutpoint 开始跑完一轮 deterministic schedule，寄存器净增 `+delta` 且投影变量不变（闭包成立）。ENTRY+ CLOSURE 共同保证：confirm 反例不是“凭空假设寄存器在翻转前就已到达 MAX”的伪反例，而是来自一个可重复泵到达翻转前边界的真实前缀。
 
+此外，为了避免“后缀步数太短导致 confirm 没触发 bug”的假阴性，我们在 confirm 里使用一个小的 **unroll 递增序列**（例如 `3 -> 6 -> 9 -> 12`，上限由 `--wraparound-max-confirm-unroll` 控制）：先尝试更短 bound 以节省时间，失败再逐步加大。每次尝试都会落地成独立的 `confirm.unrollK.bpl/.log` 并写入 manifest，保证可复现。
+
 对应实现：`dslc/workflows/wraparound_cegis.py`（`stage_order=entry_confirm_closure`），其产物默认落在同一个 `verify` run 目录下的 `wraparound/` 子目录中，并在 `wraparound.cegis.manifest.json` 里记录每轮尝试与日志。
 
 #### 6.1.3 候选枚举与“先粗后细”拆分（避免指数级组合）

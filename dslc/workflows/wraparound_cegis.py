@@ -373,6 +373,26 @@ def _refine_proj_vars_greedy(
     return out
 
 
+def _confirm_unroll_schedule(*, base: int, max_unroll: int) -> List[int]:
+    """
+    Generate a small, deterministic unroll schedule for CONFIRM.
+
+    Motivation: some wraparound bugs require a slightly longer suffix than the
+    default bound (e.g., P2C after overflow). We first try the base bound for
+    speed, then grow it a few times before giving up on this candidate.
+    """
+
+    b = max(1, int(base))
+    cap = max(b, int(max_unroll))
+    # Multiplicative growth keeps the schedule short.
+    out: List[int] = []
+    for k in (1, 2, 3, 4):
+        v = min(cap, b * k)
+        if v not in out:
+            out.append(v)
+    return out
+
+
 def run_wraparound_cegis(
     *,
     spec_path: Path,
@@ -385,6 +405,7 @@ def run_wraparound_cegis(
     enable_slicing: bool = True,
     pipeline_two_stage: bool = True,
     confirm_unroll: int = 3,
+    max_confirm_unroll: int = 12,
     max_iters: int = 6,
     # Default order for the standalone wraparound workflow.
     stage_order: str = "entry_closure_confirm",
@@ -492,6 +513,7 @@ def run_wraparound_cegis(
         timeout_seconds=timeout_seconds,
         resource_limits=resource_limits,
         confirm_unroll=confirm_unroll,
+        max_confirm_unroll=max_confirm_unroll,
         max_iters=max_iters,
         runner=runner,
         toolchain=toolchain,
@@ -516,6 +538,7 @@ def _run_cegis_loop(
     timeout_seconds: int,
     resource_limits: bool,
     confirm_unroll: int,
+    max_confirm_unroll: int,
     max_iters: int,
     runner: StageRunner,
     toolchain: Path,
@@ -596,11 +619,8 @@ def _run_cegis_loop(
         stem = f"{spec_path.stem}.cegis.{it:02d}"
         entry_bpl = out_dir / f"{stem}.entry_check.bpl"
         closure_bpl = out_dir / f"{stem}.closure_check.bpl"
-        confirm_bpl = out_dir / f"{stem}.confirm.bpl"
-
         entry_log = out_dir / f"{stem}.entry_check.log"
         closure_log = out_dir / f"{stem}.closure_check.log"
-        confirm_log = out_dir / f"{stem}.confirm.log"
 
         entry_txt = instrument_bpl_text(
             bpl_text=base_text,
@@ -630,7 +650,14 @@ def _run_cegis_loop(
         )
         closure_bpl.write_text(closure_txt, encoding="utf-8")
 
-        confirm_txt = instrument_bpl_text(
+        # Always emit a default CONFIRM instance so that artifacts are well-defined even
+        # if we exit early after ENTRY (e.g., ENTRY is SAFE/UNKNOWN).
+        #
+        # For entry_confirm_closure we may emit additional confirm instances with a larger
+        # unroll bound later; those are recorded as separate attempts in the manifest.
+        confirm_bpl = out_dir / f"{stem}.confirm.unroll{confirm_unroll}.bpl"
+        confirm_log = out_dir / f"{stem}.confirm.unroll{confirm_unroll}.log"
+        confirm_txt0 = instrument_bpl_text(
             bpl_text=base_text,
             stage=WraparoundStage.CONFIRM,
             pump_reg=pump_reg,
@@ -642,8 +669,8 @@ def _run_cegis_loop(
             step_op=step_op,
             step_delta=step_delta,
         )
-        confirm_txt = unroll_mainprocedure_loop_text(bpl_text=confirm_txt, steps=confirm_unroll)
-        confirm_bpl.write_text(confirm_txt, encoding="utf-8")
+        confirm_txt0 = unroll_mainprocedure_loop_text(bpl_text=confirm_txt0, steps=confirm_unroll)
+        confirm_bpl.write_text(confirm_txt0, encoding="utf-8")
 
         artifacts = CegisAttemptArtifacts(
             entry_bpl=str(entry_bpl),
@@ -693,6 +720,7 @@ def _run_cegis_loop(
                 resource_limits=resource_limits,
             )
             if closure_res.is_safe:
+                # Use the default unroll bound for legacy ordering.
                 confirm_res = runner.run(
                     stage="confirm",
                     input_bpl=confirm_bpl,
@@ -716,17 +744,73 @@ def _run_cegis_loop(
 
         else:
             # entry_confirm_closure: run confirm first; only certify with closure if confirm finds a bug.
-            confirm_res = runner.run(
-                stage="confirm",
-                input_bpl=confirm_bpl,
-                log_path=confirm_log,
-                ultimate_home=ultimate_home_root / stem / "confirm",
-                toolchain=toolchain,
-                settings=settings,
-                timeout_seconds=timeout_seconds,
-                resource_limits=resource_limits,
-            )
-            if confirm_res.is_unsafe:
+            #
+            # We try a short unroll schedule because some bugs require a slightly longer suffix.
+            confirm_found_bug = False
+            for unroll in _confirm_unroll_schedule(base=confirm_unroll, max_unroll=max_confirm_unroll):
+                confirm_bpl = out_dir / f"{stem}.confirm.unroll{unroll}.bpl"
+                confirm_log = out_dir / f"{stem}.confirm.unroll{unroll}.log"
+
+                confirm_txt = instrument_bpl_text(
+                    bpl_text=base_text,
+                    stage=WraparoundStage.CONFIRM,
+                    pump_reg=pump_reg,
+                    accel_regs=list(accel_regs),
+                    index_value=index_value,
+                    index_expr=index_expr,
+                    proj_vars=list(proj_vars),
+                    cutpoint_cond=cutpoint_cond,
+                    step_op=step_op,
+                    step_delta=step_delta,
+                )
+                confirm_txt = unroll_mainprocedure_loop_text(bpl_text=confirm_txt, steps=unroll)
+                confirm_bpl.write_text(confirm_txt, encoding="utf-8")
+
+                artifacts = CegisAttemptArtifacts(
+                    entry_bpl=str(entry_bpl),
+                    closure_bpl=str(closure_bpl),
+                    confirm_bpl=str(confirm_bpl),
+                    entry_log=str(entry_log),
+                    closure_log=str(closure_log),
+                    confirm_log=str(confirm_log),
+                )
+
+                # Record which unroll we tried for reproducibility.
+                cfg_i = CegisAttemptConfig(
+                    attempt=cfg.attempt,
+                    pump_reg=cfg.pump_reg,
+                    accel_regs=cfg.accel_regs,
+                    index_value=cfg.index_value,
+                    index_expr=cfg.index_expr,
+                    proj_vars=cfg.proj_vars,
+                    cutpoint_cond=cfg.cutpoint_cond,
+                    step_op=cfg.step_op,
+                    step_delta=cfg.step_delta,
+                    notes=tuple(list(cfg.notes) + [f"confirm_unroll={unroll}"]),
+                )
+
+                confirm_res = runner.run(
+                    stage="confirm",
+                    input_bpl=confirm_bpl,
+                    log_path=confirm_log,
+                    ultimate_home=ultimate_home_root / stem / f"confirm.unroll{unroll}",
+                    toolchain=toolchain,
+                    settings=settings,
+                    timeout_seconds=timeout_seconds,
+                    resource_limits=resource_limits,
+                )
+
+                if not confirm_res.is_unsafe:
+                    # Not a bug under this bound; try a longer suffix.
+                    attempts.append(
+                        CegisAttemptRecord(cfg=cfg_i, artifacts=artifacts, entry=entry_res, closure=None, confirm=confirm_res)
+                    )
+                    _write_manifest(
+                        out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts
+                    )
+                    continue
+
+                confirm_found_bug = True
                 closure_res = runner.run(
                     stage="closure_check",
                     input_bpl=closure_bpl,
@@ -738,22 +822,33 @@ def _run_cegis_loop(
                     resource_limits=resource_limits,
                 )
                 attempts.append(
-                    CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=closure_res, confirm=confirm_res)
+                    CegisAttemptRecord(cfg=cfg_i, artifacts=artifacts, entry=entry_res, closure=closure_res, confirm=confirm_res)
                 )
                 _write_manifest(
                     out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts
                 )
                 break
 
-            attempts.append(CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=None, confirm=confirm_res))
-            _write_manifest(out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts)
+            if confirm_found_bug:
+                # We ran closure (recorded above); only accept if closure is SAFE.
+                if closure_res is not None and closure_res.is_safe:  # type: ignore[truthy-bool]
+                    break
+            else:
+                # No confirm UNSAFE even after unroll growth: don't waste time refining closure/projection.
+                break
 
         if index_expr is not None and cand.index_value is not None:
             index_expr = None
             index_value = int(cand.index_value)
             continue
 
-        proj_vars = _refine_proj_vars_greedy(proj_vars, mandatory=mandatory_proj, max_drops=2)
+        # Projection refinement: progressively drop more non-mandatory vars. This is intentionally
+        # solver-agnostic (we use closure_check itself as the refinement oracle across iterations).
+        max_drops = min(len([v for v in proj_vars if v not in set(mandatory_proj)]), 2 + it * 3)
+        if max_drops <= 0:
+            # Nothing left to drop; keep iterating to allow index stabilization, etc.
+            continue
+        proj_vars = _refine_proj_vars_greedy(proj_vars, mandatory=mandatory_proj, max_drops=max_drops)
 
     return _write_manifest(out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts)
 
@@ -769,6 +864,7 @@ def run_wraparound_cegis_multi(
     enable_slicing: bool = True,
     pipeline_two_stage: bool = True,
     confirm_unroll: int = 3,
+    max_confirm_unroll: int = 12,
     max_iters: int = 6,
     stage_order: str = "entry_confirm_closure",
     max_targets: int = 8,
@@ -898,6 +994,7 @@ def run_wraparound_cegis_multi(
             timeout_seconds=timeout_seconds,
             resource_limits=resource_limits,
             confirm_unroll=confirm_unroll,
+            max_confirm_unroll=max_confirm_unroll,
             max_iters=max_iters,
             runner=runner,
             toolchain=tc_def,

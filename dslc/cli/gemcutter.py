@@ -336,6 +336,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Unroll steps for wraparound confirm (default: 3).",
     )
     ap.add_argument(
+        "--wraparound-max-confirm-unroll",
+        type=int,
+        default=12,
+        help="Max unroll steps for wraparound confirm growth (default: 12).",
+    )
+    ap.add_argument(
         "--wraparound-max-iters",
         type=int,
         default=6,
@@ -453,6 +459,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     enable_slicing=enable_slicing,
                     pipeline_two_stage=pipeline_two_stage,
                     confirm_unroll=int(args.wraparound_confirm_unroll),
+                    max_confirm_unroll=int(args.wraparound_max_confirm_unroll),
                     max_iters=int(args.wraparound_max_iters),
                     stage_order=str(args.wraparound_stage_order),
                     max_targets=int(args.wraparound_max_targets),
