@@ -57,7 +57,9 @@
 - Boogie 后端（语义编码的核心）：`dslc/backends/boogie_backend.py` + `dslc/backends/boogie_harness.py`（入口：`dslc/backends/boogie.py`）
 - wrap-around 加速变换：`dslc/transform/wraparound.py`
 - wrap-around 任务生成（不跑求解器）：`dslc/workflows/wraparound.py`
-- 一键跑 wrap-around 管线：`./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）
+- wrap-around CEGIS/CEGAR（集成到主验证管线）：`dslc/workflows/wraparound_cegis.py`
+- 主入口：`./bin/procurator verify --wraparound auto|force|off`（实现：`dslc/cli/gemcutter.py`）
+- （调试入口，非主流程）`./bin/procurator wraparound`（实现：`dslc/cli/wraparound.py`）
 
 ---
 
@@ -613,6 +615,73 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 
 - `mainProcedure()` 的 `while(true)`
 - 其中的 `call main();` 与 `procurator_step := procurator_step + 1;`
+
+### 6.1 wraparound 作为主验证管线的一个阶段（auto）
+
+本仓库不再把 wraparound 当作一个“独立命令/独立论文技巧”，而是把它内建为 `procurator verify` 的一个 **可选阶段**（默认 `--wraparound auto`）。其目标不是“证明溢出存在”，而是把“溢出导致的功能违例”以 **sound 的方式** 变成可复现的反例：若确认存在 bug，则同时给出前缀可达性与泵闭包性（从而保证 fast-forward 的语义可信）；若确认不存在 bug，则不会浪费时间去证明闭包。
+
+#### 6.1.1 变量分层：Observed / Driver / Wraparound group
+
+为了决定“是否需要走 wraparound”，以及“哪些寄存器要一起快进”，我们把变量分为三层：
+
+**A. Observed variables**：断言直接观测到的量。具体是 `.prop` 里 `assert { ... }` / `global assert { ... }` 中直接出现的变量（跨节点寄存器槽、hdr/meta、ghost 变量）。
+
+**B. Driver variables**：能改变 observed 真假的驱动量。它们不一定出现在断言里，但必须满足至少一种关系：
+
+1) **数据驱动**：其值（dataflow）流入 observed 表达式；
+2) **控制驱动**：其出现在 guard / table match key / 分支条件中，决定 observed 量是否被写、写成什么、是否投递；
+3) **跨节点驱动**：其影响 on-wire 字段（`hdr.*`），从而影响下游节点的寄存器更新或 observed 量。
+
+工程上我们避免自己在 Python 里重做控制依赖分析，而是复用 P4B slicer 的 CDG/DDG：只要 observed 被作为 slice seed，slicer 保留下来的 `keepVarNames` 自然包含大量 control driver（guard/key）。此外，dslc 会把 `hdr.*` 沿拓扑做 dst→src 的闭包传播，保证跨节点 on-wire driver 不会被上游切掉。
+
+**C. Wraparound group**：要快进的一组寄存器槽。group 不是“driver 的全集”，而是：在某个稳定泵（pump）/周期摘要成立时，为了把系统推进到 pre-wrap 边界，必须 **lockstep 对齐** 并一起快进的寄存器集合。实践中我们用一个保守但可扩展的选择策略：
+
+1) 先尝试把同一类更新（同 `step_op/step_delta`、同 cutpoint）能兼容的寄存器合成一个粗 group；
+2) 若找不到 bug，再回退到单寄存器粒度（必要时再做二分拆分/组合）。
+
+该“先粗后细”的策略保证：我们不会一开始就对寄存器做指数级排列组合，而是用少量尝试覆盖最常见的“同一 decision point 需要 lockstep 的寄存器”场景。
+
+#### 6.1.2 阶段顺序与 soundness gate：ENTRY → CONFIRM → CLOSURE
+
+集成式 wraparound 使用三段检查，其中 **CONFIRM 先于 CLOSURE**（更准确说是：在 ENTRY 通过后，先尝试 confirm 找 bug；只有 bug 存在才做 closure 证 sound）：
+
+1) **ENTRY_CHECK（前缀可达性 gate）**：证明“当前 deterministic round + env 约束”不是 vacuous/矛盾的；否则后续闭包与后缀验证都没有意义。
+2) **CONFIRM（后缀 bug finding）**：在 fast-forward 到 `MAX` 后，用 two-phase env（`dsl_pump_mode`）触发 `MAX->0` 并注入功能性后缀（例如 P2C query），直接寻找功能断言的反例。
+3) **CLOSURE_CHECK（证实 fast-forward sound）**：仅当 CONFIRM 找到 `UNSAFE` 时执行。它证明：在 pumping 输入形状下，从 cutpoint 开始跑完一轮 deterministic schedule，寄存器净增 `+delta` 且投影变量不变（闭包成立）。ENTRY+ CLOSURE 共同保证：confirm 反例不是“凭空假设寄存器在翻转前就已到达 MAX”的伪反例，而是来自一个可重复泵到达翻转前边界的真实前缀。
+
+对应实现：`dslc/workflows/wraparound_cegis.py`（`stage_order=entry_confirm_closure`），其产物默认落在同一个 `verify` run 目录下的 `wraparound/` 子目录中，并在 `wraparound.cegis.manifest.json` 里记录每轮尝试与日志。
+
+#### 6.1.3 候选枚举与“先粗后细”拆分（避免指数级组合）
+
+当 P4B meta 给出多个 `wraparound_updates`（例如 leafload/spineload 或多个槽位）时，我们采用一个工程化的枚举策略：
+
+1) **粗 group（group0）**：当多个候选在以下维度上“兼容”时，把它们合并成一个 group：
+   - `step_op/step_delta` 相同（例如都是 `+1`）；
+   - cutpoint 相同（例如都以 `procurator_phase==0` 为周期边界）；
+   - index 表达式相同（例如都固定到同一个 eport/槽位）。
+   合并后，我们把 group 里的寄存器都视为 accel_regs，并在 closure_check 中用同一个 `seq0` 对齐（lockstep 快进）。
+
+2) **单寄存器粒度**：若 group0 无法触发 bug（CONFIRM 未发现 UNSAFE），或 group0 不兼容，则回退为逐个寄存器候选尝试。
+
+3) **（可选）再拆分**：若单寄存器仍不稳定且候选很多，可进一步做二分拆分/按模块名聚类拆分（例如 leafload vs spineload），但这不是系统正确性的必要条件，仅影响性能。
+
+对应实现：`dslc/workflows/wraparound_cegis.py:run_wraparound_cegis_multi()`。
+
+#### 6.1.4 与主验证的编排关系（rule-based 跳过）
+
+`procurator verify` 的主流程是：
+
+1) **优先尝试 wraparound（CEGIS）**：因为这类 bug 往往需要极长前缀（`0 -> MAX-1 -> wrap`），常规 bug finding 在工程上很难“跑到翻转点”。因此主流程默认先跑 wraparound；
+2) 若 wraparound 产出 **CERTIFIED UNSAFE**（ENTRY=UNSAFE 且 CONFIRM=UNSAFE 且 CLOSURE=SAFE），则立即返回并报告 UNSAFE；
+3) 否则回退到常规验证（concurrent harness / 原语义）以捕获其它类型的 bug。
+
+是否启用 wraparound 由 `--wraparound` 控制：
+
+- `--wraparound off`：直接跳过；
+- `--wraparound auto`：运行 wraparound，但若无法推断候选（`infer_wraparound_candidates` 为空）则快速跳过并回退到常规验证；
+- `--wraparound force`：强制进入（用于调试/论文复现；若 wraparound 管线异常则直接报错）。
+
+对应实现：`dslc/cli/gemcutter.py` 中 `--wraparound` 相关参数与后处理逻辑。
 
 ### 6.2 wraparound 变换（Boogie→Boogie）
 

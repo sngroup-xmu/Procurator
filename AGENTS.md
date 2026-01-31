@@ -41,8 +41,9 @@
                   v
      Ultimate (GemCutter/Automizer/...) -> witness/SAFE/UNKNOWN
 
-  wraparound fast-forward (optional):
-    base .bpl -> dslc/workflows/wraparound.py -> staged .bpl -> Ultimate
+  wraparound fast-forward (integrated):
+    `procurator verify` (default `--wraparound auto`) may run:
+      base .bpl -> dslc/workflows/wraparound_cegis.py -> staged .bpl -> Ultimate
 ```
 
 ### 0.2 仓库模块与职责（单一职责划分）
@@ -50,7 +51,8 @@
 **DSL 前端与系统级建模**
 
 - `dslc/compiler.py`：DSL 解析、语义检查、后端调用；统一对外的编译入口/开关（例如 `--no-prune`、`--por`、`--boogie-harness`、`--env`、`--no-two-stage`）。
-- `dslc/workflows/wraparound.py`：wraparound 加速管线的“产物生成器”（base 编译 + 候选推断 + staged `.bpl` + manifest），**不负责**运行 Ultimate。
+- `dslc/workflows/wraparound.py`：wraparound 产物生成器（legacy/debug）。
+- `dslc/workflows/wraparound_cegis.py`：wraparound CEGIS/CEGAR（主验证管线集成：ENTRY/CONFIRM/CLOSURE）。
 - `dslc/backends/boogie.py`：后端入口（对外 API 稳定），仅 re-export `BoogieBackend`。
 - `dslc/backends/boogie_backend.py`：Boogie 后端编排（加载/调用 P4B、拼接各节点、merge 产物）。
 - `dslc/backends/boogie_harness.py`：系统级 harness 生成（并发/串行两种 harness；pass-atomic / two-stage）。
