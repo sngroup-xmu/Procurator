@@ -136,10 +136,12 @@ def _resolve_default_toolchains(
         tc_no_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety.xml"
         tc_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml"
         tc_legacy = root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-Witness.xml"
-        if tc_no_witness.exists():
-            toolchain = tc_no_witness.resolve()
-        elif tc_witness.exists():
+        # Prefer witness by default for bug finding; closure_check defaults to a
+        # witness-free toolchain to avoid crashes on some SAFE tasks.
+        if tc_witness.exists():
             toolchain = tc_witness.resolve()
+        elif tc_no_witness.exists():
+            toolchain = tc_no_witness.resolve()
         else:
             toolchain = tc_legacy.resolve()
 
@@ -379,8 +381,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--cegis",
         action="store_true",
         help=(
-            "Run the iterative CEGIS pipeline (ENTRY_CHECK -> CLOSURE_CHECK -> CONFIRM) "
-            "with automatic refinement. This is the recommended mode for wraparound bugs."
+            "(Deprecated) CEGIS is now the default behavior when --ultimate is provided. "
+            "Use --legacy to force the old multi-stage pipeline."
+        ),
+    )
+    ap.add_argument(
+        "--legacy",
+        action="store_true",
+        help=(
+            "Use the legacy multi-stage wraparound pipeline (closure_check/pump/accel/confirm) "
+            "without iterative refinement. Not recommended for wraparound bugs."
         ),
     )
     ap.add_argument(
@@ -488,10 +498,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "`P4B-Translator/build-host/p4c-translator` or `dslc/toolchain/p4b_docker.sh`)"
         )
 
-    # Iterative CEGIS mode: delegate to the workflow runner and keep this CLI thin.
-    if args.cegis:
-        if not args.ultimate:
-            raise SystemExit("--cegis requires --ultimate (path to Ultimate CLI executable)")
+    # CEGIS is the default behavior for wraparound bug finding when Ultimate is available.
+    # Use `--legacy` to force the old multi-stage pipeline.
+    if (not args.legacy) and args.ultimate:
         ultimate = Path(args.ultimate).expanduser().resolve()
 
         toolchain, closure_toolchain = _resolve_default_toolchains(
@@ -554,7 +563,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             settings=settings,
             closure_settings=closure_settings,
         )
+        # Print a stable summary that downstream scripts (e.g. ablations) can parse.
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        print(f"[OK] base bpl: {manifest.get('base_bpl')}")
         print(f"[OK] cegis manifest: {manifest_path}")
+
+        attempts = manifest.get("attempts") or []
+        if attempts:
+            last = attempts[-1]
+            art = last.get("artifacts") or {}
+            for stage_key, log_key, res_key in [
+                ("entry_check", "entry_log", "entry"),
+                ("closure_check", "closure_log", "closure"),
+                ("confirm", "confirm_log", "confirm"),
+            ]:
+                res = last.get(res_key)
+                if not res:
+                    continue
+                print(f"[STAGE] {stage_key}")
+                print(f"[RESULT] {res.get('result_line') or 'RESULT: UNKNOWN'}")
+                if art.get(log_key):
+                    print(f"[LOG] {art.get(log_key)}")
         return 0
 
     # Compile base BPL (sequential harness; no trace arrays).

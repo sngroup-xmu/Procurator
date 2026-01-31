@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,6 +13,7 @@ from dslc.cli.common import find_default_p4b_bin, fresh_run_dir, wrap_resource_l
 from dslc.compiler import compile_spec_file
 from dslc.speclang import decompose_global_asserts, emit_spec_text, parse_model, parse_tree
 from dslc.utils.repo import repo_root
+from dslc.workflows.wraparound_cegis import run_wraparound_cegis_multi
 
 
 @dataclass(frozen=True)
@@ -49,6 +51,56 @@ def _is_unsafe(log_text: str) -> bool:
             return False
     low = log_text.lower()
     return "proved your program to be incorrect" in low or "result: unsafe" in low
+
+
+def _result_line_is_safe(result_line: Optional[str]) -> bool:
+    if not result_line:
+        return False
+    s = result_line.lower()
+    return ("result: safe" in s) or ("proved your program to be correct" in s)
+
+
+def _result_line_is_unsafe(result_line: Optional[str]) -> bool:
+    if not result_line:
+        return False
+    s = result_line.lower()
+    return ("result: unsafe" in s) or ("proved your program to be incorrect" in s)
+
+
+def _wraparound_manifest_certified_unsafe(manifest_path: Path) -> bool:
+    """
+    A wraparound run is a sound UNSAFE witness iff:
+      - ENTRY is UNSAFE (the pump cutpoint is reachable from init), and
+      - CONFIRM is UNSAFE (the bug is reachable from the fast-forward state), and
+      - CLOSURE is SAFE (the pump summary is sound for the chosen projection).
+
+    We treat this as a *certificate* for early exit in the main pipeline.
+    """
+
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    attempts = data.get("attempts") or []
+    if not isinstance(attempts, list):
+        return False
+
+    for a in attempts:
+        if not isinstance(a, dict):
+            continue
+        entry = a.get("entry") or {}
+        confirm = a.get("confirm") or {}
+        closure = a.get("closure") or {}
+        if not isinstance(entry, dict) or not isinstance(confirm, dict) or not isinstance(closure, dict):
+            continue
+
+        if (
+            _result_line_is_unsafe(entry.get("result_line"))
+            and _result_line_is_unsafe(confirm.get("result_line"))
+            and _result_line_is_safe(closure.get("result_line"))
+        ):
+            return True
+    return False
 
 
 def _run_one(
@@ -261,6 +313,43 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="Disable CPU/IO niceness limits when running Ultimate (may freeze WSL on heavy runs).",
     )
+    ap.add_argument(
+        "--wraparound",
+        choices=["off", "auto", "force"],
+        default="auto",
+        help=(
+            "Wraparound acceleration integrated into `procurator verify`. "
+            "'auto' runs wraparound CEGIS only when wraparound candidates are inferred; "
+            "'force' runs it regardless; 'off' disables it."
+        ),
+    )
+    ap.add_argument(
+        "--wraparound-max-targets",
+        type=int,
+        default=8,
+        help="Max number of wraparound target candidates to attempt (default: 8).",
+    )
+    ap.add_argument(
+        "--wraparound-confirm-unroll",
+        type=int,
+        default=3,
+        help="Unroll steps for wraparound confirm (default: 3).",
+    )
+    ap.add_argument(
+        "--wraparound-max-iters",
+        type=int,
+        default=6,
+        help="Max refinement iterations per wraparound target (default: 6).",
+    )
+    ap.add_argument(
+        "--wraparound-stage-order",
+        choices=["entry_closure_confirm", "entry_confirm_closure"],
+        default="entry_confirm_closure",
+        help=(
+            "Stage order for wraparound attempts. "
+            "Recommended for main verification pipeline: entry_confirm_closure."
+        ),
+    )
 
     args = ap.parse_args(list(argv) if argv is not None else None)
 
@@ -343,6 +432,42 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if args.ultimate_home
             else out_bpl.parent / "ultimate-home",
         )
+
+        # Wraparound first (integrated CEGIS).
+        #
+        # Rationale: wraparound bugs typically require an extremely long prefix (0 -> MAX),
+        # which makes plain bug finding impractical. We therefore try wraparound before the
+        # full verification run, and fall back to full verification only when wraparound
+        # does not produce a certified counterexample.
+        if args.wraparound != "off" and ultimate and not args.ultimate_async:
+            wrap_dir = job.out_bpl.parent / "wraparound"
+            wrap_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                manifests = run_wraparound_cegis_multi(
+                    spec_path=spec_path,
+                    out_dir=wrap_dir,
+                    p4b_bin=p4b_bin,
+                    ultimate=ultimate,
+                    timeout_seconds=max(0, int(args.ultimate_timeout_seconds)),
+                    resource_limits=not args.no_resource_limits,
+                    enable_slicing=enable_slicing,
+                    pipeline_two_stage=pipeline_two_stage,
+                    confirm_unroll=int(args.wraparound_confirm_unroll),
+                    max_iters=int(args.wraparound_max_iters),
+                    stage_order=str(args.wraparound_stage_order),
+                    max_targets=int(args.wraparound_max_targets),
+                )
+            except Exception as e:
+                if args.wraparound == "force":
+                    raise
+                print(f"[WRAP] skip: wraparound CEGIS failed ({type(e).__name__}: {e})")
+                manifests = []
+
+            for mp in manifests:
+                if _wraparound_manifest_certified_unsafe(mp):
+                    print(f"[WRAP] CERTIFIED UNSAFE: {mp}")
+                    return 0
+
         rc = _run_one(
             job=job,
             p4b_bin=p4b_bin,

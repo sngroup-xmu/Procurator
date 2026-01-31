@@ -80,7 +80,9 @@ def _default_toolchain_paths(*, root: Path) -> Tuple[Path, Path, Path, Path]:
     tc_no_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety.xml"
     tc_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml"
     tc_legacy = root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-Witness.xml"
-    toolchain = tc_no_witness if tc_no_witness.exists() else (tc_witness if tc_witness.exists() else tc_legacy)
+    # Prefer the witness toolchain for bug finding; closure_check uses its own
+    # witness-free toolchain to avoid Ultimate crashes on some SAFE tasks.
+    toolchain = tc_witness if tc_witness.exists() else (tc_no_witness if tc_no_witness.exists() else tc_legacy)
 
     tc_closure = root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-ReachSafety.xml"
     closure_toolchain = tc_closure if tc_closure.exists() else toolchain
@@ -141,6 +143,26 @@ class CegisManifest:
     attempts: List[CegisAttemptRecord]
 
 
+def _write_manifest(*, out_dir: Path, spec_path: Path, base_bpl: Path, work_dir: Path, cand: WraparoundCandidate, attempts: List[CegisAttemptRecord]) -> Path:
+    """
+    Write the current CEGIS manifest (incremental).
+
+    We write after each attempt so an interrupted run still leaves a reproducible
+    record of what was tried and which artifacts/logs were produced.
+    """
+
+    manifest = CegisManifest(
+        spec=str(spec_path),
+        base_bpl=str(base_bpl),
+        work_dir=str(work_dir),
+        candidate_reason=cand.reason,
+        attempts=attempts,
+    )
+    manifest_path = out_dir / "wraparound.cegis.manifest.json"
+    manifest_path.write_text(json.dumps(asdict(manifest), indent=2, sort_keys=True), encoding="utf-8")
+    return manifest_path
+
+
 class UltimateStageRunner:
     def __init__(self, *, ultimate: Path) -> None:
         self._ultimate = ultimate
@@ -196,8 +218,25 @@ class UltimateStageRunner:
 
 
 def _is_distcache_like(spec_text: str) -> bool:
-    # Cheap classifier: DistCache benchmarks and entries commonly mention these tables/fields.
-    return ("hash_leaf_partition_tbl" in spec_text) or ("hash_spine_partition_tbl" in spec_text)
+    """
+    Best-effort classifier for DistCache-style specs.
+
+    We purposely keep this broad: DistCache specs do not necessarily mention
+    concrete table names, but they typically mention DistCache-specific meta
+    fields (hashval_for_partition / hashval_for_spine_partition) and/or import
+    paths containing "distcache".
+    """
+
+    lo = spec_text.lower()
+    if "distcache" in lo:
+        return True
+    # Meta fields used in clientTrack/leaf DistCache pipelines.
+    if "hashval_for_partition" in spec_text or "hashval_for_spine_partition" in spec_text:
+        return True
+    # Table names appear in some specs as comments/explanations.
+    if ("hash_leaf_partition_tbl" in spec_text) or ("hash_spine_partition_tbl" in spec_text):
+        return True
+    return False
 
 
 _RE_PROP_IMPORT_ENTRIES = re.compile(r"\bentries\s+\"([^\"]+)\"\s*;", flags=re.MULTILINE)
@@ -292,16 +331,45 @@ def _refine_proj_vars_greedy(
     """
 
     mandatory_set = set(mandatory)
+
+    def _noise_rank(v: str) -> Tuple[int, int]:
+        """
+        Lower rank = drop earlier.
+
+        Heuristic:
+          - Packet-local meta/hash/index values tend to break closure and add SMT noise.
+          - Inbox/egress counts are usually meaningful for scheduler/queue stability and
+            are kept via `mandatory`.
+        """
+
+        low = v.lower()
+        noisy = 0
+        if "hash" in low:
+            noisy = -3
+        elif "switchidx" in low or low.endswith("idx") or ".idx" in low:
+            noisy = -2
+        elif "tmp" in low or "scratch" in low:
+            noisy = -1
+        # Prefer dropping meta.* over other namespaces.
+        ns = 0
+        if "_meta." in v or v.startswith("meta."):
+            ns = -1
+        return (noisy, ns)
+
     out = list(proj_vars)
+    # Choose a deterministic drop order to keep manifests stable.
+    candidates = [v for v in out if v not in mandatory_set]
+    candidates.sort(key=_noise_rank)
+
     drops = 0
-    # Drop from the end: later vars are usually derived meta/hash fields.
-    i = len(out) - 1
-    while i >= 0 and drops < max_drops:
-        v = out[i]
-        if v not in mandatory_set:
-            out.pop(i)
-            drops += 1
-        i -= 1
+    for v in candidates:
+        if drops >= max_drops:
+            break
+        try:
+            out.remove(v)
+        except ValueError:
+            continue
+        drops += 1
     return out
 
 
@@ -309,14 +377,17 @@ def run_wraparound_cegis(
     *,
     spec_path: Path,
     out_dir: Path,
-    p4b_bin: Path,
+    p4b_bin: Optional[Path],
     ultimate: Path,
+    candidate: Optional[WraparoundCandidate] = None,
     timeout_seconds: int = 1200,
     resource_limits: bool = True,
     enable_slicing: bool = True,
     pipeline_two_stage: bool = True,
     confirm_unroll: int = 3,
     max_iters: int = 6,
+    # Default order for the standalone wraparound workflow.
+    stage_order: str = "entry_closure_confirm",
     runner: Optional[StageRunner] = None,
     toolchain: Optional[Path] = None,
     closure_toolchain: Optional[Path] = None,
@@ -324,12 +395,17 @@ def run_wraparound_cegis(
     closure_settings: Optional[Path] = None,
 ) -> Path:
     """
-    Iterative CEGIS loop for wraparound sound bug finding.
+    Iterative wraparound CEGIS loop for sound bug finding.
 
-    Pipeline per attempt:
-      ENTRY_CHECK  -> must be UNSAFE (non-vacuous reachability)
-      CLOSURE_CHECK -> must be SAFE  (closed +1 summary under the chosen projection)
-      CONFIRM       -> expected UNSAFE (functional bug)
+    We support multiple stage orders:
+
+      - entry_closure_confirm (default): ENTRY -> CLOSURE -> CONFIRM
+        Useful when you expect closure to hold and want to gate confirm on a
+        proven pump summary.
+
+      - entry_confirm_closure: ENTRY -> CONFIRM -> CLOSURE
+        Recommended when integrating wraparound into the main verification
+        pipeline: if CONFIRM does not find a bug, CLOSURE is wasted work.
 
     Refinement (when closure_check is not SAFE):
       - distcache-specific index stabilization (index_expr -> constant eport), if applicable;
@@ -385,12 +461,14 @@ def run_wraparound_cegis(
                 base_bpl.write_text(base_text, encoding="utf-8")
         partition_ports = _infer_distcache_partition_eports(spec_text, spec_dir=spec_path.parent)
 
-    # 4) Infer candidates from spec/meta.
-    cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=base_text, meta_by_node=meta_by_node)
-    if not cands:
-        raise WraparoundCegisError("failed to infer wraparound candidates; pass a spec that exposes a counter update")
-
-    cand = cands[0]
+    # 4) Infer candidates from spec/meta unless caller provided an explicit candidate.
+    if candidate is None:
+        cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=base_text, meta_by_node=meta_by_node)
+        if not cands:
+            raise WraparoundCegisError("failed to infer wraparound candidates; pass a spec that exposes a counter update")
+        cand = cands[0]
+    else:
+        cand = candidate
 
     # 5) Resolve defaults for solver toolchains/settings.
     root = repo_root()
@@ -420,6 +498,7 @@ def run_wraparound_cegis(
         closure_toolchain=closure_toolchain,
         settings=settings,
         closure_settings=closure_settings,
+        stage_order=stage_order,
     )
     return manifest_path
 
@@ -443,6 +522,7 @@ def _run_cegis_loop(
     closure_toolchain: Path,
     settings: Path,
     closure_settings: Path,
+    stage_order: str,
 ) -> Path:
     """
     Core iterative loop (unit-testable via a fake StageRunner).
@@ -483,11 +563,22 @@ def _run_cegis_loop(
     mandatory_proj = sorted(set(mandatory_proj))
 
     attempts: List[CegisAttemptRecord] = []
+    base_proj_set = set(proj_vars)
+    base_index_expr = index_expr
+    base_index_value = index_value
 
     for it in range(max_iters):
         notes: List[str] = []
         if it > 0:
             notes.append(f"refine_iter={it}")
+        if base_index_expr is not None and index_expr is None:
+            notes.append("index_expr=const")
+        if int(index_value) != int(base_index_value):
+            notes.append(f"index_value={index_value}")
+        dropped_proj = sorted(base_proj_set.difference(set(proj_vars)))
+        if dropped_proj:
+            # Keep it stable and grep-friendly for manifests.
+            notes.append("drop_proj_vars=" + ",".join(dropped_proj))
 
         cfg = CegisAttemptConfig(
             attempt=it,
@@ -570,28 +661,61 @@ def _run_cegis_loop(
             input_bpl=entry_bpl,
             log_path=entry_log,
             ultimate_home=ultimate_home_root / stem / "entry",
-            toolchain=closure_toolchain,
-            settings=closure_settings,
+            # ENTRY_CHECK is a pure reachability sanity gate (is the deterministic
+            # round executable). Using the closure toolchain here can be
+            # surprisingly slow and, depending on the settings, may yield UNKNOWN.
+            toolchain=toolchain,
+            settings=settings,
             timeout_seconds=timeout_seconds,
             resource_limits=resource_limits,
         )
 
         if not entry_res.is_unsafe:
             attempts.append(CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=None, confirm=None))
+            _write_manifest(out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts)
             break
 
-        closure_res = runner.run(
-            stage="closure_check",
-            input_bpl=closure_bpl,
-            log_path=closure_log,
-            ultimate_home=ultimate_home_root / stem / "closure",
-            toolchain=closure_toolchain,
-            settings=closure_settings,
-            timeout_seconds=timeout_seconds,
-            resource_limits=resource_limits,
-        )
+        if stage_order not in {"entry_closure_confirm", "entry_confirm_closure"}:
+            raise WraparoundCegisError(f"unknown stage_order: {stage_order}")
 
-        if closure_res.is_safe:
+        closure_res: Optional[StageRunResult] = None
+        confirm_res: Optional[StageRunResult] = None
+
+        if stage_order == "entry_closure_confirm":
+            closure_res = runner.run(
+                stage="closure_check",
+                input_bpl=closure_bpl,
+                log_path=closure_log,
+                ultimate_home=ultimate_home_root / stem / "closure",
+                toolchain=closure_toolchain,
+                settings=closure_settings,
+                timeout_seconds=timeout_seconds,
+                resource_limits=resource_limits,
+            )
+            if closure_res.is_safe:
+                confirm_res = runner.run(
+                    stage="confirm",
+                    input_bpl=confirm_bpl,
+                    log_path=confirm_log,
+                    ultimate_home=ultimate_home_root / stem / "confirm",
+                    toolchain=toolchain,
+                    settings=settings,
+                    timeout_seconds=timeout_seconds,
+                    resource_limits=resource_limits,
+                )
+                attempts.append(
+                    CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=closure_res, confirm=confirm_res)
+                )
+                _write_manifest(
+                    out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts
+                )
+                break
+
+            attempts.append(CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=closure_res, confirm=None))
+            _write_manifest(out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts)
+
+        else:
+            # entry_confirm_closure: run confirm first; only certify with closure if confirm finds a bug.
             confirm_res = runner.run(
                 stage="confirm",
                 input_bpl=confirm_bpl,
@@ -602,10 +726,27 @@ def _run_cegis_loop(
                 timeout_seconds=timeout_seconds,
                 resource_limits=resource_limits,
             )
-            attempts.append(CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=closure_res, confirm=confirm_res))
-            break
+            if confirm_res.is_unsafe:
+                closure_res = runner.run(
+                    stage="closure_check",
+                    input_bpl=closure_bpl,
+                    log_path=closure_log,
+                    ultimate_home=ultimate_home_root / stem / "closure",
+                    toolchain=closure_toolchain,
+                    settings=closure_settings,
+                    timeout_seconds=timeout_seconds,
+                    resource_limits=resource_limits,
+                )
+                attempts.append(
+                    CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=closure_res, confirm=confirm_res)
+                )
+                _write_manifest(
+                    out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts
+                )
+                break
 
-        attempts.append(CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=closure_res, confirm=None))
+            attempts.append(CegisAttemptRecord(cfg=cfg, artifacts=artifacts, entry=entry_res, closure=None, confirm=confirm_res))
+            _write_manifest(out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts)
 
         if index_expr is not None and cand.index_value is not None:
             index_expr = None
@@ -614,13 +755,156 @@ def _run_cegis_loop(
 
         proj_vars = _refine_proj_vars_greedy(proj_vars, mandatory=mandatory_proj, max_drops=2)
 
-    manifest = CegisManifest(
-        spec=str(spec_path),
-        base_bpl=str(base_bpl),
-        work_dir=str(work_dir),
-        candidate_reason=cand.reason,
-        attempts=attempts,
+    return _write_manifest(out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts)
+
+
+def run_wraparound_cegis_multi(
+    *,
+    spec_path: Path,
+    out_dir: Path,
+    p4b_bin: Optional[Path],
+    ultimate: Path,
+    timeout_seconds: int = 1200,
+    resource_limits: bool = True,
+    enable_slicing: bool = True,
+    pipeline_two_stage: bool = True,
+    confirm_unroll: int = 3,
+    max_iters: int = 6,
+    stage_order: str = "entry_confirm_closure",
+    max_targets: int = 8,
+) -> List[Path]:
+    """
+    Run wraparound CEGIS for multiple candidates (best-effort).
+
+    This is intended for integration into the main verification pipeline:
+      - try a coarse "group" first (when candidates are compatible),
+      - then fall back to per-register candidates.
+
+    Returns a list of manifest paths (one per attempted target), in order.
+    """
+
+    spec_path = spec_path.resolve()
+    out_dir = out_dir.resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Compile once and infer candidates.
+    work_dir = out_dir / "work"
+    base_bpl = out_dir / f"{spec_path.stem}.base.bpl"
+    compile_spec_file(
+        spec_path=spec_path,
+        backend="boogie",
+        out=base_bpl,
+        p4b_bin=p4b_bin,
+        work_dir=work_dir,
+        max_env_inputs=False,
+        enable_slicing=enable_slicing,
+        prune_env_inputs=True,
+        por_enabled=False,
+        por_guard_enabled=True,
+        boogie_harness="sequential",
+        pipeline_two_stage=pipeline_two_stage,
     )
-    manifest_path = out_dir / "wraparound.cegis.manifest.json"
-    manifest_path.write_text(json.dumps(asdict(manifest), indent=2, sort_keys=True), encoding="utf-8")
-    return manifest_path
+    spec_text = spec_path.read_text(encoding="utf-8", errors="replace")
+    base_text = base_bpl.read_text(encoding="utf-8", errors="replace")
+
+    meta_by_node: Dict[str, dict] = {}
+    for p in sorted(work_dir.glob("*.meta.json")):
+        alias = p.name[: -len(".meta.json")]
+        try:
+            meta_by_node[alias] = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+    partition_ports: Dict[str, int] = {}
+    if _is_distcache_like(spec_text):
+        caps = _infer_distcache_hash_caps(spec_text, spec_dir=spec_path.parent)
+        if caps:
+            node_prefixes = sorted(set(re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)_meta\.", base_text)))
+            patched = _apply_hash_caps_to_bpl(base_text, node_prefixes=node_prefixes, caps=caps)
+            if patched != base_text:
+                base_text = patched
+                base_bpl.write_text(base_text, encoding="utf-8")
+        partition_ports = _infer_distcache_partition_eports(spec_text, spec_dir=spec_path.parent)
+
+    cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=base_text, meta_by_node=meta_by_node)
+    if not cands:
+        return []
+
+    # Deterministic target ordering for reproducibility.
+    cands = sorted(cands, key=lambda c: (c.pump_reg, str(c.index_value), str(c.index_expr)))
+    cands = cands[: max(1, int(max_targets))]
+
+    roots: List[WraparoundCandidate] = []
+
+    # Try a coarse group if (step_op, step_delta, cutpoint) align.
+    if cands:
+        base0 = cands[0]
+        compatible = all(
+            (c.step_op == base0.step_op)
+            and (int(c.step_delta or 1) == int(base0.step_delta or 1))
+            and (str(c.cutpoint_cond) == str(base0.cutpoint_cond))
+            for c in cands
+        )
+        same_index = all((c.index_value == base0.index_value) and (c.index_expr == base0.index_expr) for c in cands)
+        if compatible and same_index and len(cands) > 1:
+            regs: List[str] = []
+            for c in cands:
+                regs.append(c.pump_reg)
+                regs.extend(list(c.accel_regs))
+            seen = set()
+            uniq_regs: List[str] = []
+            for r in regs:
+                if r not in seen:
+                    seen.add(r)
+                    uniq_regs.append(r)
+            proj: List[str] = []
+            for c in cands:
+                proj.extend(list(c.proj_vars))
+            roots.append(
+                WraparoundCandidate(
+                    pump_reg=base0.pump_reg,
+                    accel_regs=tuple(sorted(set(uniq_regs))),
+                    index_value=base0.index_value,
+                    index_expr=base0.index_expr,
+                    proj_vars=tuple(sorted(set(proj))),
+                    cutpoint_cond=base0.cutpoint_cond,
+                    reason="group0(all_regs): " + "; ".join(sorted(set(c.reason for c in cands))),
+                    step_op=base0.step_op,
+                    step_delta=base0.step_delta,
+                )
+            )
+
+    # Then try each candidate individually.
+    roots.extend(cands)
+
+    # Run CEGIS per root candidate, in isolated subdirectories (reuse the compiled base model).
+    manifests: List[Path] = []
+    root = repo_root()
+    tc_def, tc_cl_def, st_def, st_cl_def = _default_toolchain_paths(root=root)
+    runner = UltimateStageRunner(ultimate=ultimate)
+
+    for i, cand in enumerate(roots):
+        subdir = out_dir / f"target.{i:02d}.{cand.pump_reg}"
+        subdir.mkdir(parents=True, exist_ok=True)
+        mpath = _run_cegis_loop(
+            spec_path=spec_path,
+            spec_text=spec_text,
+            base_bpl=base_bpl,
+            base_text=base_text,
+            out_dir=subdir,
+            work_dir=work_dir,
+            candidate=cand,
+            partition_ports=partition_ports,
+            timeout_seconds=timeout_seconds,
+            resource_limits=resource_limits,
+            confirm_unroll=confirm_unroll,
+            max_iters=max_iters,
+            runner=runner,
+            toolchain=tc_def,
+            closure_toolchain=tc_cl_def,
+            settings=st_def,
+            closure_settings=st_cl_def,
+            stage_order=stage_order,
+        )
+        manifests.append(mpath)
+    return manifests

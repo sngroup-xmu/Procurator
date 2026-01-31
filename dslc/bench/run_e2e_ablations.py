@@ -162,7 +162,15 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--ultimate", default="", help="Path to Ultimate (default: auto-detect)")
     ap.add_argument("--timeout", type=int, default=600, help="Timeout per Ultimate run (seconds)")
     ap.add_argument("--wraparound-timeout", type=int, default=1200, help="Timeout per wraparound stage (seconds)")
-    ap.add_argument("--confirm-unroll", type=int, default=6, help="Unroll bound for wraparound confirm stage")
+    ap.add_argument(
+        "--confirm-unroll",
+        type=int,
+        default=9,
+        help=(
+            "Default unroll bound for wraparound confirm stage. "
+            "Some specs override this internally (e.g., DistCache P2C spineload needs 9 steps)."
+        ),
+    )
     ap.add_argument("--update-usage", action="store_true", help="Update USAGE.md in-place")
     ap.add_argument("--only", choices=["all", "verify", "wraparound"], default="all", help="Subset to run")
     ap.add_argument("--dry-run", action="store_true", help="Print commands but do not execute")
@@ -183,18 +191,21 @@ def main(argv: list[str]) -> int:
     wrap_closure_toolchain = "dslc/toolchain/ultimate/ClosureCheck-ReachSafety.xml"
     wrap_closure_settings = "dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf"
 
+    # Curated regression list for NSDI-style bug-finding (functional, reproducible).
+    #
+    # NOTE: Some older `.prop` files are "wraparound demos" that assert `reg[idx] != 0`;
+    # we do not include them here because they don't capture functional correctness.
     specs_verify = [
-        # Netchain (fast-forward spec is our stable reproducer).
         ("Netchain fast-forward", "Procurator/argo/code/spec/bench/netchain_bug_s1s2_fastforward.prop"),
         ("ATP bound bug", "Procurator/argo/code/spec/bench/atp_bug.prop"),
         ("DistCache leaf pktloss clone/drop", "Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop"),
         ("DistCache CM3/CM4 write wiring", "Procurator/argo/code/spec/bench/distcache_cm34_write_bug.prop"),
         ("DistCache spine cache_frequency idx", "Procurator/argo/code/spec/bench/distcache_spine_cache_frequency_idx_bug.prop"),
-        ("DistCache P2C consistency (hard)", "Procurator/argo/code/spec/bench/distcache_bug.prop"),
     ]
+    # (title, spec, confirm_unroll_override)
     specs_wrap = [
-        ("DistCache leafload wrap-around", "Procurator/argo/code/spec/bench/distcache_leafload_wraparound.prop"),
-        ("DistCache P2C wrong-choice after overflow", "Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop"),
+        ("DistCache P2C wrong-choice after leafload overflow", "Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop", 6),
+        ("DistCache P2C wrong-choice after spineload overflow", "Procurator/argo/code/spec/bench/distcache_p2c_spineload_wraparound_bug.prop", 9),
     ]
 
     cfgs_verify = [
@@ -252,8 +263,6 @@ def main(argv: list[str]) -> int:
                 "closure_check,confirm",
                 "--soundness",
                 "closure",
-                "--confirm-unroll",
-                str(ns.confirm_unroll),
                 "--timeout-seconds",
                 str(ns.wraparound_timeout),
                 "--toolchain",
@@ -278,8 +287,6 @@ def main(argv: list[str]) -> int:
                 "closure_check,confirm",
                 "--soundness",
                 "closure",
-                "--confirm-unroll",
-                str(ns.confirm_unroll),
                 "--timeout-seconds",
                 str(ns.wraparound_timeout),
                 "--no-slicing",
@@ -311,8 +318,8 @@ def main(argv: list[str]) -> int:
         ]
     ]
 
-    def run_one(spec: str, cfg: RunCfg) -> RunResult:
-        cmd = cfg.args + ["--spec", spec]
+    def run_one(spec: str, cfg: RunCfg, extra_args: Optional[list[str]] = None) -> RunResult:
+        cmd = cfg.args + (extra_args or []) + ["--spec", spec]
         if ns.dry_run:
             print("[DRY]", " ".join(cmd))
             return RunResult(status="DRY", wall_s=0.0, out_dir=None, log_path=None)
@@ -354,13 +361,14 @@ def main(argv: list[str]) -> int:
 
     if ns.only in {"all", "wraparound"}:
         # Wraparound bugs.
-        for title, spec in specs_wrap:
+        for title, spec, confirm_unroll in specs_wrap:
             spec_path = root / spec
             if not spec_path.exists():
                 print(f"[SKIP] missing spec: {spec}", file=sys.stderr)
                 continue
-            opt = run_one(spec, cfgs_wrap[0])
-            base = run_one(spec, cfgs_wrap[1])
+            extra = ["--confirm-unroll", str(confirm_unroll)]
+            opt = run_one(spec, cfgs_wrap[0], extra_args=extra)
+            base = run_one(spec, cfgs_wrap[1], extra_args=extra)
             rows.append(
                 [
                     _md_escape(title),

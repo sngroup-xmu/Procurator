@@ -41,6 +41,27 @@ from .wraparound_stages import (
 )
 from .wraparound_unroll import unroll_mainprocedure_loop_text
 
+
+def _find_two_phase_pump_mode_var(var_types: dict[str, str]) -> Optional[str]:
+    """
+    Find the DSL boolean that drives a two-phase env script for wraparound confirm.
+
+    Historically, DSL globals are emitted as `dsl_<name>` and then may be prefixed
+    again by the multi-node Boogie prefixer, resulting in names like
+    `dsl_dsl_pump_mode`. We therefore match by suffix to make this robust.
+    """
+
+    if var_types.get("dsl_pump_mode") == "bool":
+        return "dsl_pump_mode"
+    if var_types.get("dsl_dsl_pump_mode") == "bool":
+        return "dsl_dsl_pump_mode"
+
+    hits = [n for n, t in var_types.items() if t == "bool" and n.endswith("dsl_pump_mode")]
+    if len(hits) == 1:
+        return hits[0]
+    return None
+
+
 def instrument_bpl_text(
     *,
     bpl_text: str,
@@ -215,14 +236,15 @@ def instrument_bpl_text(
             # current value of the pumped register:
             #   - while reg==MAX, keep injecting the +1 update packet (to trigger MAX->0);
             #   - once reg!=MAX, switch to the functional suffix packets (e.g., P2C query).
-            if var_types.get("dsl_pump_mode") == "bool":
+            pump_mode_var = _find_two_phase_pump_mode_var(var_types)
+            if pump_mode_var:
                 max_expr = cfg.pump_target.max_elem_expr
                 for i in range(while_idx + 1, body_close_idx + 1):
                     if lines[i].lstrip().startswith("call main();"):
                         indent = re.match(r"^(\s*)", lines[i])
                         indent = indent.group(1) if indent else ""
                         # Insert a real Boogie statement line (with newline), not a literal "\n".
-                        lines.insert(i, f"{indent}dsl_pump_mode := ({target_read} == {max_expr});\n")
+                        lines.insert(i, f"{indent}{pump_mode_var} := ({target_read} == {max_expr});\n")
                         break
 
             _rewrite_asserts_as_calls(lines)
