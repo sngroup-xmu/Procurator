@@ -62,6 +62,24 @@ def _find_two_phase_pump_mode_var(var_types: dict[str, str]) -> Optional[str]:
     return None
 
 
+def _emit_extra_assumes(extra_assumes: Sequence[str], *, indent: str) -> list[str]:
+    out: list[str] = []
+    for a in extra_assumes:
+        s = str(a).strip()
+        if not s:
+            continue
+        # Accept either raw expressions or pre-wrapped `assume(...)` lines.
+        if s.startswith("assume(") or s.startswith("assume "):
+            if not s.endswith(";"):
+                s += ";"
+            out.append(f"{indent}{s}\n")
+        else:
+            if s.endswith(";"):
+                s = s[:-1].strip()
+            out.append(f"{indent}assume({s});\n")
+    return out
+
+
 def instrument_bpl_text(
     *,
     bpl_text: str,
@@ -74,6 +92,7 @@ def instrument_bpl_text(
     cutpoint_cond: Optional[str] = None,
     step_op: str = "add",
     step_delta: int = 1,
+    extra_assumes: Optional[Sequence[str]] = None,
 ) -> str:
     lines = bpl_text.splitlines(keepends=True)
     no_nl_lines = [ln.rstrip("\n") for ln in lines]
@@ -100,6 +119,15 @@ def instrument_bpl_text(
         call_indent = close_indent + "  "
         lines[body_close_idx:body_close_idx] = [f"{call_indent}call {_ENTRY_ERROR_PROC}();\n"]
         lines.append(_emit_entry_error_proc())
+
+        if extra_assumes:
+            try:
+                _, mp_open, mp_close = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN)
+                insert_at = mp_open + 1
+                indent = re.match(r"^(\s*)", lines[insert_at]).group(1) if insert_at < len(lines) else "  "  # type: ignore[union-attr]
+                lines[insert_at:insert_at] = _emit_extra_assumes(extra_assumes, indent=indent)
+            except Exception:
+                pass
         return "".join(lines)
 
     if stage == WraparoundStage.CLOSURE_CHECK:
@@ -190,7 +218,14 @@ def instrument_bpl_text(
         # Perform insertions from bottom to top to keep indices stable.
         lines[body_close_idx:body_close_idx] = _emit_closure_asserts(cfg).splitlines(keepends=True)
         lines[marker_idx:marker_idx] = _emit_closure_setup(var_types, cfg).splitlines(keepends=True)
-        lines[insert_locals_at:insert_locals_at] = _emit_closure_local_decls(var_types, cfg).splitlines(keepends=True)
+
+        local_decl_lines = _emit_closure_local_decls(var_types, cfg).splitlines(keepends=True)
+        lines[insert_locals_at:insert_locals_at] = local_decl_lines
+        if extra_assumes:
+            # Constrain closure to the synthesized existence profile (conditional certificate).
+            indent = re.match(r"^(\s*)", local_decl_lines[0]).group(1) if local_decl_lines else "  "  # type: ignore[union-attr]
+            insert_at = insert_locals_at + len(local_decl_lines)
+            lines[insert_at:insert_at] = _emit_extra_assumes(extra_assumes, indent=indent)
         _rewrite_asserts_as_calls(lines)
         lines.append(_emit_assert_wrapper_proc())
         return "".join(lines)
@@ -230,6 +265,14 @@ def instrument_bpl_text(
                 raise WraparoundTransformError(
                     "mainProcedure loop not found (expected while(true) or while (procurator_step < ...))"
                 )
+            # Inject existence constraints before the confirm stage so they apply to the
+            # whole loop execution.
+            if extra_assumes:
+                indent = re.match(r"^(\s*)", lines[while_idx]).group(1) if while_idx < len(lines) else "  "  # type: ignore[union-attr]
+                assume_lines = _emit_extra_assumes(extra_assumes, indent=indent)
+                lines[while_idx:while_idx] = assume_lines
+                while_idx += len(assume_lines)
+
             lines.insert(while_idx, confirm_block)
 
             # If the spec uses a two-phase env script (`dsl_pump_mode`), drive it from the
@@ -269,6 +312,12 @@ def instrument_bpl_text(
                     break
         if insert_idx is None:
             raise WraparoundTransformError("failed to locate thread spawn section in ULTIMATE.start for confirm")
+
+        if extra_assumes:
+            indent = re.match(r"^(\s*)", lines[insert_idx]).group(1) if insert_idx < len(lines) else "  "  # type: ignore[union-attr]
+            assume_lines = _emit_extra_assumes(extra_assumes, indent=indent)
+            lines[insert_idx:insert_idx] = assume_lines
+            insert_idx += len(assume_lines)
 
         lines.insert(insert_idx, confirm_block)
         _rewrite_asserts_as_calls(lines)

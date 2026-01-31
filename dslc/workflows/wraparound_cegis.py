@@ -12,6 +12,11 @@ from typing import Callable, Dict, List, Optional, Protocol, Sequence, Tuple
 from dslc.analysis.wraparound_candidates import WraparoundCandidate, infer_wraparound_candidates
 from dslc.compiler import compile_spec_file
 from dslc.transform.wraparound import WraparoundStage, instrument_bpl_text, unroll_mainprocedure_loop_text
+from dslc.toolchain.ultimate_witness import (
+    extract_assumptions_from_graphml,
+    find_latest_graphml_witness,
+    synthesize_boogie_assumes,
+)
 from dslc.utils.exec import wrap_resource_limits
 from dslc.utils.repo import repo_root
 
@@ -589,6 +594,7 @@ def _run_cegis_loop(
     base_proj_set = set(proj_vars)
     base_index_expr = index_expr
     base_index_value = index_value
+    extra_assumes: List[str] = []
 
     for it in range(max_iters):
         notes: List[str] = []
@@ -633,6 +639,7 @@ def _run_cegis_loop(
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
+            extra_assumes=extra_assumes,
         )
         entry_bpl.write_text(entry_txt, encoding="utf-8")
 
@@ -647,6 +654,7 @@ def _run_cegis_loop(
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
+            extra_assumes=extra_assumes,
         )
         closure_bpl.write_text(closure_txt, encoding="utf-8")
 
@@ -668,6 +676,7 @@ def _run_cegis_loop(
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
+            extra_assumes=extra_assumes,
         )
         confirm_txt0 = unroll_mainprocedure_loop_text(bpl_text=confirm_txt0, steps=confirm_unroll)
         confirm_bpl.write_text(confirm_txt0, encoding="utf-8")
@@ -762,6 +771,7 @@ def _run_cegis_loop(
                     cutpoint_cond=cutpoint_cond,
                     step_op=step_op,
                     step_delta=step_delta,
+                    extra_assumes=extra_assumes,
                 )
                 confirm_txt = unroll_mainprocedure_loop_text(bpl_text=confirm_txt, steps=unroll)
                 confirm_bpl.write_text(confirm_txt, encoding="utf-8")
@@ -827,7 +837,27 @@ def _run_cegis_loop(
                 _write_manifest(
                     out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts
                 )
-                break
+                # If closure is SAFE, we have a certified UNSAFE. Otherwise, try to
+                # synthesize extra existence constraints from the confirm witness and refine.
+                if closure_res.is_safe:
+                    break
+
+                # CEGIS refinement: extract a lightweight "input/profile" from the confirm witness.
+                witness = find_latest_graphml_witness(work_dir=out_dir)
+                if witness:
+                    try:
+                        wtxt = witness.read_text(encoding="utf-8", errors="replace")
+                        wa = extract_assumptions_from_graphml(wtxt)
+                        new_assumes = synthesize_boogie_assumes(witness_assumptions=wa, base_bpl_text=base_text)
+                    except Exception:
+                        new_assumes = []
+                    before = set(extra_assumes)
+                    for aexpr in new_assumes:
+                        if aexpr not in before:
+                            extra_assumes.append(aexpr)
+                            before.add(aexpr)
+
+                break  # end unroll schedule; proceed to next outer iteration
 
             if confirm_found_bug:
                 # We ran closure (recorded above); only accept if closure is SAFE.

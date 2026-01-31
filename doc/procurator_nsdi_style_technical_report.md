@@ -651,6 +651,8 @@ Ultimate 若报告 `RESULT: ... correct`，就意味着这个 round 摘要在当
 
 此外，为了避免“后缀步数太短导致 confirm 没触发 bug”的假阴性，我们在 confirm 里使用一个小的 **unroll 递增序列**（例如 `3 -> 6 -> 9 -> 12`，上限由 `--wraparound-max-confirm-unroll` 控制）：先尝试更短 bound 以节省时间，失败再逐步加大。每次尝试都会落地成独立的 `confirm.unrollK.bpl/.log` 并写入 manifest，保证可复现。
 
+当出现 **CONFIRM=UNSAFE 但 CLOSURE 失败/UNKNOWN** 的情况（即：我们找到了“翻转后缀”，但还没能证明“前缀泵 + fast-forward”的 soundness），CEGIS 会进一步做一次“存在性约束合成”：从 confirm 的 GraphML witness 里提取一组简单等式（例如某些 `dsl_*`/`hdr.*`/`meta.*` 的取值），并把它们作为额外的 `assume(...)` 注入到 ENTRY/CLOSURE/CONFIRM 中，使 closure 变成一个**条件闭包证明**（certificate 以 manifest 记录的条件为准）。这一步不会试图“完全限制环境”，而是只抽取少量对 pump/路径稳定性关键的约束，以减少不必要的约束噪声。
+
 对应实现：`dslc/workflows/wraparound_cegis.py`（`stage_order=entry_confirm_closure`），其产物默认落在同一个 `verify` run 目录下的 `wraparound/` 子目录中，并在 `wraparound.cegis.manifest.json` 里记录每轮尝试与日志。
 
 #### 6.1.3 候选枚举与“先粗后细”拆分（避免指数级组合）
