@@ -1,0 +1,103 @@
+// DistCache (clientTrack-only): P2C wrong-choice caused by *spineload* wraparound.
+//
+// Symmetric to `distcache_p2c_wraparound_bug.prop` (leafload overflow):
+//   - `poweroftwochoice()` chooses spine if `leafload > spineload`, else leaf.
+//   - When `spineload` wraps (2^32-1 -> 0), the raw comparison can flip and
+//     choose spine even though the spine should be treated as "very loaded".
+//
+// This benchmark is designed to be run via the wraparound CEGIS pipeline:
+//   `./bin/procurator verify --spec .../distcache_p2c_spineload_wraparound_bug.prop --wraparound auto ...`
+
+import clientTrack from "../../dataset/distcache/clientrackswitch/partitionswitch.p4"
+  entries "../../dataset/distcache/clientrackswitch/clienttrack_entries.txt";
+
+topology {}
+
+host io {
+  connect clientTrack;
+  env {
+    // Parser reachability: DistCache uses reserved UDP port 5008 for op packets.
+    hdr.ethernet_hdr.valid = true;
+    hdr.ipv4_hdr.valid = true;
+    hdr.udp_hdr.valid = true;
+    hdr.op_hdr.valid = true;
+    hdr.ethernet_hdr.etherType = 2048; // 0x0800 IPv4
+    hdr.ipv4_hdr.protocol = 17;        // UDP
+    hdr.udp_hdr.dstPort = 5008;
+
+    // Keep hash keys stable so indices stay constant.
+    hdr.op_hdr.keylolo = 0;
+    hdr.op_hdr.keylohi = 0;
+    hdr.op_hdr.keyhilo = 0;
+    hdr.op_hdr.keyhihilo = 0;
+    hdr.op_hdr.keyhihihi = 0;
+
+    // Pin the hash outputs to a value in the configured range [0..15] so the
+    // partition tables consistently select fixed (leaf,spine) indices.
+    meta.hashval_for_partition = 0;
+    meta.hashval_for_spine_partition = 0;
+
+    // Avoid unintended forwarding matches; makes queue behavior simpler.
+    hdr.ipv4_hdr.dstAddr = 0;
+
+    // Two-phase script controlled by DSL boolean `pump_mode`:
+    //   - pump_mode=true  => inject update_spine_load (+1), used by closure/pump/accel.
+    //   - pump_mode=false => inject a *fixed* functional suffix after overflow:
+    //       1) update_leaf_load once (make leafload > 0),
+    //       2) then issue a P2C query (optype=0x30) to expose the wrong decision.
+    //
+    // This keeps the wraparound pipeline simple: we only accelerate `spineload`,
+    // while ensuring the query observes `leafload > spineload` after overflow.
+    if (pump_mode) {
+      hdr.op_hdr.optype = 4105; // 0x1009 update_spine_load (clienttrack_entries.txt)
+    } else {
+      if (!suffix_sent) {
+        // Make leafload > 0 (0x2009 update_leaf_load).
+        hdr.op_hdr.optype = 8201;
+        suffix_sent = true;
+      } else {
+        // P2C query.
+        hdr.op_hdr.optype = 48;
+      }
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  // Confirm suffix needs 3 host injections (overflow spine -> bump leafload -> query P2C).
+  // With our deterministic scheduler encoding, that means we need more than the 2-injection
+  // leafload case.
+  max_steps = 10;
+
+  // Default to "pump mode"; wraparound confirm stage will automatically switch it
+  // based on whether the pumped register is MAX (see `dslc.transform.wraparound`).
+  bool pump_mode = true;
+  // Suffix script state (used only when pump_mode=false).
+  bool suffix_sent = false;
+
+  // Functional check:
+  // When the P2C "poweroftwochoice" decision is executed and observing `spineload==0`,
+  // we interpret that as an overflow event (confirm stage fast-forwards spineload to MAX).
+  // In that case, choosing spine is incorrect *whenever leafload is non-zero*:
+  // spine should be treated as "very loaded", so the system should choose leaf.
+  //
+  // IMPORTANT: do NOT key this assertion on `hdr.op_hdr.optype == 0x30` at the end of the
+  // pass. In DistCache, egress may rewrite the optype (e.g., to GETREQ_SPINE), which would
+  // make an optype-guarded assertion vacuously true and hide the bug. Instead, we use
+  // the ingress table hit flag `poweroftwochoice_tbl_0.hit` to detect when the decision
+  // was actually evaluated.
+  //
+  // The `leafload!=0` guard keeps the property functional (it avoids vacuous passes where
+  // the decision is leaf for trivial reasons) and keeps leafload in the slicing criteria
+  // so the update_leaf_load action is not pruned away.
+  assert {
+    (!clientTrack_poweroftwochoice_tbl_0.hit)
+      || (clientTrack_spineload_0 != 0)
+      || (clientTrack_leafload_0 == 0)
+      || (clientTrack_meta.is_spine == 0);
+  };
+}
