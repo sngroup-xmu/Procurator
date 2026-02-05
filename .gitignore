@@ -28,6 +28,9 @@ UGemCutter-linux/
 tmp/
 **/build-host/
 
+# P4B-Translator temporary sanitized P4 files (should never be committed).
+Procurator/argo/code/dataset/**/.p4b_sanitized_*.p4
+
 # Common build artifacts (safe to ignore)
 **/*.o
 **/*.obj
