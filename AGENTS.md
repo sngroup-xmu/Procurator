@@ -1,7 +1,7 @@
 以下内容分两部分：
-# 注意：需要每次修改完之后对于之前能找到的bug，之前翻译正确的p4程序，都依旧能够正常工作。这需要设计并运行回归测试。
+# 注意（最高优先级）：1、需要每次修改完之后对于之前能找到的bug，之前翻译正确的p4程序，都依旧能够正常工作。这需要设计并运行回归测试。 2、运行完单个spec的实验之后，需要在AGENTS.md中记录完成情况，包括spec，时间，完成进度，是否有实现错误导致的坑，是否修复并沉淀为冒烟测试这几项
 1. **Procurator（分布式 P4 状态化验证）设计文档（可直接丢进 agent 工具作为执行规范）**——各小节均给出参考依据与引用。
-2. **技术选型建议：P4b / GemCutter / Deagle 怎么看、怎么先试**（以最快起实验结果为目标）。
+
 
 ---
 
@@ -139,6 +139,8 @@
        - 推断候选并生成多阶段 `.bpl`（`closure_check/pump/accel/confirm`）
        - （可选）调用 Ultimate 跑日志，并为每个 stage 隔离 Ultimate HOME/工作区
    - 一个重要的工程优化点：当目标是固定槽（例如 `reg[0]`），系统 Boogie 里通常会有标量镜像（如 `<reg>__last0_value`）；`dslc/transform/wraparound.py` 会优先用该标量而非数组读写（显著减少 SMT 的 array 负担）。
+   - **CEGIS 精化（shape-aware）**：`dslc/workflows/wraparound_cegis.py` 在 CLOSURE 超时/UNKNOWN 时，基于 CONFIRM witness 合成“输入形状约束”，优先锁定 hash/partition/cap/路径命中（例如 `hashval_*`, `*_partition`, `*_tbl_*.hit/action`），以保证 leafload/spineload 在同一路径上单调增长且不被其它路径重置。该约束只作用于环境输入与候选寄存器相关变量，保证证书保守且可复现（写入 manifest）。
+   - **CEGIS 迭代策略（closure-only）**：ENTRY_CHECK 与 CONFIRM 都是存在性查询，用于得到固定 witness/seed；一旦 CONFIRM=UNSAFE，后续 refinement 只重跑 CLOSURE_CHECK（并基于 seed witness 合成 assumes / 细化 proj-vars），不再重跑 ENTRY/CONFIRM，避免把存在性查询“卷入合成”导致 witness 被偏置或丢失。
 
 ### 0.4 例子：Netchain 在 `seq_reg` 断言种子下，切片应保留什么/剪掉什么
 
@@ -149,7 +151,7 @@
   - `value_reg.write(index, hdr.nc_hdr.value);`
 - `apply` 中 `NC_READ`（`op==10`）走 `read_value.apply()`，`NC_WRITE`（`op==12`）走 `maintain_sequence/assign_value/...`。
 
-**当性质只关心 `sequence_reg_0[0]` 时（seed = `sequence_reg_0[0]`）**，切片后的“语义上必要”保留/剪枝应满足：
+**当性质只关心 `sequence_reg[0]` 时（seed = `sequence_reg[0]`）**，切片后的“语义上必要”保留/剪枝应满足：
 
 - **保留的控制路径（与 `sequence_reg` 相关或影响转发控制种子）**：
   - `hdr.nc_hdr.isValid()` 分支（决定是否进入主逻辑）。
@@ -163,8 +165,8 @@
 
 **在 P4B slicer 输出层面的可检查结果（更“工程化”的对照）**：
 
-- 期望 `keepTables` 至少包含：`assign_value_0`、`get_sequence_0`、`maintain_sequence_0`（表明写路径仍在）。
-- 期望 `keepTables` 不包含：`read_value_0`（表明 `value_reg` 读路径被剪掉）。
+- 期望 `keepTables` 至少包含：`assign_value`、`get_sequence`、`maintain_sequence`（表明写路径仍在）。
+- 期望 `keepTables` 不包含：`read_value`（表明 `value_reg` 读路径被剪掉）。
 - 期望 `keepVarNames` 包含 `hdr.nc_hdr.seq`，且不包含 `hdr.nc_hdr.value`。
 - 期望 `regMaxIndex(sequence_reg)==0`（把寄存器槽域剪到 `{0}`）。
 
@@ -172,7 +174,7 @@
 
 在 `p4c-translator` 里加入了 `--slicing-selftest=netchain_seq`，它直接检查 slicer 的 `SliceResult`（tables/vars/regMaxIndex）：
 
-`P4B-Translator/build-host/p4c-translator -I P4B-Translator/p4include --goto --bmv2cmds Procurator/argo/code/dataset/Netchain/commands_1.txt --slicing-vars=sequence_reg_0[0] --slicing-selftest=netchain_seq Procurator/argo/code/dataset/Netchain/netchain_16.p4`
+`P4B-Translator/build-host/p4c-translator -I P4B-Translator/p4include --goto --bmv2cmds Procurator/argo/code/dataset/Netchain/commands_1.txt --slicing-vars=sequence_reg[0] --slicing-selftest=netchain_seq Procurator/argo/code/dataset/Netchain/netchain_16.p4`
 
 这类“按种子剪掉 `value_reg`”的能力，是我们后续做更强 bug finding / 证明提速（尤其是大程序如 DistCache）时的基础：否则无关寄存器/控制流会把 Boogie 状态空间撑爆。
 
@@ -185,7 +187,100 @@
 - **P4B-Translator 侧（增量编译）**：
   - `cd P4B-Translator/build-host && make -j16 p4c-translator`（或 `cmake --build . --target p4c-translator -j"$(nproc)"`）
 - **P4B slicing 自检（无需跑 Ultimate）**：
-  - `P4B-Translator/build-host/p4c-translator -I P4B-Translator/p4include --goto --bmv2cmds Procurator/argo/code/dataset/Netchain/commands_1.txt --slicing-vars=sequence_reg_0[0] --slicing-selftest=netchain_seq Procurator/argo/code/dataset/Netchain/netchain_16.p4`
+  - `P4B-Translator/build-host/p4c-translator -I P4B-Translator/p4include --goto --bmv2cmds Procurator/argo/code/dataset/Netchain/commands_1.txt --slicing-vars=sequence_reg[0] --slicing-selftest=netchain_seq Procurator/argo/code/dataset/Netchain/netchain_16.p4`
+
+### 0.6 Procurator CLI（常用命令，直接复制粘贴）
+
+> 目的：避免每次刷新上下文都要重新查命令用法；并强调 WSL 安全的资源限制策略。
+
+#### 0.6.1 入口与默认产物路径
+
+- 入口：`./bin/procurator <cmd> ...`
+  - `compile`：只编译 `.prop -> .bpl`
+  - `verify`：编译 + 跑 Ultimate（并集成 wraparound）
+  - `smoke`：对生成的 `.bpl` 做结构冒烟（不跑求解器）
+  - `wraparound`：legacy/debug（主线应使用 `verify --wraparound auto`）
+- 默认输出目录（no-cache）：`.tmp/procurator/verify/<spec_stem>/<run_id>/`
+  - Boogie：`<out_dir>/<spec_stem>.bpl`
+  - Ultimate 日志：`<out_dir>/gemcutter.log`
+  - Witness（若 UNSAFE）：`<out_dir>/<spec_stem>.bpl-witness.graphml`
+  - wraparound（若启用）：`<out_dir>/wraparound/target.*/.../`
+
+#### 0.6.2 WSL 资源限制（必须遵守）
+
+- 默认开启资源限制（建议保持默认）：
+  - CPU/IO：`taskset -c 0 nice -n 19 ionice -c 3`
+  - Java 堆：`--ultimate-xmx-gb 4`（默认）
+  - Toolchain 超时：`--ultimate-timeout-seconds 900`（默认）
+- 禁用限制：`--no-resource-limits`（不建议：容易把 WSL 卡死/爆内存）
+- 经验规则：不要同时跑多个 Ultimate（GemCutter/Automizer）进程；一次只跑一个 spec。
+
+#### 0.6.3 常用命令模板
+
+编译 + Boogie 冒烟（不跑 Ultimate）：
+
+```bash
+./bin/procurator compile \
+  --spec Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop \
+  --out /tmp/netchain_wraparound_bug.bpl \
+  --boogie-harness sequential \
+  --no-two-stage
+
+./bin/procurator smoke --bpl /tmp/netchain_wraparound_bug.bpl --harness sequential
+```
+
+跑单个 spec（默认 slicing+env-prune 开启；WSL 安全默认）：
+
+```bash
+./bin/procurator verify \
+  --spec Procurator/argo/code/spec/bench/atp_bug.prop \
+  --boogie-harness sequential \
+  --no-two-stage \
+  --wraparound off \
+  --ultimate-timeout-seconds 900
+```
+
+主验证管线：优先尝试 wraparound（只在推断到候选寄存器时触发；并且**不**对 ENTRY/CONFIRM 做 CEGIS，refinement 仅用于 CLOSURE 且必须有 witness 证据）：
+
+```bash
+./bin/procurator verify \
+  --spec Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop \
+  --boogie-harness sequential \
+  --no-two-stage \
+  --wraparound auto \
+  --wraparound-stage-order entry_confirm_closure \
+  --wraparound-max-targets 1 \
+  --wraparound-confirm-unroll 3 \
+  --wraparound-max-confirm-unroll 0 \
+  --wraparound-closure-timeout-cap 0 \
+  --ultimate-timeout-seconds 1800
+```
+
+说明：
+- `--wraparound-max-confirm-unroll 0`：只跑一次 CONFIRM（避免多次确认浪费时间与内存）。
+- `--wraparound-closure-timeout-cap 0`：不给 CLOSURE 人为断点；timeout 后不做“无证据 refinement”，而是 case-by-case 调参/优化。
+- `--use-spec-max-steps`：只在 spec 写了合理界并且你确实想要用它时开启（例如某些 bounded-bug-finding spec）。
+
+---
+
+# 实验记录（回归/坑沉淀）
+
+## 2026-02-05
+
+- **Spec**: `Procurator/argo/code/spec/bench/frr_bug2_state_inconsistency.prop`
+- **目标/进度**: 让该 bug 在 `slicing` 与 `noslicing` 两种设置下都稳定 `UNSAFE`，并产出可审计 witness（用于消融实验）
+- **结果**:
+  - slicing: `UNSAFE`（witness ok）run_id `20260205-141109-2835`（产物在 `.tmp/procurator/verify/frr_bug2_state_inconsistency/20260205-141109-2835/`）
+  - noslicing: 之前已有 `UNSAFE` witness run_id `20260205-132226-776c`
+- **坑（实现错误导致）**:
+  - 现象：此前 slicing 结果为 `SAFE`，但 noslicing 为 `UNSAFE`（消融不成立）。
+  - 根因：P4B slicer 的 action-level slicing 只在 “写入 seed 变量本身” 时保留语句；对 “将 seed-relevant 值写入 stateful 对象（register.write）” 的语句过度剪枝，导致多步语义下状态丢失（FRR 的 `pkt_par.write(...)` 被切掉）。
+- **修复**:
+  - `P4B-Translator/backends/verify/slicing/slicer.cpp`: 对 `write(...)` 语句增加保守规则：若写入语句 **uses** 命中 `needed`（即 RHS/参数依赖 seed），即使其 defs 不命中，也保留该写入，并把被写对象加入 `needed`（确保跨步状态被保留）。
+- **沉淀为冒烟/回归测试**:
+  - `P4B-Translator/backends/verify/bpl_verify/main.cpp`: 新增 `--slicing-selftest=frr_pkt_par_write`（检查 sliced IR 中仍包含 `pkt_par.write(...)`）。
+  - `dslc/tests/test_p4b_translator_slicing_selftest.py`: 新增 `test_frr_pkt_par_write_not_dropped_by_action_slicing`。
+  - 回归执行：`python3 -m unittest -v dslc.tests.test_p4b_translator_slicing_selftest dslc.tests.test_spec_regressions`（均 PASS）。
 
 ---
 
@@ -348,34 +443,6 @@ NetSMC 对“简化模型会漏掉仅在交错下出现的违例”有明确说�
 
 ---
 
-## 10. 实施里程碑
-
-### M1：可运行基线
-
-* [ ] 统一事件语义：pass + enqueue/dequeue + mirror/recirc 的最小子集
-* [ ] Q2(bag,K) 建模与性质断言模板
-* [ ] 输出反例 trace（跨节点事件序列）
-
-**验收**：至少 1 个含 recirc/mirror 的 microbenchmark 可稳定复现反例或在给定界内 UNSAT。
-
-### M2：P4-aware R/W 分析 + 约简开关
-
-* [ ] 从 IR 提取 object×key 的 R/W
-* [ ] 独立性约简（disjoint ⇒ commute）
-* [ ] 消融实验脚本与报表
-
-**验收**：在 ≥2 个基准上给出显著状态/时间下降曲线。
-
-### M3：接入 GemCutter（Proof mode）
-
-* [ ] 生成 Boogie 并构造并发模型（线程/调度/队列抽象）
-* [ ] 对 ≥1 类 safety 性质实现 proof attempt
-* [ ] 输出“证明成功/失败原因”诊断（例如 commutativity 判定回退比例）
-
-**验收**：至少一个基准在 proof mode 下从 UNKNOWN/timeout 变为可证明或显著提速。
-
----
-
 # 技术选型：P4b / GemCutter / Deagle（你现在就可以“先试试”的路线）
 
 ## 1) P4b（或 P4B-Translator：P4→Boogie）
@@ -425,13 +492,6 @@ NetSMC 对“简化模型会漏掉仅在交错下出现的违例”有明确说�
 
 **建议**：作为**第二阶段**加入（当你们 Boogie+Ultimate 产线跑通后），用于增强“bug-finding 对比”与工程鲁棒性论证。
 
----
-
-# 建议的“先试试”组合（最小成本、最快出曲线）
-
-1. **前端**：P4b/P4B-Translator → Boogie（先把单节点 pass 语义落地，再叠加分布式事件/队列）([feihe.github.io][5])
-2. **后端**：Ultimate/GemCutter（proof mode）+（可选）Ultimate 其他工具链做 sanity check（同属 Ultimate 框架）([Ultimate PA][1])
-3. **实验优先级**：先做队列抽象分层与 R/W 独立性约简的消融，再决定是否引入 Deagle 作为并发 BMC baseline。([多伦多大学计算机科学系][3])
 
 ---
 

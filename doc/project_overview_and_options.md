@@ -196,7 +196,7 @@ Boogie 后端按单一职责拆成多个模块：
    - 支持 `--slicing-vars=<...>`（把 slicing seeds 传给 P4B）
 
 2) 对输出 `.raw.bpl` 做工程化修补（Boogie 文本层，不碰 P4 语义）：
-   - 补缺失的变量声明：`dslc/backends/boogie_bpl.py:patch_missing_var_decls`（结合 `--meta-out` 的类型信息）
+   - 正确性检查：拒绝“引用但未声明”的 P4 变量（`dslc/backends/boogie_bpl.py:assert_no_missing_var_decls`）
    - 收集“外部输入字段列表 + egress_port 类型”：`dslc/backends/boogie_bpl.py:collect_input_vars_and_egress_type`
    - 若启用剪枝：按“是否在 slice 后程序中被使用”过滤 env havoc 字段：`dslc/backends/boogie_bpl.py:filter_input_vars_by_usage`
 
