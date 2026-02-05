@@ -28,9 +28,27 @@ bool isSame(std::string s1, std::string s2){
 		return true;
 	}
 	else if(s1.find(s2) != std::string::npos){
-		std::string::size_type idx = s1.find(s2+"_") + s2.size() + 1;
-		if(isNumber(s1.substr(idx)))
-			return true;
+		// 1) Allow a control/namespace prefix, e.g. `Ingress_tbl` vs `tbl`.
+		//
+		// Newer translator builds may prefix P4 objects with their control name
+		// (e.g., `partitionswitchIngress_poweroftwochoice_tbl`) while BMv2 command
+		// files use the unqualified object name (`poweroftwochoice_tbl`).
+		if(s1.size() > s2.size() && s1.compare(s1.size() - s2.size(), s2.size(), s2) == 0){
+			const char prev = s1[s1.size() - s2.size() - 1];
+			if(prev == '_'){
+				return true;
+			}
+		}
+
+		// 2) Allow numeric suffixes, e.g. `tbl_0` vs `tbl`.
+		const std::string needle = s2 + "_";
+		const std::string::size_type pos = s1.find(needle);
+		if(pos != std::string::npos){
+			const std::string::size_type idx = pos + needle.size();
+			if(idx < s1.size() && isNumber(s1.substr(idx))){
+				return true;
+			}
+		}
 	}
 	return false;
 }
@@ -50,10 +68,23 @@ bool isSame(cstring s1, cstring s2){
 		if(s.find(t) == std::string::npos){
 			return false;
 		}
-    	std::string::size_type idx = s.find((t+"_").c_str()) + 
-    		    						s2.size()+1;
-		if(isNumber(s.substr(idx))){
-			return true;
+
+		// 1) Allow a control/namespace prefix, e.g. `Ingress_tbl` vs `tbl`.
+		if(s.size() > t.size() && s.compare(s.size() - t.size(), t.size(), t) == 0){
+			const char prev = s[s.size() - t.size() - 1];
+			if(prev == '_'){
+				return true;
+			}
+		}
+
+		// 2) Allow numeric suffixes, e.g. `tbl_0` vs `tbl`.
+		const std::string needle = t + "_";
+		const std::string::size_type pos = s.find(needle);
+		if(pos != std::string::npos){
+			const std::string::size_type idx = pos + needle.size();
+			if(idx < s.size() && isNumber(s.substr(idx))){
+				return true;
+			}
 		}
 	}
 	return false;

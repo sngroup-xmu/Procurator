@@ -342,6 +342,33 @@ static bool regActionCallName(const IR::MethodCallExpression* mce, cstring& outN
 
 static void collectExprKeys(const IR::Expression* expr,
                             std::set<VarKey, VarKeyLess>& out,
+                            P4::TypeMap* typeMap);
+
+static void collectRegActionCallArgs(const IR::Vector<IR::Argument>* args,
+                                     std::set<VarKey, VarKeyLess>& uses,
+                                     std::set<VarKey, VarKeyLess>& defs,
+                                     P4::TypeMap* typeMap) {
+    if (!args) {
+        return;
+    }
+    int idx = 0;
+    for (auto arg : *args) {
+        if (arg && arg->expression) {
+            // Conservatively treat the first argument as the register index (use-only).
+            // Subsequent args may be in/out/inout; treat as both use+def to avoid unsound slicing.
+            if (idx == 0) {
+                collectExprKeys(arg->expression, uses, typeMap);
+            } else {
+                collectExprKeys(arg->expression, uses, typeMap);
+                collectExprKeys(arg->expression, defs, typeMap);
+            }
+        }
+        idx++;
+    }
+}
+
+static void collectExprKeys(const IR::Expression* expr,
+                            std::set<VarKey, VarKeyLess>& out,
                             P4::TypeMap* typeMap) {
     if (!expr) {
         return;
@@ -548,6 +575,177 @@ static void mergeSets(std::set<VarKey, VarKeyLess>& dst,
     dst.insert(src.begin(), src.end());
 }
 
+static void collectApplyCalleesFromExpr(const IR::Expression* expr,
+                                        std::unordered_set<cstring>& out) {
+    if (!expr) {
+        return;
+    }
+    if (auto cast = expr->to<IR::Cast>()) {
+        collectApplyCalleesFromExpr(cast->expr, out);
+        return;
+    }
+    if (auto member = expr->to<IR::Member>()) {
+        collectApplyCalleesFromExpr(member->expr, out);
+        return;
+    }
+    if (auto arr = expr->to<IR::ArrayIndex>()) {
+        collectApplyCalleesFromExpr(arr->left, out);
+        if (arr->right) {
+            collectApplyCalleesFromExpr(arr->right, out);
+        }
+        return;
+    }
+    if (auto slice = expr->to<IR::Slice>()) {
+        collectApplyCalleesFromExpr(slice->e0, out);
+        if (slice->e1) {
+            collectApplyCalleesFromExpr(slice->e1, out);
+        }
+        if (slice->e2) {
+            collectApplyCalleesFromExpr(slice->e2, out);
+        }
+        return;
+    }
+    if (auto unary = expr->to<IR::Operation_Unary>()) {
+        collectApplyCalleesFromExpr(unary->expr, out);
+        return;
+    }
+    if (auto bin = expr->to<IR::Operation_Binary>()) {
+        collectApplyCalleesFromExpr(bin->left, out);
+        collectApplyCalleesFromExpr(bin->right, out);
+        return;
+    }
+    if (auto list = expr->to<IR::ListExpression>()) {
+        for (auto comp : list->components) {
+            collectApplyCalleesFromExpr(comp, out);
+        }
+        return;
+    }
+    if (auto str = expr->to<IR::StructExpression>()) {
+        for (auto comp : str->components) {
+            if (comp && comp->expression) {
+                collectApplyCalleesFromExpr(comp->expression, out);
+            }
+        }
+        return;
+    }
+    if (auto ternary = expr->to<IR::Operation_Ternary>()) {
+        collectApplyCalleesFromExpr(ternary->e0, out);
+        collectApplyCalleesFromExpr(ternary->e1, out);
+        collectApplyCalleesFromExpr(ternary->e2, out);
+        return;
+    }
+    if (auto mce = expr->to<IR::MethodCallExpression>()) {
+        cstring name;
+        if (regActionCallName(mce, name)) {
+            out.insert(name);
+        }
+        if (mce->method) {
+            collectApplyCalleesFromExpr(mce->method, out);
+        }
+        if (mce->arguments) {
+            for (auto arg : *mce->arguments) {
+                if (arg && arg->expression) {
+                    collectApplyCalleesFromExpr(arg->expression, out);
+                }
+            }
+        }
+        return;
+    }
+}
+
+static void collectApplyUsesDefsFromExpr(const IR::Expression* expr,
+                                        std::set<VarKey, VarKeyLess>& uses,
+                                        std::set<VarKey, VarKeyLess>& defs,
+                                        P4::TypeMap* typeMap,
+                                        const std::unordered_map<cstring, UsesDefs>& tableUsesDefs,
+                                        const std::unordered_map<cstring, UsesDefs>& regActionUsesDefs) {
+    if (!expr) {
+        return;
+    }
+    if (auto cast = expr->to<IR::Cast>()) {
+        collectApplyUsesDefsFromExpr(cast->expr, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        return;
+    }
+    if (auto member = expr->to<IR::Member>()) {
+        collectApplyUsesDefsFromExpr(member->expr, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        return;
+    }
+    if (auto arr = expr->to<IR::ArrayIndex>()) {
+        collectApplyUsesDefsFromExpr(arr->left, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        if (arr->right) {
+            collectApplyUsesDefsFromExpr(arr->right, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        }
+        return;
+    }
+    if (auto slice = expr->to<IR::Slice>()) {
+        collectApplyUsesDefsFromExpr(slice->e0, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        if (slice->e1) {
+            collectApplyUsesDefsFromExpr(slice->e1, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        }
+        if (slice->e2) {
+            collectApplyUsesDefsFromExpr(slice->e2, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        }
+        return;
+    }
+    if (auto unary = expr->to<IR::Operation_Unary>()) {
+        collectApplyUsesDefsFromExpr(unary->expr, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        return;
+    }
+    if (auto bin = expr->to<IR::Operation_Binary>()) {
+        collectApplyUsesDefsFromExpr(bin->left, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        collectApplyUsesDefsFromExpr(bin->right, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        return;
+    }
+    if (auto list = expr->to<IR::ListExpression>()) {
+        for (auto comp : list->components) {
+            collectApplyUsesDefsFromExpr(comp, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        }
+        return;
+    }
+    if (auto str = expr->to<IR::StructExpression>()) {
+        for (auto comp : str->components) {
+            if (comp && comp->expression) {
+                collectApplyUsesDefsFromExpr(comp->expression, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+            }
+        }
+        return;
+    }
+    if (auto ternary = expr->to<IR::Operation_Ternary>()) {
+        collectApplyUsesDefsFromExpr(ternary->e0, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        collectApplyUsesDefsFromExpr(ternary->e1, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        collectApplyUsesDefsFromExpr(ternary->e2, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        return;
+    }
+    if (auto mce = expr->to<IR::MethodCallExpression>()) {
+        cstring name;
+        if (regActionCallName(mce, name)) {
+            auto tit = tableUsesDefs.find(name);
+            if (tit != tableUsesDefs.end()) {
+                mergeSets(uses, tit->second.uses);
+                mergeSets(defs, tit->second.defs);
+            } else {
+                auto rit = regActionUsesDefs.find(name);
+                if (rit != regActionUsesDefs.end()) {
+                    mergeSets(uses, rit->second.uses);
+                    mergeSets(defs, rit->second.defs);
+                    collectRegActionCallArgs(mce->arguments, uses, defs, typeMap);
+                }
+            }
+        }
+        if (mce->method) {
+            collectApplyUsesDefsFromExpr(mce->method, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+        }
+        if (mce->arguments) {
+            for (auto arg : *mce->arguments) {
+                if (arg && arg->expression) {
+                    collectApplyUsesDefsFromExpr(arg->expression, uses, defs, typeMap, tableUsesDefs, regActionUsesDefs);
+                }
+            }
+        }
+        return;
+    }
+}
+
 static void collectStmtIds(const IR::Statement* stmt, std::unordered_set<int>& out) {
     if (!stmt) {
         return;
@@ -619,6 +817,7 @@ static void collectStmtUsesDefs(const IR::Statement* stmt,
                     if (it != regActionUsesDefs->end()) {
                         mergeSets(out.uses, it->second.uses);
                         mergeSets(out.defs, it->second.defs);
+                        collectRegActionCallArgs(mce->arguments, out.uses, out.defs, typeMap);
                     }
                 }
             }
@@ -649,6 +848,7 @@ static void collectStmtUsesDefs(const IR::Statement* stmt,
                         if (it != regActionUsesDefs->end()) {
                             mergeSets(out.uses, it->second.uses);
                             mergeSets(out.defs, it->second.defs);
+                            collectRegActionCallArgs(mce->arguments, out.uses, out.defs, typeMap);
                             handled = true;
                         }
                     }
@@ -791,6 +991,27 @@ static bool usesDefsIntersect(const UsesDefs& ud, const std::set<VarKey, VarKeyL
     return false;
 }
 
+static bool usesIntersect(const UsesDefs& ud, const std::set<VarKey, VarKeyLess>& vars) {
+    for (const auto& u : ud.uses) {
+        if (vars.count(u)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool isWriteMethodCallStatement(const IR::Statement* stmt) {
+    auto mcs = stmt ? stmt->to<IR::MethodCallStatement>() : nullptr;
+    if (!mcs || !mcs->methodCall || !mcs->methodCall->method) {
+        return false;
+    }
+    auto member = mcs->methodCall->method->to<IR::Member>();
+    if (!member) {
+        return false;
+    }
+    return member->member == "write";
+}
+
 static void fillNodeUsesDefs(NodeInfo& node,
                              P4::TypeMap* typeMap,
                              const std::unordered_map<cstring, UsesDefs>& tableUsesDefs,
@@ -813,6 +1034,7 @@ static void fillNodeUsesDefs(NodeInfo& node,
         collectExprKeys(as->left, node.defs, typeMap);
         collectExprKeys(as->right, node.uses, typeMap);
         collectExprKeys(as->left, node.uses, typeMap);
+        collectApplyUsesDefsFromExpr(as->right, node.uses, node.defs, typeMap, tableUsesDefs, regActionUsesDefs);
         if (auto mce = as->right->to<IR::MethodCallExpression>()) {
             cstring name;
             if (regActionCallName(mce, name)) {
@@ -820,6 +1042,7 @@ static void fillNodeUsesDefs(NodeInfo& node,
                 if (it != regActionUsesDefs.end()) {
                     mergeSets(node.uses, it->second.uses);
                     mergeSets(node.defs, it->second.defs);
+                    collectRegActionCallArgs(mce->arguments, node.uses, node.defs, typeMap);
                 }
             }
         }
@@ -849,6 +1072,10 @@ static void fillNodeUsesDefs(NodeInfo& node,
                             if (rit != regActionUsesDefs.end()) {
                                 mergeSets(node.uses, rit->second.uses);
                                 mergeSets(node.defs, rit->second.defs);
+                                collectRegActionCallArgs(expr ? expr->arguments : nullptr,
+                                                        node.uses,
+                                                        node.defs,
+                                                        typeMap);
                                 handled = true;
                             }
                         }
@@ -1052,6 +1279,7 @@ static void fillNodeUsesDefs(NodeInfo& node,
             std::cerr << "[slicer]  if condition\n";
         }
         collectExprKeys(ifs->condition, node.uses, typeMap);
+        collectApplyUsesDefsFromExpr(ifs->condition, node.uses, node.defs, typeMap, tableUsesDefs, regActionUsesDefs);
         return;
     }
     if (auto sw = node.stmt->to<IR::SwitchStatement>()) {
@@ -1059,6 +1287,7 @@ static void fillNodeUsesDefs(NodeInfo& node,
             std::cerr << "[slicer]  switch expression\n";
         }
         collectExprKeys(sw->expression, node.uses, typeMap);
+        collectApplyUsesDefsFromExpr(sw->expression, node.uses, node.defs, typeMap, tableUsesDefs, regActionUsesDefs);
         return;
     }
 }
@@ -1140,11 +1369,19 @@ static bool sliceActionStmt(const IR::Statement* stmt,
     }
     UsesDefs ud;
     collectStmtUsesDefs(stmt, ud, typeMap, regActionUsesDefs);
-    if (!usesDefsIntersect(ud, needed)) {
+    bool keep = usesDefsIntersect(ud, needed);
+    const bool statefulWriteDependsOnNeeded = (!keep && isWriteMethodCallStatement(stmt) && usesIntersect(ud, needed));
+    if (!keep && !statefulWriteDependsOnNeeded) {
         return false;
     }
     keepIds.insert(stmt->id);
     mergeVarSets(needed, ud.uses);
+    if (statefulWriteDependsOnNeeded) {
+        // Important for stateful programs: writes that store seed-relevant values may only
+        // matter across packet-processing iterations. Conservatively treat the written
+        // stateful object itself as needed so we keep its other writes too.
+        mergeVarSets(needed, ud.defs);
+    }
     return true;
 }
 
@@ -2318,6 +2555,16 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         }
         UsesDefs ud;
         collectStmtUsesDefs(applyFunc->body, ud, typeMap);
+        // RegisterAction.apply bodies do not explicitly mention the underlying register object.
+        // Conservatively model each RegisterAction instance as reading+writing its register argument.
+        if (inst && inst->arguments && inst->arguments->size() > 0) {
+            if (auto arg0 = (*inst->arguments)[0]) {
+                if (arg0->expression) {
+                    collectExprKeys(arg0->expression, ud.uses, typeMap);
+                    collectExprKeys(arg0->expression, ud.defs, typeMap);
+                }
+            }
+        }
         regActionUsesDefs.emplace(kv.first, std::move(ud));
         std::unordered_set<int> ids;
         collectStmtIds(applyFunc->body, ids);
@@ -3131,6 +3378,57 @@ def_done:
     // Keep action bodies referenced by kept calls.
     std::unordered_set<int> extraKeep;
     std::unordered_set<cstring> keepRegActions;
+    auto recordApplyCallee = [&](const cstring& callee) {
+        auto tit = collector.tables.find(callee);
+        if (tit != collector.tables.end()) {
+            cstring tableName = tit->second->controlPlaneName();
+            if (tableName.isNullOrEmpty()) {
+                tableName = callee;
+            }
+            keepTables.insert(tableName);
+            if (auto al = tit->second->getActionList()) {
+                for (auto a : al->actionList) {
+                    if (!a) {
+                        continue;
+                    }
+                    auto path = a->getPath();
+                    if (!path) {
+                        continue;
+                    }
+                    if (!actionAllowed(tableName, path->name)) {
+                        continue;
+                    }
+                    keepActions.insert(path->name);
+                }
+            }
+            if (auto defAct = tit->second->getDefaultAction()) {
+                if (auto pe = defAct->to<IR::PathExpression>()) {
+                    if (actionAllowed(tableName, pe->path->name)) {
+                        keepActions.insert(pe->path->name);
+                    }
+                } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
+                    if (auto mpe = mce->method->to<IR::PathExpression>()) {
+                        if (actionAllowed(tableName, mpe->path->name)) {
+                            keepActions.insert(mpe->path->name);
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        auto rit = regActionStmtIds.find(callee);
+        if (rit != regActionStmtIds.end()) {
+            extraKeep.insert(rit->second.begin(), rit->second.end());
+            keepRegActions.insert(callee);
+        }
+    };
+    auto recordExprCallees = [&](const IR::Expression* expr) {
+        std::unordered_set<cstring> callees;
+        collectApplyCalleesFromExpr(expr, callees);
+        for (const auto& c : callees) {
+            recordApplyCallee(c);
+        }
+    };
     for (auto& kv : cfg.nodes) {
         int id = kv.first;
         if (!keepNodes.count(id)) {
@@ -3140,6 +3438,13 @@ def_done:
         if (!stmt) {
             continue;
         }
+        if (auto ifs = stmt->to<IR::IfStatement>()) {
+            recordExprCallees(ifs->condition);
+        } else if (auto sw = stmt->to<IR::SwitchStatement>()) {
+            recordExprCallees(sw->expression);
+        } else if (auto as = stmt->to<IR::AssignmentStatement>()) {
+            recordExprCallees(as->right);
+        }
         if (auto mcs = stmt->to<IR::MethodCallStatement>()) {
             auto expr = mcs->methodCall;
             if (!expr || !expr->method) {
@@ -3148,45 +3453,7 @@ def_done:
             if (auto member = expr->method->to<IR::Member>()) {
                 if (member->member == "apply") {
                     if (auto base = member->expr->to<IR::PathExpression>()) {
-                        auto tit = collector.tables.find(base->path->name);
-                        if (tit != collector.tables.end()) {
-                            cstring tableName = base->path->name;
-                            keepTables.insert(tableName);
-                            if (auto al = tit->second->getActionList()) {
-                                for (auto a : al->actionList) {
-                                    if (!a) {
-                                        continue;
-                                    }
-                                    auto path = a->getPath();
-                                    if (!path) {
-                                        continue;
-                                    }
-                                    if (!actionAllowed(tableName, path->name)) {
-                                        continue;
-                                    }
-                                    keepActions.insert(path->name);
-                                }
-                            }
-                            if (auto defAct = tit->second->getDefaultAction()) {
-                                if (auto pe = defAct->to<IR::PathExpression>()) {
-                                    if (actionAllowed(tableName, pe->path->name)) {
-                                        keepActions.insert(pe->path->name);
-                                    }
-                                } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
-                                    if (auto mpe = mce->method->to<IR::PathExpression>()) {
-                                        if (actionAllowed(tableName, mpe->path->name)) {
-                                            keepActions.insert(mpe->path->name);
-                                        }
-                                    }
-                                }
-                            }
-                        } else {
-                            auto rit = regActionStmtIds.find(base->path->name);
-                            if (rit != regActionStmtIds.end()) {
-                                extraKeep.insert(rit->second.begin(), rit->second.end());
-                                keepRegActions.insert(base->path->name);
-                            }
-                        }
+                        recordApplyCallee(base->path->name);
                     }
                 }
             } else if (auto pe = expr->method->to<IR::PathExpression>()) {
@@ -3559,6 +3826,14 @@ def_done:
                 }
                 UsesDefs ud;
                 collectStmtUsesDefs(applyFunc->body, ud, typeMap);
+                if (inst && inst->arguments && inst->arguments->size() > 0) {
+                    if (auto arg0 = (*inst->arguments)[0]) {
+                        if (arg0->expression) {
+                            collectExprKeys(arg0->expression, ud.uses, typeMap);
+                            collectExprKeys(arg0->expression, ud.defs, typeMap);
+                        }
+                    }
+                }
                 nextRegActionUsesDefs.emplace(kv.first, std::move(ud));
             }
 
@@ -3578,7 +3853,11 @@ def_done:
 
     if (keepTables.empty()) {
         for (const auto& kv : collector.tables) {
-            keepTables.insert(kv.first);
+            cstring tableName = kv.second->controlPlaneName();
+            if (tableName.isNullOrEmpty()) {
+                tableName = kv.first;
+            }
+            keepTables.insert(tableName);
         }
     }
 
@@ -3601,6 +3880,14 @@ def_done:
         }
         UsesDefs ud;
         collectStmtUsesDefs(applyFunc->body, ud, typeMap);
+        if (inst && inst->arguments && inst->arguments->size() > 0) {
+            if (auto arg0 = (*inst->arguments)[0]) {
+                if (arg0->expression) {
+                    collectExprKeys(arg0->expression, ud.uses, typeMap);
+                    collectExprKeys(arg0->expression, ud.defs, typeMap);
+                }
+            }
+        }
         slicedRegActionUsesDefs.emplace(kv.first, std::move(ud));
     }
     for (const auto& kv : slicedCollector.actions) {

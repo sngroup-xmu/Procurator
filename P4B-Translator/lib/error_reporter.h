@@ -72,16 +72,24 @@ class ErrorReporter final {
     // error message for a bug
     template <typename... T>
     std::string bug_message(const char* format, T... args) {
-        boost::format fmt(format);
-        std::string message = ::bug_helper(fmt, "", "", "", args...);
-        return message;
+        try {
+            boost::format fmt(format);
+            return ::bug_helper(fmt, "", "", "", args...);
+        } catch (const std::exception&) {
+            // Defensive fallback: avoid crashing the compiler on a bad format string.
+            return std::string(format ? format : "");
+        }
     }
 
     template <typename... T>
     std::string format_message(const char* format, T... args) {
-        boost::format fmt(format);
-        std::string message = ::error_helper(fmt, "", "", "", "", args...);
-        return message;
+        try {
+            boost::format fmt(format);
+            return ::error_helper(fmt, "", "", "", "", args...);
+        } catch (const std::exception&) {
+            // Defensive fallback: avoid crashing the compiler on a bad format string.
+            return std::string(format ? format : "");
+        }
     }
 
     template <class T,
@@ -152,8 +160,19 @@ class ErrorReporter final {
             }
         }
 
-        boost::format fmt(format);
-        std::string message = ::error_helper(fmt, prefix, "", "", suffix, args...);
+        std::string message;
+        try {
+            boost::format fmt(format);
+            message = ::error_helper(fmt, prefix, "", "", suffix, args...);
+        } catch (const std::exception&) {
+            // Defensive fallback: avoid crashing the compiler on a bad format string.
+            message = prefix;
+            message.append(format ? format : "");
+            if (suffix && suffix[0] != '\0') {
+                message.append(suffix);
+            }
+            message.append("\n");
+        }
         emit_message(message);
         if (errorCount >= maxErrorCount)
             FATAL_ERROR("Number of errors exceeded set maximum of %1%", maxErrorCount);

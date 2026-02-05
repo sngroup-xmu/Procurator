@@ -491,11 +491,76 @@ static void collectActionUpdates(const IR::P4Action* action,
             }
 
             std::string valVar;
-            if (!extractVarPath(valExpr, valVar)) {
-                return;
+            UpdateInfo u;
+            bool haveUpdate = false;
+
+            // Preferred pattern (v0): a temp var is updated in-place and then written back:
+            //   x := x + k;
+            //   reg.write(idx, x);
+            if (extractVarPath(valExpr, valVar)) {
+                auto itUp = varUpdates.find(valVar);
+                if (itUp != varUpdates.end()) {
+                    u = itUp->second;
+                    haveUpdate = true;
+                }
             }
-            auto itUp = varUpdates.find(valVar);
-            if (itUp == varUpdates.end()) {
+
+            // Also accept direct affine writes without an intermediate assignment:
+            //   reg.write(idx, x + k);
+            // This occurs in some DistCache components (e.g., cache_frequency).
+            if (!haveUpdate) {
+                const IR::Expression* ve = stripCasts(valExpr);
+                const IR::Expression* delta = nullptr;
+                const IR::Expression* base = nullptr;
+                const char* op = nullptr;
+
+                if (auto add = ve ? ve->to<IR::Add>() : nullptr) {
+                    const IR::Expression* a = stripCasts(add->left);
+                    const IR::Expression* b = stripCasts(add->right);
+                    if (a && b) {
+                        // Identify (var + const) or (const + var).
+                        if (a->to<IR::Constant>() && extractVarPath(b, valVar)) {
+                            base = b;
+                            delta = a;
+                            op = "add";
+                        } else if (b->to<IR::Constant>() && extractVarPath(a, valVar)) {
+                            base = a;
+                            delta = b;
+                            op = "add";
+                        }
+                    }
+                } else if (auto sub = ve ? ve->to<IR::Sub>() : nullptr) {
+                    const IR::Expression* a = stripCasts(sub->left);
+                    const IR::Expression* b = stripCasts(sub->right);
+                    // Identify (var - const).
+                    if (a && b && b->to<IR::Constant>() && extractVarPath(a, valVar)) {
+                        base = a;
+                        delta = b;
+                        op = "sub";
+                    }
+                }
+
+                if (base && delta && op) {
+                    UpdateInfo ui;
+                    ui.op = op;
+                    ui.delta_is_const = false;
+                    ui.delta_const_dec.clear();
+                    ui.delta_is_odd = false;
+                    if (auto c = stripCasts(delta)->to<IR::Constant>()) {
+                        ui.delta_is_const = true;
+                        std::stringstream ss;
+                        ss << c->value;
+                        ui.delta_const_dec = ss.str();
+                        ui.delta_is_odd = ((c->value & 1) != 0);
+                    }
+                    if (ui.delta_is_const) {
+                        u = ui;
+                        haveUpdate = true;
+                    }
+                }
+            }
+
+            if (!haveUpdate) {
                 return;
             }
 
@@ -510,8 +575,6 @@ static void collectActionUpdates(const IR::P4Action* action,
             const bool hasIdxExpr = extractBvExprString(idxExpr, idxExprStr);
 
             const auto& regInfo = itReg->second;
-            const auto& u = itUp->second;
-
             std::string key = regInfo.boogie_name + "|" + valVar + "|" + u.op + "|" + u.delta_const_dec;
             if (emitted.count(key)) {
                 return;

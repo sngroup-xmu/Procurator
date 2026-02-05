@@ -75,7 +75,7 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
 
     if (caseName != "netchain_seq" && caseName != "netchain_pop_front" &&
         caseName != "distcache_reg_alias" && caseName != "distcache_parser_select" &&
-        caseName != "recirc_meta_flow") {
+        caseName != "recirc_meta_flow" && caseName != "frr_pkt_par_write") {
         std::cerr << "[SELFTEST] unknown case: " << caseName << "\n";
         return 2;
     }
@@ -94,11 +94,10 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
         //  - keep write path (assign_value/maintain_sequence/get_sequence)
         //  - drop value_reg / nc_hdr.value dependent path (read_value)
         //  - prune register index domain to {0} for sequence_reg
-        expect(_setContains(sres.keepTables, "assign_value_0"), "expected keepTables contains assign_value_0");
-        expect(_setContains(sres.keepTables, "maintain_sequence_0"),
-               "expected keepTables contains maintain_sequence_0");
-        expect(_setContains(sres.keepTables, "get_sequence_0"), "expected keepTables contains get_sequence_0");
-        expect(!_setContains(sres.keepTables, "read_value_0"), "expected keepTables does NOT contain read_value_0");
+        expect(_setContains(sres.keepTables, "assign_value"), "expected keepTables contains assign_value");
+        expect(_setContains(sres.keepTables, "maintain_sequence"), "expected keepTables contains maintain_sequence");
+        expect(_setContains(sres.keepTables, "get_sequence"), "expected keepTables contains get_sequence");
+        expect(!_setContains(sres.keepTables, "read_value"), "expected keepTables does NOT contain read_value");
 
         expect(_setContains(sres.keepVarNames, "hdr.nc_hdr.seq"), "expected keepVarNames contains hdr.nc_hdr.seq");
         expect(!_setContains(sres.keepVarNames, "hdr.nc_hdr.value"),
@@ -267,6 +266,46 @@ static int _runSlicingSelftest(const P4VerifyOptions& options,
             expect(finder.found,
                    "expected sliced IR retains hdr.overlay.pop_front(...) method call");
         }
+    } else if (caseName == "frr_pkt_par_write") {
+        // FRR slicing regression (stateful writes kept for multi-step semantics):
+        //
+        // Seed: meta.local_metadata.out_port, meta.local_metadata.pkt_par.
+        //
+        // Expected effects:
+        //  - keep the stateful register write sites `pkt_par.write(...)` that store pkt_par,
+        //    even though they do not directly define the seed fields in the same action.
+        expect(_setContains(sres.keepVarNames, "meta.local_metadata.out_port"),
+               "expected keepVarNames contains meta.local_metadata.out_port");
+        expect(_setContains(sres.keepVarNames, "meta.local_metadata.pkt_par"),
+               "expected keepVarNames contains meta.local_metadata.pkt_par");
+
+        if (slicedProgram) {
+            class PktParWriteCollector : public Inspector {
+             public:
+                bool found = false;
+                bool preorder(const IR::MethodCallStatement* mcs) override {
+                    if (!mcs || !mcs->methodCall || !mcs->methodCall->method) {
+                        return false;
+                    }
+                    const auto* member = mcs->methodCall->method->to<IR::Member>();
+                    if (!member || member->member != "write") {
+                        return false;
+                    }
+                    const auto* recv = member->expr ? member->expr->to<IR::PathExpression>() : nullptr;
+                    if (!recv || !recv->path) {
+                        return false;
+                    }
+                    const std::string name = recv->path->name.toString().c_str();
+                    if (name.rfind("pkt_par", 0) == 0) {
+                        found = true;
+                    }
+                    return false;
+                }
+            };
+            PktParWriteCollector col;
+            slicedProgram->apply(col);
+            expect(col.found, "expected sliced IR contains pkt_par.write(...) method call");
+        }
     }
 
     if (ok) {
@@ -312,13 +351,73 @@ int main(int argc, char *const argv[]) {
                 const bool hasAssert = content.find("@assert") != std::string::npos;
                 const bool hasAssume = content.find("@assume") != std::string::npos;
                 if (hasAssert || hasAssume) {
-                    // Strip non-standard annotations that P4C may not recognize.
+                    // p4tv-style annotations use a non-standard syntax:
+                    //   @assert[COND] {}
+                    //   @assume[COND] {}
+                    //
+                    // P4C does not parse the bracket form. We rewrite it into a form that:
+                    //   1) parses in P4C, and
+                    //   2) survives frontend simplification passes.
+                    //
+                    // We do so by converting the bracket annotations into calls to injected
+                    // extern functions, which the Boogie backend treats specially:
+                    //   @assert[COND] {}  ==>  p4b_assert(COND);
+                    //   @assume[COND] {}  ==>  p4b_assume(COND);
                     std::string sanitized = content;
+                    bool needsExterns = false;
                     if (hasAssert) {
-                        sanitized = std::regex_replace(sanitized, std::regex(R"(@assert\s*\[[^\]]*\])"), "");
+                        sanitized =
+                            std::regex_replace(sanitized, std::regex(R"(@assert\s*\[([^\]]*)\])"), "@p4b_assert($1)");
                     }
                     if (hasAssume) {
-                        sanitized = std::regex_replace(sanitized, std::regex(R"(@assume\s*\[[^\]]*\])"), "");
+                        sanitized =
+                            std::regex_replace(sanitized, std::regex(R"(@assume\s*\[([^\]]*)\])"), "@p4b_assume($1)");
+                    }
+
+                    // Replace the (now parseable) annotation-on-empty-block idiom with a call
+                    // statement so it is not dropped as an empty statement.
+                    //
+                    // Example:
+                    //   @p4b_assert(expr) {}  ==>  p4b_assert(expr);
+                    //   @p4b_assume(expr) {}  ==>  p4b_assume(expr);
+                    {
+                        const std::string before = sanitized;
+                        sanitized = std::regex_replace(
+                            sanitized,
+                            std::regex(R"(@p4b_assert\s*\(\s*([^\)]*)\s*\)\s*\{\s*\})"),
+                            "p4b_assert($1);");
+                        sanitized = std::regex_replace(
+                            sanitized,
+                            std::regex(R"(@p4b_assume\s*\(\s*([^\)]*)\s*\)\s*\{\s*\})"),
+                            "p4b_assume($1);");
+                        if (sanitized != before) {
+                            needsExterns = true;
+                        }
+                    }
+
+                    if (needsExterns &&
+                        sanitized.find("extern void p4b_assert") == std::string::npos &&
+                        sanitized.find("extern void p4b_assume") == std::string::npos) {
+                        const std::string decls =
+                            "extern void p4b_assert(in bool cond);\n"
+                            "extern void p4b_assume(in bool cond);\n\n";
+
+                        // Insert after initial include directives if present.
+                        size_t insertPos = 0;
+                        size_t scanPos = 0;
+                        while (scanPos < sanitized.size()) {
+                            const size_t lineEnd = sanitized.find('\n', scanPos);
+                            const size_t end = (lineEnd == std::string::npos) ? sanitized.size() : lineEnd;
+                            size_t i = scanPos;
+                            while (i < end && (sanitized[i] == ' ' || sanitized[i] == '\t')) i++;
+                            if (end - i >= 8 && sanitized.compare(i, 8, "#include") == 0) {
+                                scanPos = (lineEnd == std::string::npos) ? sanitized.size() : (lineEnd + 1);
+                                insertPos = scanPos;
+                                continue;
+                            }
+                            break;
+                        }
+                        sanitized.insert(insertPos, decls);
                     }
                     if (sanitized != content) {
                         std::string inputPath = options.file.c_str();
@@ -473,7 +572,22 @@ int main(int argc, char *const argv[]) {
                 options.slicingKeepVars = sres.keepVarNames;
             }
             if (!sres.keepTables.empty()) {
-                options.slicingKeepTables = sres.keepTables;
+                // The slicer reports "control-plane" table names (which may be hierarchical, e.g.,
+                // `SwitchIngress.acquire_lock.dec_empty_slots_table`). The Boogie translator, however,
+                // uses a sanitized name with separators mapped to underscores (e.g.,
+                // `SwitchIngress_acquire_lock_dec_empty_slots_table`). If we pass dotted names through,
+                // the translator will treat all tables as "not kept" and silently stub them out,
+                // producing an unsound model (tables become abstract procedures).
+                options.slicingKeepTables.clear();
+                for (const auto& t : sres.keepTables) {
+                    std::string norm = t.c_str();
+                    for (auto& ch : norm) {
+                        if (ch == '.') {
+                            ch = '_';
+                        }
+                    }
+                    options.slicingKeepTables.insert(cstring(norm));
+                }
             }
             if (!sres.regMaxIndex.empty()) {
                 options.slicingRegMaxIndex = sres.regMaxIndex;

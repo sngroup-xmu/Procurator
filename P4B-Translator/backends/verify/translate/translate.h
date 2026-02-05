@@ -3,8 +3,10 @@
 
 #include <typeinfo>
 #include <fstream>
+#include <unordered_map>
 #include <map>
 #include <queue>
+#include <unordered_set>
 #include "backends/verify/translate/p4ltl_utils.h"
 #include "ir/ir.h"
 #include "boogie_procedure.h"
@@ -51,6 +53,7 @@ private:
 	// Best-effort: boogie var declarations (name -> type string as emitted in Boogie)
 	std::map<cstring, cstring> varTypes;
 	std::unordered_set<cstring> emittedVarDecls;
+	std::unordered_set<cstring> emittedTypeDecls;
 	std::map<cstring, const IR::Type*> declVarTypes;
 	// Map internal declaration names to sanitized control-plane names (e.g., from @name).
 	std::map<cstring, cstring> declRenames;
@@ -101,6 +104,11 @@ private:
 
 	std::map<cstring, std::vector<P4LTL::AstNode*>> p4ltlSpec;
 	P4LTLTranslator* ltlTranslator;
+
+	// Parser-state label normalization (goto/label consistency, esp. for Tofino/TNA).
+	std::unordered_map<const IR::ParserState*, cstring> parserStateLabels;
+	std::unordered_set<cstring> parserStateLabelsUsed;
+	void computeParserStateLabels(const IR::P4Parser* p4Parser);
 
 public:
 	Translator(std::ostream &out, P4VerifyOptions &options,

@@ -1,5 +1,6 @@
 #include "translate.h"
 #include "frontends/common/resolveReferences/referenceMap.h"
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
@@ -290,7 +291,11 @@ bool Translator::shouldKeepVar(const std::string& name) const {
         "last",
         "stack.index",
         "size",
-        "standard_metadata.egress_port"
+        "standard_metadata.egress_port",
+        // TNA/TNA-like pipelines may gate mirroring on this intrinsic metadata field.
+        // Keep it even when slicing criteria do not mention it, to avoid generating
+        // ill-typed Boogie when the translator models `mirror.emit` using it.
+        "ig_intr_dprsr_md.mirror_type"
     };
     if (always.count(name)) {
         return true;
@@ -313,6 +318,48 @@ bool Translator::shouldKeepVar(const std::string& name) const {
         std::string base = nameStr.substr(0, nameStr.size() - 2);
         if (options.slicingKeepVars.count(cstring(base)) > 0) {
             return true;
+        }
+    }
+    // If slicing kept a base object (e.g., a header temporary like `mirror_md_0`),
+    // conservatively keep all of its derived field/map declarations produced by
+    // the Boogie lowering (e.g., `mirror_md_0.pkt_type`).
+    //
+    // The slicer works on P4 IR where fields are Member nodes rather than flat
+    // variable names; it may keep the base but not record every lowered field
+    // variable name. Dropping these declarations makes the generated Boogie
+    // ill-typed even when the corresponding statements were kept.
+    auto baseKept = [&](const std::string& base) -> bool {
+        if (base.empty()) {
+            return false;
+        }
+        if (options.slicingKeepVars.count(cstring(base)) > 0) {
+            return true;
+        }
+        if (options.slicingKeepVars.count(cstring(base + "_0")) > 0) {
+            return true;
+        }
+        if (base.size() > 2 && base.rfind("_0") == base.size() - 2) {
+            std::string b = base.substr(0, base.size() - 2);
+            if (options.slicingKeepVars.count(cstring(b)) > 0) {
+                return true;
+            }
+        }
+        return false;
+    };
+    {
+        size_t dot = nameStr.find('.');
+        if (dot != std::string::npos) {
+            std::string base = nameStr.substr(0, dot);
+            if (baseKept(base)) {
+                return true;
+            }
+        }
+        size_t bracket = nameStr.find('[');
+        if (bracket != std::string::npos) {
+            std::string base = nameStr.substr(0, bracket);
+            if (baseKept(base)) {
+                return true;
+            }
         }
     }
     for (const auto& k : options.slicingKeepVars) {
@@ -486,9 +533,11 @@ void Translator::analyzeProgram(const IR::P4Program *program){
         else if (auto p4Control = obj->to<IR::P4Control>()){
             for(auto controlLocal:p4Control->controlLocals){
                 if (auto p4Action = controlLocal->to<IR::P4Action>()){
+                    recordDeclName(p4Action);
                     actions[translate(p4Action->name)] = p4Action;
                 }
                 else if(auto p4Table = controlLocal->to<IR::P4Table>()){
+                    recordDeclName(p4Table);
                     tables[translate(p4Table->name)] = p4Table;
                 }
                 else if (auto inst = controlLocal->to<IR::Declaration_Instance>()) {
@@ -1706,7 +1755,23 @@ cstring Translator::translate(const IR::ReturnStatement *returnStatement){
     cstring expr = translate(returnStatement->expression);
     return getIndent()+currentReturnVar+" := "+expr+";\n"+getIndent()+"return;\n";
 }
-cstring Translator::translate(const IR::EmptyStatement *emptyStatement){ return ""; }
+cstring Translator::translate(const IR::EmptyStatement *emptyStatement){
+    if (emptyStatement != nullptr) {
+        if (auto anno = emptyStatement->getAnnotation("p4b_assert")) {
+            if (anno->expr.size() == 1) {
+                cstring cond = translate(anno->expr[0]);
+                currentProcedure->addStatement(getIndent() + "assert " + cond + ";\n");
+            }
+        }
+        if (auto anno = emptyStatement->getAnnotation("p4b_assume")) {
+            if (anno->expr.size() == 1) {
+                cstring cond = translate(anno->expr[0]);
+                currentProcedure->addStatement(getIndent() + "assume " + cond + ";\n");
+            }
+        }
+    }
+    return "";
+}
 
 cstring Translator::translate(const IR::AssignmentStatement *assignmentStatement){
     struct MirrorFlagInfo {
@@ -1866,6 +1931,16 @@ cstring Translator::translate(const IR::AssignmentStatement *assignmentStatement
     cstring res = "";
     cstring left = translate(assignmentStatement->left);
     cstring right = translate(assignmentStatement->right);
+    // Some P4 frontends/targets (notably Tofino/TNA) can lower complex payload
+    // construction as struct/list literals that we currently do not translate to
+    // a Boogie expression. In that case `translate(rhs)` returns the empty
+    // string, and emitting `lhs := ;` makes the generated Boogie program
+    // syntactically invalid.
+    //
+    // Conservatively model such assignments as nondeterministic updates.
+    if (right == "") {
+        right = "havoc";
+    }
     if(right=="havoc"){
         emitMirrorFlag(mirrorInfo, right);
         updateModifiedVariables(left);
@@ -1989,6 +2064,20 @@ cstring Translator::translate(const IR::IfStatement *ifStatement){
 
 cstring Translator::translate(const IR::BlockStatement *blockStatement){
     cstring res = "";
+    if (blockStatement != nullptr) {
+        if (auto anno = blockStatement->getAnnotation("p4b_assert")) {
+            if (anno->expr.size() == 1) {
+                cstring cond = translate(anno->expr[0]);
+                currentProcedure->addStatement(getIndent() + "assert " + cond + ";\n");
+            }
+        }
+        if (auto anno = blockStatement->getAnnotation("p4b_assume")) {
+            if (anno->expr.size() == 1) {
+                cstring cond = translate(anno->expr[0]);
+                currentProcedure->addStatement(getIndent() + "assume " + cond + ";\n");
+            }
+        }
+    }
     for(auto statOrDecl:blockStatement->components){
         currentProcedure->addStatement(translate(statOrDecl));
         // res += translate(statOrDecl);
@@ -1998,6 +2087,19 @@ cstring Translator::translate(const IR::BlockStatement *blockStatement){
 
 cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement){
     cstring expr = translate(methodCallStatement->methodCall->method);
+    if (expr == "p4b_assert" || expr == "p4b_assume") {
+        if (methodCallStatement->methodCall->arguments != nullptr &&
+            methodCallStatement->methodCall->arguments->size() == 1) {
+            auto condExpr = (*methodCallStatement->methodCall->arguments)[0]->expression;
+            cstring cond = translate(condExpr);
+            if (expr == "p4b_assert") {
+                currentProcedure->addStatement(getIndent() + "assert " + cond + ";\n");
+            } else {
+                currentProcedure->addStatement(getIndent() + "assume " + cond + ";\n");
+            }
+        }
+        return "";
+    }
     if (auto member = methodCallStatement->methodCall->method->to<IR::Member>()) {
         if (member->member == "execute" || member->member == "execute_log") {
             cstring base = translate(member->expr);
@@ -2008,12 +2110,56 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
         }
         if (member->member == "emit") {
             std::string externName = getExternBaseName(member->expr);
-            if (externName == "Mirror") {
-                currentProcedure->addStatement(getIndent()+"p4b_clone_i2e := true;\n");
+            // Tofino/TNA externs sometimes lose precise type info across compiler
+            // passes; fall back to a name-based heuristic to avoid generating
+            // malformed Boogie for `mirror.emit<...>(..., {...})`.
+            //
+            // Without this, we may translate the call as a generic extern method
+            // invocation and end up emitting an empty record assignment `tmp := ;`,
+            // which causes Ultimate to reject the program with a syntax error.
+            cstring baseExpr = translate(member->expr);
+            const bool looksLikeMirror =
+                (externName == "Mirror") || (externName.find("Mirror") != std::string::npos) ||
+                (externName.empty() && baseExpr.find("mirror") != nullptr);
+            const bool looksLikeResubmit =
+                (externName == "Resubmit") || (externName.find("Resubmit") != std::string::npos) ||
+                (externName.empty() && baseExpr.find("resubmit") != nullptr);
+
+            if (looksLikeMirror) {
+                // If the frontend produced a list/struct literal (e.g., `{...}`) for the mirror
+                // payload and our expression translator couldn't lower it, we might already have
+                // emitted a placeholder assignment `tmp := ;` before reaching this handler.
+                //
+                // This breaks Boogie parsing; remove the placeholder and model the effect via
+                // the clone flag only.
+                if (currentProcedure != nullptr) {
+                    cstring last = currentProcedure->lastStatement();
+                    if (last.find(":= ;") != nullptr) {
+                        currentProcedure->removeLastStatement();
+                    }
+                }
+                // TNA model: actual mirroring is gated by the intrinsic `mirror_type` metadata.
+                // NetLock (and other Tofino pipelines) may call `mirror.emit(...)` unconditionally
+                // but only set `ig_intr_dprsr_md.mirror_type` when they want to generate a clone.
+                //
+                // If we set `p4b_clone_i2e := true` unconditionally here, every packet generates a
+                // derived event and can block host injection in bounded specs (queue_capacity=1),
+                // making multi-step functional checks unreachable.
+                //
+                // Prefer a best-effort guard when the variable is present; fall back to the old
+                // over-approximation when we can't identify the intrinsic field.
+                const bool hasIngressMirrorType =
+                    (globalVariables.find("ig_intr_dprsr_md.mirror_type") != globalVariables.end());
+                if (hasIngressMirrorType) {
+                    currentProcedure->addStatement(
+                        getIndent()+"p4b_clone_i2e := p4b_clone_i2e || (ig_intr_dprsr_md.mirror_type == 1bv3);\n");
+                } else {
+                    currentProcedure->addStatement(getIndent()+"p4b_clone_i2e := true;\n");
+                }
                 currentProcedure->addModifiedGlobalVariables("p4b_clone_i2e");
                 return "";
             }
-            if (externName == "Resubmit") {
+            if (looksLikeResubmit) {
                 currentProcedure->addStatement(getIndent()+"p4b_recirculate := true;\n");
                 currentProcedure->addModifiedGlobalVariables("p4b_recirculate");
                 return "";
@@ -3108,15 +3254,28 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                 if(flag)
                     continue;
                 flag = true;
-                cstring nextState = translate(selectCase->state);
+                cstring nextState = nullptr;
+                if (auto pathExpr = selectCase->state->to<IR::PathExpression>()) {
+                    nextState = translate(pathExpr->path);
+                } else {
+                    nextState = translate(selectCase->state);
+                }
 
-                defaultBlock += getIndent()+"goto "+"State$"+parserName+"$"+nextState+";\n";
+                cstring nextStateLabel = (nextState == "accept" || nextState == "reject")
+                                             ? ("State$" + nextState)
+                                             : ("State$" + parserName + "$" + nextState);
+                defaultBlock += getIndent() + "goto " + nextStateLabel + ";\n";
                 // defaultBlock += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
                 currentProcedure->addSucc(nextState);
                 addPred(nextState, currentProcedure->getName());
             }
             else{
-                cstring nextState = translate(selectCase->state);
+                cstring nextState = nullptr;
+                if (auto pathExpr = selectCase->state->to<IR::PathExpression>()) {
+                    nextState = translate(pathExpr->path);
+                } else {
+                    nextState = translate(selectCase->state);
+                }
 
                 // Goto label for next state
                 cstring gotoLabel = "State$"+stateName+"$"+nextState+"_"+ss_cnt.str();
@@ -3163,7 +3322,10 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
 
                 res += condition;
                 res += ");\n";
-                res += getIndent()+"goto "+"State$"+parserName+"$"+nextState+";\n";
+                cstring nextStateLabel = (nextState == "accept" || nextState == "reject")
+                                             ? ("State$" + nextState)
+                                             : ("State$" + parserName + "$" + nextState);
+                res += getIndent() + "goto " + nextStateLabel + ";\n";
                 // res += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
                 // res += getIndent()+"goto Exit;\n";
                 currentProcedure->addSucc(nextState);
@@ -4561,84 +4723,63 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
         return "bxor."+returnType+"("+translate(opBinary->left)+", "+right+")";
     }
     else if (auto geq = opBinary->to<IR::Geq>()) {
-        int w = -1;
-        if(typeName.startsWith("bv")){
-            std::string n = typeName.substr(2).c_str();
-            try { w = std::stoi(n); } catch(...) { w = -1; }
-        }
-        if(w <= 0){
-            if(maxBitvectorSize > 0) w = maxBitvectorSize;
-            else w = 32;
-        }
-        cstring extType = "bv"+toString(w+1);
-        addFunction("sub", "bvsub", extType, extType);
         cstring left = translate(opBinary->left);
         cstring right = translate(opBinary->right);
         if(auto typeInfInt = opBinary->left->type->to<IR::Type_InfInt>())
             left += typeName;
         if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
             right += typeName;
-        return "((sub."+extType+"(0bv1 ++ "+left+", 0bv1 ++ "+right+"))["+toString(w+1)+":"+toString(w)+"] == 0bv1)";
+
+        // P4's bit<k> comparisons are unsigned. Use SMT bv* comparisons directly
+        // instead of the old subtraction+slice encoding (which had off-by-one bugs
+        // for the extended width and could lead to unsound results).
+        if (typeName.startsWith("bv")) {
+            addFunction("buge", "bvuge", typeName, "bool");
+            return "buge."+typeName+"("+left+", "+right+")";
+        }
+        return "("+left+" >= "+right+")";
     }
     else if (auto leq = opBinary->to<IR::Leq>()) {
-        int w = -1;
-        if(typeName.startsWith("bv")){
-            std::string n = typeName.substr(2).c_str();
-            try { w = std::stoi(n); } catch(...) { w = -1; }
-        }
-        if(w <= 0){
-            if(maxBitvectorSize > 0) w = maxBitvectorSize;
-            else w = 32;
-        }
-        cstring extType = "bv"+toString(w+1);
-        addFunction("sub", "bvsub", extType, extType);
         cstring left = translate(opBinary->left);
         cstring right = translate(opBinary->right);
         if(auto typeInfInt = opBinary->left->type->to<IR::Type_InfInt>())
             left += typeName;
         if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
             right += typeName;
-        return "((sub."+extType+"(0bv1 ++ "+right+", 0bv1 ++ "+left+"))["+toString(w+1)+":"+toString(w)+"] == 0bv1)";
+
+        if (typeName.startsWith("bv")) {
+            addFunction("bule", "bvule", typeName, "bool");
+            return "bule."+typeName+"("+left+", "+right+")";
+        }
+        return "("+left+" <= "+right+")";
     }
     else if (auto grt = opBinary->to<IR::Grt>()) {
-        int w = -1;
-        if(typeName.startsWith("bv")){
-            std::string n = typeName.substr(2).c_str();
-            try { w = std::stoi(n); } catch(...) { w = -1; }
-        }
-        if(w <= 0){
-            if(maxBitvectorSize > 0) w = maxBitvectorSize;
-            else w = 32;
-        }
-        cstring extType = "bv"+toString(w+1);
-        addFunction("sub", "bvsub", extType, extType);
         cstring right = translate(opBinary->right);
         if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
             right += typeName;
         cstring left = translate(opBinary->left);
         if(auto typeInfInt = opBinary->left->type->to<IR::Type_InfInt>())
             left += typeName;
-        return "(((sub."+extType+"(0bv1 ++ "+left+", 0bv1 ++ "+right+"))["+toString(w+1)+":"+toString(w)+"] == 0bv1) && ("+left+" != "+right+"))";
+
+        if (typeName.startsWith("bv")) {
+            addFunction("bugt", "bvugt", typeName, "bool");
+            return "bugt."+typeName+"("+left+", "+right+")";
+        }
+        return "("+left+" > "+right+")";
     }
     else if (auto lss = opBinary->to<IR::Lss>()) {
-        int w = -1;
-        if(typeName.startsWith("bv")){
-            std::string n = typeName.substr(2).c_str();
-            try { w = std::stoi(n); } catch(...) { w = -1; }
-        }
-        if(w <= 0){
-            if(maxBitvectorSize > 0) w = maxBitvectorSize;
-            else w = 32;
-        }
-        cstring extType = "bv"+toString(w+1);
-        addFunction("sub", "bvsub", extType, extType);
         cstring right = translate(opBinary->right);
         if(auto typeInfInt = opBinary->right->type->to<IR::Type_InfInt>())
             right += typeName;
         cstring left = translate(opBinary->left);
         if(auto typeInfInt = opBinary->left->type->to<IR::Type_InfInt>())
             left += typeName;
-        return "(((sub."+extType+"(0bv1 ++ "+right+", 0bv1 ++ "+left+"))["+toString(w+1)+":"+toString(w)+"] == 0bv1) && ("+left+" != "+right+"))";
+
+        if (typeName.startsWith("bv")) {
+            addFunction("bult", "bvult", typeName, "bool");
+            return "bult."+typeName+"("+left+", "+right+")";
+        }
+        return "("+left+" < "+right+")";
     }
     else if (auto equ = opBinary->to<IR::Equ>()) {
         return "(" + translate(opBinary->left) + " == " + translate(opBinary->right) + ")";
@@ -5096,10 +5237,20 @@ void Translator::translate(const IR::Type_Struct *typeStruct){
     }
     else{
         ensureStructLayout(typeStruct);
-        auto it = structBitwidths.find(structName);
-        if (it != structBitwidths.end() && typeDefs.find(structName) == typeDefs.end()) {
-            typeDefs[structName] = it->second;
-            addDeclaration("type "+structName+" = bv"+toString(it->second)+";\n");
+        if (emittedTypeDecls.find(structName) == emittedTypeDecls.end()) {
+            auto it = structBitwidths.find(structName);
+            if (it != structBitwidths.end()) {
+                if (typeDefs.find(structName) == typeDefs.end()) {
+                    typeDefs[structName] = it->second;
+                    addDeclaration("type "+structName+" = bv"+toString(it->second)+";\n");
+                }
+            } else {
+                // Some structs are used as opaque locals (e.g., temporary metadata structs)
+                // without being bit-blasted to a fixed-width bitvector. Emit an uninterpreted
+                // Boogie type so the output is well-typed for Ultimate.
+                addDeclaration("type "+structName+";\n");
+            }
+            emittedTypeDecls.insert(structName);
         }
     }
 }
@@ -5464,6 +5615,7 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     }
 
     if(options.gotoOrIf){
+        computeParserStateLabels(p4Parser);
         parser.addStatement(getIndent()+"goto State$"+parserName+"$start;\n");
         for(auto state:p4Parser->states){
             translate(state, parserName);
@@ -5523,13 +5675,111 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     inParser = prevInParser;
 }
 
+void Translator::computeParserStateLabels(const IR::P4Parser* p4Parser) {
+    parserStateLabels.clear();
+    parserStateLabelsUsed.clear();
+
+    if (!options.gotoOrIf || p4Parser == nullptr) {
+        return;
+    }
+
+    std::unordered_map<std::string, std::vector<const IR::ParserState*>> occurrences;
+    for (auto st : p4Parser->states) {
+        if (st == nullptr) {
+            continue;
+        }
+        occurrences[st->name.toString().c_str()].push_back(st);
+    }
+
+    std::unordered_set<std::string> referenced;
+    // The generated parser procedure always begins at the unqualified `start` state.
+    referenced.insert("start");
+
+    // Collect state names referenced by transitions/selects. We intentionally avoid calling
+    // Translator::translate(expr) here to prevent side effects (e.g., emitting var decls).
+    for (auto st : p4Parser->states) {
+        if (st == nullptr || st->selectExpression == nullptr) {
+            continue;
+        }
+        if (auto pe = st->selectExpression->to<IR::PathExpression>()) {
+            if (pe->path != nullptr) {
+                referenced.insert(translate(pe->path).c_str());
+            }
+        } else if (auto se = st->selectExpression->to<IR::SelectExpression>()) {
+            for (auto sc : se->selectCases) {
+                if (sc == nullptr || sc->state == nullptr) {
+                    continue;
+                }
+                if (auto spe = sc->state->to<IR::PathExpression>()) {
+                    if (spe->path != nullptr) {
+                        referenced.insert(translate(spe->path).c_str());
+                    }
+                }
+            }
+        }
+    }
+
+    for (const auto& kv : occurrences) {
+        const std::string& base = kv.first;
+        const std::vector<const IR::ParserState*>& states = kv.second;
+
+        const bool refUnqualified = referenced.find(base) != referenced.end();
+
+        std::vector<std::string> qualifiedRefs;
+        const std::string suffix = "_" + base;
+        for (const auto& r : referenced) {
+            if (r == base) {
+                continue;
+            }
+            if (r.size() >= suffix.size()
+                && r.compare(r.size() - suffix.size(), suffix.size(), suffix) == 0) {
+                qualifiedRefs.push_back(r);
+            }
+        }
+        std::sort(qualifiedRefs.begin(), qualifiedRefs.end());
+
+        std::vector<std::string> desired;
+        if (refUnqualified) {
+            desired.push_back(base);
+        }
+        for (const auto& q : qualifiedRefs) {
+            desired.push_back(q);
+        }
+        if (desired.empty()) {
+            desired.push_back(base);
+        }
+
+        for (size_t i = 0; i < states.size(); i++) {
+            std::string label = (i < desired.size())
+                                    ? desired[i]
+                                    : base + "__p4b_" + std::to_string(i);
+            cstring outLabel = label.c_str();
+            cstring unique = outLabel;
+            int dedup = 0;
+            while (parserStateLabelsUsed.find(unique) != parserStateLabelsUsed.end()) {
+                unique = outLabel + "__dup" + std::to_string(dedup++);
+            }
+            parserStateLabels[states[i]] = unique;
+            parserStateLabelsUsed.insert(unique);
+        }
+    }
+}
+
 void Translator::translate(const IR::ParserState *parserState, cstring parserName, cstring localDecl, cstring localDeclArg){
     if(options.gotoOrIf){
-        cstring stateName = parserState->name.toString();
-        stateName = parserName + "$" +stateName;
-        cstring stateLabel = getIndent(); stateLabel += "    State$"; stateLabel += stateName;
-        if(stateName=="accept" || stateName=="reject")
+        cstring rawStateName = parserState->name.toString();
+        if (rawStateName == "accept" || rawStateName == "reject") {
             return;
+        }
+
+        cstring shortStateName = rawStateName;
+        auto it = parserStateLabels.find(parserState);
+        if (it != parserStateLabels.end()) {
+            shortStateName = it->second;
+        }
+
+        cstring stateName = parserName + "$" + shortStateName;
+        cstring stateLabel = getIndent(); stateLabel += "    State$"; stateLabel += stateName;
         // BoogieProcedure state = BoogieProcedure(stateName);
         // state.isParserState = true;
         // currentProcedure = &state;
@@ -5543,8 +5793,15 @@ void Translator::translate(const IR::ParserState *parserState, cstring parserNam
         }
         if(parserState->selectExpression!=nullptr){
             if (auto pathExpression = parserState->selectExpression->to<IR::PathExpression>()){
-                cstring nextState = translate(pathExpression);
-                cstring nextStateLabel = "State$"+parserName+"$"+nextState;
+                // For parser state transitions, prefer the raw path name over the refMap
+                // declaration name to keep goto labels consistent with `parserState->name`.
+                // Some targets (e.g., Tofino/TNA) introduce qualified names like
+                // `TofinoIngressParser_parse_resubmit` in the reference map while the
+                // actual state labels remain `parse_resubmit`, causing "goto label not found".
+                cstring nextState = translate(pathExpression->path);
+                cstring nextStateLabel = (nextState == "accept" || nextState == "reject")
+                                             ? ("State$" + nextState)
+                                             : ("State$" + parserName + "$" + nextState);
                 currentProcedure->addStatement(getIndent()+"goto "+nextStateLabel+";\n");
                 // currentProcedure->addSucc(nextS)
                 // state.addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
@@ -5908,8 +6165,251 @@ void Translator::translate(const IR::P4Table *p4Table){
                     }
                 }
 
+                // const entries (static table entries)
+                //
+                // P4 tables may define `const entries = { ... }`, which are matched in program
+                // order at runtime. When these are present, we must translate them into
+                // key-dependent conditionals (instead of an unconstrained action choice).
+                auto entriesList = p4Table->getEntries();
+                if (entriesList != nullptr && !entriesList->entries.empty()) {
+                    std::vector<cstring> keyExprs;
+                    std::vector<int> keyWidths;
+                    if (auto key = p4Table->getKey()) {
+                        for (auto keyElement : key->keyElements) {
+                            cstring expr = translate(keyElement->expression);
+                            keyExprs.push_back(expr);
+                            int width = -1;
+                            if (auto typeBits = keyElement->expression->type->to<IR::Type_Bits>()) {
+                                width = typeBits->size;
+                            } else if (keyElement->expression->type->is<IR::Type_Boolean>()) {
+                                width = 1;
+                            } else if (auto typeName = keyElement->expression->type->to<IR::Type_Name>()) {
+                                cstring typeAlias = translate(typeName->path);
+                                if (typeDefs.find(typeAlias) != typeDefs.end()) {
+                                    width = typeDefs[typeAlias];
+                                }
+                            }
+                            keyWidths.push_back(width);
+                        }
+                    }
+
+                    auto getDefaultActionNoArgs = [&]() -> cstring {
+                        cstring defaultActionName = nullptr;
+                        for (auto prop : p4Table->properties->properties) {
+                            if (prop->getName() != "default_action") {
+                                continue;
+                            }
+                            if (auto ev = prop->value->to<IR::ExpressionValue>()) {
+                                const IR::Expression* expr = ev->expression;
+                                if (auto mce = expr->to<IR::MethodCallExpression>()) {
+                                    if (mce->arguments == nullptr || mce->arguments->size() == 0) {
+                                        defaultActionName = translate(mce->method);
+                                    }
+                                } else if (auto pe = expr->to<IR::PathExpression>()) {
+                                    defaultActionName = translate(pe);
+                                }
+                            }
+                            break;
+                        }
+                        return defaultActionName;
+                    };
+
+                    bool firstEntry = true;
+                    hasIfChain = true;
+                    table.addStatement(getIndent()+name+".hit := false;\n");
+                    table.addModifiedGlobalVariables(name+".hit");
+
+                    for (auto entry : entriesList->entries) {
+                        if (entry == nullptr) {
+                            continue;
+                        }
+
+                        cstring actionName = nullptr;
+                        const IR::MethodCallExpression* actionCall = nullptr;
+                        if (auto actionExpr = entry->getAction()) {
+                            if (auto mce = actionExpr->to<IR::MethodCallExpression>()) {
+                                actionCall = mce;
+                                actionName = translate(mce->method);
+                            } else if (auto pe = actionExpr->to<IR::PathExpression>()) {
+                                actionName = translate(pe);
+                            }
+                        }
+                        if (actionName == nullptr || actions.find(actionName) == actions.end()) {
+                            continue;
+                        }
+
+                        // Build a key-based match condition for this entry.
+                        cstring condition = "";
+                        if (auto keyset = entry->getKeys()) {
+                            bool firstKey = true;
+                            int idx = 0;
+                            for (auto k : keyset->components) {
+                                if (idx >= static_cast<int>(keyExprs.size())) {
+                                    break;
+                                }
+                                cstring lhs = keyExprs[idx];
+                                int w = 32;
+                                if (idx < static_cast<int>(keyWidths.size())) {
+                                    w = keyWidths[idx];
+                                }
+                                if (w <= 0) {
+                                    w = 32;
+                                }
+
+                                cstring piece = "true";
+                                if (lhs == nullptr || k == nullptr || k->is<IR::DefaultExpression>()) {
+                                    piece = "true";
+                                } else if (auto km = k->to<IR::Mask>()) {
+                                    cstring val = translate(km->left);
+                                    cstring mask = translate(km->right);
+                                    cstring bv = "bv" + cstring::to_cstring(w);
+                                    addFunction("band", "bvand", bv, bv);
+                                    cstring band = "band." + bv;
+                                    piece = band + "(" + lhs + ", " + mask + ") == " + band + "(" + val + ", " + mask + ")";
+                                } else if (auto kr = k->to<IR::Range>()) {
+                                    cstring lo = translate(kr->left);
+                                    cstring hi = translate(kr->right);
+                                    cstring bv = "bv" + cstring::to_cstring(w);
+                                    addFunction("buge", "bvuge", bv, "bool");
+                                    addFunction("bule", "bvule", bv, "bool");
+                                    cstring buge = "buge." + bv;
+                                    cstring bule = "bule." + bv;
+                                    piece = "(" + buge + "(" + lhs + ", " + lo + ") && " + bule + "(" + lhs + ", " + hi + "))";
+                                } else {
+                                    cstring rhs = translate(k);
+                                    piece = lhs + " == " + rhs;
+                                }
+
+                                if (!firstKey) {
+                                    condition += " && ";
+                                } else {
+                                    firstKey = false;
+                                }
+                                condition += piece;
+                                idx++;
+                            }
+                        }
+                        if (condition == "") {
+                            condition = "true";
+                        }
+
+                        if (firstEntry) {
+                            table.addStatement(getIndent()+"if("+condition+"){\n");
+                            firstEntry = false;
+                        } else {
+                            table.addStatement(getIndent()+"else if("+condition+"){\n");
+                        }
+                        incIndent();
+
+                        table.addStatement(getIndent()+name+".hit := true;\n");
+                        table.addModifiedGlobalVariables(name+".hit");
+                        table.addStatement(getIndent()+name+".action_run := "+
+                            name+".action."+actionName+";\n");
+                        table.addModifiedGlobalVariables(name+".action_run");
+
+                        // Assign action parameters (const entries require compile-time constant args).
+                        const IR::P4Action* action = actions[actionName];
+                        if (actionCall != nullptr && actionCall->arguments != nullptr) {
+                            int argCount = actionCall->arguments->size();
+                            int paramIndex = 0;
+                            for (auto parameter : action->parameters->parameters) {
+                                if (paramIndex >= argCount) {
+                                    break;
+                                }
+                                const IR::Argument* arg = actionCall->arguments->at(paramIndex);
+                                const IR::Expression* argExpr = (arg == nullptr) ? nullptr : arg->expression;
+                                if (argExpr == nullptr) {
+                                    paramIndex++;
+                                    continue;
+                                }
+
+                                if (options.ultimateAutomizer && options.bitBlasting &&
+                                    parameter->type->to<IR::Type_Bits>()) {
+                                    auto typeBits = parameter->type->to<IR::Type_Bits>();
+                                    if (auto c = argExpr->to<IR::Constant>()) {
+                                        if (typeBits->size <= 64) {
+                                            uint64_t value = static_cast<uint64_t>(c->value);
+                                            for (int i = 0; i < typeBits->size; i++) {
+                                                cstring bitVar = connect(actionName+"."+translate(parameter->name), i);
+                                                cstring bitVal = ((value >> i) & 1ULL) ? "true" : "false";
+                                                table.addStatement(getIndent()+bitVar+" := "+bitVal+";\n");
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
+                                    cstring value = translate(argExpr);
+                                    if (parameter->type->is<IR::Type_Boolean>()) {
+                                        if (value == "0" || value == "0bv1") {
+                                            value = "false";
+                                        } else if (value == "1" || value == "1bv1") {
+                                            value = "true";
+                                        }
+                                    }
+                                    table.addStatement(getIndent()+parameterName+" := "+value+";\n");
+                                    table.addModifiedGlobalVariables(parameterName);
+                                }
+                                paramIndex++;
+                            }
+                        }
+
+                        table.addStatement(getIndent()+"call "+actionName+"(");
+                        table.addSucc(actionName);
+                        addPred(actionName, tableName);
+                        int cnt2 = action->parameters->parameters.size();
+                        for (auto parameter : action->parameters->parameters) {
+                            cnt2--;
+                            if (options.ultimateAutomizer && options.bitBlasting &&
+                                parameter->type->to<IR::Type_Bits>()) {
+                                auto typeBits = parameter->type->to<IR::Type_Bits>();
+                                cstring stmt = "";
+                                for (int i = 0; i < typeBits->size; i++) {
+                                    stmt += connect(actionName+"."+translate(parameter->name), i);
+                                    if (i < typeBits->size-1) {
+                                        stmt += ", ";
+                                    }
+                                }
+                                table.addStatement(stmt);
+                            } else {
+                                cstring parameterName = name+"."+actionName+"."+translate(parameter->name);
+                                table.addStatement(parameterName);
+                            }
+                            if (cnt2 != 0) {
+                                table.addStatement(", ");
+                            }
+                        }
+                        table.addStatement(");\n");
+                        if (options.gotoOrIf) {
+                            table.addStatement(getIndent()+"goto Exit;\n");
+                        }
+                        decIndent();
+                        table.addStatement(getIndent()+"}\n");
+                    }
+
+                    // If no static entry matches, execute the P4-program default action (if any).
+                    if (options.gotoOrIf) {
+                        cstring defaultActionName = getDefaultActionNoArgs();
+                        if (defaultActionName != nullptr &&
+                            actions.find(defaultActionName) != actions.end()) {
+                            table.addStatement(getIndent()+"if(!"+name+".hit){\n");
+                            incIndent();
+                            table.addStatement(getIndent()+name+".action_run := "+
+                                name+".action."+defaultActionName+";\n");
+                            table.addModifiedGlobalVariables(name+".action_run");
+                            table.addStatement(getIndent()+"call "+defaultActionName+"();\n");
+                            table.addSucc(defaultActionName);
+                            addPred(defaultActionName, tableName);
+                            table.addStatement(getIndent()+"goto Exit;\n");
+                            decIndent();
+                            table.addStatement(getIndent()+"}\n");
+                        }
+                    }
+
+                    // add action declaration
+                    translate(actionList, name+".action");
+                }
                 // no table rules
-                if(bMV2CmdsAnalyzer== nullptr || !bMV2CmdsAnalyzer->hasTableAddCmds(name)){
+                else if(bMV2CmdsAnalyzer== nullptr || !bMV2CmdsAnalyzer->hasTableAddCmds(name)){
                     bool handledDefault = false;
                     TableSetDefault* defaultCmd = nullptr;
                     if(bMV2CmdsAnalyzer != nullptr){
@@ -6152,8 +6652,8 @@ void Translator::translate(const IR::P4Table *p4Table){
 	                        }
 	                    }
 	                    // add action declaration
-	                    translate(actionList, name+".action");
-	                }
+                    translate(actionList, name+".action");
+                }
                 /* handle table add commands, i.e., table rules
                     1. find the rules of the current table (from BMV2CmdsAnalyzer)
                     2. add condition statements (according to keys and priority)
@@ -6337,6 +6837,41 @@ void Translator::translate(const IR::P4Table *p4Table){
                         }
                         decIndent();
                         table.addStatement(getIndent()+"}\n");
+                    }
+
+                    // If no rule matches, execute the P4-program default action (if any).
+                    if (options.gotoOrIf) {
+                        cstring defaultActionName = nullptr;
+                        for (auto prop : p4Table->properties->properties) {
+                            if (prop->getName() != "default_action") {
+                                continue;
+                            }
+                            if (auto ev = prop->value->to<IR::ExpressionValue>()) {
+                                const IR::Expression* expr = ev->expression;
+                                if (auto mce = expr->to<IR::MethodCallExpression>()) {
+                                    if (mce->arguments == nullptr || mce->arguments->size() == 0) {
+                                        defaultActionName = translate(mce->method);
+                                    }
+                                } else if (auto pe = expr->to<IR::PathExpression>()) {
+                                    defaultActionName = translate(pe);
+                                }
+                            }
+                            break;
+                        }
+                        if (defaultActionName != nullptr &&
+                            actions.find(defaultActionName) != actions.end()) {
+                            table.addStatement(getIndent()+"if(!"+name+".hit){\n");
+                            incIndent();
+                            table.addStatement(getIndent()+name+".action_run := "+
+                                name+".action."+defaultActionName+";\n");
+                            table.addModifiedGlobalVariables(name+".action_run");
+                            table.addStatement(getIndent()+"call "+defaultActionName+"();\n");
+                            table.addSucc(defaultActionName);
+                            addPred(defaultActionName, tableName);
+                            table.addStatement(getIndent()+"goto Exit;\n");
+                            decIndent();
+                            table.addStatement(getIndent()+"}\n");
+                        }
                     }
 
                     // add action declaration
