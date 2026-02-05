@@ -76,7 +76,7 @@ procedure mainProcedure() returns()
         self.assertLess(out.index("s1_sequence_reg[0bv32] := 65535bv16;"), out.index("while (true)"))
         self.assertNotIn("wrap_snap_taken", out)
         self.assertIn("call __wraparound_assert(true);", out)
-        self.assertIn("if (s1_sequence_reg[0bv32] != 65535bv16)", out)
+        self.assertIn("if ((s1_sequence_reg[0bv32] != 65535bv16))", out)
 
     def test_confirm_inserts_fast_forward_with_bounded_loop(self) -> None:
         src = """
@@ -114,7 +114,176 @@ procedure mainProcedure() returns()
         self.assertIn("s1_sequence_reg[0bv32] := 65535bv16;", out)
         self.assertLess(out.index("s1_sequence_reg[0bv32] := 65535bv16;"), out.index("while (procurator_step < 10)"))
         self.assertIn("call __wraparound_assert(true);", out)
-        self.assertIn("if (s1_sequence_reg[0bv32] != 65535bv16)", out)
+        self.assertIn("if ((s1_sequence_reg[0bv32] != 65535bv16))", out)
+
+    def test_enable_check_inserts_goal_call(self) -> None:
+        src = """
+var procurator_step: int;
+var s1_sequence_reg:[bv32]bv16;
+
+procedure main() returns()
+  modifies procurator_step, s1_sequence_reg;
+{
+  // No property asserts here; enable_check should still inject its own goal.
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, s1_sequence_reg;
+{
+  procurator_step := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.ENABLE_CHECK,
+            pump_reg="s1_sequence_reg",
+            accel_regs=["s1_sequence_reg"],
+        )
+        # Fast-forward to MAX must be present (same as confirm).
+        self.assertIn("s1_sequence_reg[0bv32] := 65535bv16;", out)
+        # ENABLE_CHECK is encoded as a satisfiability query:
+        #   assume target != MAX; assert false;
+        self.assertIn("assume (s1_sequence_reg[0bv32] != 65535bv16);", out)
+        self.assertIn("assert false;", out)
+
+    def test_confirm_reasserts_const_after_havoc(self) -> None:
+        # Regression: no-slicing harnesses may `havoc` host/meta variables that
+        # wraparound CEGIS pins to stabilize the pumped index (e.g., io_meta.leafswitchidx).
+        # The constraint must be re-asserted after the havoc, otherwise the
+        # solver can pump a different register cell than the one fast-forwarded.
+        src = """
+var procurator_step: int;
+var io_meta.leafswitchidx: bv16;
+var r:[bv32]bv32;
+
+procedure main() returns()
+  modifies r;
+{
+  assert true;
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, io_meta.leafswitchidx, r;
+{
+  procurator_step := 0;
+  while (true) {
+    havoc io_meta.leafswitchidx;
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="r",
+            accel_regs=["r"],
+            extra_assumes=["io_meta.leafswitchidx == 2bv16"],
+        )
+        self.assertIn("havoc io_meta.leafswitchidx;", out)
+        # There is an assume at the top (extra_assumes) *and* one re-inserted after havoc.
+        tail = out.split("havoc io_meta.leafswitchidx;", 1)[1]
+        self.assertIn("assume(io_meta.leafswitchidx == 2bv16);", tail)
+
+    def test_confirm_inserts_two_phase_pump_mode_guard_even_with_havoc_reassert(self) -> None:
+        # Regression: confirm should drive a two-phase env script using `dsl_pump_mode`.
+        #
+        # Extra assumes may trigger "reassert after havoc" insertions *earlier* in the file,
+        # shifting mainProcedure indices. The pump-mode guard insertion must remain robust.
+        src = """
+var procurator_step: int;
+var procurator_phase: int;
+var dsl_pump_mode: bool;
+var io_meta.leafswitchidx: bv16;
+var reg:[bv32]bv32;
+var reg__last0_value: bv32;
+var reg__wrote_any: bool;
+var reg__wrote_index0: bool;
+var reg__last_index: bv32;
+var reg__last_value: bv32;
+
+procedure main() returns()
+  modifies io_meta.leafswitchidx, procurator_phase, dsl_pump_mode;
+{
+  if (procurator_phase == 0) {
+    havoc io_meta.leafswitchidx;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, procurator_phase, dsl_pump_mode, reg, reg__last0_value,
+           reg__wrote_any, reg__wrote_index0, reg__last_index, reg__last_value;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  dsl_pump_mode := true;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="reg",
+            accel_regs=["reg"],
+            index_value=0,
+            index_expr=None,
+            proj_vars=["procurator_phase"],
+            cutpoint_cond=None,
+            step_op="add",
+            step_delta=1,
+            extra_assumes=["io_meta.leafswitchidx == 2bv16"],
+        )
+        # The guard should be placed in the phase-0 branch of `main()`.
+        frag = out.split("if (procurator_phase == 0)", 1)[1]
+        self.assertIn("dsl_pump_mode := (reg__last0_value == 4294967295bv32);", frag)
+
+    def test_confirm_drives_two_phase_pump_mode_in_inlined_deterministic_schedule(self) -> None:
+        # Regression: when the deterministic scheduler is inlined into mainProcedure
+        # (no `procedure main()` / no procurator_phase), CONFIRM must still drive
+        # the two-phase host env script (`dsl_pump_mode`) by re-assigning it before
+        # each injection that branches on it.
+        src = """
+var dsl_pump_mode: bool;
+var reg:[bv32]bv32;
+var reg__last0_value: bv32;
+
+procedure mainProcedure() returns()
+  modifies dsl_pump_mode, reg, reg__last0_value;
+{
+  dsl_pump_mode := true;
+  // Inlined host injection: the packet type depends on dsl_pump_mode.
+  if (true) {
+    if (dsl_pump_mode) {
+      assert true;
+    } else {
+      assert true;
+    }
+  }
+}
+
+procedure ULTIMATE.start() returns()
+  modifies dsl_pump_mode, reg, reg__last0_value;
+{
+  call mainProcedure();
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="reg",
+            accel_regs=["reg"],
+        )
+        # The assignment should be injected right before the `if (dsl_pump_mode)` that
+        # controls the host injection.
+        frag = out.split("if (dsl_pump_mode)", 1)[0]
+        self.assertIn("dsl_pump_mode := (reg__last0_value == 4294967295bv32);", frag)
 
     def test_confirm_inserts_fast_forward_in_concurrent_harness(self) -> None:
         src = """
@@ -160,7 +329,7 @@ procedure ULTIMATE.start() returns()
         self.assertIn("s1_sequence_reg__last0_value := 65535bv16;", out)
         self.assertLess(out.index("s1_sequence_reg[0bv32] := 65535bv16;"), out.index("fork 0 EnvThread();"))
         self.assertIn("call __wraparound_assert(true);", out)
-        self.assertIn("if (s1_sequence_reg__last0_value != 65535bv16)", out)
+        self.assertIn("if ((s1_sequence_reg__last0_value != 65535bv16))", out)
 
     def test_unroll_replaces_while_loop(self) -> None:
         src = """
@@ -307,9 +476,9 @@ procedure mainProcedure() returns()
             pump_reg="unused_reg",
             accel_regs=["unused_reg"],
         )
-        self.assertIn("// UNROLLED 5 steps (wraparound)", out)
-        self.assertNotIn("while (true)", out)
-        self.assertNotIn("procurator_step := procurator_step + 1;", out)
+        # ENTRY_CHECK is a cheap satisfiability gate: it should not unroll the scheduler.
+        self.assertIn("while (true)", out)
+        self.assertIn("procurator_step := procurator_step + 1;", out)
         self.assertIn("call __wraparound_entry_error();", out)
         self.assertIn("WRAPAROUND_ENTRY_ASSERT", out)
 
@@ -383,18 +552,14 @@ procedure mainProcedure() returns()
         self.assertLess(out.index("var wrap_closure_seq0"), out.index("havoc wrap_closure_seq0"))
 
         # Closure: +1 for all accelerated regs, and return to the cutpoint.
-        self.assertIn(
-            "call __wraparound_assert(wrap_closure_after_s1_sequence_reg == add.bv16(wrap_closure_seq0, 1bv16));",
-            out,
-        )
-        self.assertIn(
-            "call __wraparound_assert(wrap_closure_after_s2_sequence_reg == add.bv16(wrap_closure_seq0, 1bv16));",
-            out,
-        )
-        self.assertIn("call __wraparound_assert(((procurator_phase == 0)));", out)
+        self.assertIn("call __wraparound_closure_assert_all(", out)
+        self.assertIn("wrap_closure_after_s1_sequence_reg == add.bv16(wrap_closure_seq0, 1bv16)", out)
+        self.assertIn("wrap_closure_after_s2_sequence_reg == add.bv16(wrap_closure_seq0, 1bv16)", out)
+        self.assertIn("(procurator_phase == 0)", out)
 
-        # Single assertion location via wrapper.
+        # Assertion wrappers (for CEGIS refinement / stable Ultimate targets).
         self.assertIn("procedure {:inline 1} __wraparound_assert", out)
+        self.assertIn("procedure {:inline 1} __wraparound_closure_assert_all", out)
 
     def test_missing_main_procedure_errors(self) -> None:
         with self.assertRaises(Exception):

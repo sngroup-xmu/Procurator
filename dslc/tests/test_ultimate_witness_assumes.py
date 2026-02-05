@@ -36,6 +36,24 @@ class UltimateWitnessAssumeTests(unittest.TestCase):
         self.assertIn("clientTrack_meta.hashval_for_partition == 3bv16", assumes)
         self.assertIn("dsl_pump_mode == true", assumes)
 
+    def test_extract_edge_assumptions(self) -> None:
+        wa = extract_assumptions_from_graphml(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="assumption" attr.name="assumption" for="edge"/>
+  <graph edgedefault="directed">
+    <node id="N0"/>
+    <node id="N1"/>
+    <edge source="N0" target="N1">
+      <data key="assumption">clientTrack_meta.hashval_for_partition == 0x3</data>
+    </edge>
+  </graph>
+</graphml>
+"""
+        )
+        assumes = synthesize_boogie_assumes(witness_assumptions=wa, base_bpl_text=_BPL)
+        self.assertIn("clientTrack_meta.hashval_for_partition == 3bv16", assumes)
+
     def test_filters_unknown_vars_and_arrays(self) -> None:
         wa = extract_assumptions_from_graphml(
             """<?xml version="1.0" encoding="UTF-8"?>
@@ -56,4 +74,3 @@ class UltimateWitnessAssumeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
