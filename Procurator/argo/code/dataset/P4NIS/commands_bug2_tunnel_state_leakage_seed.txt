@@ -1,0 +1,6 @@
+// Seeded init for P4NIS Bug 2 (NSDI Table 2): Tunnel State Leakage.
+//
+// Force `count` to 1 so that the next user packet (ingress_port==0) takes the
+// tunnel path (egress_spec==2) and executes `creatmytunnel()`.
+
+register_write count 0 1

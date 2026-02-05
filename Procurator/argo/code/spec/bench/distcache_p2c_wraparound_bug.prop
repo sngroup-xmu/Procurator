@@ -55,6 +55,10 @@ host io {
     // update action consistently touches a fixed register slot.
     meta.hashval_for_partition = 0;
     meta.hashval_for_spine_partition = 0;
+    // In our current harness, node-local meta fields may be overwritten from host meta.
+    // Pin the selected leaf/spine indices so the pumped cell is stable.
+    meta.leafswitchidx = 2;
+    meta.spineswitchidx = 3;
 
     // Avoid unintended forwarding matches; makes queue behavior simpler.
     hdr.ipv4_hdr.dstAddr = 0;
@@ -86,14 +90,33 @@ global {
   // Default to "pump mode"; wraparound stages may override it.
   bool pump_mode = true;
 
-  // Functional check (evaluated on every pass):
-  // When processing the P2C query packet (optype 0x30) and observing `leafload==0`,
-  // we interpret that as an overflow event (confirm stage sets leafload to MAX).
-  // In that case, choosing leaf is incorrect for load balancing: leaf must be
-  // treated as "very loaded", so the system should choose spine.
+  // Functional check:
+  //
+  // When the P2C decision is executed and we observe `leafload==0`, we interpret
+  // that as an overflow event (confirm stage fast-forwards leafload to MAX and
+  // the first update pass wraps MAX->0).
+  //
+  // In that case, choosing leaf is incorrect for load balancing: the leaf should
+  // be treated as "very loaded", so the system must choose spine.
+  //
+  // IMPORTANT: do NOT key this assertion on `hdr.op_hdr.optype == 0x30` at the end
+  // of the pass. In DistCache, egress may rewrite optype (e.g., to GETREQ_SPINE),
+  // which would make an optype-guarded assertion vacuously true and hide the bug.
+  // Instead, we use the ingress table hit flag to detect when the decision was
+  // actually evaluated.
   assert {
-    (clientTrack_hdr.op_hdr.optype != 48)
-      || (clientTrack_leafload_0 != 0)
+    // NOTE: `partitionswitchIngress_poweroftwochoice_tbl` is reused for both the query (optype=0x30) and
+    // the counter-update ops (0x2009/0x1009). Therefore `*.hit` alone is too broad
+    // and can cause a vacuous/spurious counterexample on the update packet.
+    //
+    // We key the property on the *action* being `poweroftwochoice` (i.e., the query),
+    // which is stable even if egress later rewrites `hdr.op_hdr.optype`.
+    (!(clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit
+        && (clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run
+              == clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_poweroftwochoice)))
+      // IMPORTANT: `hash_leaf_partition_tbl` selects leafswitchidx=2 (see entries),
+      // so the load counter we pump/observe lives at index 2, not index 0.
+      || (clientTrack_partitionswitchIngress_leafload_reg[2] != 0)
       || (clientTrack_meta.is_spine == 1);
   };
 }

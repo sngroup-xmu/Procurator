@@ -1,0 +1,2 @@
+table_add port_forward forward_action 1 => 2
+table_add port_forward forward_action 2 => 1

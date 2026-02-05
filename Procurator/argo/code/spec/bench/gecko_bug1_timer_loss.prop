@@ -1,5 +1,14 @@
 // Gecko bug #1: timer packet loss/blockage -> pending writes stall.
-// Model: client host injects write or timer packets; assert timer must arrive within a bounded window.
+//
+// Functional safety property (bug-finding):
+//   After a write request becomes pending, the timer mechanism must eventually
+//   clear it. If the timer packet is dropped/blocked at the switch boundary,
+//   time does not advance and pending requests are never re-evaluated.
+//
+// Modeling approach:
+//   - host injects one write (op=10) then repeatedly injects "tick" packets
+//     (op=0) that keep the pipeline running but never clear the pending write.
+//   - this exhibits bounded waiting (steps>3) as a safety violation.
 
 import ta from "../../dataset/gecko/timer_a.json" entries "../../dataset/gecko/control/a.txt";
 import tb from "../../dataset/gecko/timer_b.json" entries "../../dataset/gecko/control/b.txt";
@@ -11,41 +20,17 @@ topology {
 host io {
   connect ta;
   env {
-    hdr.ethernet.ether_type = 21845;
-    hdr.albion.CS_id_1 = 0;
-    hdr.albion.CS_id_2 = 0;
-    hdr.albion.CS_id_3 = 0;
-    hdr.albion.CS_offset_1 = 0;
-    hdr.albion.CS_offset_2 = 0;
-    hdr.albion.CS_offset_3 = 0;
-    hdr.albion.address_h = 0;
-    hdr.albion.address_l = 0;
-    hdr.albion.index = 0;
-    hdr.albion.num = 0;
-    hdr.albion.port = 0;
-    hdr.albion.request_id_high = 0;
-    hdr.albion.request_id_low = 0;
-    hdr.albion.time = 0;
-    hdr.albion_data.data_0 = 0;
-    hdr.albion_data.data_1 = 0;
-    hdr.albion_data.data_2 = 0;
-    hdr.albion_data.data_3 = 0;
-    hdr.albion_data.data_4 = 0;
-    hdr.albion_data.data_5 = 0;
-    hdr.albion_data.data_6 = 0;
-    hdr.albion_data.data_7 = 0;
-    hdr.albion_data.data_8 = 0;
-    hdr.albion_data.data_9 = 0;
-    hdr.albion_data.data_10 = 0;
-    hdr.albion_data.data_11 = 0;
     hdr.ethernet.valid = true;
+    hdr.ethernet.ether_type = 21845;
     hdr.albion.valid = true;
     hdr.albion_timer.valid = false;
-    hdr.albion_data.valid = true;
+    // Gecko's write request does not carry albion_data in our abstraction.
+    hdr.albion_data.valid = false;
     if (phase == 0) {
       hdr.albion.operation = 10;
       phase = 1;
     } else {
+      // "tick" packets: advance the system without clearing pending writes.
       hdr.albion.operation = 0;
     }
   }
@@ -54,35 +39,9 @@ host io {
 node ta {
   external_input = false;
   assume {
+    // Keep assumptions minimal to avoid inflating the SMT problem.
     hdr.ethernet.ether_type == 21845;
-    hdr.albion.CS_id_1 == 0;
-    hdr.albion.CS_id_2 == 0;
-    hdr.albion.CS_id_3 == 0;
-    hdr.albion.CS_offset_1 == 0;
-    hdr.albion.CS_offset_2 == 0;
-    hdr.albion.CS_offset_3 == 0;
-    hdr.albion.address_h == 0;
-    hdr.albion.address_l == 0;
-    hdr.albion.index == 0;
-    hdr.albion.num == 0;
-    hdr.albion.port == 0;
-    hdr.albion.request_id_high == 0;
-    hdr.albion.request_id_low == 0;
-    hdr.albion.time == 0;
-    hdr.albion_data.data_0 == 0;
-    hdr.albion_data.data_1 == 0;
-    hdr.albion_data.data_2 == 0;
-    hdr.albion_data.data_3 == 0;
-    hdr.albion_data.data_4 == 0;
-    hdr.albion_data.data_5 == 0;
-    hdr.albion_data.data_6 == 0;
-    hdr.albion_data.data_7 == 0;
-    hdr.albion_data.data_8 == 0;
-    hdr.albion_data.data_9 == 0;
-    hdr.albion_data.data_10 == 0;
-    hdr.albion_data.data_11 == 0;
-    hdr.albion_data.valid == false;
-    hdr.albion.operation == 10;
+    (hdr.albion.operation == 10 || hdr.albion.operation == 0 || hdr.albion.operation == 100);
   };
   if (hdr.albion.operation == 10) {
     pending = 1;
@@ -108,40 +67,18 @@ global {
   queue_capacity = 1;
   env_thread = false;
   host_eager = true;
+  // Use a deterministic round-robin scheduler in bounded, sequential harness mode.
+  // This is sound for bug-finding (if we find UNSAFE it's a real counterexample),
+  // and it avoids huge nondeterministic branching in TraceAbstraction.
+  deterministic_scheduler = true;
+  // Bound must account for both host injection steps and node pass steps.
+  // To reach steps=4 we need: host(op10), ta, 4*(host(op0), ta) => 10 scheduler steps,
+  // plus possible tb steps. Keep a small but safe margin.
+  max_steps = 16;
   int pending = 0;
   int steps = 0;
   int client_seen = 0;
   int phase = 0;
-  assume {
-    ta_aIngress_register_address_h_record_0[0] == ta_aIngress_register_address_h_record_0[0];
-    ta_aIngress_register_address_h_record_1[0] == ta_aIngress_register_address_h_record_1[0];
-    ta_aIngress_register_address_h_record_2[0] == ta_aIngress_register_address_h_record_2[0];
-    ta_aIngress_register_address_h_record_3[0] == ta_aIngress_register_address_h_record_3[0];
-    ta_aIngress_register_address_l_record_0[0] == ta_aIngress_register_address_l_record_0[0];
-    ta_aIngress_register_address_l_record_1[0] == ta_aIngress_register_address_l_record_1[0];
-    ta_aIngress_register_address_l_record_2[0] == ta_aIngress_register_address_l_record_2[0];
-    ta_aIngress_register_address_l_record_3[0] == ta_aIngress_register_address_l_record_3[0];
-    ta_aIngress_register_state_0[0] == ta_aIngress_register_state_0[0];
-    ta_aIngress_register_state_1[0] == ta_aIngress_register_state_1[0];
-    ta_aIngress_register_state_2[0] == ta_aIngress_register_state_2[0];
-    ta_aIngress_register_state_3[0] == ta_aIngress_register_state_3[0];
-    ta_aIngress_register_num[0] == ta_aIngress_register_num[0];
-    ta_aIngress_register_request_id_high[0] == ta_aIngress_register_request_id_high[0];
-    ta_aIngress_register_request_id_low[0] == ta_aIngress_register_request_id_low[0];
-    ta_aIngress_register_timer[0] == ta_aIngress_register_timer[0];
-    tb_bEgress_register_data_record_0[0] == tb_bEgress_register_data_record_0[0];
-    tb_bEgress_register_data_record_1[0] == tb_bEgress_register_data_record_1[0];
-    tb_bEgress_register_data_record_2[0] == tb_bEgress_register_data_record_2[0];
-    tb_bEgress_register_data_record_3[0] == tb_bEgress_register_data_record_3[0];
-    tb_bEgress_register_data_record_4[0] == tb_bEgress_register_data_record_4[0];
-    tb_bEgress_register_data_record_5[0] == tb_bEgress_register_data_record_5[0];
-    tb_bEgress_register_data_record_6[0] == tb_bEgress_register_data_record_6[0];
-    tb_bEgress_register_data_record_7[0] == tb_bEgress_register_data_record_7[0];
-    tb_bEgress_register_data_record_8[0] == tb_bEgress_register_data_record_8[0];
-    tb_bEgress_register_data_record_9[0] == tb_bEgress_register_data_record_9[0];
-    tb_bEgress_register_data_record_10[0] == tb_bEgress_register_data_record_10[0];
-    tb_bEgress_register_data_record_11[0] == tb_bEgress_register_data_record_11[0];
-  };
   assert {
     !(pending == 1 && steps > 3);
   };

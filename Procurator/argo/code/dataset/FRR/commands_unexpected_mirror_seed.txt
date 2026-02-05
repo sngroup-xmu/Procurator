@@ -1,0 +1,16 @@
+// Minimal control-plane commands to reproduce FRR "Unexpected Mirror".
+//
+// Seed state:
+// - For instance inst=0: pkt_curr=2, pkt_par=3.
+// - Inject a packet on ingress_port=1 with bfs_start=1 so ctrl_set_bfs_metadata runs.
+//   Since ingress_port is neither pkt_curr nor pkt_par, the program marks a failure
+//   visit and sends the packet back to the ingress port (mirror).
+//
+// We keep only the table defaults needed on this path.
+
+table_set_default curr_par_neq_in set_out_to_ingress
+table_set_default send_in_ingress send_in
+
+register_write pkt_curr 0 2
+register_write pkt_par 0 3
+

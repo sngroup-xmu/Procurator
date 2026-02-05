@@ -1,56 +1,94 @@
-// DistCache (leaf-only): cache_frequency_reg wrap-around demo.
+// DistCache (leaf-only): cache_frequency wraparound bug (functional).
 //
-// Goal: show that the 32-bit per-key `cache_frequency_reg` can wrap to 0, which
-// may break higher-level expectations like "frequency is monotonic".
+// Background:
+//   - `cache_frequency_reg[idx]` is incremented on each sampled cache hit (see
+//     `update_cache_frequency()` in `p4src/regs/cache_frequency.p4`).
+//   - A control-plane component may read this frequency to drive eviction /
+//     hotness decisions.
 //
-// We keep the environment tight:
-//   - Always send `GETREQ_INSWITCH` for a cached key (idx=7 in flow_entries.txt).
-//   - Assume the cached slot is `latest` so `update_cache_frequency()` runs.
+// Bug (functional, not "wraparound for wraparound's sake"):
+//   - `cache_frequency_reg` is a 32-bit counter stored in a register.
+//   - When it wraps (2^32-1 -> 0), `get_cache_frequency()` returns 0 for a key
+//     that was just accessed "a lot", which can be interpreted as cold/unused.
 //
-// Then we rely on the wraparound pipeline (`./bin/procurator wraparound`) to fast-forward
-// the target register cell to MAX and confirm the next +1 wraps to 0, violating
-// the assertion.
+// This benchmark is designed to be run via the integrated wraparound CEGIS
+// pipeline (ENTRY -> CONFIRM -> CLOSURE), e.g.:
+//   `./bin/procurator verify --wraparound auto --spec .../distcache_leaf_cache_frequency_wraparound.prop`
+//
+// Key idea:
+//   - Confirm stage fast-forwards `cache_frequency_reg[7]` to MAX.
+//   - First injected packet triggers `update_cache_frequency` (+1) and overflows MAX->0.
+//   - Second injected packet triggers `get_cache_frequency` (optype=0x24) and checks:
+//       after overflow, returning 0 is incorrect for a frequency counter.
 
 import leaf from "../../dataset/distcache/leafswitch/netcache.p4"
   entries "distcache_leaf_cache_frequency_wraparound_entries.txt";
 
 topology {}
 
-node leaf {
-  external_input = true;
-
-  assume {
+host io {
+  connect leaf;
+  env {
     // Parser sanity: reach `parse_op` and make op_hdr valid.
-    hdr.ethernet_hdr.valid == true;
-    hdr.ipv4_hdr.valid == true;
-    hdr.udp_hdr.valid == true;
-    hdr.op_hdr.valid == true;
-    hdr.ethernet_hdr.etherType == 2048;
-    hdr.ipv4_hdr.protocol == 17;
-    hdr.udp_hdr.dstPort == 5008;
+    hdr.ethernet_hdr.valid = true;
+    hdr.ipv4_hdr.valid = true;
+    hdr.udp_hdr.valid = true;
+    hdr.op_hdr.valid = true;
+    hdr.ethernet_hdr.etherType = 2048; // 0x0800 IPv4
+    hdr.ipv4_hdr.protocol = 17;        // UDP
+    hdr.udp_hdr.dstPort = 5008;
 
-    // Drive leaf egress into `update_cache_frequency()` via control-plane entries.
-    hdr.op_hdr.optype == 4; // GETREQ_INSWITCH
-
-    // Use the cached key configured in `flow_entries.txt`:
+    // Use the cached key configured in the entries file:
     //   table_add cache_lookup_tbl cached_action 0xABCD0001 0 0 0 0 => 7
-    hdr.op_hdr.keylolo == 2882338817; // 0xABCD0001
-    hdr.op_hdr.keylohi == 0;
-    hdr.op_hdr.keyhilo == 0;
-    hdr.op_hdr.keyhihilo == 0;
-    hdr.op_hdr.keyhihihi == 0;
+    hdr.op_hdr.keylolo = 2882338817; // 0xABCD0001
+    hdr.op_hdr.keylohi = 0;
+    hdr.op_hdr.keyhilo = 0;
+    hdr.op_hdr.keyhihilo = 0;
+    hdr.op_hdr.keyhihihi = 0;
 
     // `access_latest_tbl` keys on `fraginfo_hdr.cur_fragidx`; keep it stable.
-    hdr.fraginfo_hdr.cur_fragidx == 0;
-  };
+    hdr.fraginfo_hdr.valid = true;
+    hdr.fraginfo_hdr.cur_fragidx = 0;
+
+    // Keep partition hash outputs stable (domain is capped by wraparound pipeline).
+    meta.hashval_for_partition = 0;
+    meta.hashval_for_spine_partition = 0;
+
+    // Avoid unintended forwarding matches; makes queue behavior simpler.
+    hdr.ipv4_hdr.dstAddr = 0;
+
+    // Two-phase script controlled by DSL boolean `pump_mode`:
+    //   - pump_mode=true  => GETREQ_INSWITCH (optype=0x4): update_cache_frequency (+1)
+    //   - pump_mode=false => GET_CACHE_FREQUENCY (optype=0x24): read back frequency
+    if (pump_mode) {
+      hdr.op_hdr.optype = 4;
+    } else {
+      hdr.op_hdr.optype = 36; // 0x24
+    }
+  }
 }
 
 global {
   queue_capacity = 1;
   deterministic_scheduler = true;
+  env_thread = false;
+  host_eager = true;
+  // Two-phase script: (pump pkt, then query pkt) => 4 actor steps in our deterministic schedule.
+  // Keeping this small is important for confirm-stage performance.
+  max_steps = 4;
 
-  // Checked in wraparound-confirm stage (after fast-forwarding to MAX).
+  // Default to pump prefix; wraparound-confirm will switch it once reg leaves MAX.
+  bool pump_mode = true;
+
+  // Functional check:
+  // When processing the frequency query, returning 0 indicates overflow under our
+  // wraparound pipeline (fast-forward to MAX then +1).
+  // Such a wraparound is a bug for a frequency counter: it should not appear cold/unused.
   assert {
-    leaf_netcacheEgress_cache_frequency_reg[7] != 0;
+    // Use the DSL script mode as the guard (stable across the pass), rather than
+    // `hdr.op_hdr.optype`, because egress may rewrite optype and make an optype-guarded
+    // assertion vacuously true.
+    pump_mode
+      || (leaf_netcacheEgress_access_cache_frequency_tbl.hit && (leaf_hdr_eg.frequency_hdr.frequency != 0));
   };
 }

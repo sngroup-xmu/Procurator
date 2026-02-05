@@ -1,0 +1,48 @@
+// P4NIS (NSDI Table 2): Bug 2 - Tunnel State Leakage
+//
+// The tunnel-encapsulation action (`creatmytunnel`) constructs an outer IPv4
+// header by copying the *inner* IPv4 source address into `ipv4_tunnel.srcAddr`.
+// For a tunnel, the outer src should be a tunnel endpoint and should not leak
+// the inner src.
+
+import s1 from "../../dataset/P4NIS/P4NIS.p4"
+  entries "../../dataset/P4NIS/commands_bug2_tunnel_state_leakage_seed.txt";
+
+topology {}
+
+node s1 {
+  external_input = true;
+  assume {
+    // Drive the "user packet" path.
+    standard_metadata.ingress_port == 0;
+
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+
+    // Avoid the special DNS fast-path (dstAddr == 0x7b7b7b7b).
+    hdr.ipv4.dstAddr != 2071690107;
+
+    // Ensure the main processing branch is taken.
+    hdr.ethernet.dstAddr != 281474976710655;
+    hdr.ethernet.srcAddr != 0;
+
+    // Make the leak easy to see in the witness.
+    hdr.ipv4.srcAddr == 16843009;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  // Sequential harness executes one scheduler action per step; we need at least
+  // one env-injection step + one switch pass.
+  max_steps = 2;
+
+  // Expected behavior: when tunneling, the outer src must not equal the inner src.
+  assert {
+    (s1_standard_metadata.ingress_port != 0)
+      || (s1_standard_metadata.egress_spec != 2)
+      || (s1_hdr.ipv4_tunnel.srcAddr != s1_hdr.ipv4.srcAddr);
+  };
+}

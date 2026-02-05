@@ -1,0 +1,143 @@
+// P4xos: majority-quorum violation (NSDI §8.1, Figure 9).
+//
+// Root cause (paper):
+//   The learner stores ack_acceptors (bitmask of acceptors that voted) in a register indexed by
+//   paxos.inst, but does not clear it across instances / reset epochs. When the leader resets
+//   paxos.inst back to 0, the learner may reuse stale ack bits and prematurely act on a "majority"
+//   with fewer than a quorum of *current-epoch* votes.
+//
+// Modeling choice:
+//   Similar to the drop-flag bug, we can reproduce the stale-quorum bug by verifying the learner
+//   role in isolation and directly injecting Paxos 2B packets. This avoids relying on broadcast
+//   behavior in the leader implementation and keeps the benchmark deterministic.
+//
+// We use a fixed learner (learner_fixed.p4) only to avoid the unrelated local "drop_flag not set"
+// bug; the stale-ack bug remains present.
+
+import learner from "../../dataset/P4xos/learner_fixed.p4" entries "../../dataset/P4xos/control_plane/config-learner.txt";
+
+topology {
+  // Single-node role-local spec.
+}
+
+host client {
+  connect learner;
+  env {
+    // Force parser reachability to Paxos header.
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.paxos.valid = true;
+
+    hdr.ethernet.etherType = 2048; // IPv4
+    hdr.ipv4.protocol = 17;        // UDP
+    hdr.udp.dstPort = 34952;       // 0x8888 (PAXOS_PROTOCOL)
+
+    // Always inject Paxos 2B packets; vary inst/acptid by phase.
+    hdr.paxos.msgtype = 3; // PAXOS_2B
+    hdr.paxos.rnd = 0;
+    hdr.paxos.paxosval = 1;
+
+    // Phase-driven script:
+    //   phase0: inst0, acpt0  (no quorum)
+    //   phase1: inst0, acpt2  (real quorum -> ack_acceptors[0] becomes 0b101)
+    //   phase2: inst1, acpt0  (advance instance; inst0 bits become stale w.r.t next epoch)
+    //   phase3: reset_epoch=1; inst0, acpt0 (only one new vote, but stale bits still give 0b101)
+    //
+    // NOTE: DSL does not support `else if`, so we encode it as nested `if`.
+    if (phase == 0) {
+      hdr.paxos.inst = 0;
+      hdr.paxos.acptid = 0;
+      phase = 1;
+    } else {
+      if (phase == 1) {
+        hdr.paxos.inst = 0;
+        hdr.paxos.acptid = 2;
+        phase = 2;
+      } else {
+        if (phase == 2) {
+          hdr.paxos.inst = 1;
+          hdr.paxos.acptid = 0;
+          phase = 3;
+        } else {
+          // Post-reset epoch: go back to inst==0 but only send one acceptor's vote.
+          reset_epoch = 1;
+          hdr.paxos.inst = 0;
+          hdr.paxos.acptid = 0;
+        }
+      }
+    }
+  }
+}
+
+node learner {
+  external_input = false;
+
+  // Track distinct acceptor votes for inst==0 in the *current* reset epoch.
+  int seen_epoch = 0;
+  bool seen_a0 = false;
+  bool seen_a1 = false;
+  bool seen_a2 = false;
+  int vote_cnt = 0;
+
+  // Reset vote tracking when epoch changes.
+  if (seen_epoch != reset_epoch) {
+    seen_epoch = reset_epoch;
+    seen_a0 = false;
+    seen_a1 = false;
+    seen_a2 = false;
+    vote_cnt = 0;
+  }
+
+  // Count distinct acceptor votes (based on incoming 2B packets).
+  if (hdr.paxos.valid && (hdr.paxos.msgtype == 3) && (hdr.paxos.inst == 0)) {
+    if ((hdr.paxos.acptid == 0) && (!seen_a0)) {
+      seen_a0 = true;
+      vote_cnt += 1;
+    } else {
+      if ((hdr.paxos.acptid == 1) && (!seen_a1)) {
+        seen_a1 = true;
+        vote_cnt += 1;
+      } else {
+        if ((hdr.paxos.acptid == 2) && (!seen_a2)) {
+          seen_a2 = true;
+          vote_cnt += 1;
+        }
+      }
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  // NOTE: In deterministic sequential harness mode, one logical "round" expands into
+  // multiple scheduler steps (host_send -> host_recv -> node_pass). Use a slightly
+  // larger bound to ensure we run through all 4 script phases and observe the stale-quorum bug.
+  max_steps = 20;
+
+  // Host script state.
+  int phase = 0;
+  // Shared reset epoch between host and learner.
+  int reset_epoch = 0;
+
+  // Safety property (functional):
+  // After a leader reset (reset_epoch>=1), the learner must not act on a fake quorum for inst==0:
+  // if the learner sees a majority bitmask for inst==0, then at least two distinct acceptor votes
+  // for inst==0 must have been observed in this epoch.
+  //
+  // The bug is when stale bits from a previous epoch create ack_acceptors==5 (0b101) while only
+  // a single acceptor has voted since reset (vote_cnt==1).
+  assert {
+    (reset_epoch < 1)
+      || (learner_hdr.paxos.inst != 0)
+      || (
+        (learner_meta.paxos_metadata.ack_acceptors != 3)
+        && (learner_meta.paxos_metadata.ack_acceptors != 5)
+        && (learner_meta.paxos_metadata.ack_acceptors != 6)
+      )
+      || (learner_dsl_vote_cnt >= 2);
+  };
+}

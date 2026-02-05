@@ -1,0 +1,10 @@
+// Seeded init for P4NIS Bug 1 (NSDI Table 2): Forwarding Sequence Desync.
+//
+// P4NIS uses a single-slot register `count` to round-robin user packets across
+// egress ports 1/2/3 (see `MyIngress.apply`).
+//
+// If `count` holds an unexpected value (not 0/1/2), no forwarding decision is
+// made, violating the in-program @assert that egress_spec must be 1/2/3.
+
+register_write count 0 3
+

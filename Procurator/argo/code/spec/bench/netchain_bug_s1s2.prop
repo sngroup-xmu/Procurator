@@ -2,7 +2,7 @@
 //
 // Goal: reproduce the 16-bit sequence number wrap-around bug quickly by only
 // tracking the s1->s2 relation:
-//   [](s1_sequence_reg_0[0] >= s2_sequence_reg_0[0])
+//   [](s1_sequence_reg[0] >= s2_sequence_reg[0])
 //
 // This spec matches the Promela host shape (dstAddr=167797761 / s1) but removes
 // s3 to reduce state and make prune vs. no-prune comparisons easier.
@@ -68,14 +68,14 @@ global {
   assume {
     s1_meta.location.index == 0;
     s2_meta.location.index == 0;
-    s1_find_index_0.hit == true;
-    s2_find_index_0.hit == true;
+    s1_find_index.hit == true;
+    s2_find_index.hit == true;
     s1_meta.my_md.role == 100;
     s2_meta.my_md.role == 101;
     s1_standard_metadata.egress_port != 0;
   };
 
   assert {
-    s1_sequence_reg_0[0] >= s2_sequence_reg_0[0];
+    s1_sequence_reg[0] >= s2_sequence_reg[0];
   };
 }

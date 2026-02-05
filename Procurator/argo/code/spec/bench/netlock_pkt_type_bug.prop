@@ -1,0 +1,62 @@
+// NetLock (P4_16 / TNA): egress/mirror pkt_type soundness check.
+//
+// Motivation:
+//   The NetLock switch pipeline always emits a Mirror header in the ingress deparser:
+//     mirror.emit<mirror_hdr_t>(..., { ig_md.pkt_type, ... })
+//   while the egress parser branches on pkt_type to decide how to parse the
+//   bridged/mirror metadata.
+//
+// A missing initialization of `ig_md.pkt_type` can therefore cause the egress
+// parser to take the wrong path (or reject), leading to dropped/misparsed packets.
+//
+// This spec tries to expose such a bug with a single normal NetLock ACQUIRE packet.
+// Any UNSAFE result must be validated by witness rerun.
+
+import sw from "../../dataset/NetLock/switch/p4/netlock.p4";
+
+topology {
+  // Single-switch NetLock spec.
+}
+
+host client {
+  connect sw;
+  env {
+    // Reach the NetLock header via Ethernet/IPv4/UDP.
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.nlk_hdr.valid = true;
+
+    hdr.ethernet.etherType = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol = 17;        // IP_PROTOCOLS_UDP
+    hdr.udp.dstPort = 8888;        // LK_PORT
+
+    // A single "normal" acquire request for lock 0.
+    hdr.nlk_hdr.recirc_flag = 0;
+    hdr.nlk_hdr.op = 0;            // ACQUIRE_LOCK
+    hdr.nlk_hdr.mode = 0;          // SHARED_LOCK
+    hdr.nlk_hdr.client_id = 0;
+    hdr.nlk_hdr.tid = 0;
+    hdr.nlk_hdr.lock = 0;
+    hdr.nlk_hdr.timestamp_lo = 0;
+    hdr.nlk_hdr.timestamp_hi = 0;
+  }
+}
+
+node sw {
+  // No node-local DSL state required.
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 6;
+
+  // Safety check:
+  // pkt_type must stay within the egress parser's supported domain.
+  assert {
+    (sw_ig_md.pkt_type == 0) || (sw_ig_md.pkt_type == 1);
+  };
+}

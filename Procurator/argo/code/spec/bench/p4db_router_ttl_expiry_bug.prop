@@ -1,0 +1,40 @@
+// P4DB (router test): TTL expiry is not enforced.
+//
+// The router applies forwarding logic when `ipv4.ttl > 0`, then decrements TTL
+// via `add_to_field(ipv4.ttl, -1)`. For an input packet with ttl = 1, the output
+// ttl becomes 0 and the packet is still forwarded, which violates the common
+// router invariant "forwarded IPv4 packets must have ttl > 0".
+//
+// This spec seeds ttl=1 and asserts `ttl > 0` after one pass.
+// Any UNSAFE result must be validated by witness rerun.
+
+import sw from "../../dataset/P4DB/tests/router/router.p4"
+  entries "../../dataset/P4DB/tests/router/commands";
+
+topology {}
+
+host io {
+  connect sw;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.ethernet.etherType = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.ttl = 1;
+    hdr.ipv4.dstAddr = 167772161; // 10.0.0.1
+    hdr.ipv4.srcAddr = 167772162; // 10.0.0.2
+
+    // Ensure ingress processing runs.
+    standard_metadata.ingress_port = 1;
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 3;
+
+  // Forwarded IPv4 packets should not have ttl == 0.
+  assert { sw_hdr.ipv4.ttl != 0; };
+}

@@ -1,0 +1,79 @@
+// NetLock (P4_16 / TNA): PUSH_BACK can underflow the server-queue length counter (functional).
+//
+// Background:
+//   In AcquireLock.push_back_alu, the code does:
+//     if (empty_slots > 0) empty_slots--;
+//     length_in_server--;
+//   without guarding `length_in_server > 0`.
+//
+// Check:
+//   Starting from a state with length_in_server == 0, a spurious PUSH_BACK must not
+//   underflow length_in_server to 2^32-1 (bitvector wraparound).
+//
+// Any UNSAFE result must be validated by witness rerun.
+//
+// NOTE: This spec intentionally models a robustness corner case (spurious PUSH_BACK)
+//       which can occur with duplicates/retries in real deployments.
+
+import sw from "../../dataset/NetLock/switch/p4/netlock.p4"
+  entries "netlock_min_entries_pushback_empty0.txt";
+
+topology {}
+
+host client {
+  connect sw;
+  env {
+    // Parser reachability to nlk_hdr via Ethernet/IPv4/UDP.
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.nlk_hdr.valid = true;
+
+    hdr.ethernet.etherType = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol = 17;        // IP_PROTOCOLS_UDP
+    hdr.udp.dstPort = 8888;        // LK_PORT
+
+    // Target lock 0 (the only lock configured in netlock_min_entries_pushback_empty0.txt).
+    hdr.nlk_hdr.lock = 0;
+    hdr.nlk_hdr.client_id = 0;
+    hdr.nlk_hdr.tid = 0;
+    hdr.nlk_hdr.timestamp_lo = 0;
+    hdr.nlk_hdr.timestamp_hi = 0;
+    hdr.nlk_hdr.recirc_flag = 0;
+
+    // External (not resubmitted) packet; avoid unconditional mirror clones.
+    ig_intr_md.resubmit_flag = 0;
+    ig_intr_dprsr_md.mirror_type = 0;
+
+    // Single-step script: send one spurious PUSH_BACK.
+    hdr.nlk_hdr.op = 2;   // PUSH_BACK_LOCK
+    hdr.nlk_hdr.mode = 0; // SHARED_LOCK (irrelevant for PUSH_BACK)
+    phase = 1;
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 3;
+
+  int phase = 0;
+
+  // Help the Boogie post-pass eliminate quantified register initializations:
+  // all register accesses in this spec are at lock_id == 0.
+  assume {
+    sw_ig_md.lock_id == 0;
+  };
+
+  // netlock_min_entries_pushback_empty0.txt initializes:
+  //   slots_two_sides_register[0] = (empty_slots=0, length_in_server=0)
+  // as a packed 64-bit value: (0 << 32) | 0 == 0.
+  //
+  // After a spurious PUSH_BACK when length_in_server == 0, length_in_server must
+  // not underflow (i.e., the packed register must remain unchanged).
+  assert {
+    (phase != 1) || (sw_slots_two_sides_register[0] == 0);
+  };
+}

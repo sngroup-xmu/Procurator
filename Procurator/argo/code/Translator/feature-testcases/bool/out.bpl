@@ -31,6 +31,7 @@ type macAddr_t = bv48;
 type ip4Addr_t = bv32;
 
 // Struct metadata
+var meta.test_bool:bool;
 
 // Struct headers
 

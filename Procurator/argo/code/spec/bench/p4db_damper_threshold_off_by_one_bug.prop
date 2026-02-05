@@ -1,0 +1,58 @@
+// P4DB (router + damper): off-by-one threshold check (functional).
+//
+// Background:
+//   In lib/odb.p4, set_damper() reads `damper_register[index]` into `odb_metadata.damper`,
+//   then increments the register. The threshold check uses the *pre-increment* value:
+//     if (odb_metadata.damper >= odb_metadata.damper_threshold) { ... clear_damper ... }
+//
+// With threshold = 1 and damper initially 0, the first packet increments the counter to 1
+// but does not trigger the branch, so the counter is not cleared.
+//
+// Check:
+//   With threshold=1, after the first packet, damper_register[0] should have been cleared
+//   back to 0 (i.e., trigger when the count reaches 1). The current implementation leaves it at 1.
+//
+// Any UNSAFE result must be validated by witness rerun.
+
+import sw from "../../dataset/P4DB/tests/damper/router.p4"
+  entries "p4db_damper_threshold1_commands.txt";
+
+topology {}
+
+host io {
+  connect sw;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.ethernet.etherType = 2048; // ETHERTYPE_IPV4
+
+    // Keep ttl > 0 so ingress processing runs; avoid mixing with TTL=1 expiry bug.
+    hdr.ipv4.ttl = 2;
+
+    hdr.ipv4.dstAddr = 167772161; // 10.0.0.1
+    hdr.ipv4.srcAddr = 167772162; // 10.0.0.2
+
+    // Ensure ingress processing runs.
+    standard_metadata.ingress_port = 1;
+
+    if (phase == 0) {
+      phase = 1;
+    } else {
+      phase = 2;
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 3;
+
+  int phase = 0;
+
+  // If the damper triggers at threshold=1, the counter is cleared after the first packet.
+  assert { (phase != 1) || (sw_damper_register[0] == 0); };
+}
+

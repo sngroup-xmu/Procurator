@@ -1,0 +1,47 @@
+// FRR (NSDI Table 2): Bug 2 - State Inconsistency
+//
+// This spec relies on the in-program @assert in ctrl_set_bfs_metadata:
+//   out_port < 5 || out_port == pkt_par
+// which is violated under certain failure-handling interleavings/state updates.
+
+import s1 from "../../dataset/FRR/main.p4"
+  entries "../../dataset/FRR/commands.txt";
+
+topology {}
+
+node s1 {
+  external_input = true;
+  assume {
+    hdr.ff_tags.valid == true;
+    hdr.bfsTag.valid == true;
+    // Force ctrl_set_bfs_metadata to execute.
+    hdr.ff_tags.bfs_start == 1;
+    hdr.bfsTag.inst == 0;
+    // Keep ingress port in the intended range (<5) to match program assumptions.
+    // Use equalities (rather than `<`) to avoid PortId type issues in some Ultimate settings.
+    (standard_metadata.ingress_port == 0)
+      || (standard_metadata.ingress_port == 1)
+      || (standard_metadata.ingress_port == 2)
+      || (standard_metadata.ingress_port == 3)
+      || (standard_metadata.ingress_port == 4);
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  // Run a few inject/pass rounds to reach a bad internal state.
+  max_steps = 6;
+
+  // Mirror the in-program @assert in ctrl_set_bfs_metadata:
+  //   out_port < 5 || out_port == pkt_par
+  assert {
+    // Use equality disjunctions (rather than `<`) to avoid BV<k> comparison lowering issues.
+    (s1_meta.local_metadata.out_port == 0)
+      || (s1_meta.local_metadata.out_port == 1)
+      || (s1_meta.local_metadata.out_port == 2)
+      || (s1_meta.local_metadata.out_port == 3)
+      || (s1_meta.local_metadata.out_port == 4)
+      || (s1_meta.local_metadata.out_port == s1_meta.local_metadata.pkt_par);
+  };
+}

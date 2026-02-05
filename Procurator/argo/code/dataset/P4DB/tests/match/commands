@@ -1,0 +1,10 @@
+table_add ipv4_nhop_match set_match_result 0x0a000001/32 => 1
+table_add ipv4_nhop_match set_match_result 0x0a000002/32 => 2
+table_add ipv4_nhop_action set_nhop 1 => 0x0a000001
+table_add ipv4_nhop_action set_nhop 2 => 0x0a000002
+table_add forward_table set_dmac 0x0a000001 => 0x802200010001 1
+table_add forward_table set_dmac 0x0a000002 => 0x802200010002 2
+table_add send_frame set_smac 1 => 0x802200010001
+table_add send_frame set_smac 2 => 0x802200010002
+table_add match_1 gen_match 0x0a000001/32 => 1
+table_add match_1 gen_match 0x0a000002/32 => 1

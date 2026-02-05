@@ -1,7 +1,7 @@
 // NetChain flip bug (2-node, fast-forward)
 //
 // This spec accelerates the deep wrap-around counterexample by modeling a reachable
-// mid-state: after many writes, both replicas have sequence_reg_0[0] == 65535.
+// mid-state: after many writes, both replicas have sequence_reg[0] == 65535.
 // The next head update wraps the 16-bit counter to 0 while the replica still
 // holds 65535, violating monotonicity.
 //
@@ -23,8 +23,8 @@ node s1 {
 
   // One-time "fast-forward" to a reachable high sequence state.
   if (!Booted) {
-    s1_sequence_reg_0[0] = 65535;
-    s2_sequence_reg_0[0] = 65535;
+    s1_sequence_reg[0] = 65535;
+    s2_sequence_reg[0] = 65535;
     Booted = true;
   }
 
@@ -64,14 +64,14 @@ global {
   assume {
     s1_meta.location.index == 0;
     s2_meta.location.index == 0;
-    s1_find_index_0.hit == true;
-    s2_find_index_0.hit == true;
+    s1_find_index.hit == true;
+    s2_find_index.hit == true;
     s1_meta.my_md.role == 100;
     s2_meta.my_md.role == 101;
     s1_standard_metadata.egress_port != 0;
   };
 
   assert {
-    s1_sequence_reg_0[0] >= s2_sequence_reg_0[0];
+    s1_sequence_reg[0] >= s2_sequence_reg[0];
   };
 }

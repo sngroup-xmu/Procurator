@@ -1,0 +1,77 @@
+// NetChain: sequence monotonicity violation due to 16-bit wraparound.
+//
+// This is the NSDI Table-1 NetChain bug, reproduced *soundly* via the integrated
+// wraparound CEGIS pipeline (ENTRY -> CONFIRM -> CLOSURE).
+//
+// IMPORTANT:
+// - Do NOT "fast-forward" by directly assigning sequence_reg in the DSL: that would be
+//   a reachability cut and can create pseudo counterexamples.
+// - Instead, we keep a small bounded model (few scheduler steps) and let CEGIS prove
+//   the monotone +1 pump and then fast-forward to MAX.
+
+import s1 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_1.txt";
+import s2 from "../../dataset/Netchain/netchain_16.p4" entries "../../dataset/Netchain/commands_2.txt";
+
+topology {
+  link s1 -> s2 ALL;
+}
+
+host h1 {
+  connect s1;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.nc_hdr.valid = true;
+    hdr.udp.valid = true;
+    hdr.tcp.valid = false;
+    hdr.ipv4.protocol = 17;
+
+    hdr.overlay.0.valid = true;
+    hdr.overlay.1.valid = true;
+    hdr.overlay.2.valid = true;
+    hdr.overlay.3.valid = true;
+
+    hdr.ethernet.etherType = 2048;
+    hdr.ipv4.srcAddr = 1;
+    hdr.ipv4.dstAddr = 167797761;
+
+    hdr.overlay.0.swip = 167797761;
+    hdr.overlay.1.swip = 167797762;
+    hdr.overlay.2.swip = 0;
+    hdr.overlay.3.swip = 0;
+
+    // Write requests drive the monotone sequence counter.
+    hdr.nc_hdr.op = 12;      // NC_WRITE_REQUEST
+    hdr.nc_hdr.key = 2024;   // index 0
+    hdr.nc_hdr.seq = 1;      // ignored/overwritten by head in typical NetChain configs
+  }
+}
+
+node s1 { external_input = false; }
+node s2 {}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  // Need >=2 full scheduler rounds for closure_check (period=4 => 8 steps).
+  max_steps = 8;
+
+  // Reduce spurious paths: pin the index-0 lookup and roles from control plane.
+  assume {
+    s1_meta.location.index == 0;
+    s2_meta.location.index == 0;
+    s1_find_index.hit == true;
+    s2_find_index.hit == true;
+    s1_meta.my_md.role == 100;
+    s2_meta.my_md.role == 101;
+    s1_standard_metadata.egress_port != 0;
+  };
+
+  // Safety encoding of the paper's LTL invariant:
+  //   [](s1.sequence_reg[0] >= s2.sequence_reg[0])
+  assert {
+    s1_sequence_reg[0] >= s2_sequence_reg[0];
+  };
+}

@@ -3,7 +3,7 @@
 // Key points:
 // - Traffic model: host_h1 injects write requests to s1 with fixed overlay/ipv4 fields and keys in {2024,2025,2027,2028}
 // - Property: sequence monotonicity across replicas:
-//     [](s1_sequence_reg_0[0] >= s2_sequence_reg_0[0] && s2_sequence_reg_0[0] >= s3_sequence_reg_0[0])
+//     [](s1_sequence_reg[0] >= s2_sequence_reg[0] && s2_sequence_reg[0] >= s3_sequence_reg[0])
 //
 // NOTE: Our current Boogie backend encodes safety checks as `assert` evaluated on every pass.
 
@@ -71,9 +71,9 @@ global {
     s1_meta.location.index == 0;
     s2_meta.location.index == 0;
     s3_meta.location.index == 0;
-    s1_find_index_0.hit == true;
-    s2_find_index_0.hit == true;
-    s3_find_index_0.hit == true;
+    s1_find_index.hit == true;
+    s2_find_index.hit == true;
+    s3_find_index.hit == true;
     // Pin switch roles to control-plane defaults (commands_1/2/3.txt).
     s1_meta.my_md.role == 100;
     s2_meta.my_md.role == 101;
@@ -83,14 +83,14 @@ global {
   };
 
   // Property (ported from Promela ltl consistency):
-  // Promela: [](s1_sequence_reg_0[0] >= s2_sequence_reg_0[0] && s2_sequence_reg_0[0] >= s3_sequence_reg_0[0])
+  // Promela: [](s1_sequence_reg[0] >= s2_sequence_reg[0] && s2_sequence_reg[0] >= s3_sequence_reg[0])
   //
   // In our Boogie pipeline, global assert blocks are checked on every pass.
   // Split assertions to identify which relation is violated.
   assert {
-    s1_sequence_reg_0[0] >= s2_sequence_reg_0[0];
+    s1_sequence_reg[0] >= s2_sequence_reg[0];
   };
   assert {
-    s2_sequence_reg_0[0] >= s3_sequence_reg_0[0];
+    s2_sequence_reg[0] >= s3_sequence_reg[0];
   };
 }

@@ -1,16 +1,90 @@
-// ATP (max-env): bound check on aggregator index (from Promela's register size usage).
+// ATP: Indefinite aggregation due to 8-bit agtr_time.
+//
+// Table 1 (NSDI submission): "Indefinite Aggregation" with root cause
+// "8-bit agtr_time set above intended range".
+//
+// In ATP, forwarding of aggregated results is gated by:
+//   meta.agtr_time == hdr.p4ml.agtr_time
+// where meta.agtr_time is read from an 8-bit register (and incremented on new
+// aggregation events).
+//
+// If the sender sets hdr.p4ml.agtr_time beyond the intended range (e.g., 300),
+// the value is truncated to 8 bits, making the equality check brittle and causing
+// the switch to drop the aggregated result (meta.need_send_out := 0), which can
+// lead to "indefinite aggregation" (no response returned).
 
-import s1 from "../../dataset/ATP/p4src/p4ml_lc_16.p4" entries "../../dataset/ATP/p4src/atp/flow.txt";
+import s1 from "../../dataset/ATP/p4src/p4ml_lc_16.p4"
+  entries "../../dataset/ATP/p4src/atp/flow.txt";
 
 topology {}
 
-node s1 { external_input = true; }
+host io {
+  connect s1;
+  env {
+    // Mark headers as present (P4 ingress guards on hdr.p4ml.isValid()).
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.p4ml.valid = true;
+    hdr.p4ml_agtr_index.valid = true;
+    hdr.p4ml_entries.valid = true;
+
+    // Make the request parse as ATP: ethertype=0x0800 and UDP dst_port=6001.
+    hdr.ethernet.ether_type = 2048; // 0x0800
+    hdr.udp.dst_port = 6001;
+
+    // Force a "new aggregation" event from the initial (zero) bitmap register:
+    //   meta.isAggregate = hdr.p4ml.bitmap & ~meta.bitmap
+    hdr.p4ml.bitmap = 1;
+
+    // Ensure appID/seq "ownership" check passes (register is initially 0).
+    hdr.p4ml.appIDandSeqNum = 1;
+
+    // Non-resend, non-ACK request.
+    hdr.p4ml.isResend = 0;
+    hdr.p4ml.isACK = 0;
+    hdr.p4ml.isSWCollision = 0;
+    hdr.p4ml.ECN = 0;
+    hdr.p4ml.dataIndex = 0;
+    hdr.p4ml.PSIndex = 0;
+
+    // The bug trigger: sender sets agtr_time above the intended logical range
+    // (protocol expects a small value, but the program compares it for equality
+    // against an 8-bit in-switch counter).
+    //
+    // Keep it within bv8 literal range (0..255) to avoid Ultimate literal parsing
+    // issues; the bug does not rely on numeric wrap-around here, only on mismatch.
+    hdr.p4ml.agtr_time = 200;
+
+    // Use a fixed aggregator index.
+    hdr.p4ml_agtr_index.agtr = 0;
+
+    // Keep entry payload deterministic (not required for the bug, but reduces noise).
+    hdr.p4ml_entries.data0 = 0;
+    hdr.p4ml_entries.data1 = 0;
+    hdr.p4ml_entries.data2 = 0;
+    hdr.p4ml_entries.data3 = 0;
+  }
+}
 
 global {
-  queue_capacity = 3;
+  queue_capacity = 1;
   deterministic_scheduler = true;
-  // PML uses agtr_time register size 20479; index should remain in bounds.
+  env_thread = false;
+  host_eager = true;
+  // Deterministic schedule in the sequential harness executes:
+  //   step0: host_send (enqueue to s1)
+  //   step1: host_recv (optional)
+  //   step2: node_pass (consume + process)
+  // so we need >= 3 steps to reach the ingress logic.
+  max_steps = 3;
+
+  // Functional property:
+  // When we are on the "aggregation path" (ownership check passes and new work exists),
+  // the switch must not drop the packet by setting need_send_out=0.
   assert {
-    s1_hdr.p4ml_agtr_index.agtr < 20479;
+    (s1_meta.isMyAppIDandMyCurrentSeq != 1)
+      || (s1_meta.isAggregate == 0)
+      || (s1_meta.need_send_out != 0);
   };
 }

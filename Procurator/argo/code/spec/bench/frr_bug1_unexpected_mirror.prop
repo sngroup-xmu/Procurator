@@ -1,0 +1,39 @@
+// FRR (NSDI Table 2): Bug 1 - Unexpected Mirror
+//
+// The FRR pipeline can "send_in" by setting egress_spec to ingress_port when it
+// classifies a packet as a failure visit. This spec seeds a state where the
+// packet is mirrored back unexpectedly.
+
+import s1 from "../../dataset/FRR/main.p4"
+  entries "../../dataset/FRR/commands_unexpected_mirror_seed.txt";
+
+topology {}
+
+node s1 {
+  external_input = true;
+  assume {
+    // Parser extracts these headers unconditionally; keep them valid.
+    hdr.ff_tags.valid == true;
+    hdr.bfsTag.valid == true;
+
+    // Force the "BFS started" path so ctrl_set_bfs_metadata runs.
+    hdr.ff_tags.bfs_start == 1;
+
+    // Deterministic instance index for seeded registers.
+    hdr.bfsTag.inst == 0;
+
+    // Choose an ingress port that is neither pkt_curr (2) nor pkt_par (3).
+    standard_metadata.ingress_port == 1;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  // env_inject -> node_pass
+  max_steps = 2;
+
+  // Bug: the program may mirror a packet back to its ingress port.
+  assert { s1_standard_metadata.egress_port != s1_standard_metadata.ingress_port; };
+}
+

@@ -1,0 +1,30 @@
+// Seeded init to trigger "Window Label Collision" quickly.
+//
+// Key idea:
+// - DDOSD stores the full observation window counter in `ow_counter` (bit<32>),
+//   but annotates CountSketch rows with only 8 bits in `*_ow` arrays.
+// - If `ow_counter` is set to 256 (low 8 bits = 0), a row with stored label 0
+//   is treated as "current", even though it should be stale for window 256.
+//
+// This file sets:
+// - m = 1 (one packet per window),
+// - ow_counter = 256,
+// - src_cs1[0] = 1 (non-zero stale state).
+//
+// Then a single IPv4 packet with src_addr even (deterministic-hash index 0)
+// makes the row update reuse stale state and increment to 2.
+
+mirroring_add 250 2
+
+register_write ingress.log2_m 0 0
+register_write ingress.training_len 0 0
+register_write ingress.alpha 0 0
+register_write ingress.k 0 0
+
+// Seed the collision scenario.
+register_write ingress.ow_counter 0 256
+register_write ingress.src_cs1 0 1
+register_write ingress.src_cs1_ow 0 0
+
+table_clear ingress.ipv4_fib
+table_add ingress.ipv4_fib ingress.forward 0/0 => 1
