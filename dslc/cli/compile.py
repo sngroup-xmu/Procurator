@@ -57,6 +57,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="Disable DAG-based slicing and env-input pruning (boogie backend)",
     )
+    ap.add_argument(
+        "--no-slicing-control-seeds",
+        action="store_true",
+        help=(
+            "Disable implicit forwarding/drop/clone/recirc control seeds in P4 slicing. "
+            "This can significantly shrink single-switch models, but may be unsound for "
+            "distributed/topology-sensitive properties. (boogie backend)"
+        ),
+    )
     ap.add_argument("--por", action="store_true", help="Enable commutativity-based POR (boogie backend)")
     ap.add_argument(
         "--boogie-harness",
@@ -110,6 +119,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     prune = not args.no_prune
     enable_slicing = prune
     prune_env_inputs = prune
+    keep_control_seeds = not bool(args.no_slicing_control_seeds)
     por_enabled = args.por
     boogie_harness = args.boogie_harness
     pipeline_two_stage = not args.no_two_stage
@@ -143,6 +153,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         max_env_inputs=max_env_inputs,
         enable_slicing=enable_slicing,
         prune_env_inputs=prune_env_inputs,
+        keep_control_seeds=keep_control_seeds,
         por_enabled=por_enabled,
         por_guard_enabled=True,
         boogie_harness=boogie_harness,

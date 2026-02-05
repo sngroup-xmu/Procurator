@@ -352,6 +352,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     ap.add_argument("--p4b-bin", default="", help="Path to P4->Boogie translator binary")
     ap.add_argument("--ultimate", default="", help="Path to Ultimate CLI executable")
+    ap.add_argument(
+        "--ultimate-xmx-gb",
+        type=int,
+        default=4,
+        help="Max Java heap for Ultimate in GB (WSL safety; default: 4).",
+    )
     ap.add_argument("--toolchain", default="", help="Ultimate toolchain XML (default: ReachSafety-Witness.xml)")
     ap.add_argument(
         "--closure-toolchain",
@@ -545,13 +551,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if not closure_settings.exists():
             closure_settings = settings
 
-        from dslc.workflows.wraparound_cegis import run_wraparound_cegis
+        from dslc.workflows.wraparound_cegis import UltimateStageRunner, run_wraparound_cegis
+
+        # WSL safety: bound the Ultimate JVM heap. The external resource limits wrapper
+        # additionally pins Ultimate to a single core and lowers CPU/IO priority.
+        runner = UltimateStageRunner(ultimate=ultimate, xmx_gb=max(1, int(args.ultimate_xmx_gb)))
 
         manifest_path = run_wraparound_cegis(
             spec_path=spec_path,
             out_dir=out_dir,
             p4b_bin=p4b_bin,
             ultimate=ultimate,
+            runner=runner,
             timeout_seconds=args.timeout_seconds,
             resource_limits=not args.no_resource_limits,
             enable_slicing=not args.no_slicing,

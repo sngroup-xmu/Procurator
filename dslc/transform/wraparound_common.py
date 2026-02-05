@@ -12,6 +12,7 @@ class WraparoundStage(str, Enum):
     ACCEL = "accel"
     ACCEL_PROBE = "accel_probe"
     CONFIRM = "confirm"
+    ENABLE_CHECK = "enable_check"
     CLOSURE_CHECK = "closure_check"
     ENTRY_CHECK = "entry_check"
 
@@ -89,6 +90,18 @@ _RE_ASSUME_FORALL_BV32_INIT = re.compile(
     r"^(?P<indent>\s*)assume\s*\(\s*forall\s+(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*bv32\s*::\s*"
     r"(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P=var)\s*\]\s*==\s*(?P<value>[^)]+?)\s*\)\s*;\s*$"
 )
+# Conditional init where all indices except one constant are set to a value.
+#
+# Example (DistCache `latest_reg` style):
+#   assume (forall i:bv32 :: ((i != 7bv32)) ==> latest_reg[i] == 0bv1);
+#
+# We use this in wraparound stages to safely eliminate expensive quantifiers when we can
+# infer a finite accessed index domain.
+_RE_ASSUME_FORALL_BV32_INIT_EXCEPT = re.compile(
+    r"^(?P<indent>\s*)assume\s*\(\s*forall\s+(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*bv32\s*::\s*"
+    r"\(+\s*(?P=var)\s*!=\s*(?P<exc>\d+)bv32\s*\)+\s*==>\s*"
+    r"(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P=var)\s*\]\s*==\s*(?P<value>[^)]+?)\s*\)\s*;\s*$"
+)
 _RE_ASSUME_BV32_INDEX_INIT = re.compile(
     r"^\s*assume\s+(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P<idx>\d+)bv32\s*\]\s*==\s*(?P<value>[^;]+?)\s*;\s*$"
 )
@@ -106,4 +119,3 @@ _MAX_FORALL_INIT_EXPANSION = 64
 
 def _sanitize_local(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9_]", "_", name)
-

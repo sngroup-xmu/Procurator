@@ -8,6 +8,8 @@ from typing import Dict, List, Optional
 
 from ..speclang.model import SpecModel
 from .boogie_bpl import (
+    assert_no_missing_var_decls,
+    assert_no_missing_type_decls,
     collect_input_vars_and_egress_type,
     filter_input_vars_by_usage,
     looks_like_bpl,
@@ -110,6 +112,7 @@ class BoogieBackend:
         max_env_inputs: bool = False,
         enable_slicing: bool = True,
         prune_env_inputs: bool = True,
+        keep_control_seeds: bool = True,
         por_enabled: bool = False,
         por_guard_enabled: bool = True,
         boogie_harness: str = "concurrent",
@@ -162,13 +165,14 @@ class BoogieBackend:
                     out_meta=str(meta_path),
                     slicing_vars=slicing_plan.slicing_vars.get(alias),
                     disable_slicing=not enable_slicing,
-                    # Always keep P4B slicing control seeds that influence
-                    # communication behavior (forward/drop/clone/recirc).
+                    # Keep P4B slicing control seeds that influence
+                    # communication behavior (forward/drop/clone/recirc) by default.
                     #
                     # Without these, slicing can remove e.g. `p4b_recirculate := true`,
                     # making distributed harnesses miss real interleavings and report
-                    # false SAFE results.
-                    keep_control_seeds=True,
+                    # false SAFE results. For single-switch local checks, callers may
+                    # explicitly disable this for performance.
+                    keep_control_seeds=keep_control_seeds,
                 )
                 raw_text = raw_path.read_text(encoding="utf-8", errors="replace")
                 try:
@@ -182,6 +186,21 @@ class BoogieBackend:
                     f"Input for node '{alias}' does not look like Boogie (.bpl). "
                     f"If you passed a Promela translator, please pass a P4->Boogie translator instead."
                 )
+
+            # Correctness: refuse ill-typed Boogie early (e.g., missing `type T;` for `var x:T;`).
+            try:
+                assert_no_missing_type_decls(raw_text)
+            except ValueError as e:
+                raise BoogieBackendError(f"Invalid Boogie for node '{alias}': {e}") from e
+
+            # Correctness: do not "best-effort patch" missing packet/meta declarations.
+            #
+            # If slicing/translation left a dangling reference, it is a translator/slicer bug and
+            # we must fail fast; otherwise we risk silently changing semantics.
+            try:
+                assert_no_missing_var_decls(raw_text, required_vars=slicing_plan.required_packet_vars.get(alias, []))
+            except ValueError as e:
+                raise BoogieBackendError(f"Invalid Boogie for node '{alias}': {e}") from e
 
             input_vars, egress_t, declared, var_types, egress_var, type_defs = collect_input_vars_and_egress_type(
                 raw_text

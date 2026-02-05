@@ -18,14 +18,12 @@ _is_packet_var = is_packet_var
 class BoogieHarnessLinksMixin:
     def _emit_forward_proc(self, src: str, k: int) -> str:
         port_map: Dict[str, str] = {}
-        wildcard_dst: Optional[str] = None
+        wildcard_dsts: List[str] = []
         for l in self._spec.links:
             if l.src != src:
                 continue
             if l.port == "ALL":
-                if wildcard_dst is not None and wildcard_dst != l.dst:
-                    raise BoogieBackendError(f"Multiple ALL links for src={src}: {wildcard_dst} vs {l.dst}")
-                wildcard_dst = l.dst
+                wildcard_dsts.append(l.dst)
             else:
                 if l.port in port_map and port_map[l.port] != l.dst:
                     raise BoogieBackendError(
@@ -43,7 +41,7 @@ class BoogieHarnessLinksMixin:
 
         # Forward calls enqueue procedures, so its modifies must cover enqueue side effects as well
         # (Ultimate checks modifies-transitivity for calls/fork).
-        dsts = sorted(set(port_map.values()) | ({wildcard_dst} if wildcard_dst else set()))
+        dsts = sorted(set(port_map.values()) | set(wildcard_dsts))
         modifies: List[str] = []
         emit_trace = self._emit_trace and self._harness_mode == "sequential"
         trace_types = self._trace_field_types(src) if emit_trace else {}
@@ -100,9 +98,10 @@ class BoogieHarnessLinksMixin:
                 out.append("  }\n")
             out.append("\n")
 
-        if wildcard_dst is not None:
-            out.append(f"  // wildcard forwarding (ALL)\n")
-            out.append(f"  call {src}__enqueue_{wildcard_dst}();\n")
+        if wildcard_dsts:
+            out.append(f"  // wildcard forwarding (ALL): broadcast to all configured downstream mailboxes.\n")
+            for dst in sorted(set(wildcard_dsts)):
+                out.append(f"  call {src}__enqueue_{dst}();\n")
             out.append("  return;\n")
             out.append("}\n")
             return "".join(out)

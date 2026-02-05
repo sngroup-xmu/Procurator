@@ -17,6 +17,65 @@ def looks_like_bpl(text: str) -> bool:
     return False
 
 
+_BPL_TYPE_DECL_RE = re.compile(
+    r"^\s*type(?:\s*\{:[^}]+\}\s*)*\s+([A-Za-z0-9_\.\$]+)\s*(?:=\s*[^;]+)?;\s*$",
+    re.MULTILINE,
+)
+_BPL_VAR_DECL_RE = re.compile(r"^\s*var\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$", re.MULTILINE)
+_BPL_CONST_DECL_RE = re.compile(
+    r"^\s*const(?:\s+unique)?\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$",
+    re.MULTILINE,
+)
+_BPL_TYPE_TOKEN_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_\.\$]*\b")
+_BPL_BV_TYPE_RE = re.compile(r"^bv\d+$")
+
+
+def _is_builtin_type_ident(t: str) -> bool:
+    if t in {"bool", "int", "real"}:
+        return True
+    if _BPL_BV_TYPE_RE.match(t):
+        return True
+    return False
+
+
+def find_missing_type_decls(raw_bpl: str) -> List[str]:
+    """
+    Find Boogie types that are *used* in declarations but never declared.
+
+    Some P4->Boogie outputs emit `// Struct <T>` comments but forget to declare
+    `type <T>;`, which causes Ultimate to reject the Boogie program as ill-typed
+    (even though the type is intended to be opaque).
+    """
+
+    declared = {m.group(1) for m in _BPL_TYPE_DECL_RE.finditer(raw_bpl)}
+    used: set[str] = set()
+
+    for m in _BPL_VAR_DECL_RE.finditer(raw_bpl):
+        used.update(_BPL_TYPE_TOKEN_RE.findall(m.group(2)))
+    for m in _BPL_CONST_DECL_RE.finditer(raw_bpl):
+        used.update(_BPL_TYPE_TOKEN_RE.findall(m.group(2)))
+
+    missing = sorted(t for t in used if (t not in declared) and (not _is_builtin_type_ident(t)))
+    return missing
+
+
+def assert_no_missing_type_decls(raw_bpl: str) -> None:
+    """
+    Correctness check: fail fast if Boogie declarations reference missing types.
+
+    This usually indicates a P4->Boogie translator bug (e.g., emitting `var x:T;`
+    without any `type T;` or `type T = ...;`).
+    """
+
+    missing = find_missing_type_decls(raw_bpl)
+    if missing:
+        raise ValueError(
+            "missing Boogie type declarations for referenced types (translator bug):\n"
+            + "\n".join(f"  - {t}" for t in missing[:80])
+            + ("\n  - ..." if len(missing) > 80 else "")
+        )
+
+
 def collect_input_vars_and_egress_type(
     raw_bpl: str,
 ) -> Tuple[List[str], str, set[str], Dict[str, str], str, Dict[str, str]]:
@@ -24,7 +83,7 @@ def collect_input_vars_and_egress_type(
     Extract:
       (a) a conservative list of input packet/metadata vars to havoc each pass,
       (b) the type of standard_metadata.egress_port for forwarding decisions,
-      (c) declared variables (raw names, for best-effort checks).
+      (c) declared variables (raw names, for consistency checks).
     """
     input_vars: List[str] = []
     egress_type: str = ""
@@ -89,35 +148,11 @@ _P4_VAR_REF_RE = re.compile(
     r"\b(?:hdr|hdr_eg|meta|standard_metadata|[A-Za-z0-9_]+_md)\.[A-Za-z0-9_\.\$]+\b"
 )
 
-
-def _infer_missing_var_type(name: str, raw_bpl: str, meta: Optional[dict]) -> str:
-    if isinstance(meta, dict):
-        vt = meta.get("var_types")
-        if isinstance(vt, dict):
-            t = vt.get(name)
-            if isinstance(t, str) and t.strip():
-                return t.strip()
-        sizes = meta.get("sizes")
-        if isinstance(sizes, dict) and name in sizes:
-            try:
-                sz = int(sizes[name])
-                if sz == 0:
-                    return "bool"
-                return f"bv{sz}"
-            except Exception:
-                pass
-    m = re.search(re.escape(name) + r"[^\n]*?\bbv(\d+)\b", raw_bpl)
-    if m:
-        return f"bv{m.group(1)}"
-    return "bv32"
-
-
-def patch_missing_var_decls(
+def find_missing_var_decls(
     raw_bpl: str,
     *,
-    meta: Optional[dict],
     required_vars: Optional[Sequence[str]] = None,
-) -> str:
+) -> List[str]:
     var_decl_re = re.compile(r"^\s*var\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$", re.MULTILINE)
     const_decl_re = re.compile(
         r"^\s*const(?:\s+unique)?\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$",
@@ -128,18 +163,22 @@ def patch_missing_var_decls(
     referenced = {m.group(0) for m in _P4_VAR_REF_RE.finditer(raw_bpl)}
     required = {v for v in (required_vars or []) if is_packet_var(v) and not is_skipped_input_var(v)}
     missing = sorted((referenced | required) - declared)
-    if not missing:
-        return raw_bpl
-    decls: List[str] = []
-    for name in missing:
-        typ = _infer_missing_var_type(name, raw_bpl, meta)
-        if not typ:
-            continue
-        decls.append(f"var {name}: {typ};\n")
-    if not decls:
-        return raw_bpl
-    insert = re.search(r"^\s*procedure\b", raw_bpl, re.MULTILINE)
-    block = "".join(decls)
-    if insert:
-        return raw_bpl[: insert.start()] + block + raw_bpl[insert.start() :]
-    return raw_bpl + "\n" + block
+    return missing
+
+
+def assert_no_missing_var_decls(raw_bpl: str, *, required_vars: Optional[Sequence[str]] = None) -> None:
+    """
+    Correctness check: fail fast if Boogie references P4 packet/meta variables that were
+    not declared in the file.
+
+    We intentionally do NOT "best-effort patch" missing declarations, because that can
+    silently change program semantics and mask translator/slicing bugs.
+    """
+
+    missing = find_missing_var_decls(raw_bpl, required_vars=required_vars)
+    if missing:
+        raise ValueError(
+            "missing Boogie declarations for referenced P4 variables (translator/slicer bug):\n"
+            + "\n".join(f"  - {m}" for m in missing[:80])
+            + ("\n  - ..." if len(missing) > 80 else "")
+        )

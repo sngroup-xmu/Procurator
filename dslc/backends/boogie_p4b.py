@@ -43,11 +43,14 @@ class P4BTranslator:
                     f"out:\n{e.stdout}"
                 ) from e
 
-        def build_cmd(*, use_goto: bool) -> List[str]:
+        def build_cmd(*, use_goto: bool, p4_std: Optional[str] = None) -> List[str]:
             # NOTE: p4c-style compilers require -I paths to appear before the input file.
             cmd: List[str] = [self._p4b_bin]
+            cmd.extend(_maybe_tofino_cpp_defines(p4_path))
             for inc in self._include_paths:
                 cmd.extend(["-I", inc])
+            if p4_std and not p4_path.endswith(".json"):
+                cmd.extend(["--std", p4_std])
             if use_goto:
                 cmd.extend(["--goto"])
             if disable_slicing:
@@ -68,8 +71,16 @@ class P4BTranslator:
                 cmd.append("--slicing-vars=" + ",".join(slicing_vars))
             return cmd
 
-        cmd = build_cmd(use_goto=True)
-        run(cmd)
+        # Default to P4_16, but fall back to P4_14 on parse errors.
+        cmd = build_cmd(use_goto=True, p4_std="p4-16")
+        try:
+            run(cmd)
+        except P4BTranslatorError as e:
+            if not p4_path.endswith(".json") and _looks_like_p4_14_syntax(str(e)):
+                cmd14 = build_cmd(use_goto=True, p4_std="p4-14")
+                run(cmd14)
+            else:
+                raise
 
         # Correctness guardrail: sliced Boogie must be well-formed.
         #
@@ -89,6 +100,15 @@ class P4BTranslator:
                     "the recommended fix is to repair the translator so slicing preserves\n"
                     "the required register declarations."
                 )
+
+
+def _looks_like_p4_14_syntax(msg: str) -> bool:
+    # Heuristic: p4-14 sources often error on `header_type { ... }` when compiled as p4-16.
+    # We look for this pattern in the compiler error output and only then retry with `--std p4-14`.
+    msg_l = msg.lower()
+    if "syntax error" not in msg_l:
+        return False
+    return any(tok in msg_l for tok in ["header_type", "modify_field", "add_to_field"])
 
 
 def _default_p4c_include_paths(p4b_bin: str) -> List[str]:
@@ -124,6 +144,39 @@ def _default_p4c_include_paths(p4b_bin: str) -> List[str]:
             seen.add(p)
             dedup.append(p)
     return dedup
+
+
+def _maybe_tofino_cpp_defines(p4_path: str) -> List[str]:
+    """
+    Best-effort compatibility shim for Tofino/TNA P4 programs.
+
+    Some programs include `#include <tna.p4>` which expects `__TARGET_TOFINO__`
+    to be defined (1 for Tofino1, 2 for Tofino2). When compiling with an
+    in-repo p4c-based frontend, this macro is typically not set automatically.
+
+    We auto-define it only when the source looks like TNA to avoid perturbing
+    non-Tofino programs.
+    """
+    if not p4_path.endswith(".p4"):
+        return []
+
+    # Allow overriding the default in a WSL-friendly way.
+    target = os.getenv("P4B_TARGET_TOFINO", "").strip()
+    if target not in {"", "1", "2"}:
+        raise P4BTranslatorError(f"invalid P4B_TARGET_TOFINO: {target!r} (expected 1 or 2)")
+    if not target:
+        target = "1"
+
+    try:
+        text = Path(p4_path).read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return []
+
+    # Heuristic: the top-level file usually contains the architecture include.
+    if "<tna.p4>" not in text and "\"tna.p4\"" not in text:
+        return []
+
+    return [f"-D__TARGET_TOFINO__={target}"]
 
 
 _RE_READ_CALL = re.compile(r"\b(?P<base>[A-Za-z_][A-Za-z0-9_]*)\.read\(\s*(?P=base)\s*,")

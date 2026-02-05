@@ -35,7 +35,9 @@ def find_default_p4b_bin() -> Optional[Path]:
     Best-effort resolver for a usable P4->Boogie translator.
 
     Preference order:
-      1) Host-built P4B translator: `P4B-Translator/build-host/p4c-translator`
+      1) Host-built P4B translator:
+         - `P4B-Translator/build-host/backends/verify/p4c-translator` (preferred)
+         - `Procurator/argo/code/Translator/build-host/backends/verify/p4c-translator` (vendored)
       2) Repo-shipped docker wrapper: `dslc/toolchain/p4b_docker.sh`
     """
 
@@ -43,13 +45,57 @@ def find_default_p4b_bin() -> Optional[Path]:
     candidates = [
         # Newer builds place the verify backend translator under backends/verify/.
         root / "P4B-Translator" / "build-host" / "backends" / "verify" / "p4c-translator",
+        # Vendored build (some repos embed the translator under Procurator/argo/code/Translator).
+        root / "Procurator" / "argo" / "code" / "Translator" / "build-host" / "backends" / "verify" / "p4c-translator",
         # Backward-compat path (some builds may still place it at the build root).
         root / "P4B-Translator" / "build-host" / "p4c-translator",
+        root / "Procurator" / "argo" / "code" / "Translator" / "build-host" / "p4c-translator",
         root / "dslc" / "toolchain" / "p4b_docker.sh",
     ]
     for p in candidates:
         try:
             if p.exists():
+                return p
+        except OSError:
+            continue
+    return None
+
+
+def find_default_ultimate() -> Optional[Path]:
+    """
+    Best-effort resolver for a usable Ultimate CLI executable.
+
+    Preference order:
+      1) A vendored Ultimate under `.tmp/orphan-worktree-*/UGemCutter-linux/Ultimate`
+         (we pick the most recently modified one).
+      2) `UGemCutter-linux/Ultimate` at repo root.
+      3) `Ultimate` at repo root (legacy).
+    """
+
+    root = repo_root()
+
+    # Prefer the most recently modified orphan worktree.
+    orphan_candidates: list[Path] = []
+    try:
+        orphan_candidates = list(root.glob(".tmp/orphan-worktree-*/UGemCutter-linux/Ultimate"))
+    except OSError:
+        orphan_candidates = []
+    orphan_candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+
+    candidates = (
+        orphan_candidates
+        + [
+            root / "UGemCutter-linux" / "Ultimate",
+            root / "Ultimate",
+        ]
+    )
+    for p in candidates:
+        try:
+            # On Windows-mounted filesystems (e.g., /mnt/e) path casing can be
+            # effectively case-insensitive, so `Ultimate` may accidentally match
+            # the vendored Ultimate *source* directory `ultimate/`. Require an
+            # executable file to avoid confusing failures.
+            if p.is_file() and p.exists():
                 return p
         except OSError:
             continue

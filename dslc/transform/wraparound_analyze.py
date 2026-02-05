@@ -16,11 +16,16 @@ from .wraparound_common import (
     _RE_PROC_MAIN,
     _RE_PROC_SCHED,
     _RE_PROC_ULTIMATE_START,
-    _RE_REG_DECL,
     _RE_STEP_INC,
     _RE_WHILE_STEP_BOUND,
     _RE_WHILE_TRUE,
 )
+
+
+_RE_TYPE_DEF = re.compile(r"^type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<rhs>[^;]+);\s*$")
+_RE_ARRAY_TYPE = re.compile(r"^\[\s*(?P<idx>[^\]]+)\s*\]\s*(?P<elem>\S+)\s*$")
+_RE_BV_TYPE = re.compile(r"^bv(?P<w>\d+)$")
+
 
 def _parse_global_var_types(lines: Sequence[str]) -> Dict[str, str]:
     types: Dict[str, str] = {}
@@ -32,17 +37,59 @@ def _parse_global_var_types(lines: Sequence[str]) -> Dict[str, str]:
     return types
 
 
-def _find_reg_decl(lines: Sequence[str], reg_var: str) -> Optional[Tuple[int, int]]:
+def _collect_type_aliases(lines: Sequence[str]) -> Dict[str, str]:
+    aliases: Dict[str, str] = {}
     for line in lines:
-        m = _RE_REG_DECL.match(line.strip())
+        m = _RE_TYPE_DEF.match(line.strip())
         if not m:
             continue
-        if m.group("name") == reg_var:
-            return int(m.group("idx")), int(m.group("elem"))
-    return None
+        aliases[m.group("name")] = m.group("rhs").strip()
+    return aliases
 
 
-_RE_BV_TYPE = re.compile(r"^bv(?P<w>\d+)$")
+def _resolve_bv_width(type_name: str, aliases: Dict[str, str]) -> Optional[int]:
+    cur = type_name.strip()
+    seen: set[str] = set()
+    while True:
+        m = _RE_BV_TYPE.match(cur)
+        if m:
+            return int(m.group("w"))
+        if cur in seen:
+            return None
+        seen.add(cur)
+        nxt = aliases.get(cur)
+        if nxt is None:
+            return None
+        cur = nxt.strip()
+
+
+def _find_reg_decl(
+    var_types: Dict[str, str], type_aliases: Dict[str, str], reg_var: str
+) -> Optional[Tuple[int, int]]:
+    """Return (index_width, elem_width) for a Boogie register array variable.
+
+    Supports both the canonical `[bv32]bv16` form and typedef'd aliases such as:
+      type sw_lid_t = bv32;
+      var notification_cnt:[sw_lid_t]bv8;
+    """
+
+    typ = var_types.get(reg_var)
+    if typ is None:
+        return None
+
+    m = _RE_ARRAY_TYPE.match(typ)
+    if not m:
+        return None
+
+    idx_type = m.group("idx").strip()
+    elem_type = m.group("elem").strip()
+    idx_w = _resolve_bv_width(idx_type, type_aliases)
+    elem_w = _resolve_bv_width(elem_type, type_aliases)
+    if idx_w is None or elem_w is None:
+        raise WraparoundTransformError(f"unsupported register type for {reg_var}: {typ}")
+    return idx_w, elem_w
+
+
 _RE_BV_LIT = re.compile(r"^(?P<val>\d+)bv(?P<w>\d+)$")
 _RE_SIMPLE_VAR = re.compile(r"^[A-Za-z_][A-Za-z0-9_.]*$")
 
@@ -285,17 +332,20 @@ def _reindent_block(block: Sequence[str], base_indent: str, new_indent: str) -> 
     return out
 
 
-def _inline_deterministic_round_into_mainprocedure(lines: List[str], period: int) -> None:
+def _inline_deterministic_round_into_mainprocedure(lines: List[str], *, period: int, steps: int) -> None:
     """
     For closure_check, replace the `call main();` unrolled scheduler steps with a
     phase-specialized, loop-free round.
     """
 
+    if steps <= 0:
+        return
+
     phase_bodies = _extract_main_phase_bodies(lines, period)
 
     no_nl_lines = [ln.rstrip("\n") for ln in lines]
     _, body_open_idx, body_close_idx = _find_procedure_block(no_nl_lines, _RE_PROC_MAIN)
-    marker = f"{_CLOSURE_UNROLL_MARKER_PREFIX} {period} steps (wraparound)"
+    marker = f"{_CLOSURE_UNROLL_MARKER_PREFIX} {steps} steps (wraparound)"
 
     marker_idx = None
     for i in range(body_open_idx, body_close_idx + 1):
@@ -309,16 +359,17 @@ def _inline_deterministic_round_into_mainprocedure(lines: List[str], period: int
     for i in range(marker_idx + 1, body_close_idx + 1):
         if _RE_CALL_MAIN.match(no_nl_lines[i].strip()):
             call_idxs.append(i)
-            if len(call_idxs) == period:
+            if len(call_idxs) == steps:
                 break
 
-    if len(call_idxs) != period:
+    if len(call_idxs) != steps:
         raise WraparoundTransformError(
-            f"expected {period} `call main();` occurrences after UNROLLED marker, got {len(call_idxs)}"
+            f"expected {steps} `call main();` occurrences after UNROLLED marker, got {len(call_idxs)}"
         )
 
     # Replace bottom-to-top to keep indices stable.
-    for phase, idx in reversed(list(enumerate(call_idxs))):
+    for step_idx, idx in reversed(list(enumerate(call_idxs))):
+        phase = step_idx % period
         indent = re.match(r"^(\s*)", lines[idx]).group(1)  # type: ignore[union-attr]
         base = _min_leading_indent(phase_bodies[phase])
         body = _reindent_block(phase_bodies[phase], base, indent)
@@ -351,8 +402,9 @@ def analyze_bpl_for_wraparound(
 ) -> WraparoundConfig:
     lines = bpl_text.splitlines(keepends=False)
     var_types = _parse_global_var_types(lines)
+    type_aliases = _collect_type_aliases(lines)
 
-    decl = _find_reg_decl(lines, pump_reg)
+    decl = _find_reg_decl(var_types, type_aliases, pump_reg)
     if decl is None:
         raise WraparoundTransformError(f"register not found: {pump_reg}")
     index_w, elem_w = decl
@@ -375,7 +427,7 @@ def analyze_bpl_for_wraparound(
 
     accel_targets: List[WraparoundTarget] = []
     for r in accel_regs:
-        d = _find_reg_decl(lines, r)
+        d = _find_reg_decl(var_types, type_aliases, r)
         if d is None:
             raise WraparoundTransformError(f"register not found: {r}")
         idx_w, el_w = d

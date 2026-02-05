@@ -389,6 +389,9 @@ class BoogieHarnessSequentialMixin:
                 for other in guards:
                     out.append(f"{indent}assume {other}_inbox_count == 0;\n")
         out.append(f"{indent}{node}_inbox_count := {node}_inbox_count - 1;\n")
+        if dsl_stmt_lines:
+            out.append(f"{indent}// DSL statements (per-pass instrumentation)\n")
+            out.append(dsl_stmt_lines)
         out.append(f"{indent}call {node}_mainProcedure();\n")
         # If the P4 program signals a derived event, enqueue it now.
         for flag in clone_flags:
@@ -398,7 +401,7 @@ class BoogieHarnessSequentialMixin:
             out.append(f"{indent}{node}_{flag} := false;\n")
         out.append(f"{indent}call {node}_Forward();\n")
         trace_lines = self._emit_trace_assignments(node, indent=indent, stage_id=3)
-        dbg_needed = bool(node_assert_lines or global_assert_lines or trace_lines)
+        dbg_needed = bool(node_assert_lines or global_assert_lines or global_track_lines or trace_lines)
         if dbg_needed:
             dbg = self._emit_register_debug_assignments(indent=indent)
             if dbg:

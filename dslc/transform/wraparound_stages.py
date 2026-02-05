@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from .wraparound_common import (
     WraparoundConfig,
@@ -19,6 +19,7 @@ from .wraparound_common import (
     _RE_ASSIGN_STMT,
     _RE_ASSUME_BV32_INDEX_INIT,
     _RE_ASSUME_FORALL_BV32_INIT,
+    _RE_ASSUME_FORALL_BV32_INIT_EXCEPT,
     _RE_BVULE_BV32_CALL,
     _RE_STEP_INC,
     _sanitize_local,
@@ -120,17 +121,39 @@ def _emit_closure_setup(var_types: Dict[str, str], cfg: WraparoundConfig) -> str
 def _emit_closure_asserts(cfg: WraparoundConfig) -> str:
     lines: List[str] = []
     lines.append("  // wraparound closure_check asserts (generated)\n")
+    # Emit a *single* named assertion target for closure_check.
+    #
+    # Rationale: emitting one wrapper per condition creates many error locations
+    # which can cause Ultimate/GemCutter to spend most time in CEGAR choosing
+    # and refining among locations (observed to timeout on NetChain closure).
+    #
+    # If we later want pinpointing again, we can re-introduce it as an optional
+    # "debug" mode, but the default should be "one error location".
+    cond_terms: List[str] = []
     for v in cfg.proj_vars:
         local = f"wrap_closure_snap_{_sanitize_local(v)}"
-        lines.append(f"  assert {v} == {local};\n")
+        cond_terms.append(f"({v} == {local})")
     for t in cfg.accel_targets:
         target_read = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
         local = f"wrap_closure_after_{_sanitize_local(t.reg_var)}"
         lines.append(f"  {local} := {target_read};\n")
-        lines.append(f"  assert {local} == {_step_update_expr(cfg, 'wrap_closure_seq0')};\n")
+        cond_terms.append(f"({local} == {_step_update_expr(cfg, 'wrap_closure_seq0')})")
     # Ensure we end a full round at the intended cutpoint.
-    lines.append(f"  assert ({cfg.cutpoint_cond});\n")
+    cond_terms.append(f"({cfg.cutpoint_cond})")
+    cond_expr = "true" if not cond_terms else " && ".join(cond_terms)
+    lines.append(f"  call __wraparound_closure_assert_all({cond_expr});\n")
     lines.append("\n")
+    return "".join(lines)
+
+
+def _emit_closure_assert_wrapper_procs(cfg: WraparoundConfig) -> str:
+    lines: List[str] = []
+    lines.append(
+        "procedure {:inline 1} __wraparound_closure_assert_all(cond: bool) returns()\n"
+        "{\n"
+        "  assert cond;\n"
+        "}\n\n"
+    )
     return "".join(lines)
 
 
@@ -341,20 +364,127 @@ def _infer_reg_bv32_index_upper_bound(lines: Sequence[str], reg_var: str) -> Opt
     if not idx_exprs:
         return None
 
-    expr_to_bound: Dict[str, int] = {}
+    # Collect candidate index upper bounds from *assumptions*.
+    #
+    # Correctness note: do NOT infer bounds from guards in `if (...)` conditions.
+    # Those are not guaranteed and using them here would make quantified-init
+    # elimination unsound (could introduce spurious counterexamples).
+
+    def _strip_wrapping_parens(expr: str) -> str:
+        s = expr.strip()
+        while s.startswith("(") and s.endswith(")"):
+            depth = 0
+            wraps_entire = True
+            for i, ch in enumerate(s):
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    if depth == 0 and i != len(s) - 1:
+                        wraps_entire = False
+                        break
+            if wraps_entire and depth == 0:
+                s = s[1:-1].strip()
+                continue
+            break
+        return s
+
+    def _parse_bv_lit(expr: str) -> Optional[Tuple[int, int]]:
+        m = re.match(r"^(?P<n>\d+)bv(?P<w>\d+)$", expr.strip())
+        if not m:
+            return None
+        try:
+            return int(m.group("n")), int(m.group("w"))
+        except Exception:
+            return None
+
+    # Maps from normalized expression -> numeric upper bound.
+    bv16_bounds: Dict[str, int] = {}
+    bv32_bounds: Dict[str, int] = {}
+
+    def _add_bound(dst: Dict[str, int], expr: str, bound: int) -> None:
+        key = _normalize_boogie_expr(expr)
+        prev = dst.get(key)
+        if prev is None or bound > prev:
+            dst[key] = int(bound)
+
+    bule16_pat = re.compile(
+        r"\bbule\.bv16(?:\$builtin)?\(\s*(?P<a>[^,]+?)\s*,\s*(?P<b>\d+)bv16\s*\)"
+    )
+    bule32_pat = re.compile(
+        r"\bbule\.bv32(?:\$builtin)?\(\s*(?P<a>[^,]+?)\s*,\s*(?P<b>\d+)bv32\s*\)"
+    )
+
     for ln in lines:
-        for m in _RE_BVULE_BV32_CALL.finditer(ln):
-            a_norm = _normalize_boogie_expr(m.group("a"))
-            b = int(m.group("b"))
-            prev = expr_to_bound.get(a_norm)
-            if prev is None or b > prev:
-                expr_to_bound[a_norm] = b
+        s = ln.strip()
+        if not s.startswith("assume"):
+            continue
+        # Normalize to the inside of the assume.
+        s = s[len("assume") :].strip()
+        if s.endswith(";"):
+            s = s[:-1].strip()
+        s = _strip_wrapping_parens(s)
+        if not s or s.startswith("forall"):
+            continue
+        # Skip non-conjunctive assume forms (implications/disjunctions).
+        compact = _normalize_boogie_expr(s)
+        if ("||" in compact) or ("==>" in compact) or ("<==" in compact):
+            continue
+
+        for m in bule16_pat.finditer(s):
+            _add_bound(bv16_bounds, m.group("a"), int(m.group("b")))
+        for m in bule32_pat.finditer(s):
+            _add_bound(bv32_bounds, m.group("a"), int(m.group("b")))
+
+        # Simple equality `assume(lhs == <n>bv{16,32});` is also a usable upper bound.
+        if ("&&" not in compact) and (compact.count("==") == 1):
+            lhs, rhs = compact.split("==", 1)
+            rhs_lit = _parse_bv_lit(rhs)
+            if rhs_lit is not None:
+                n, w = rhs_lit
+                lhs_norm = _normalize_boogie_expr(_strip_wrapping_parens(lhs))
+                if w == 16:
+                    _add_bound(bv16_bounds, lhs_norm, n)
+                elif w == 32:
+                    _add_bound(bv32_bounds, lhs_norm, n)
+
+    def _infer_bv32_bound_from_expr(expr: str) -> Optional[int]:
+        e0 = _strip_wrapping_parens(expr)
+        lit = _parse_bv_lit(e0)
+        if lit is not None and lit[1] == 32:
+            return lit[0]
+
+        e = _normalize_boogie_expr(e0)
+        direct = bv32_bounds.get(e)
+        if direct is not None:
+            return int(direct)
+
+        # Common P4B pattern: bv32 index is a concat of a zero high half with a bv16 index.
+        #
+        # Example: `0bv16++leaf_hdr_eg.inswitch_hdr.idx`
+        m = re.match(r"^(?P<hi>\d+)bv16\+\+(?P<lo>.+)$", e)
+        if m:
+            try:
+                hi = int(m.group("hi"))
+            except Exception:
+                hi = 0
+            lo = _strip_wrapping_parens(m.group("lo"))
+            lo_norm = _normalize_boogie_expr(lo)
+            lo_lit = _parse_bv_lit(lo_norm)
+            if lo_lit is not None and lo_lit[1] == 16:
+                lo_bound = lo_lit[0]
+            else:
+                lo_bound = bv16_bounds.get(lo_norm)
+            if lo_bound is not None:
+                return (hi << 16) + int(lo_bound)
+
+        return None
 
     bounds: List[int] = []
     for idx in idx_exprs:
-        b = expr_to_bound.get(_normalize_boogie_expr(idx))
+        b = _infer_bv32_bound_from_expr(idx)
         if b is not None:
-            bounds.append(b)
+            bounds.append(int(b))
     return max(bounds) if bounds else None
 
 
@@ -381,9 +511,18 @@ def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
     i = 0
     while i < len(lines):
         m = _RE_ASSUME_FORALL_BV32_INIT.match(lines[i].strip())
+        exc_idx: Optional[int] = None
         if not m:
-            i += 1
-            continue
+            m2 = _RE_ASSUME_FORALL_BV32_INIT_EXCEPT.match(lines[i].strip())
+            if not m2:
+                i += 1
+                continue
+            # Same capture names as unconditional regex, plus `exc`.
+            m = m2
+            try:
+                exc_idx = int(m2.group("exc"))
+            except Exception:
+                exc_idx = None
 
         indent = m.group("indent")
         reg = m.group("array")
@@ -393,23 +532,28 @@ def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
 
         inferred_bound = _infer_reg_bv32_index_upper_bound(lines, reg)
         inferred_indices: set[int] = set()
-        if inferred_bound is not None:
-            if inferred_bound >= _MAX_FORALL_INIT_EXPANSION:
-                raise WraparoundTransformError(
-                    f"cannot eliminate quantified init for {reg}: inferred index upper bound {inferred_bound} "
-                    f">= {_MAX_FORALL_INIT_EXPANSION} (increase pruning or lower the bound)"
-                )
+        if inferred_bound is not None and inferred_bound < _MAX_FORALL_INIT_EXPANSION:
             inferred_indices = set(range(inferred_bound + 1))
 
         already = explicit.get(key, set())
-        if inferred_bound is None and not already:
-            # We cannot infer a finite index domain and there is no existing
-            # finite instantiation to rely on. Keep the quantified init to
-            # preserve semantics (even if this makes the check harder).
+        if inferred_bound is None:
+            # We cannot infer a finite index domain. Keep the quantified init
+            # to preserve semantics (even if this makes the check harder).
+            #
+            # Soundness note: do NOT drop the quantifier just because some explicit
+            # `reg[0] == 0` instantiation exists. That would relax the initial state
+            # for potentially-accessed indices and can introduce spurious behaviors.
+            i += 1
+            continue
+        if inferred_bound >= _MAX_FORALL_INIT_EXPANSION:
+            # Too large to expand safely; keep the quantifier.
             i += 1
             continue
 
-        missing = sorted(inferred_indices - already)
+        missing_set = inferred_indices - already
+        if exc_idx is not None:
+            missing_set.discard(int(exc_idx))
+        missing = sorted(missing_set)
 
         if not missing:
             # Either (1) we already have per-index init assumptions for all
@@ -421,7 +565,12 @@ def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
 
         repl: List[str] = [f"{indent}assume {reg}[{k}bv32] == {value};\n" for k in missing]
         lines[i : i + 1] = repl
-        explicit[key] = already.union(inferred_indices)
+        # Track that all in-domain indices (except the excluded one, if present) now
+        # have explicit init assumptions.
+        if exc_idx is not None:
+            explicit[key] = already.union(inferred_indices - {int(exc_idx)})
+        else:
+            explicit[key] = already.union(inferred_indices)
         i += len(repl)
 
 
@@ -447,12 +596,37 @@ def _emit_gated_assert_wrapper_proc(cfg: WraparoundConfig) -> str:
     the assertion evaluation.
     """
 
-    p = cfg.pump_target
-    target_read = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
+    # The gating must cover *all accelerated registers*, not only the pump target.
+    #
+    # Otherwise, when we fast-forward multiple regs to MAX (e.g., NetChain
+    # sequence regs across replicas), the property could become UNSAFE already
+    # at MAX (pre-flip) due to the interaction between the regs (e.g., s2 > s1).
+    #
+    # In that case, the reported counterexample is a "pseudo" wraparound bug:
+    # it is not showing a MAX->0 flip-induced violation, just a violation in
+    # the fast-forwarded initial state. We want confirm to validate the *flip
+    # suffix*, so we only enable assertions after at least one accelerated reg
+    # has left MAX (i.e., a flip occurred in the explored suffix).
+    accel_reads: List[str] = []
+    for t in cfg.accel_targets:
+        r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
+        accel_reads.append(r)
+    if not accel_reads:
+        accel_reads = [cfg.pump_target.last0_value_var if cfg.pump_target.use_last0_value else f"{cfg.pump_target.reg_var}[{cfg.pump_target.index_expr}]"]
+    # Per-reg max constants (width may differ across targets in general).
+    gate_terms: List[str] = []
+    for t in cfg.accel_targets:
+        r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
+        gate_terms.append(f"({r} != {t.max_elem_expr})")
+    if not gate_terms:
+        p = cfg.pump_target
+        r = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
+        gate_terms.append(f"({r} != {p.max_elem_expr})")
+    gate_cond = " || ".join(gate_terms)
     return (
         f"procedure {{:inline 1}} {_ASSERT_WRAPPER_PROC}(cond: bool) returns()\n"
         "{\n"
-        f"  if ({target_read} != {p.max_elem_expr}) {{\n"
+        f"  if ({gate_cond}) {{\n"
         "    assert cond;\n"
         "  } else {\n"
         "    assume true;\n"

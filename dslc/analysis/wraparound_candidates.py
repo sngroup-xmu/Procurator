@@ -39,6 +39,10 @@ _RE_BV_LIT = re.compile(r"^(?P<val>\d+)bv(?P<w>\d+)$")
 _RE_CONCAT_LIT_VAR = re.compile(
     r"^(?P<prefix>\d+)bv(?P<pw>\d+)\s*\+\+\s*(?P<var>[A-Za-z_][A-Za-z0-9_.]*)$"
 )
+_RE_ASSIGN_STMT = re.compile(r"^\s*(?P<lhs>[^:;]+?)\s*:=\s*(?P<rhs>.*);\s*$")
+_RE_CALL_ASSIGN_STMT = re.compile(
+    r"^\s*call\s+(?P<lhs>[^:;]+?)\s*:=\s*(?P<proc>[A-Za-z_][A-Za-z0-9_]*)\((?P<args>.*)\)\s*;\s*$"
+)
 
 
 def _unwrap_var(expr: Tree) -> Tree:
@@ -220,13 +224,18 @@ def extract_seed_vars_from_global_asserts(spec_text: str) -> List[Tuple[str, Tup
     return out
 
 
-def _infer_from_global_asserts(spec_text: str) -> Optional[WraparoundCandidate]:
+def _infer_from_global_asserts(*, spec_text: str, bpl_text: str) -> Optional[WraparoundCandidate]:
     """
     MVP inference: look for register[i] occurrences in global asserts, and group
     registers by a single constant index (NetChain-style).
     """
 
     seeds = extract_seed_vars_from_global_asserts(spec_text)
+    # If we accelerate based on asserts alone (NetChain-style), default to a conservative
+    # projection that stabilizes the scheduler bookkeeping (phase + queue counts).
+    # Without this, closure_check often fails trivially because the environment/scheduler
+    # can perturb whether the "pump" update executes.
+    default_proj = _default_proj_vars(_parse_var_types(bpl_text))
     regs: List[str] = []
     idx: Optional[int] = None
     for base, indices in seeds:
@@ -250,7 +259,7 @@ def _infer_from_global_asserts(spec_text: str) -> Optional[WraparoundCandidate]:
         accel_regs=tuple(regs),
         index_value=idx,
         index_expr=None,
-        proj_vars=tuple(),  # let transform pick defaults
+        proj_vars=tuple(default_proj),
         cutpoint_cond=None,
         reason="global_asserts",
     )
@@ -312,6 +321,148 @@ def _prefix_expr_with_known_vars(expr: str, *, node: str, var_types: Dict[str, s
     return _RE_IDENT.sub(repl, expr)
 
 
+def _extract_cond_text(line: str) -> Optional[str]:
+    """
+    Extract the condition text from a Boogie `if ( ... ) {` or `while ( ... ) {` line.
+
+    This is best-effort and intentionally lightweight (regex-free), since the generated
+    Boogie is large and we only need variable names for dependency analysis.
+    """
+
+    i = line.find("(")
+    j = line.rfind(")")
+    if i < 0 or j <= i:
+        return None
+    return line[i + 1 : j].strip()
+
+
+def _infer_driver_vars_from_bpl(
+    *,
+    bpl_text: str,
+    observed_vars: Sequence[str],
+    var_types: Dict[str, str],
+) -> Set[str]:
+    """
+    Compute a conservative set of "driver" vars for the given observed vars.
+
+    We build a lightweight, intra-file dependency graph from Boogie text:
+      - data deps: variables in RHS of `x := expr;` influence `x`
+      - control deps (approx): variables in `if (cond)` / `while (cond)` influence
+        assignments in the guarded block (since they decide which assignments run).
+
+    This is intentionally imprecise but useful for selecting wraparound targets
+    for functional properties (e.g., DistCache cache_frequency where the reg is
+    not mentioned directly in the global assert).
+    """
+
+    if not observed_vars:
+        return set()
+
+    var_names: Set[str] = set(var_types.keys())
+    obs: List[str] = [v for v in observed_vars if v in var_names]
+    if not obs:
+        return set()
+
+    # Reverse edges: lhs -> {rhs_vars} so we can do backward reachability from observed vars.
+    preds: Dict[str, Set[str]] = {}
+
+    # Track active control guards using a stack keyed by brace depth.
+    #
+    # We use reference counts so nested guards don't require expensive unions on every line.
+    guard_stack: List[Tuple[Set[str], int]] = []
+    guard_refcnt: Dict[str, int] = {}
+    pending_guard: Optional[Set[str]] = None
+    brace_depth = 0
+
+    def _guard_vars() -> Set[str]:
+        return set(guard_refcnt.keys())
+
+    def _guard_vars_from_cond(cond: str) -> Set[str]:
+        return {tok for tok in _RE_IDENT.findall(cond) if tok in var_names}
+
+    for raw_ln in bpl_text.splitlines():
+        # Strip Boogie line comments. We keep braces in the code portion only.
+        ln = raw_ln.split("//", 1)[0]
+        s = ln.strip()
+
+        # Detect if/while blocks and schedule pushing their guard vars when we see the `{`.
+        if s.startswith("if "):
+            cond = _extract_cond_text(ln)
+            if cond:
+                pending_guard = _guard_vars_from_cond(cond)
+        elif s.startswith("while "):
+            cond = _extract_cond_text(ln)
+            if cond:
+                pending_guard = _guard_vars_from_cond(cond)
+        elif s.startswith("} else if"):
+            # else-if: keep the old guard vars and add the new condition vars.
+            old = guard_stack[-1][0] if guard_stack else set()
+            cond = _extract_cond_text(ln)
+            if cond:
+                pending_guard = set(old) | _guard_vars_from_cond(cond)
+            else:
+                pending_guard = set(old)
+        elif s.startswith("} else"):
+            # else: keep the old guard vars (the branch is still control-dependent on the guard).
+            old = guard_stack[-1][0] if guard_stack else set()
+            pending_guard = set(old) if old else None
+
+        # Add deps for assignments and call-assignments in the current guard context.
+        gvars = _guard_vars()
+        m_call = _RE_CALL_ASSIGN_STMT.match(ln)
+        if m_call:
+            lhs_part = m_call.group("lhs")
+            args = m_call.group("args")
+            rhs_vars = {tok for tok in _RE_IDENT.findall(args) if tok in var_names}
+            srcs = rhs_vars | gvars
+            for lhs in [p.strip() for p in lhs_part.split(",")]:
+                if lhs in var_names:
+                    preds.setdefault(lhs, set()).update(srcs)
+        else:
+            m_asn = _RE_ASSIGN_STMT.match(ln)
+            if m_asn:
+                lhs_part = m_asn.group("lhs")
+                rhs = m_asn.group("rhs")
+                rhs_vars = {tok for tok in _RE_IDENT.findall(rhs) if tok in var_names}
+                srcs = rhs_vars | gvars
+                for lhs in [p.strip() for p in lhs_part.split(",")]:
+                    if lhs in var_names:
+                        preds.setdefault(lhs, set()).update(srcs)
+
+        # Update brace depth and control-guard stack char-by-char so `} else {` works.
+        for ch in ln:
+            if ch == "}":
+                brace_depth -= 1
+                # Pop any guards whose block ended.
+                while guard_stack and guard_stack[-1][1] > brace_depth:
+                    gv, _depth = guard_stack.pop()
+                    for v in gv:
+                        cur = guard_refcnt.get(v, 0) - 1
+                        if cur <= 0:
+                            guard_refcnt.pop(v, None)
+                        else:
+                            guard_refcnt[v] = cur
+            elif ch == "{":
+                brace_depth += 1
+                if pending_guard is not None:
+                    gv = pending_guard
+                    pending_guard = None
+                    guard_stack.append((gv, brace_depth))
+                    for v in gv:
+                        guard_refcnt[v] = guard_refcnt.get(v, 0) + 1
+
+    # Backward reachability from observed vars.
+    drivers: Set[str] = set(obs)
+    work: List[str] = list(obs)
+    while work:
+        cur = work.pop()
+        for p in preds.get(cur, set()):
+            if p not in drivers:
+                drivers.add(p)
+                work.append(p)
+    return drivers
+
+
 def _infer_from_meta_updates(
     *,
     spec_text: str,
@@ -325,6 +476,16 @@ def _infer_from_meta_updates(
     seed_pairs = extract_seed_vars_from_global_asserts(spec_text)
     seed_bases: Set[str] = {base for base, _ in seed_pairs}
     seed_bases |= {_strip_debug_suffix(b) for b in list(seed_bases)}
+    # Observed -> driver reachability (approx, includes control deps).
+    observed_for_driver = [b for b in seed_bases if b in var_types]
+    try:
+        driver_vars = _infer_driver_vars_from_bpl(
+            bpl_text=bpl_text,
+            observed_vars=observed_for_driver,
+            var_types=var_types,
+        )
+    except Exception:
+        driver_vars = set()
 
     out: List[WraparoundCandidate] = []
     seen: Set[Tuple[str, Optional[int], Optional[str], str, Optional[int]]] = set()
@@ -358,14 +519,25 @@ def _infer_from_meta_updates(
             pump_reg = _resolve_prefixed_name(reg, node=node, var_types=var_types)
             value_var_pref = _resolve_prefixed_name(value_var, node=node, var_types=var_types)
 
-            # Filter by whether the updated var (or the register itself) appears in global asserts.
-            if (
-                value_var_pref not in seed_bases
-                and value_var not in seed_bases
-                and pump_reg not in seed_bases
-                and reg not in seed_bases
-            ):
-                continue
+            # Filter by whether the updated var (or the register itself) affects the observed property.
+            #
+            # Historically we required the updated var to appear in the global assert text, but for
+            # functional properties the counter is often only a *driver* (e.g., it controls which
+            # leaf is chosen), so it does not appear syntactically in the assertion. We therefore
+            # use a lightweight Boogie dependency analysis to select candidates that can influence
+            # the observed vars.
+            if driver_vars:
+                if (value_var_pref not in driver_vars) and (pump_reg not in driver_vars):
+                    continue
+            else:
+                # Fallback: legacy gating by syntactic mention.
+                if (
+                    value_var_pref not in seed_bases
+                    and value_var not in seed_bases
+                    and pump_reg not in seed_bases
+                    and reg not in seed_bases
+                ):
+                    continue
 
             idx_const = u.get("idx_const", None)
             idx_expr_raw = u.get("idx_expr", None)
@@ -429,6 +601,7 @@ def infer_wraparound_candidates(
     spec_text: str,
     bpl_text: str,
     meta_by_node: Optional[Dict[str, dict]] = None,
+    require_meta_step_for_global_asserts: bool = False,
 ) -> List[WraparoundCandidate]:
     """
     Infer wraparound candidates for the given spec and compiled Boogie model.
@@ -441,7 +614,7 @@ def infer_wraparound_candidates(
          the global assert (DistCache-style leafload/spineload).
     """
 
-    cand = _infer_from_global_asserts(spec_text)
+    cand = _infer_from_global_asserts(spec_text=spec_text, bpl_text=bpl_text)
     if cand is not None:
         # If meta is available, try to recover the step size for the pump reg.
         if meta_by_node:
@@ -461,7 +634,29 @@ def infer_wraparound_candidates(
                         step_delta=delta,
                     )
                 ]
-        return [cand]
+            if require_meta_step_for_global_asserts:
+                # In auto mode, we *prefer* a P4B-derived monotone update to avoid wasting
+                # time on non-counters. However, some P4 programs update registers via
+                # `RegisterAction.execute(...)`, which is currently not reflected in
+                # `wraparound.updates` (it only tracks explicit `reg.write(...)` patterns).
+                #
+                # If P4B reports *no* wraparound updates at all, accept the global-asserts
+                # candidate and fall back to the default step (+1). Soundness is still
+                # gated by `closure_check == SAFE`.
+                any_updates = False
+                for meta in meta_by_node.values():
+                    wrap = (meta or {}).get("wraparound") or {}
+                    updates = wrap.get("updates") or []
+                    if isinstance(updates, list) and updates:
+                        any_updates = True
+                        break
+                if any_updates:
+                    cand = None
+        else:
+            if require_meta_step_for_global_asserts:
+                cand = None
+        if cand is not None:
+            return [cand]
 
     if not meta_by_node:
         return []

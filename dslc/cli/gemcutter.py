@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Sequence
 
-from dslc.cli.common import find_default_p4b_bin, fresh_run_dir, wrap_resource_limits
+from dslc.cli.common import find_default_p4b_bin, find_default_ultimate, fresh_run_dir
 from dslc.compiler import compile_spec_file
 from dslc.speclang import decompose_global_asserts, emit_spec_text, parse_model, parse_tree
+from dslc.toolchain.ultimate_runner import run_ultimate
+from dslc.transform.wraparound_stages import _rewrite_forall_bv32_array_inits
 from dslc.utils.repo import repo_root
 from dslc.workflows.wraparound_cegis import run_wraparound_cegis_multi
 
@@ -67,6 +67,51 @@ def _result_line_is_unsafe(result_line: Optional[str]) -> bool:
     return ("result: unsafe" in s) or ("proved your program to be incorrect" in s)
 
 
+def _optimize_bpl_for_ultimate(bpl_path: Path) -> None:
+    """
+    Best-effort Boogie post-pass before invoking Ultimate.
+
+    Motivation (WSL safety): some translated P4 programs emit quantified register
+    initialization assumptions like:
+      assume (forall i:bv32 :: reg[i] == 0bvW);
+    Even when the register is only accessed at a small bounded set of indices,
+    these quantifiers can cause Z3 to OOM during CFG/RCFG construction.
+
+    The rewrite is semantics-preserving when we can infer a finite accessed
+    index domain from explicit `assume` bounds and/or constant indices.
+    """
+
+    try:
+        src = bpl_path.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        print(f"[WARN] bpl optimize skipped (read failed): {e}")
+        return
+
+    before = src.count("forall i:bv32")
+    if before <= 0:
+        return
+
+    lines = src.splitlines(keepends=True)
+    try:
+        _rewrite_forall_bv32_array_inits(lines)
+    except Exception as e:
+        print(f"[WARN] bpl optimize skipped (rewrite failed): {e}")
+        return
+
+    out = "".join(lines)
+    if out == src:
+        return
+
+    after = out.count("forall i:bv32")
+    try:
+        bpl_path.write_text(out, encoding="utf-8")
+    except Exception as e:
+        print(f"[WARN] bpl optimize skipped (write failed): {e}")
+        return
+
+    print(f"[OPT] forall-init elimination: {before} -> {after} ({bpl_path.name})")
+
+
 def _wraparound_manifest_certified_unsafe(manifest_path: Path) -> bool:
     """
     A wraparound run is a sound UNSAFE witness iff:
@@ -103,6 +148,14 @@ def _wraparound_manifest_certified_unsafe(manifest_path: Path) -> bool:
     return False
 
 
+def _toolchain_includes_witnessprinter(toolchain: Path) -> bool:
+    try:
+        txt = toolchain.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return False
+    return "de.uni_freiburg.informatik.ultimate.witnessprinter" in txt
+
+
 def _run_one(
     *,
     job: _ComposeJob,
@@ -110,6 +163,7 @@ def _run_one(
     max_env_inputs: bool,
     enable_slicing: bool,
     prune_env_inputs: bool,
+    keep_control_seeds: bool,
     por_enabled: bool,
     por_guard_enabled: bool,
     boogie_harness: str,
@@ -118,10 +172,12 @@ def _run_one(
     honor_spec_max_steps: bool,
     ultimate: Optional[Path],
     toolchain: Path,
+    witness_toolchain: Optional[Path],
     settings: Path,
     ultimate_async: bool,
     ultimate_timeout_seconds: int,
     resource_limits: bool,
+    ultimate_xmx_gb: int,
 ) -> int:
     compile_spec_file(
         spec_path=job.spec_path,
@@ -132,6 +188,7 @@ def _run_one(
         max_env_inputs=max_env_inputs,
         enable_slicing=enable_slicing,
         prune_env_inputs=prune_env_inputs,
+        keep_control_seeds=keep_control_seeds,
         por_enabled=por_enabled,
         por_guard_enabled=por_guard_enabled,
         boogie_harness=boogie_harness,
@@ -141,76 +198,79 @@ def _run_one(
     )
     print(f"[OK] bpl: {job.out_bpl}")
 
+    # Post-pass optimizations (WSL safety / Ultimate robustness).
+    _optimize_bpl_for_ultimate(job.out_bpl)
+
     if not ultimate:
         print("[NOTE] --ultimate not provided; skipping Ultimate run.")
         return 0
 
-    cmd = [
-        str(ultimate),
-        f"--core.toolchain.timeout.in.seconds={ultimate_timeout_seconds}",
-        "-tc",
-        str(toolchain),
-        "-s",
-        str(settings),
-        "-i",
-        str(job.out_bpl),
-    ]
-    os_timeout = ultimate_timeout_seconds + 60 if ultimate_timeout_seconds > 0 else 0
-    cmd = wrap_resource_limits(cmd, enable=resource_limits, os_timeout_s=os_timeout)
-    print("[RUN] " + " ".join(cmd))
-
-    job.ultimate_home.mkdir(parents=True, exist_ok=True)
-    env = dict(os.environ)
-    env["HOME"] = str(job.ultimate_home)
-    # Preserve caller-provided JAVA_TOOL_OPTIONS (e.g., -Xmx) and force a per-run user.home
-    # to keep Ultimate caches/artifacts isolated and avoid confusing cross-run reuse.
-    prev_java_opts = env.get("JAVA_TOOL_OPTIONS", "").strip()
-    user_home_opt = f"-Duser.home={job.ultimate_home}"
-    env["JAVA_TOOL_OPTIONS"] = f"{prev_java_opts} {user_home_opt}".strip()
+    # Give Ultimate a bit more time to shut down cleanly after the toolchain timeout.
+    # Some toolchains need >60s to flush logs / finish witnessprinter output.
+    os_timeout = ultimate_timeout_seconds + 300 if ultimate_timeout_seconds > 0 else 0
+    # Keep Ultimate side effects (witnesses, temp files) under the per-run output dir.
     job.log_path.parent.mkdir(parents=True, exist_ok=True)
+    res = run_ultimate(
+        ultimate=ultimate,
+        toolchain=toolchain,
+        settings=settings,
+        input_bpl=job.out_bpl,
+        log_path=job.log_path,
+        ultimate_home=job.ultimate_home,
+        toolchain_timeout_seconds=ultimate_timeout_seconds if ultimate_timeout_seconds > 0 else None,
+        os_timeout_seconds=os_timeout,
+        cwd=job.log_path.parent,
+        async_run=ultimate_async,
+        resource_limits=resource_limits,
+        launcher_xmx_gb=max(1, int(ultimate_xmx_gb)),
+    )
 
     if ultimate_async:
-        with job.log_path.open("w", encoding="utf-8") as log_file:
-            proc = subprocess.Popen(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                text=True,
-                env=env,
-                # Keep Ultimate side effects (witnesses, temp files) under the per-run output dir.
-                cwd=str(job.log_path.parent),
-            )
-        print(f"[RUN] Ultimate running in background (pid={proc.pid}).")
+        print(f"[RUN] Ultimate running in background (pid={res.pid}).")
         print(f"[LOG] {job.log_path}")
         return 0
 
-    # Stream output to the log file to avoid buffering large logs in RAM.
-    with job.log_path.open("wb") as log_file:
-        log_file.write(("[RUN] " + " ".join(cmd) + "\n").encode("utf-8"))
-        log_file.flush()
-        proc = subprocess.run(
-            cmd,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            env=env,
-            # Keep Ultimate side effects (witnesses, temp files) under the per-run output dir.
-            cwd=str(job.log_path.parent),
-        )
-
-    result_line: Optional[str] = None
-    with job.log_path.open("rb") as log_file:
-        for raw in log_file:
-            line = raw.decode("utf-8", errors="replace")
-            if "RESULT:" in line:
-                result_line = line.strip()
-                break
+    result_line = res.result_line
 
     if result_line:
         print(f"[RESULT] {result_line}")
-    else:
-        print("[RESULT] No RESULT line found; check log.")
+        # Ultimate often exits with 0 for both SAFE and UNSAFE, so use the RESULT
+        # marker to provide a meaningful CLI exit status.
+        if _result_line_is_unsafe(result_line):
+            print(f"[LOG] {job.log_path}")
+
+            # Two-phase witness strategy: run the main verification with a *non-witness*
+            # toolchain for speed/robustness, then (if UNSAFE) re-run with witnessprinter
+            # enabled to produce an auditable counterexample artifact.
+            if witness_toolchain and witness_toolchain.exists() and witness_toolchain != toolchain:
+                wlog = job.log_path.with_suffix(".witness.log")
+                wres = run_ultimate(
+                    ultimate=ultimate,
+                    toolchain=witness_toolchain,
+                    settings=settings,
+                    input_bpl=job.out_bpl,
+                    log_path=wlog,
+                    ultimate_home=job.ultimate_home / "witness",
+                    toolchain_timeout_seconds=ultimate_timeout_seconds if ultimate_timeout_seconds > 0 else None,
+                    os_timeout_seconds=os_timeout,
+                    cwd=wlog.parent,
+                    async_run=False,
+                    resource_limits=resource_limits,
+                    launcher_xmx_gb=max(1, int(ultimate_xmx_gb)),
+                )
+                if wres.result_line:
+                    print(f"[RESULT] {wres.result_line} (witness rerun)")
+                print(f"[LOG] {wlog}")
+            return 1
+        if _result_line_is_safe(result_line):
+            print(f"[LOG] {job.log_path}")
+            return 0
+        print(f"[LOG] {job.log_path}")
+        return res.returncode
+
+    print("[RESULT] No RESULT line found; check log.")
     print(f"[LOG] {job.log_path}")
-    return proc.returncode
+    return res.returncode
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -233,6 +293,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Environment model: 'spec' applies assume constraints, 'max' makes inputs fully nondet",
     )
     ap.add_argument("--no-slicing", action="store_true", help="Disable P4 slicing/pruning")
+    ap.add_argument(
+        "--no-slicing-control-seeds",
+        action="store_true",
+        help=(
+            "Disable implicit forwarding/drop/clone/recirc control seeds in P4 slicing. "
+            "This can significantly shrink single-switch models, but may be unsound for "
+            "distributed/topology-sensitive properties."
+        ),
+    )
     ap.add_argument(
         "--no-env-prune",
         action="store_true",
@@ -289,8 +358,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument(
         "--ultimate-timeout-seconds",
         type=int,
-        default=0,
-        help="Ultimate toolchain timeout in seconds (0 disables timeout).",
+        default=900,
+        help=(
+            "Ultimate toolchain timeout in seconds (default: 900). "
+            "0 disables timeout (not recommended on WSL; can run indefinitely)."
+        ),
+    )
+    ap.add_argument(
+        "--ultimate-xmx-gb",
+        type=int,
+        default=4,
+        help="Max Java heap for Ultimate in GB (WSL safety; default: 4).",
     )
     ap.add_argument(
         "--ultimate-home",
@@ -300,7 +378,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument(
         "--toolchain",
         default="",
-        help="Ultimate toolchain XML (default: concurrent/bpl ReachSafety.xml)",
+        help="Ultimate toolchain XML (default: prefer ReachSafety-Witness.xml when available)",
     )
     ap.add_argument(
         "--settings",
@@ -332,20 +410,40 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument(
         "--wraparound-confirm-unroll",
         type=int,
-        default=3,
-        help="Unroll steps for wraparound confirm (default: 3).",
+        default=0,
+        help=(
+            "Unroll steps for wraparound confirm. "
+            "0 means auto (default): start from a small number of *rounds* (typically 3), "
+            "and (by default) do not grow it further. "
+            "Note: a round may expand to multiple scheduler steps under deterministic scheduling."
+        ),
     )
     ap.add_argument(
         "--wraparound-max-confirm-unroll",
         type=int,
-        default=12,
-        help="Max unroll steps for wraparound confirm growth (default: 12).",
+        default=0,
+        help=(
+            "Max unroll steps for wraparound confirm growth. "
+            "0 (default) disables growth and runs CONFIRM once."
+        ),
     )
     ap.add_argument(
         "--wraparound-max-iters",
         type=int,
         default=6,
         help="Max refinement iterations per wraparound target (default: 6).",
+    )
+    ap.add_argument(
+        "--wraparound-closure-timeout-cap",
+        type=int,
+        default=0,
+        help=(
+            "Cap each wraparound closure_check attempt timeout (seconds). "
+            "0 (default) disables capping and lets closure_check use the full "
+            "--ultimate-timeout-seconds budget. "
+            "Note: timeout-driven refinement is intentionally disabled; refinements "
+            "only happen when closure_check produces a concrete counterexample (UNSAFE)."
+        ),
     )
     ap.add_argument(
         "--wraparound-stage-order",
@@ -380,20 +478,51 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         log_path = default_log
 
     root = repo_root()
-    toolchain = (
-        Path(args.toolchain).resolve()
-        if args.toolchain
-        else root / "ultimate" / "trunk" / "examples" / "concurrent" / "bpl" / "regression" / "ReachSafety.xml"
-    )
-    settings = (
-        Path(args.settings).resolve()
-        if args.settings
-        else (
-            (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL.epf")
-            if (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL.epf").exists()
-            else (root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-32bit-GemCutter-ALL.epf")
-        )
-    )
+    witness_toolchain: Optional[Path] = None
+    if args.toolchain:
+        toolchain = Path(args.toolchain).resolve()
+        # Best-effort: if the user-provided toolchain does NOT already include the witnessprinter,
+        # pick up the in-repo witness toolchain for a second UNSAFE rerun.
+        if not _toolchain_includes_witnessprinter(toolchain):
+            cand_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml"
+            if cand_witness.exists():
+                witness_toolchain = cand_witness.resolve()
+    else:
+        # Two-phase default: use the non-witness toolchain for the main run, and only
+        # enable witnessprinter when we actually see UNSAFE.
+        cand_nowitness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety.xml"
+        cand_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml"
+        if cand_nowitness.exists():
+            toolchain = cand_nowitness.resolve()
+            witness_toolchain = cand_witness.resolve() if cand_witness.exists() else None
+        elif cand_witness.exists():
+            toolchain = cand_witness.resolve()
+            witness_toolchain = None
+        else:
+            toolchain = (root / "ultimate" / "trunk" / "examples" / "concurrent" / "bpl" / "regression" / "ReachSafety.xml").resolve()
+    if args.settings:
+        settings = Path(args.settings).resolve()
+    else:
+        # Default to a WSL-safe GemCutter-style profile.
+        #
+        # IMPORTANT: some profiles set Z3's `-memory:` to 8-12GB. On many WSL setups this
+        # can OOM the whole VM even if Ultimate's JVM heap is small. Prefer the ~2GB Z3
+        # profiles by default; users can opt into larger profiles via --settings.
+        candidates = [
+            # Low-memory (default) profiles.
+            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL.epf",
+            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-no-por.epf",
+            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-internal.epf",
+            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-internal-no-por.epf",
+            # Higher-memory fallbacks (use explicitly on machines that can handle it).
+            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout.epf",
+            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-8g.epf",
+            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-12g.epf",
+            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-BuchiAutomizer-12g.epf",
+            # Legacy path fallback.
+            root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-32bit-GemCutter-ALL.epf",
+        ]
+        settings = next((p for p in candidates if p.exists()), candidates[0])
 
     p4b_bin = Path(args.p4b_bin).resolve() if args.p4b_bin else None
     if not p4b_bin:
@@ -415,12 +544,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     max_env_inputs = args.env == "max"
     enable_slicing = not args.no_slicing
     prune_env_inputs = not args.no_env_prune
+    keep_control_seeds = not bool(args.no_slicing_control_seeds)
     por_enabled = args.por
     por_guard_enabled = not args.no_por_guard
     boogie_harness = args.boogie_harness
     pipeline_two_stage = not args.no_two_stage
 
-    ultimate = Path(args.ultimate).resolve() if args.ultimate else None
+    ultimate = Path(args.ultimate).resolve() if args.ultimate else find_default_ultimate()
+    if ultimate:
+        ultimate = ultimate.resolve()
+        if not args.ultimate:
+            print(f"[NOTE] Using default Ultimate: {ultimate}")
     if ultimate and not ultimate.exists():
         raise SystemExit(f"[ERR] Ultimate executable not found: {ultimate}")
     if not toolchain.exists():
@@ -448,21 +582,44 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if args.wraparound != "off" and ultimate and not args.ultimate_async:
             wrap_dir = job.out_bpl.parent / "wraparound"
             wrap_dir.mkdir(parents=True, exist_ok=True)
+
+            confirm_unroll = int(args.wraparound_confirm_unroll)
+            max_confirm_unroll = int(args.wraparound_max_confirm_unroll)
+            if confirm_unroll <= 0:
+                # Auto base for bug finding (round units, not raw scheduler steps).
+                #
+                # A "round" is later expanded by wraparound_cegis.py based on the inferred
+                # deterministic scheduler period, so using spec.max_steps directly here
+                # can overshoot (e.g., 10 steps with period=2 would become 20 unrolled steps).
+                confirm_unroll = 3
+
             try:
+                # Wraparound runs multiple Ultimate stages (ENTRY/CONFIRM/CLOSURE). A 0 timeout
+                # can hang indefinitely and wastes iteration time; pick a conservative fallback.
+                wrap_timeout_s = int(args.ultimate_timeout_seconds)
+                if wrap_timeout_s <= 0:
+                    wrap_timeout_s = 1200
+                    print(f"[WRAP] note: --ultimate-timeout-seconds=0; using {wrap_timeout_s}s for wraparound stages")
+
+                require_meta_step = (args.wraparound == "auto")
                 manifests = run_wraparound_cegis_multi(
                     spec_path=spec_path,
                     out_dir=wrap_dir,
                     p4b_bin=p4b_bin,
                     ultimate=ultimate,
-                    timeout_seconds=max(0, int(args.ultimate_timeout_seconds)),
+                    ultimate_xmx_gb=int(args.ultimate_xmx_gb),
+                    timeout_seconds=wrap_timeout_s,
+                    # 0 disables per-attempt capping; do not force it to >=1.
+                    closure_timeout_cap_seconds=max(0, int(args.wraparound_closure_timeout_cap)),
                     resource_limits=not args.no_resource_limits,
                     enable_slicing=enable_slicing,
                     pipeline_two_stage=pipeline_two_stage,
-                    confirm_unroll=int(args.wraparound_confirm_unroll),
-                    max_confirm_unroll=int(args.wraparound_max_confirm_unroll),
+                    confirm_unroll=confirm_unroll,
+                    max_confirm_unroll=max_confirm_unroll,
                     max_iters=int(args.wraparound_max_iters),
                     stage_order=str(args.wraparound_stage_order),
                     max_targets=int(args.wraparound_max_targets),
+                    require_meta_step_for_global_asserts=require_meta_step,
                 )
             except Exception as e:
                 if args.wraparound == "force":
@@ -473,7 +630,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             for mp in manifests:
                 if _wraparound_manifest_certified_unsafe(mp):
                     print(f"[WRAP] CERTIFIED UNSAFE: {mp}")
-                    return 0
+                    # Best-effort witness sanity classification for wraparound runs.
+                    # The manifest lives in the wraparound target dir, which contains the
+                    # confirm BPL and its GraphML witness.
+                    try:
+                        from dslc.bench.validate_counterexample import summarize_witness, validate_wraparound_manifest
+
+                        _ok, _msg = validate_wraparound_manifest(mp)
+                        summ = summarize_witness(out_dir=mp.parent)
+                        tag = "[CEX]" if summ.ok else "[CEX-WARN]"
+                        print(f"{tag} {summ.kind}: {summ.details}")
+                    except Exception as e:
+                        print(f"[CEX-WARN] wraparound witness summary failed ({type(e).__name__}: {e})")
+                    return 1
+
+        if ultimate and not args.ultimate_async and int(args.ultimate_timeout_seconds) <= 0:
+            print("[WARN] --ultimate-timeout-seconds=0 disables timeouts; runs may take arbitrarily long.")
 
         rc = _run_one(
             job=job,
@@ -481,6 +653,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             max_env_inputs=max_env_inputs,
             enable_slicing=enable_slicing,
             prune_env_inputs=prune_env_inputs,
+            keep_control_seeds=keep_control_seeds,
             por_enabled=por_enabled,
             por_guard_enabled=por_guard_enabled,
             boogie_harness=boogie_harness,
@@ -489,11 +662,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             honor_spec_max_steps=args.use_spec_max_steps,
             ultimate=ultimate,
             toolchain=toolchain,
+            witness_toolchain=witness_toolchain,
             settings=settings,
             ultimate_async=args.ultimate_async,
             ultimate_timeout_seconds=args.ultimate_timeout_seconds,
             resource_limits=not args.no_resource_limits,
+            ultimate_xmx_gb=int(args.ultimate_xmx_gb),
         )
+        if rc == 1:
+            # Best-effort witness sanity classification: distinguish "DSL global assert violated"
+            # vs "some internal assert violated". This is a regression aid; it does not change rc.
+            try:
+                from dslc.bench.validate_counterexample import summarize_witness
+
+                summ = summarize_witness(out_dir=job.out_bpl.parent)
+                tag = "[CEX]" if summ.ok else "[CEX-WARN]"
+                print(f"{tag} {summ.kind}: {summ.details}")
+            except Exception as e:
+                print(f"[CEX-WARN] witness summary failed ({type(e).__name__}: {e})")
         return rc
 
     # Compose mode: split global asserts into local specs and run in parallel.
@@ -561,6 +747,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 max_env_inputs=max_env_inputs,
                 enable_slicing=enable_slicing,
                 prune_env_inputs=prune_env_inputs,
+                keep_control_seeds=keep_control_seeds,
                 por_enabled=por_enabled,
                 por_guard_enabled=por_guard_enabled,
                 boogie_harness=boogie_harness,
@@ -569,10 +756,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 honor_spec_max_steps=args.use_spec_max_steps,
                 ultimate=ultimate,
                 toolchain=toolchain,
+                witness_toolchain=witness_toolchain,
                 settings=settings,
                 ultimate_async=args.ultimate_async,
                 ultimate_timeout_seconds=args.ultimate_timeout_seconds,
                 resource_limits=not args.no_resource_limits,
+                ultimate_xmx_gb=int(args.ultimate_xmx_gb),
             ): job
             for job in jobs
         }

@@ -41,6 +41,8 @@ def instrument_register_writes(prefixed_bpl: str, reg_types: Dict[str, tuple[str
     if not reg_types:
         return prefixed_bpl
 
+    type_aliases = _collect_type_aliases(prefixed_bpl)
+
     def register_aux_decls(reg_name: str, idx_type: str, elem_type: str, indent: str) -> str:
         return (
             f"{indent}var {reg_name}__last_index: {idx_type};\n"
@@ -109,7 +111,7 @@ def instrument_register_writes(prefixed_bpl: str, reg_types: Dict[str, tuple[str
         indent = re.match(r"^(\s*)", line).group(1)
         idx_expr = m.group("idx").strip()
         val_expr = m.group("val").strip()
-        idx_zero = _render_zero_literal(idx_type)
+        idx_zero = _render_zero_literal(idx_type, type_aliases=type_aliases)
         extra = "\n".join(
             [
                 f"{indent}{reg_name}__last_index := {idx_expr};",
@@ -128,8 +130,42 @@ def instrument_register_writes(prefixed_bpl: str, reg_types: Dict[str, tuple[str
     return out
 
 
-def _render_zero_literal(var_type: str) -> str:
+def _collect_type_aliases(bpl: str) -> Dict[str, str]:
+    """
+    Collect simple Boogie type aliases of the form:
+      type <name> = <rhs>;
+
+    We use this to type-check index-0 comparisons for register mirrors when the
+    index type is an alias (e.g., `sw_lid_t = bv32`).
+    """
+
+    out: Dict[str, str] = {}
+    for m in re.finditer(
+        r"^\s*type\s+(?P<name>[A-Za-z_][A-Za-z0-9_\.\$]*)\s*=\s*(?P<rhs>[^;]+)\s*;\s*$",
+        bpl,
+        flags=re.MULTILINE,
+    ):
+        name = m.group("name").strip()
+        rhs = m.group("rhs").strip()
+        if name and rhs:
+            out[name] = rhs
+    return out
+
+
+def _render_zero_literal(var_type: str, *, type_aliases: Optional[Dict[str, str]] = None) -> str:
     var_type = var_type.strip()
+    if type_aliases:
+        seen: set[str] = set()
+        cur = var_type
+        for _ in range(16):
+            if cur in seen:
+                break
+            seen.add(cur)
+            nxt = type_aliases.get(cur)
+            if not nxt:
+                break
+            cur = nxt.strip()
+        var_type = cur
     if var_type == "bool":
         return "false"
     if var_type.startswith("bv") and var_type[2:].isdigit():
@@ -165,4 +201,3 @@ def _find_procedure_body_span(bpl: str, proc_name: str) -> Optional[tuple[int, i
     if body_start is None or body_end is None:
         return None
     return body_start, body_end
-

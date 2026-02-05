@@ -728,13 +728,31 @@ class BoogieHarnessDslMixin:
                     return int(vt[2:])
                 except Exception:
                     pass
-            # Array types like "[bv32]bv16" (register arrays)
-            m = re.fullmatch(r"\[bv\d+\]bv(\d+)", vt)
+            # Array types like "[bv32]bv16" (register arrays). Some P4 programs use typedefs
+            # for the index type (e.g., `type sw_lid_t = bv32;`), so accept any index type
+            # here and only parse the element width.
+            m = re.fullmatch(r"\[[^\]]+\]bv(\d+)", vt)
             if m:
                 try:
                     return int(m.group(1))
                 except Exception:
                     pass
+            # Array types like "[bv32]sw_pair" where sw_pair is a Boogie type alias to bvN.
+            # Same as above: accept non-bv index aliases.
+            m = re.fullmatch(r"\[[^\]]+\]([A-Za-z0-9_\.\$]+)", vt)
+            if m:
+                elem = m.group(1)
+                if elem.startswith("bv") and elem[2:].isdigit():
+                    try:
+                        return int(elem[2:])
+                    except Exception:
+                        pass
+                alias = self._node_type_defs.get(node, {}).get(elem)
+                if isinstance(alias, str) and alias.startswith("bv") and alias[2:].isdigit():
+                    try:
+                        return int(alias[2:])
+                    except Exception:
+                        pass
 
         # Fall back to sizes map if present.
         sz = None
@@ -756,6 +774,22 @@ class BoogieHarnessDslMixin:
                     return int(vt2[2:])
                 except Exception:
                     return None
+            # Array types like "[bv32]bv16" or "[bv32]sw_pair" in the generated .bpl.
+            # Accept non-bv index aliases as well (e.g., "[sw_lid_t]bv8").
+            m = re.fullmatch(r"\[[^\]]+\]([A-Za-z0-9_\.\$]+)", vt2)
+            if m:
+                elem = m.group(1)
+                if elem.startswith("bv") and elem[2:].isdigit():
+                    try:
+                        return int(elem[2:])
+                    except Exception:
+                        return None
+                alias = self._node_type_defs.get(node, {}).get(elem)
+                if isinstance(alias, str) and alias.startswith("bv") and alias[2:].isdigit():
+                    try:
+                        return int(alias[2:])
+                    except Exception:
+                        return None
             alias = self._node_type_defs.get(node, {}).get(vt2)
             if isinstance(alias, str) and alias.startswith("bv") and alias[2:].isdigit():
                 try:

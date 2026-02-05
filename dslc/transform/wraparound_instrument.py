@@ -36,6 +36,7 @@ from .wraparound_stages import (
     _emit_pump_error_proc,
     _emit_step_block,
     _emit_gated_assert_wrapper_proc,
+    _rewrite_forall_bv32_array_inits,
     _rewrite_asserts_as_calls,
     _strip_debug_snapshot_for_pump,
     _strip_other_asserts_for_pump,
@@ -155,6 +156,26 @@ def _reassert_simple_equalities_after_havoc(
         if s.endswith(";"):
             s = s[:-1].strip()
 
+        # Many callers pass `(... == ...)` style strings (e.g., from DSL/env completion).
+        # Strip a single layer of wrapping parentheses so the simple `lhs == rhs` regex works.
+        while s.startswith("(") and s.endswith(")"):
+            depth = 0
+            wraps_entire = True
+            for i, ch in enumerate(s):
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth -= 1
+                    # If we close the outermost paren before the end, outer parens do not
+                    # wrap the entire string (e.g., `(a==b) && (c==d)`), so stop stripping.
+                    if depth == 0 and i != len(s) - 1:
+                        wraps_entire = False
+                        break
+            if wraps_entire and depth == 0:
+                s = s[1:-1].strip()
+                continue
+            break
+
         # Only handle a single top-level equality.
         m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*==\s*(.+)$", s)
         if not m:
@@ -225,6 +246,11 @@ def instrument_bpl_text(
             _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
 
         lines[insert_at:insert_at] = [f"{indent}call {_ENTRY_ERROR_PROC}();\n"]
+        # Performance: eliminate heavy quantified register initializations when safe.
+        #
+        # ENTRY_CHECK is a satisfiability gate; keeping large quantified inits can make
+        # it unnecessarily slow (especially for DistCache-style large registers).
+        _rewrite_forall_bv32_array_inits(lines)
         lines.append(_emit_entry_error_proc())
         return "".join(lines)
 
@@ -330,6 +356,8 @@ def instrument_bpl_text(
             insert_at = insert_locals_at + len(local_decl_lines)
             lines[insert_at:insert_at] = _emit_extra_assumes(extra_assumes, indent=indent)
             _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
+        # Performance: eliminate heavy quantified register initializations when safe.
+        _rewrite_forall_bv32_array_inits(lines)
         _rewrite_asserts_as_calls(lines)
         lines.append(_emit_assert_wrapper_proc())
         lines.append(_emit_closure_assert_wrapper_procs(cfg))
@@ -445,6 +473,8 @@ def instrument_bpl_text(
                     indent = re.match(r"^(\s*)", lines[brace_idx]).group(1)  # type: ignore[union-attr]
                     max_expr = cfg.pump_target.max_elem_expr
                     lines.insert(brace_idx + 1, f"{indent}  {pump_mode_var} := ({target_read} == {max_expr});\n")
+        # Performance: eliminate heavy quantified register initializations when safe.
+        _rewrite_forall_bv32_array_inits(lines)
         return "".join(lines)
 
     if stage == WraparoundStage.CONFIRM:
@@ -527,6 +557,8 @@ def instrument_bpl_text(
                         max_expr = cfg.pump_target.max_elem_expr
                         lines.insert(brace_idx + 1, f"{indent}  {pump_mode_var} := ({target_read} == {max_expr});\n")
 
+            # Performance: eliminate heavy quantified register initializations when safe.
+            _rewrite_forall_bv32_array_inits(lines)
             _rewrite_asserts_as_calls(lines)
             lines.append(_emit_gated_assert_wrapper_proc(cfg))
             return "".join(lines)
@@ -574,6 +606,8 @@ def instrument_bpl_text(
                 max_expr=cfg.pump_target.max_elem_expr,
             )
 
+        # Performance: eliminate heavy quantified register initializations when safe.
+        _rewrite_forall_bv32_array_inits(lines)
         _rewrite_asserts_as_calls(lines)
         lines.append(_emit_gated_assert_wrapper_proc(cfg))
         return "".join(lines)
