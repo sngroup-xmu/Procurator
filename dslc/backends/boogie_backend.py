@@ -119,6 +119,7 @@ class BoogieBackend:
         pipeline_two_stage: bool = True,
         max_steps: Optional[int] = None,
         honor_spec_max_steps: bool = False,
+        emit_reg_debug: bool = True,
     ) -> Path:
         boogie_harness = boogie_harness.lower().strip()
         if boogie_harness not in {"concurrent", "sequential"}:
@@ -127,13 +128,21 @@ class BoogieBackend:
         work_dir = work_dir or Path(str(out_bpl) + ".work")
         work_dir.mkdir(parents=True, exist_ok=True)
 
-        slicing_plan = build_slicing_plan(spec, enable_slicing=enable_slicing)
+        slicing_plan = build_slicing_plan(
+            spec,
+            enable_slicing=enable_slicing,
+            keep_control_seeds=keep_control_seeds,
+        )
 
         node_info: Dict[str, _BoogieNodeInfo] = {}
 
         # 1) Load or compile each imported unit into raw Boogie
         for alias, imp in spec.imports.items():
             src_path = imp.path
+            effective_slicing_vars = list(slicing_plan.slicing_vars.get(alias, []))
+            p4b: Optional[P4BTranslator] = None
+            raw_path: Optional[Path] = None
+            meta_path: Optional[Path] = None
             if src_path.endswith(".bpl"):
                 raw_text = Path(src_path).read_text(encoding="utf-8", errors="replace")
                 meta_obj: Optional[dict] = None
@@ -163,7 +172,7 @@ class BoogieBackend:
                     str(raw_path),
                     imp.entries_path,
                     out_meta=str(meta_path),
-                    slicing_vars=slicing_plan.slicing_vars.get(alias),
+                    slicing_vars=effective_slicing_vars,
                     disable_slicing=not enable_slicing,
                     # Keep P4B slicing control seeds that influence
                     # communication behavior (forward/drop/clone/recirc) by default.
@@ -200,7 +209,42 @@ class BoogieBackend:
             try:
                 assert_no_missing_var_decls(raw_text, required_vars=slicing_plan.required_packet_vars.get(alias, []))
             except ValueError as e:
-                raise BoogieBackendError(f"Invalid Boogie for node '{alias}': {e}") from e
+                retried = False
+                if enable_slicing and p4b is not None and raw_path is not None:
+                    required_packet = [
+                        v
+                        for v in slicing_plan.required_packet_vars.get(alias, [])
+                        if is_packet_var(v) and not is_skipped_input_var(v)
+                    ]
+                    fallback_slicing_vars = sorted(set(effective_slicing_vars) | set(required_packet))
+                    if fallback_slicing_vars != sorted(set(effective_slicing_vars)):
+                        retried = True
+                        p4b.compile_to_bpl(
+                            src_path,
+                            str(raw_path),
+                            imp.entries_path,
+                            out_meta=str(meta_path) if meta_path is not None else None,
+                            slicing_vars=fallback_slicing_vars,
+                            disable_slicing=False,
+                            keep_control_seeds=keep_control_seeds,
+                        )
+                        raw_text = raw_path.read_text(encoding="utf-8", errors="replace")
+                        if meta_path is not None:
+                            try:
+                                meta_obj = json.loads(meta_path.read_text(encoding="utf-8"))
+                            except Exception:
+                                meta_obj = None
+                        effective_slicing_vars = fallback_slicing_vars
+                        try:
+                            assert_no_missing_var_decls(
+                                raw_text, required_vars=slicing_plan.required_packet_vars.get(alias, [])
+                            )
+                        except ValueError as e2:
+                            raise BoogieBackendError(
+                                f"Invalid Boogie for node '{alias}' after slicing fallback retry: {e2}"
+                            ) from e2
+                if not retried:
+                    raise BoogieBackendError(f"Invalid Boogie for node '{alias}': {e}") from e
 
             input_vars, egress_t, declared, var_types, egress_var, type_defs = collect_input_vars_and_egress_type(
                 raw_text
@@ -225,15 +269,25 @@ class BoogieBackend:
                 # Keep packet vars that were selected as slicing seeds *and* actually exist in the
                 # (possibly sliced) Boogie output. This keeps env havoc and forwarding-field copying
                 # aligned with the sliced program without introducing undeclared ghost vars.
-                force_keep = [
+                force_keep = {
                     v
-                    for v in (slicing_plan.slicing_vars.get(alias, []) if enable_slicing else [])
+                    for v in (effective_slicing_vars if enable_slicing else [])
                     if is_packet_var(v) and not is_skipped_input_var(v) and v in declared
-                ]
+                }
+                # `required_packet_vars` are referenced by DSL assume/env constraints and host.env
+                # injections. They do not need to participate in P4 slicing, but they must stay in
+                # harness input declarations; otherwise generated assignments (e.g., io_hdr.* := ...)
+                # become ill-typed.
+                for req in slicing_plan.required_packet_vars.get(alias, []):
+                    if not is_packet_var(req) or is_skipped_input_var(req):
+                        continue
+                    resolved = _resolve_declared_name(declared, req)
+                    if resolved is not None:
+                        force_keep.add(resolved)
                 input_vars = filter_input_vars_by_usage(
                     raw_text,
                     input_vars,
-                    force_keep=force_keep,
+                    force_keep=sorted(force_keep),
                 )
 
             node_info[alias] = _BoogieNodeInfo(
@@ -317,6 +371,7 @@ class BoogieBackend:
             pipeline_two_stage=pipeline_two_stage,
             max_steps=max_steps,
             honor_spec_max_steps=honor_spec_max_steps,
+            emit_reg_debug=emit_reg_debug,
         )
         helpers = emitter.emit_helpers()
         harness = emitter.emit(emit_helpers=False)

@@ -21,8 +21,8 @@ topology {{
 
 node s1 {{
   external_input = true;
-  // Assume-only packet field: must remain declared (i.e., becomes a slicing seed),
-  // otherwise the compiled harness would reference an undeclared packet var.
+  // Assume-only packet field: should be tracked as required packet var, but
+  // should not become a slicing seed (avoid over-retaining unrelated logic).
   assume {{ hdr.h.a == 1; }};
 }}
 
@@ -53,8 +53,34 @@ global {{
         self.assertIn("meta.x", s2_seeds)
         self.assertNotIn("meta.x", s1_seeds)  # not on-wire
 
-        self.assertIn("hdr.h.a", s1_seeds)  # assume-only, but required for well-typedness
+        self.assertNotIn("hdr.h.a", s1_seeds)  # assume-only; declaration tracked separately
         self.assertIn("hdr.h.a", set(plan.required_packet_vars.get("s1", [])))
+
+    def test_disable_control_seeds_respected(self) -> None:
+        spec_text = r'''
+import s1 from "Procurator/argo/code/Translator/feature-testcases/bool/out.bpl";
+
+topology {}
+
+node s1 {
+  assert { hdr.h.a == hdr.h.a; };
+}
+
+global {}
+'''
+        spec = parse_model(spec_text)
+
+        with_control = build_slicing_plan(spec, enable_slicing=True, keep_control_seeds=True)
+        without_control = build_slicing_plan(spec, enable_slicing=True, keep_control_seeds=False)
+
+        seeds_with = set(with_control.slicing_vars.get("s1", []))
+        seeds_without = set(without_control.slicing_vars.get("s1", []))
+
+        self.assertIn("p4b_recirculate", seeds_with)
+        self.assertIn("p4b_clone_i2i", seeds_with)
+        self.assertNotIn("p4b_recirculate", seeds_without)
+        self.assertNotIn("p4b_clone_i2i", seeds_without)
+        self.assertIn("hdr.h.a", seeds_without)
 
 
 if __name__ == "__main__":

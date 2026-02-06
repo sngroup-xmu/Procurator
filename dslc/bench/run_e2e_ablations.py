@@ -122,6 +122,39 @@ def _classify(stdout: str, rc: int) -> str:
     return "UNKNOWN"
 
 
+def _read_text_tail(path: Path, *, max_bytes: int = 250_000) -> str:
+    try:
+        with path.open("rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - max_bytes), os.SEEK_SET)
+            data = f.read()
+        return data.decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _refine_error_from_log(*, status: str, log_path: Optional[str]) -> str:
+    """
+    `procurator verify` sometimes only reports "Toolchain returned no result" even when
+    the Ultimate log tail clearly indicates a root cause such as Z3 OOM.
+
+    Refine ERROR into OOM/TIMEOUT when the log contains evidence.
+    """
+    if status != "ERROR" or not log_path:
+        return status
+    txt = _read_text_tail(Path(log_path))
+    if not txt:
+        return status
+
+    lo = txt.lower()
+    if "out of memory" in lo or "outofmemoryerror" in lo:
+        return "OOM"
+    if "result: ultimate could not prove your program: timeout" in lo:
+        return "TIMEOUT"
+    return status
+
+
 def _extract_paths(stdout: str) -> tuple[Optional[str], Optional[str]]:
     out_dir = None
     log_path = None
@@ -458,9 +491,12 @@ def main(argv: list[str]) -> int:
             env="spec",
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
-            use_spec_max_steps=False,
+            use_spec_max_steps=True,
             extra_args=[],
             notes="",
+            # The unsliced program can OOM in Z3 during CFG/RCFG construction even with larger memory limits.
+            # Prefer the internal SMTInterpol profile (POR off) for WSL stability.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-no-por.epf",
         ),
         Bench(
             name="DistCache CM3/CM4 write wiring",
@@ -483,9 +519,11 @@ def main(argv: list[str]) -> int:
             env="spec",
             wraparound="off",
             timeout_s=max(ns.timeout, 900),
-            use_spec_max_steps=False,
+            use_spec_max_steps=True,
             extra_args=[],
             notes="",
+            # Base run frequently OOMs under the low-memory Z3 profile.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-no-por.epf",
         ),
         Bench(
             name="DDOSD: window label collision (NSDI)",
@@ -495,8 +533,10 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=True,
-            extra_args=[],
+            extra_args=["--no-reg-debug"],
             notes="",
+            # Base run can OOM under the low-memory Z3 profiles; use the 8GB small-block profile.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
         Bench(
             name="FRR bug1: unexpected mirror (NSDI)",
@@ -550,7 +590,14 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 900),
             use_spec_max_steps=True,
-            extra_args=[],
+            # Gecko is large enough to OOM or stall during CFG construction under the low-memory
+            # (~2GB) Z3 profile. Also disable per-pass register snapshot variables which can bloat
+            # SMT queries significantly.
+            extra_args=[
+                "--no-reg-debug",
+                "--settings",
+                "dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
+            ],
             notes="",
         ),
         Bench(
@@ -585,6 +632,8 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=False,
             extra_args=[],
             notes="",
+            # Base run can OOM under the 2GB/4GB Z3 profiles; prefer the 8GB profile first.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf",
         ),
         Bench(
             name="P4xos: forwarding correctness drop_flag (NSDI, old)",
@@ -629,6 +678,8 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=False,
             extra_args=[],
             notes="",
+            # Base run tends to OOM under the 2GB/4GB Z3 profiles; prefer the 8GB profile first.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf",
         ),
         Bench(
             name="NetLock: push_back length_in_server underflow",
@@ -640,6 +691,8 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=False,
             extra_args=["--max-steps", "3", "--no-slicing-control-seeds"],
             notes="",
+            # Base run tends to OOM under the 2GB/4GB Z3 profiles; prefer the 8GB profile first.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf",
         ),
         Bench(
             name="NetLock: release counter underflow",
@@ -671,7 +724,14 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=False,
-            extra_args=["--max-steps", "3", "--no-slicing-control-seeds"],
+            extra_args=[
+                "--max-steps",
+                "3",
+                "--no-slicing-control-seeds",
+                "--no-reg-debug",
+                "--settings",
+                "dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
+            ],
             notes="",
         ),
         Bench(
@@ -727,7 +787,10 @@ def main(argv: list[str]) -> int:
     checkpoint: dict[str, object] = {"meta": {}, "results": {}}
 
     def _load_checkpoint() -> dict[str, object]:
-        if not (ns.resume or ns.report_only) or not results_path.exists():
+        # Always load an existing results JSON (if any) to avoid accidentally
+        # clobbering long-running experiment records when re-running a subset.
+        # `--resume` only controls whether we *skip* already-recorded runs.
+        if not results_path.exists():
             return {"meta": {}, "results": {}}
         try:
             j = json.loads(results_path.read_text(encoding="utf-8", errors="replace"))
@@ -784,6 +847,8 @@ def main(argv: list[str]) -> int:
         parts += list(b.extra_args)
         if base:
             parts += ["--no-slicing", "--no-env-prune"]
+            if b.base_settings:
+                parts += ["--settings", b.base_settings]
         return " ".join(parts)
 
     def _find_latest_witness(p: Path) -> Optional[Path]:
@@ -901,6 +966,7 @@ def main(argv: list[str]) -> int:
         )
         wall = time.monotonic() - t0
         status = _classify(last_result, rc)
+        status = _refine_error_from_log(status=status, log_path=log_path)
 
         if out_dir:
             try:
@@ -970,9 +1036,11 @@ def main(argv: list[str]) -> int:
                 r_opt = None
             else:
                 r_opt = run_one(b, cfg_opt)
-                brec[cfg_opt.name] = {"cmd": cmd_opt, "result": _rr_to_json(r_opt)}
-                _save_checkpoint()
-                ran_any = True
+                # Dry-run should never mutate persisted checkpoints.
+                if not ns.dry_run:
+                    brec[cfg_opt.name] = {"cmd": cmd_opt, "result": _rr_to_json(r_opt)}
+                    _save_checkpoint()
+                    ran_any = True
         if ns.only in {"all", "noslicing"}:
             cfg_base = next(c for c in cfgs if c.name == "noslicing")
             cmd_base = _cmd_for(b, cfg_base)
@@ -992,9 +1060,11 @@ def main(argv: list[str]) -> int:
                 r_base = None
             else:
                 r_base = run_one(b, cfg_base)
-                brec[cfg_base.name] = {"cmd": cmd_base, "result": _rr_to_json(r_base)}
-                _save_checkpoint()
-                ran_any = True
+                # Dry-run should never mutate persisted checkpoints.
+                if not ns.dry_run:
+                    brec[cfg_base.name] = {"cmd": cmd_base, "result": _rr_to_json(r_base)}
+                    _save_checkpoint()
+                    ran_any = True
 
         opt_cmd = f"`{_md_escape(_cmd_fragment(b, base=False))}`"
         base_cmd = f"`{_md_escape(_cmd_fragment(b, base=True))}`"
