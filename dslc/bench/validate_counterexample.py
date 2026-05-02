@@ -14,9 +14,20 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Optional
+
+from dslc.analysis.wraparound_candidates import WraparoundCandidate
+from dslc.analysis.wraparound_projection import extract_dependency_projection
+from dslc.toolchain.ultimate_runner import extract_result_line
+from dslc.transform.wraparound_analyze import _parse_global_var_types
+from dslc.workflows.wraparound_cegis import _manifest_certified_unsafe_data
+from dslc.workflows.wraparound_schedule import (
+    compute_actor_schedule_id,
+    infer_static_deterministic_schedule,
+    sha256_text,
+)
 
 
 @dataclass(frozen=True)
@@ -260,25 +271,186 @@ def summarize_witness(*, out_dir: Path) -> WitnessSummary:
     return WitnessSummary(False, "missing", "unrecognized witness content")
 
 
+def _resolve_manifest_path(raw: object, *, manifest_path: Path) -> Optional[Path]:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    p = Path(raw)
+    if p.exists():
+        return p
+    s = raw.strip()
+    m = re.match(r"^/mnt/(?P<drive>[A-Za-z])/(?P<rest>.*)$", s)
+    if m:
+        win = Path(f"{m.group('drive').upper()}:/" + m.group("rest"))
+        if win.exists():
+            return win
+    rel = manifest_path.parent / s
+    if rel.exists():
+        return rel
+    return p
+
+
+def _candidate_from_manifest(data: dict) -> Optional[WraparoundCandidate]:
+    cand = data.get("candidate")
+    if not isinstance(cand, dict):
+        return None
+    try:
+        accel = cand.get("accel_regs") or []
+        proj = cand.get("proj_vars") or []
+        if not isinstance(accel, (list, tuple)) or not isinstance(proj, (list, tuple)):
+            return None
+        step_delta_raw = cand.get("step_delta", 1)
+        step_delta = None if step_delta_raw is None else int(step_delta_raw)
+        index_value_raw = cand.get("index_value")
+        index_value = None if index_value_raw is None else int(index_value_raw)
+        return WraparoundCandidate(
+            pump_reg=str(cand.get("pump_reg") or ""),
+            accel_regs=tuple(str(v) for v in accel),
+            index_value=index_value,
+            index_expr=cand.get("index_expr"),
+            proj_vars=tuple(str(v) for v in proj),
+            cutpoint_cond=cand.get("cutpoint_cond"),
+            reason=str(cand.get("reason") or ""),
+            step_op=str(cand.get("step_op") or "add"),
+            step_delta=step_delta,
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+def _effective_scalar_projection_vars(base_text: str, proj_vars: list[str]) -> list[str]:
+    var_types = _parse_global_var_types(base_text.splitlines())
+    out: list[str] = []
+    seen: set[str] = set()
+    for v in proj_vars:
+        if v in seen:
+            continue
+        t = var_types.get(v)
+        if t is None or "[" in t or "]" in t:
+            continue
+        seen.add(v)
+        out.append(v)
+    return out
+
+
+def _schedule_replay_artifacts_match(attempt: dict, *, manifest_path: Path) -> bool:
+    artifacts = attempt.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return False
+    checks = (
+        ("entry_log", "entry_bpl", "entry", "unsafe"),
+        ("confirm_log", "confirm_bpl", "near_wrap", "unsafe"),
+        ("closure_log", "closure_bpl", "closure", "safe"),
+    )
+    for log_key, bpl_key, result_key, expected in checks:
+        bpl_path = _resolve_manifest_path(artifacts.get(bpl_key), manifest_path=manifest_path)
+        if bpl_path is None or not bpl_path.exists():
+            return False
+        log_path = _resolve_manifest_path(artifacts.get(log_key), manifest_path=manifest_path)
+        if log_path is None or not log_path.exists():
+            return False
+        log_text = log_path.read_text(encoding="utf-8", errors="replace")
+        if bpl_path.name not in log_text:
+            return False
+        log_result = extract_result_line(log_text)
+        if log_result is None or not _result_line_is(log_result, expected):
+            return False
+        recorded = attempt.get(result_key)
+        if not isinstance(recorded, dict):
+            return False
+        if not _result_line_is(str(recorded.get("result_line") or ""), expected):
+            return False
+    return True
+
+
+def _result_line_is(line: str, expected: str) -> bool:
+    s = str(line or "").lower()
+    if expected == "unsafe":
+        return ("result: unsafe" in s) or ("proved your program to be incorrect" in s)
+    if expected == "safe":
+        return ("result: safe" in s) or ("proved your program to be correct" in s)
+    return False
+
+
+def _validate_schedule_replay_manifest_with_artifacts(data: dict, *, manifest_path: Path) -> bool:
+    if not _manifest_certified_unsafe_data(data):
+        return False
+    base_bpl = _resolve_manifest_path(data.get("base_bpl"), manifest_path=manifest_path)
+    if base_bpl is None or not base_bpl.exists():
+        return False
+    base_text = base_bpl.read_text(encoding="utf-8", errors="replace")
+    base_hash = sha256_text(base_text)
+    if str(data.get("base_bpl_sha256") or "") != base_hash:
+        return False
+    cand = _candidate_from_manifest(data)
+    if cand is None or not cand.pump_reg:
+        return False
+    static_schedule = infer_static_deterministic_schedule(
+        base_bpl_text=base_text,
+        candidate=cand,
+        base_bpl_sha256=base_hash,
+    )
+    if static_schedule is None:
+        return False
+    dep_projection = extract_dependency_projection(bpl_text=base_text, candidate=cand)
+    if not dep_projection.complete:
+        return False
+    expected_proj_vars = _effective_scalar_projection_vars(base_text, list(dep_projection.proj_vars))
+    expected_proj_predicates = list(dep_projection.proj_predicates)
+
+    attempts = data.get("attempts") or []
+    if not isinstance(attempts, list):
+        return False
+    for attempt in attempts:
+        if not isinstance(attempt, dict) or attempt.get("certified") is not True:
+            continue
+        cfg = attempt.get("cfg")
+        sched = attempt.get("schedule")
+        if not isinstance(cfg, dict) or not isinstance(sched, dict):
+            continue
+        if list(cfg.get("proj_vars") or []) != expected_proj_vars:
+            continue
+        if list(cfg.get("proj_predicates") or []) != expected_proj_predicates:
+            continue
+        expected_schedule = static_schedule.with_projection_vars(
+            expected_proj_vars,
+            proj_predicates=expected_proj_predicates,
+            conditions=(),
+            source=dep_projection.source,
+        )
+        if sched.get("actors") != list(expected_schedule.actors):
+            continue
+        expected_projection = [asdict(p) for p in expected_schedule.projection]
+        if sched.get("projection") != expected_projection:
+            continue
+        if sched.get("schedule_id") != compute_actor_schedule_id(
+            candidate_id=str(sched.get("candidate_id") or ""),
+            target_regs=[str(v) for v in (sched.get("target_regs") or [])],
+            index_value=int(sched.get("index_value")),
+            step_delta=int(sched.get("step_delta")),
+            actors=[str(v) for v in (sched.get("actors") or [])],
+            projection=list(sched.get("projection") or []),
+            base_bpl_sha256=base_hash,
+        ):
+            continue
+        if _schedule_replay_artifacts_match(attempt, manifest_path=manifest_path):
+            return True
+    return False
+
+
 def validate_wraparound_manifest(manifest_path: Path) -> tuple[bool, str]:
     j = json.loads(manifest_path.read_text(encoding="utf-8"))
     attempts = j.get("attempts", [])
     if not isinstance(attempts, list) or not attempts:
         return False, "manifest has no attempts"
 
-    def _is(res, what: str) -> bool:
-        if not isinstance(res, dict):
-            return False
-        s = str(res.get("result_line") or "")
-        return what.lower() in s.lower()
-
-    for a in attempts:
-        entry = a.get("entry")
-        confirm = a.get("confirm")
-        closure = a.get("closure")
-        if _is(entry, "unsafe") and _is(confirm, "unsafe") and _is(closure, "safe"):
-            return True, "certified: ENTRY+CONFIRM UNSAFE and CLOSURE SAFE"
-    return False, "not certified: missing an attempt with (entry unsafe, confirm unsafe, closure safe)"
+    mode = str(j.get("cegar_mode") or "legacy_closure_assumes")
+    if mode == "schedule_replay":
+        if _validate_schedule_replay_manifest_with_artifacts(j, manifest_path=manifest_path):
+            return True, "certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id"
+        return False, "not certified: missing a valid certified wraparound attempt"
+    if _manifest_certified_unsafe_data(j):
+        return True, "certified: ENTRY+CONFIRM UNSAFE and CLOSURE SAFE"
+    return False, "not certified: missing a valid certified wraparound attempt"
 
 
 def main(argv: list[str]) -> int:
