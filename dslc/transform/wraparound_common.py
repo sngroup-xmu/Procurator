@@ -64,8 +64,10 @@ class WraparoundConfig:
     pump_target: WraparoundTarget
     accel_targets: Tuple[WraparoundTarget, ...]
     proj_vars: Tuple[str, ...]
+    proj_predicates: Tuple[str, ...]
     cutpoint_cond: str
     step_op: str
+    step_delta_int: int
     step_delta_bv: str
 
 

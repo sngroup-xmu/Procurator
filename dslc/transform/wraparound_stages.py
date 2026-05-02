@@ -74,6 +74,57 @@ def _step_update_expr(cfg: WraparoundConfig, x_expr: str) -> str:
     raise WraparoundTransformError(f"unsupported step_op: {cfg.step_op}")
 
 
+def _near_wrap_value_expr(cfg: WraparoundConfig, target: WraparoundTarget) -> str:
+    """
+    Return a concrete boundary value that crosses the wrap point in one step.
+
+    For +1 this is MAX, matching the original implementation.  For larger
+    additive deltas, the one-step predecessor of 0 is `2^w - delta`; for
+    subtractive deltas, the one-step predecessor of MAX is `delta - 1`.
+    """
+
+    modulus = 1 << target.elem_width
+    try:
+        delta_mod = int(cfg.step_delta_int) % modulus
+    except Exception as e:
+        raise WraparoundTransformError(f"invalid step_delta: {cfg.step_delta_int}") from e
+    if delta_mod == 0:
+        raise WraparoundTransformError(
+            f"unsupported wraparound step_delta={cfg.step_delta_int} for bv{target.elem_width}"
+        )
+    if cfg.step_op == "add":
+        near = (modulus - delta_mod) % modulus
+    elif cfg.step_op == "sub":
+        near = (delta_mod - 1) % modulus
+    else:
+        raise WraparoundTransformError(f"unsupported step_op: {cfg.step_op}")
+    return f"{near}bv{target.elem_width}"
+
+
+def _ensure_bvule_helper_decl(lines: List[str], width: int) -> None:
+    """
+    Closure no-wrap obligations may need unsigned <= at the register element
+    width.  The system harness historically emitted bvule helpers only for a
+    small fixed set (notably bv16/bv32), while TNA/FissLock counters can be bv8.
+    """
+
+    fn = f"bvule.bv{width}"
+    decl_re = re.compile(rf"^\s*function\s+(?:\{{[^}}]*\}}\s+)?{re.escape(fn)}\(")
+    if any(decl_re.match(ln) for ln in lines):
+        return
+
+    helper = [
+        f"function {fn}(left:bv{width}, right:bv{width}) returns(bool);\n",
+        f"function {{:builtin \"bvule\"}} {fn}$builtin(left:bv{width}, right:bv{width}) returns(bool);\n",
+        f"axiom (forall left:bv{width}, right:bv{width} :: {fn}(left, right) <==> {fn}$builtin(left, right));\n",
+    ]
+
+    insert_at = 0
+    while insert_at < len(lines) and not lines[insert_at].strip():
+        insert_at += 1
+    lines[insert_at:insert_at] = helper
+
+
 def _emit_closure_local_decls(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
     p = cfg.pump_target
     lines: List[str] = []
@@ -88,6 +139,8 @@ def _emit_closure_local_decls(var_types: Dict[str, str], cfg: WraparoundConfig) 
             continue
         local = f"wrap_closure_snap_{_sanitize_local(v)}"
         lines.append(f"  var {local}: {t};\n")
+    for i, _pred in enumerate(cfg.proj_predicates):
+        lines.append(f"  var wrap_closure_pred_{i}: bool;\n")
     lines.append("\n")
     return "".join(lines)
 
@@ -97,11 +150,19 @@ def _emit_closure_setup(var_types: Dict[str, str], cfg: WraparoundConfig) -> str
     lines: List[str] = []
     lines.append("  // wraparound closure_check setup (generated)\n")
     lines.append("  havoc wrap_closure_seq0;\n")
-    # We want a *pre-wrap* closure/pump summary (reach `MAX`, then let confirm
-    # handle the wrap-around suffix). For wrap-around counterexamples (like
-    # Netchain), the "backup updates to seq+1" step is expected to fail exactly
-    # at `seq==MAX`, so exclude that boundary here.
-    lines.append(f"  assume wrap_closure_seq0 != {p.max_elem_expr};\n")
+    d = int(cfg.step_delta_int)
+    modulus = 1 << p.elem_width
+    if d == 0 or abs(d) >= modulus:
+        raise WraparoundTransformError(f"unsupported wraparound step_delta={d} for bv{p.elem_width}")
+    # Precise NoWrap_d obligation for the mathematical signed delta.  The old
+    # `seq0 != MAX` shortcut is sound only for +1; schedule certificates need
+    # the stronger condition for larger positive steps and negative steps.
+    if d > 0:
+        upper = modulus - 1 - d
+        lines.append(f"  assume bvule.bv{p.elem_width}(wrap_closure_seq0, {upper}bv{p.elem_width});\n")
+    else:
+        lower = -d
+        lines.append(f"  assume bvule.bv{p.elem_width}({lower}bv{p.elem_width}, wrap_closure_seq0);\n")
     # Avoid `call <reg>.write(...)` here: Ultimate may introduce auxiliary
     # procedure-parameter variables like `<reg>.write_<param>` that can crash
     # some proof tasks (FloydHoare permissible-variable check).
@@ -111,9 +172,12 @@ def _emit_closure_setup(var_types: Dict[str, str], cfg: WraparoundConfig) -> str
     # (e.g., DistCache wraparound bugs). For closure_check we always want the pumping shape.
     if var_types.get("dsl_pump_mode") == "bool":
         lines.append("  dsl_pump_mode := true;\n")
+    lines.append(f"  assume({cfg.cutpoint_cond});\n")
     for v in cfg.proj_vars:
         local = f"wrap_closure_snap_{_sanitize_local(v)}"
         lines.append(f"  {local} := {v};\n")
+    for i, pred in enumerate(cfg.proj_predicates):
+        lines.append(f"  wrap_closure_pred_{i} := ({pred});\n")
     lines.append("\n")
     return "".join(lines)
 
@@ -133,6 +197,8 @@ def _emit_closure_asserts(cfg: WraparoundConfig) -> str:
     for v in cfg.proj_vars:
         local = f"wrap_closure_snap_{_sanitize_local(v)}"
         cond_terms.append(f"({v} == {local})")
+    for i, pred in enumerate(cfg.proj_predicates):
+        cond_terms.append(f"(({pred}) == wrap_closure_pred_{i})")
     for t in cfg.accel_targets:
         target_read = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
         local = f"wrap_closure_after_{_sanitize_local(t.reg_var)}"
@@ -574,6 +640,27 @@ def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
         i += len(repl)
 
 
+def _drop_remaining_forall_array_inits_for_closure(lines: List[str]) -> None:
+    """
+    Drop residual quantified array initializations in CLOSURE_CHECK only.
+
+    This deliberately over-approximates the closure initial state.  Therefore a
+    SAFE closure result remains sound for the original program, while
+    UNSAFE/UNKNOWN merely falls back and is not certified.  Do not use this for
+    existential stages such as ENTRY/CONFIRM, where over-approximating the
+    initial state could create a spurious witness.
+    """
+
+    init_re = re.compile(
+        r"^\s*assume\s*\(\s*forall\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*[A-Za-z_][A-Za-z0-9_]*\s*::\s*"
+        r"(?:\(+\s*[A-Za-z_][A-Za-z0-9_]*\s*!=\s*\d+bv\d+\s*\)+\s*==>\s*)?"
+        r"[A-Za-z_][A-Za-z0-9_]*\[\s*[A-Za-z_][A-Za-z0-9_]*\s*\]\s*==\s*[^)]+?\)\s*;\s*$"
+    )
+    for i, line in enumerate(lines):
+        if init_re.match(line.strip()):
+            lines[i] = ""
+
+
 def _emit_assert_wrapper_proc() -> str:
     return (
         f"procedure {{:inline 1}} {_ASSERT_WRAPPER_PROC}(cond: bool) returns()\n"
@@ -598,15 +685,17 @@ def _emit_gated_assert_wrapper_proc(cfg: WraparoundConfig) -> str:
 
     # The gating must cover *all accelerated registers*, not only the pump target.
     #
-    # Otherwise, when we fast-forward multiple regs to MAX (e.g., NetChain
+    # Otherwise, when we fast-forward multiple regs to the near-wrap boundary
+    # (MAX for +1, a lower predecessor for larger deltas; e.g., NetChain
     # sequence regs across replicas), the property could become UNSAFE already
-    # at MAX (pre-flip) due to the interaction between the regs (e.g., s2 > s1).
+    # at that boundary (pre-flip) due to the interaction between the regs
+    # (e.g., s2 > s1).
     #
     # In that case, the reported counterexample is a "pseudo" wraparound bug:
-    # it is not showing a MAX->0 flip-induced violation, just a violation in
-    # the fast-forwarded initial state. We want confirm to validate the *flip
-    # suffix*, so we only enable assertions after at least one accelerated reg
-    # has left MAX (i.e., a flip occurred in the explored suffix).
+    # it is not showing a flip-induced violation, just a violation in the
+    # fast-forwarded initial state. We want confirm to validate the *flip
+    # suffix*, so we only enable assertions after at least one accelerated
+    # register has left its near-wrap boundary.
     accel_reads: List[str] = []
     for t in cfg.accel_targets:
         r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
@@ -617,11 +706,11 @@ def _emit_gated_assert_wrapper_proc(cfg: WraparoundConfig) -> str:
     gate_terms: List[str] = []
     for t in cfg.accel_targets:
         r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
-        gate_terms.append(f"({r} != {t.max_elem_expr})")
+        gate_terms.append(f"({r} != {_near_wrap_value_expr(cfg, t)})")
     if not gate_terms:
         p = cfg.pump_target
         r = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
-        gate_terms.append(f"({r} != {p.max_elem_expr})")
+        gate_terms.append(f"({r} != {_near_wrap_value_expr(cfg, p)})")
     gate_cond = " || ".join(gate_terms)
     return (
         f"procedure {{:inline 1}} {_ASSERT_WRAPPER_PROC}(cond: bool) returns()\n"
@@ -642,6 +731,11 @@ def _rewrite_asserts_as_calls(lines: List[str]) -> None:
     This keeps semantics but collapses multiple assertion sites into a single
     assertion location inside `__wraparound_assert`, which often helps Ultimate
     (fewer error locations, fewer CEGAR targets).
+
+    Do not cut the path after a rewritten DSL/global assertion.  Some
+    wraparound bugs require a pump pass followed by a later functional suffix
+    pass; inserting `assume false` after the first assertion can make NEAR_WRAP
+    incorrectly prove SAFE by deleting that suffix.
     """
 
     for i, line in enumerate(lines):
@@ -665,8 +759,10 @@ def _emit_confirm_init(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
     lines.append("  // wraparound confirm fast-forward (generated)\n")
     for t in cfg.accel_targets:
         # Avoid `call <reg>.write(...)` for the same reasons as closure_check.
-        # In confirm we want the target(s) to start at MAX before exploring the suffix.
-        lines.append(_emit_inline_reg_write(var_types, t, value_expr=t.max_elem_expr))
+        # In confirm we want each target to start at a one-step wrap boundary
+        # before exploring the suffix.  For add-by-1 this is MAX; for larger
+        # deltas it is the predecessor that crosses 0 in one update.
+        lines.append(_emit_inline_reg_write(var_types, t, value_expr=_near_wrap_value_expr(cfg, t)))
     lines.append("\n")
     return "".join(lines)
 

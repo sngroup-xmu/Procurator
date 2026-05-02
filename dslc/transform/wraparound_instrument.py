@@ -24,6 +24,7 @@ from .wraparound_common import (
     _RE_PROC_ULTIMATE_START,
 )
 from .wraparound_stages import (
+    _drop_remaining_forall_array_inits_for_closure,
     _emit_assert_wrapper_proc,
     _emit_closure_asserts,
     _emit_closure_assert_wrapper_procs,
@@ -31,6 +32,7 @@ from .wraparound_stages import (
     _emit_closure_setup,
     _emit_confirm_init,
     _emit_entry_error_proc,
+    _ensure_bvule_helper_decl,
     _emit_init_snapshot,
     _emit_local_decls,
     _emit_pump_error_proc,
@@ -211,6 +213,7 @@ def instrument_bpl_text(
     index_value: int = 0,
     index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
+    proj_predicates: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
     step_op: str = "add",
     step_delta: int = 1,
@@ -222,23 +225,28 @@ def instrument_bpl_text(
     var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])
 
     if stage == WraparoundStage.ENTRY_CHECK:
-        # ENTRY_CHECK is a *satisfiability* gate: it should be UNSAFE iff the
-        # spec/environment constraints admit at least one execution from the
-        # initial state.
+        # ENTRY_CHECK is a cheap *initialized satisfiability* gate: it should be
+        # UNSAFE iff the mainProcedure initialization prefix and spec/environment
+        # constraints admit at least one cutpoint candidate before the scheduler
+        # loop starts.
         #
-        # Important: Do NOT unroll/inline the scheduler here. Doing so makes
-        # the entry task unnecessarily large and brittle (and can time out on
-        # no-slicing builds). By placing the failing assertion immediately at
-        # the beginning of mainProcedure, we turn ENTRY_CHECK into a cheap SAT
-        # query: if initial constraints are consistent, the error is reachable.
+        # Important: Do NOT unroll/inline the scheduler here. Doing so makes the
+        # entry task unnecessarily large and brittle. Instead, inject the failing
+        # target right before the main scheduler loop, after initialization and
+        # top-level assumptions have executed.
         #
         # Closure/confirm still require deterministic scheduling; ENTRY_CHECK
         # intentionally does not.
         _strip_other_asserts_for_pump(lines)
         _strip_debug_snapshot_for_pump(lines)
-        # Locate mainProcedure opening brace and inject extra assumes + entry error call.
+        # Locate mainProcedure and inject extra assumes + entry error after the
+        # initialization prefix but before the unbounded/bounded scheduler loop.
         _, mp_open, _mp_close = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN)
         insert_at = mp_open + 1
+        for i in range(mp_open + 1, _mp_close + 1):
+            if _is_mainprocedure_loop_header(lines[i]):
+                insert_at = i
+                break
         indent = re.match(r"^(\s*)", lines[insert_at]).group(1) if insert_at < len(lines) else "  "  # type: ignore[union-attr]
         if extra_assumes:
             lines[insert_at:insert_at] = _emit_extra_assumes(extra_assumes, indent=indent)
@@ -286,6 +294,7 @@ def instrument_bpl_text(
             index_value=index_value,
             index_expr=index_expr,
             proj_vars=proj_vars,
+            proj_predicates=proj_predicates,
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
@@ -350,6 +359,7 @@ def instrument_bpl_text(
 
         local_decl_lines = _emit_closure_local_decls(var_types, cfg).splitlines(keepends=True)
         lines[insert_locals_at:insert_locals_at] = local_decl_lines
+        _ensure_bvule_helper_decl(lines, cfg.pump_target.elem_width)
         if extra_assumes:
             # Constrain closure to the synthesized existence profile (conditional certificate).
             indent = re.match(r"^(\s*)", local_decl_lines[0]).group(1) if local_decl_lines else "  "  # type: ignore[union-attr]
@@ -358,6 +368,7 @@ def instrument_bpl_text(
             _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
         # Performance: eliminate heavy quantified register initializations when safe.
         _rewrite_forall_bv32_array_inits(lines)
+        _drop_remaining_forall_array_inits_for_closure(lines)
         _rewrite_asserts_as_calls(lines)
         lines.append(_emit_assert_wrapper_proc())
         lines.append(_emit_closure_assert_wrapper_procs(cfg))
@@ -387,6 +398,7 @@ def instrument_bpl_text(
             index_value=index_value,
             index_expr=index_expr,
             proj_vars=proj_vars,
+            proj_predicates=proj_predicates,
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
@@ -485,6 +497,7 @@ def instrument_bpl_text(
             index_value=index_value,
             index_expr=index_expr,
             proj_vars=proj_vars,
+            proj_predicates=proj_predicates,
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
@@ -564,7 +577,15 @@ def instrument_bpl_text(
             return "".join(lines)
         except WraparoundTransformError:
             # Fall back to concurrent harness patching.
-            pass
+            try:
+                _, _start_open, _start_close = _find_procedure_block(
+                    [ln.rstrip("\n") for ln in lines], _RE_PROC_ULTIMATE_START
+                )
+            except WraparoundTransformError:
+                _rewrite_forall_bv32_array_inits(lines)
+                _rewrite_asserts_as_calls(lines)
+                lines.append(_emit_gated_assert_wrapper_proc(cfg))
+                return "".join(lines)
 
         # Concurrent harness: patch ULTIMATE.start before spawning threads.
         _, body_open_idx, body_close_idx = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_ULTIMATE_START)
@@ -619,6 +640,7 @@ def instrument_bpl_text(
         index_value=index_value,
         index_expr=index_expr,
         proj_vars=proj_vars,
+        proj_predicates=proj_predicates,
         cutpoint_cond=cutpoint_cond,
         step_op=step_op,
         step_delta=step_delta,
@@ -646,6 +668,11 @@ def instrument_bpl_text(
     insert_locals_at = body_open_idx + 1
     locals_block = _emit_local_decls(var_types, cfg)
     lines.insert(insert_locals_at, locals_block)
+    if extra_assumes:
+        insert_at = insert_locals_at + 1
+        assume_lines = _emit_extra_assumes(extra_assumes, indent="  ")
+        lines[insert_at:insert_at] = assume_lines
+        _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
 
     # For the default cutpoint condition, we can snapshot the initial cutpoint
     # just before entering the mainProcedure loop. This avoids searching for an
@@ -707,6 +734,7 @@ def instrument_bpl_file(
     index_value: int = 0,
     index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
+    proj_predicates: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
     step_op: str = "add",
     step_delta: int = 1,
@@ -720,6 +748,7 @@ def instrument_bpl_file(
         index_value=index_value,
         index_expr=index_expr,
         proj_vars=proj_vars,
+        proj_predicates=proj_predicates,
         cutpoint_cond=cutpoint_cond,
         step_op=step_op,
         step_delta=step_delta,

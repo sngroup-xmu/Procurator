@@ -8,6 +8,20 @@ from lark import Tree
 
 from ..speclang import parse_model, parse_tree
 
+from .wraparound_bpl_index import (
+    _derive_constant_assignment_literals,
+    _derive_index_expr_from_bpl_definition,
+    _derive_index_expr_from_meta_definition,
+    _extract_bpl_constant_literals,
+    _extract_proc_bodies,
+    _maybe_eval_index_expr_to_constant,
+    _prefix_expr_with_known_vars,
+    _resolve_prefixed_name,
+    _split_args,
+    _substitute_tokens,
+    _vars_in_expr,
+)
+
 
 @dataclass(frozen=True)
 class WraparoundCandidate:
@@ -41,7 +55,26 @@ _RE_CONCAT_LIT_VAR = re.compile(
 )
 _RE_ASSIGN_STMT = re.compile(r"^\s*(?P<lhs>[^:;]+?)\s*:=\s*(?P<rhs>.*);\s*$")
 _RE_CALL_ASSIGN_STMT = re.compile(
-    r"^\s*call\s+(?P<lhs>[^:;]+?)\s*:=\s*(?P<proc>[A-Za-z_][A-Za-z0-9_]*)\((?P<args>.*)\)\s*;\s*$"
+    r"^\s*call\s+(?P<lhs>[^:;]+?)\s*:=\s*(?P<proc>[A-Za-z_][A-Za-z0-9_.]*)\((?P<args>.*)\)\s*;\s*$"
+)
+_RE_CALL_STMT = re.compile(
+    r"^\s*call\s+(?P<proc>[A-Za-z_][A-Za-z0-9_.]*)\((?P<args>.*)\)\s*;\s*$"
+)
+_RE_HAVOC_STMT = re.compile(r"^\s*havoc\s+(?P<vars>[^;]+)\s*;\s*$")
+_RE_PROC_HEADER = re.compile(
+    r"^\s*procedure(?:\s+\{[^}]*\})?\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\((?P<params>[^)]*)\)"
+)
+_RE_FUNCTION_DECL = re.compile(r"^\s*function\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\s*\(")
+_RE_ASSUME_CONST_EQ = re.compile(
+    r"^\s*assume\s+\(?\s*(?P<lhs>[A-Za-z_][A-Za-z0-9_.]*)\s*==\s*(?P<rhs>[^;)]+)\s*\)?\s*;\s*$"
+)
+_RE_CALLEE_IDENT = re.compile(r"\b[A-Za-z_][A-Za-z0-9_.$]*\s*(?=\()")
+_RE_ASSUME_STMT = re.compile(r"^\s*assume\s+(?P<expr>.*)\s*;\s*$")
+_RE_GOTO_STMT = re.compile(r"^\s*goto\s+(?P<labels>[^;]+)\s*;\s*$")
+_RE_LABEL_STMT = re.compile(r"^\s*(?P<label>[A-Za-z_][A-Za-z0-9_.$]*)\s*:\s*$")
+_RE_RETURN_STMT = re.compile(r"^\s*return\s*;\s*$")
+_RE_BV_ADD = re.compile(
+    r"^add\.bv(?P<w>\d+)\((?P<a>[^,]+),\s*(?P<b>.+)\)$"
 )
 
 
@@ -66,21 +99,10 @@ def _parse_number(expr: Tree) -> Optional[int]:
         return None
 
 
-def extract_constant_equalities_from_global_assumes(spec_text: str) -> Dict[str, int]:
-    """
-    Extract simple constant equalities from `global { assume { ... } }`.
-
-    Example:
-      `clientTrack_meta.leafswitchidx == 2`
-    yields:
-      {"clientTrack_meta.leafswitchidx": 2}
-    """
-
-    parse_tree(spec_text)
-    model = parse_model(spec_text)
+def _extract_constant_equalities_from_exprs(exprs: Iterable[Tree]) -> Dict[str, int]:
     out: Dict[str, int] = {}
 
-    for expr in model.global_decl.assume_exprs:
+    for expr in exprs:
         if not isinstance(expr, Tree):
             continue
         e = _unwrap_var(expr)
@@ -112,6 +134,46 @@ def extract_constant_equalities_from_global_assumes(spec_text: str) -> Dict[str,
     return out
 
 
+def extract_constant_equalities_from_global_assumes(spec_text: str) -> Dict[str, int]:
+    """
+    Extract simple constant equalities from `global { assume { ... } }`.
+
+    Example:
+      `clientTrack_meta.leafswitchidx == 2`
+    yields:
+      {"clientTrack_meta.leafswitchidx": 2}
+    """
+
+    parse_tree(spec_text)
+    model = parse_model(spec_text)
+    return _extract_constant_equalities_from_exprs(model.global_decl.assume_exprs)
+
+
+def extract_constant_equalities_from_assumes(spec_text: str) -> Dict[str, int]:
+    """
+    Extract simple constant equalities from global, node, and host assume blocks.
+
+    Node-local assumptions are system-level constraints in the generated Boogie
+    harness.  Wraparound index recovery may therefore use them to resolve
+    fixed-slot facts such as `meta.register_index == 0`.
+    """
+
+    parse_tree(spec_text)
+    model = parse_model(spec_text)
+    out = _extract_constant_equalities_from_exprs(model.global_decl.assume_exprs)
+    for node in model.nodes.values():
+        local = _extract_constant_equalities_from_exprs(node.assume_exprs)
+        out.update(local)
+        for name, value in local.items():
+            out[f"{node.name}_{name}"] = value
+    for host in model.hosts.values():
+        local = _extract_constant_equalities_from_exprs(host.assume_exprs)
+        out.update(local)
+        for name, value in local.items():
+            out[f"{host.name}_{name}"] = value
+    return out
+
+
 def _parse_var_types(bpl_text: str) -> Dict[str, str]:
     types: Dict[str, str] = {}
     for line in bpl_text.splitlines():
@@ -132,55 +194,6 @@ def _default_proj_vars(var_types: Dict[str, str]) -> List[str]:
         if name.endswith("_inbox_count") or name.endswith("_egress_count"):
             proj.append(name)
     return sorted(set(proj))
-
-
-def _vars_in_expr(expr: str, *, var_types: Dict[str, str]) -> List[str]:
-    vars_found: List[str] = []
-    for tok in _RE_IDENT.findall(expr):
-        if tok in var_types:
-            vars_found.append(tok)
-    return sorted(set(vars_found))
-
-
-def _bv_width(typ: Optional[str]) -> Optional[int]:
-    if typ is None:
-        return None
-    m = re.match(r"^bv(?P<w>\d+)$", typ.strip())
-    if not m:
-        return None
-    return int(m.group("w"))
-
-
-def _maybe_eval_index_expr_to_constant(
-    idx_expr: str, *, const_eq: Dict[str, int], var_types: Dict[str, str]
-) -> Optional[int]:
-    expr = idx_expr.strip()
-    while expr.startswith("(") and expr.endswith(")"):
-        expr = expr[1:-1].strip()
-
-    if expr in const_eq:
-        return const_eq[expr]
-
-    m = _RE_CONCAT_LIT_VAR.match(expr.replace(" ", ""))
-    if not m:
-        return None
-
-    prefix_val = int(m.group("prefix"))
-    prefix_w = int(m.group("pw"))
-    var = m.group("var")
-    if var not in const_eq:
-        return None
-
-    var_val = const_eq[var]
-    var_w = _bv_width(var_types.get(var))
-    if var_w is None:
-        return None
-
-    if prefix_val < 0 or prefix_val >= (1 << prefix_w):
-        return None
-    if var_val < 0 or var_val >= (1 << var_w):
-        return None
-    return (prefix_val << var_w) | var_val
 
 
 def _extract_dotted_var_base_and_indices(dv: Tree) -> Tuple[str, Tuple[int, ...]]:
@@ -276,6 +289,13 @@ _DEBUG_SUFFIXES = (
     "__wrote_index0",
     "__dbg0",
 )
+_INDEX0_DEBUG_SUFFIXES = (
+    "__last0_value__dbg",
+    "__last0_value",
+    "__wrote_index0__dbg",
+    "__wrote_index0",
+    "__dbg0",
+)
 
 
 def _strip_debug_suffix(name: str) -> str:
@@ -283,42 +303,6 @@ def _strip_debug_suffix(name: str) -> str:
         if name.endswith(suf):
             return name[: -len(suf)]
     return name
-
-
-def _resolve_prefixed_name(name: str, *, node: str, var_types: Dict[str, str]) -> str:
-    """
-    Map an unprefixed P4B name to the composed Boogie name.
-
-    dslc prefixes Boogie symbols using `node_...`. P4B sometimes emits both
-    `<x>` and `<x>_0` variants; we prefer whichever exists in `var_types`.
-    """
-
-    cand = f"{node}_{name}"
-    if cand in var_types:
-        return cand
-    if name.endswith("_0"):
-        alt = f"{node}_{name[:-2]}"
-        if alt in var_types:
-            return alt
-    else:
-        alt = f"{node}_{name}_0"
-        if alt in var_types:
-            return alt
-    return cand
-
-
-def _prefix_expr_with_known_vars(expr: str, *, node: str, var_types: Dict[str, str]) -> str:
-    """
-    Prefix identifiers inside an unprefixed Boogie expression using `node_...`,
-    but only when the prefixed name exists in `var_types`.
-    """
-
-    def repl(m: re.Match[str]) -> str:
-        tok = m.group(0)
-        pref = _resolve_prefixed_name(tok, node=node, var_types=var_types)
-        return pref if pref in var_types else tok
-
-    return _RE_IDENT.sub(repl, expr)
 
 
 def _extract_cond_text(line: str) -> Optional[str]:
@@ -470,12 +454,17 @@ def _infer_from_meta_updates(
     meta_by_node: Dict[str, dict],
 ) -> List[WraparoundCandidate]:
     var_types = _parse_var_types(bpl_text)
-    global_const_eq = extract_constant_equalities_from_global_assumes(spec_text)
+    global_const_eq = extract_constant_equalities_from_assumes(spec_text)
     default_proj = _default_proj_vars(var_types)
 
     seed_pairs = extract_seed_vars_from_global_asserts(spec_text)
     seed_bases: Set[str] = {base for base, _ in seed_pairs}
     seed_bases |= {_strip_debug_suffix(b) for b in list(seed_bases)}
+    seed_index0_bases: Set[str] = {
+        _strip_debug_suffix(base)
+        for base, _indices in seed_pairs
+        if any(base.endswith(suf) for suf in _INDEX0_DEBUG_SUFFIXES)
+    }
     # Observed -> driver reachability (approx, includes control deps).
     observed_for_driver = [b for b in seed_bases if b in var_types]
     try:
@@ -509,12 +498,21 @@ def _infer_from_meta_updates(
             if op != "add":
                 # v0-1 pipeline currently accelerates overflow (MAX -> ...), so only handle +delta.
                 continue
-            if not delta_is_const:
-                continue
-            try:
-                step_delta = int(str(delta_const))
-            except Exception:
-                continue
+            if delta_is_const:
+                try:
+                    step_delta = int(str(delta_const))
+                except Exception:
+                    continue
+            else:
+                recovered = _recover_constant_step_delta(
+                    update=u,
+                    node=node,
+                    bpl_text=bpl_text,
+                    var_types=var_types,
+                )
+                if recovered is None:
+                    continue
+                step_delta = recovered
 
             pump_reg = _resolve_prefixed_name(reg, node=node, var_types=var_types)
             value_var_pref = _resolve_prefixed_name(value_var, node=node, var_types=var_types)
@@ -527,7 +525,12 @@ def _infer_from_meta_updates(
             # use a lightweight Boogie dependency analysis to select candidates that can influence
             # the observed vars.
             if driver_vars:
-                if (value_var_pref not in driver_vars) and (pump_reg not in driver_vars):
+                if (
+                    value_var_pref not in driver_vars
+                    and pump_reg not in driver_vars
+                    and pump_reg not in seed_bases
+                    and reg not in seed_bases
+                ):
                     continue
             else:
                 # Fallback: legacy gating by syntactic mention.
@@ -547,9 +550,26 @@ def _infer_from_meta_updates(
 
             if isinstance(idx_const, int) and idx_const >= 0:
                 idx_value = idx_const
+            elif pump_reg in seed_index0_bases or reg in seed_index0_bases:
+                idx_value = 0
             else:
                 if isinstance(idx_expr_raw, str) and idx_expr_raw.strip():
                     idx_expr_pref = _prefix_expr_with_known_vars(idx_expr_raw, node=node, var_types=var_types)
+                    idx_expr_meta = _derive_index_expr_from_meta_definition(
+                        idx_expr_raw,
+                        node=node,
+                        meta=meta,
+                        bpl_text=bpl_text,
+                        var_types=var_types,
+                    )
+                    if idx_expr_meta is not None:
+                        idx_expr_pref = idx_expr_meta
+                    else:
+                        idx_expr_pref = _derive_index_expr_from_bpl_definition(
+                            idx_expr_pref,
+                            bpl_text=bpl_text,
+                            var_types=var_types,
+                        )
                     idx_eval = _maybe_eval_index_expr_to_constant(
                         idx_expr_pref, const_eq=global_const_eq, var_types=var_types
                     )
@@ -594,6 +614,105 @@ def _infer_from_meta_updates(
             )
 
     return out
+
+
+def _literal_int(expr: str, *, width: Optional[int] = None) -> Optional[int]:
+    cur = expr.strip()
+    while cur.startswith("(") and cur.endswith(")"):
+        cur = cur[1:-1].strip()
+    m = _RE_BV_LIT.match(cur)
+    if m:
+        val = int(m.group("val"))
+        w = int(m.group("w"))
+        return val % (1 << w)
+    if re.match(r"^-?\d+$", cur):
+        val = int(cur)
+        return val if width is None else val % (1 << width)
+    return None
+
+
+def _recover_constant_step_delta(
+    *,
+    update: dict,
+    node: str,
+    bpl_text: str,
+    var_types: Dict[str, str],
+) -> Optional[int]:
+    """
+    Recover env-fixed deltas for RegisterAction updates reported by P4B.
+
+    P4B can identify that a RegisterAction performs an additive self update
+    while leaving `delta_is_const=false` for P4 expressions such as
+    `x = x + hdr.ipv4.total_len`.  At the composed Boogie level, the environment
+    may fix that header field to a single literal.  We accept only the narrow
+    canonical shape `local := add.bvW(local, delta)` and only when constant
+    propagation makes `delta` a literal.  Otherwise callers keep the old
+    conservative fallback.
+    """
+
+    context = str(update.get("context") or "")
+    if not context:
+        return None
+    value_width_raw = update.get("value_width")
+    try:
+        value_width = int(str(value_width_raw))
+    except Exception:
+        value_width = None
+
+    bpl_consts = _extract_bpl_constant_literals(bpl_text, var_types=var_types)
+    consts = dict(bpl_consts)
+    consts.update(_derive_constant_assignment_literals(
+        bpl_text,
+        var_types=var_types,
+        initial_consts=bpl_consts,
+        max_iters=12,
+    ))
+
+    proc_bodies = _extract_proc_bodies(bpl_text)
+    candidate_suffixes = (
+        f"_{context}.apply",
+        f".{context}.apply",
+        f"_{context}",
+        f".{context}",
+    )
+    deltas: Set[int] = set()
+
+    for proc, body in proc_bodies.items():
+        if not proc.startswith(f"{node}_") and f"_{context}" in proc:
+            # For composed models the node prefix should normally be present.
+            # Keep scanning only same-node procedure names to avoid cross-node
+            # ambiguity in multi-program specs.
+            continue
+        if not any(proc.endswith(suf) for suf in candidate_suffixes):
+            continue
+        for line in body:
+            m = _RE_ASSIGN_STMT.match(line)
+            if not m:
+                continue
+            lhs_parts = [p.strip() for p in m.group("lhs").split(",")]
+            if len(lhs_parts) != 1:
+                continue
+            lhs = lhs_parts[0]
+            rhs = m.group("rhs").strip()
+            ma = _RE_BV_ADD.match(rhs)
+            if not ma:
+                continue
+            a = ma.group("a").strip()
+            b = ma.group("b").strip()
+            if a == lhs:
+                delta_expr = b
+            elif b == lhs:
+                delta_expr = a
+            else:
+                continue
+            cur = _substitute_tokens(delta_expr, consts)
+            lit = _literal_int(cur, width=value_width)
+            if lit is not None:
+                deltas.add(lit)
+
+    if len(deltas) == 1:
+        return next(iter(deltas))
+    return None
 
 
 def infer_wraparound_candidates(
