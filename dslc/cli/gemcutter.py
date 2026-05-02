@@ -11,9 +11,17 @@ from dslc.cli.common import find_default_p4b_bin, find_default_ultimate, fresh_r
 from dslc.compiler import compile_spec_file
 from dslc.speclang import decompose_global_asserts, emit_spec_text, parse_model, parse_tree
 from dslc.toolchain.ultimate_runner import run_ultimate
+from dslc.toolchain.ultimate_paths import (
+    resolve_ultimate_asset_path,
+    ultimate_asset,
+    ultimate_assets,
+)
 from dslc.transform.wraparound_stages import _rewrite_forall_bv32_array_inits
 from dslc.utils.repo import repo_root
-from dslc.workflows.wraparound_cegis import run_wraparound_cegis_multi
+from dslc.workflows.wraparound_cegis import (
+    _manifest_certified_unsafe_data,
+    run_wraparound_cegis_multi,
+)
 
 
 @dataclass(frozen=True)
@@ -126,29 +134,11 @@ def _wraparound_manifest_certified_unsafe(manifest_path: Path) -> bool:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except Exception:
         return False
-    attempts = data.get("attempts") or []
-    if not isinstance(attempts, list):
-        return False
-
-    for a in attempts:
-        if not isinstance(a, dict):
-            continue
-        entry = a.get("entry") or {}
-        confirm = a.get("confirm") or {}
-        closure = a.get("closure") or {}
-        if not isinstance(entry, dict) or not isinstance(confirm, dict) or not isinstance(closure, dict):
-            continue
-
-        if (
-            _result_line_is_unsafe(entry.get("result_line"))
-            and _result_line_is_unsafe(confirm.get("result_line"))
-            and _result_line_is_safe(closure.get("result_line"))
-        ):
-            return True
-    return False
+    return _manifest_certified_unsafe_data(data)
 
 
 def _toolchain_includes_witnessprinter(toolchain: Path) -> bool:
+    toolchain = resolve_ultimate_asset_path(toolchain)
     try:
         txt = toolchain.read_text(encoding="utf-8", errors="replace")
     except Exception:
@@ -170,6 +160,8 @@ def _run_one(
     pipeline_two_stage: bool,
     max_steps: Optional[int],
     honor_spec_max_steps: bool,
+    emit_reg_debug: bool,
+    skip_duplicated_fail_fast_global_asserts: bool,
     ultimate: Optional[Path],
     toolchain: Path,
     witness_toolchain: Optional[Path],
@@ -178,6 +170,7 @@ def _run_one(
     ultimate_timeout_seconds: int,
     resource_limits: bool,
     ultimate_xmx_gb: int,
+    witness_rerun: bool,
 ) -> int:
     compile_spec_file(
         spec_path=job.spec_path,
@@ -195,6 +188,8 @@ def _run_one(
         pipeline_two_stage=pipeline_two_stage,
         max_steps=max_steps,
         honor_spec_max_steps=honor_spec_max_steps,
+        emit_reg_debug=emit_reg_debug,
+        skip_duplicated_fail_fast_global_asserts=skip_duplicated_fail_fast_global_asserts,
     )
     print(f"[OK] bpl: {job.out_bpl}")
 
@@ -242,7 +237,7 @@ def _run_one(
             # Two-phase witness strategy: run the main verification with a *non-witness*
             # toolchain for speed/robustness, then (if UNSAFE) re-run with witnessprinter
             # enabled to produce an auditable counterexample artifact.
-            if witness_toolchain and witness_toolchain.exists() and witness_toolchain != toolchain:
+            if witness_rerun and witness_toolchain and witness_toolchain.exists() and witness_toolchain != toolchain:
                 wlog = job.log_path.with_suffix(".witness.log")
                 wres = run_ultimate(
                     ultimate=ultimate,
@@ -261,6 +256,8 @@ def _run_one(
                 if wres.result_line:
                     print(f"[RESULT] {wres.result_line} (witness rerun)")
                 print(f"[LOG] {wlog}")
+            elif not witness_rerun:
+                print("[NOTE] witness rerun disabled by --no-witness-rerun")
             return 1
         if _result_line_is_safe(result_line):
             print(f"[LOG] {job.log_path}")
@@ -332,14 +329,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         type=int,
         default=None,
         help=(
-            "Bound the number of Procurator steps (BMC-style bug finding). "
-            "UNSAFE is sound; SAFE is only within the bound. Default: unbounded."
+            "Optional bounded bug-finding/benchmark step limit. UNSAFE is sound; "
+            "SAFE is only within the bound. Default: unbounded."
         ),
     )
     ap.add_argument(
         "--use-spec-max-steps",
         action="store_true",
-        help="Honor `global.max_steps` from the DSL spec (disabled by default).",
+        help=(
+            "Use `global.max_steps` from the DSL spec as an explicit benchmark/debug bound. "
+            "Default: ignore it and keep the model unbounded."
+        ),
+    )
+    ap.add_argument(
+        "--no-reg-debug",
+        action="store_true",
+        help="Disable per-pass register debug snapshots in the generated Boogie harness (can greatly reduce SMT load).",
+    )
+    ap.add_argument(
+        "--skip-duplicated-fail-fast-global-asserts",
+        action="store_true",
+        help=(
+            "When P4B duplicates an exact register-mirror global assertion at register write sites, "
+            "omit the duplicate end-of-step harness assertion. Opt-in performance knob for large bounded checks."
+        ),
     )
     ap.add_argument("--compose", action="store_true", help="Decompose global asserts into local specs and run in parallel")
     ap.add_argument("--compose-max-nodes", type=int, default=2, help="Max nodes per decomposed property (default: 2)")
@@ -374,6 +387,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--ultimate-home",
         default="",
         help="Override HOME for Ultimate (default: <out_dir>/ultimate-home)",
+    )
+    ap.add_argument(
+        "--no-witness-rerun",
+        action="store_true",
+        help=(
+            "After a main UNSAFE result, do not run the second witness-printer toolchain. "
+            "Useful for short staged exploration when the main log is enough evidence."
+        ),
     )
     ap.add_argument(
         "--toolchain",
@@ -454,6 +475,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "Recommended for main verification pipeline: entry_confirm_closure."
         ),
     )
+    ap.add_argument(
+        "--wraparound-cegar-mode",
+        choices=["legacy_closure_assumes", "schedule_replay"],
+        default="legacy_closure_assumes",
+        help=(
+            "Wraparound CEGAR implementation mode. "
+            "schedule_replay is the paper-aligned ENTRY -> NEAR_WRAP -> CLOSURE loop; "
+            "legacy_closure_assumes keeps the existing closure-only refinement path."
+        ),
+    )
+    ap.add_argument(
+        "--wraparound-stop-after",
+        choices=["none", "entry", "near_wrap", "closure"],
+        default="none",
+        help=(
+            "Debug/staged execution: stop the wraparound CEGAR pipeline after the selected stage "
+            "and do not fall back to the ordinary GemCutter run. Intended for stage-by-stage testing."
+        ),
+    )
 
     args = ap.parse_args(list(argv) if argv is not None else None)
 
@@ -480,18 +520,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     root = repo_root()
     witness_toolchain: Optional[Path] = None
     if args.toolchain:
-        toolchain = Path(args.toolchain).resolve()
+        toolchain = resolve_ultimate_asset_path(args.toolchain, root=root)
         # Best-effort: if the user-provided toolchain does NOT already include the witnessprinter,
         # pick up the in-repo witness toolchain for a second UNSAFE rerun.
         if not _toolchain_includes_witnessprinter(toolchain):
-            cand_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml"
+            cand_witness = ultimate_asset(root, "ReachSafety-Witness.xml")
             if cand_witness.exists():
                 witness_toolchain = cand_witness.resolve()
     else:
         # Two-phase default: use the non-witness toolchain for the main run, and only
         # enable witnessprinter when we actually see UNSAFE.
-        cand_nowitness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety.xml"
-        cand_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml"
+        cand_nowitness = ultimate_asset(root, "ReachSafety.xml")
+        cand_witness = ultimate_asset(root, "ReachSafety-Witness.xml")
         if cand_nowitness.exists():
             toolchain = cand_nowitness.resolve()
             witness_toolchain = cand_witness.resolve() if cand_witness.exists() else None
@@ -501,24 +541,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         else:
             toolchain = (root / "ultimate" / "trunk" / "examples" / "concurrent" / "bpl" / "regression" / "ReachSafety.xml").resolve()
     if args.settings:
-        settings = Path(args.settings).resolve()
+        settings = resolve_ultimate_asset_path(args.settings, root=root)
     else:
         # Default to a WSL-safe GemCutter-style profile.
         #
         # IMPORTANT: some profiles set Z3's `-memory:` to 8-12GB. On many WSL setups this
         # can OOM the whole VM even if Ultimate's JVM heap is small. Prefer the ~2GB Z3
         # profiles by default; users can opt into larger profiles via --settings.
-        candidates = [
+        candidates = ultimate_assets(root, [
             # Low-memory (default) profiles.
-            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL.epf",
-            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-no-por.epf",
-            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-internal.epf",
-            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-internal-no-por.epf",
+            "ReachSafety-32bit-GemCutter-ALL.epf",
+            "ReachSafety-32bit-GemCutter-ALL-no-por.epf",
+            "ReachSafety-32bit-GemCutter-internal.epf",
+            "ReachSafety-32bit-GemCutter-internal-no-por.epf",
             # Higher-memory fallbacks (use explicitly on machines that can handle it).
-            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout.epf",
-            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-8g.epf",
-            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-12g.epf",
-            root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-BuchiAutomizer-12g.epf",
+            "ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout.epf",
+            "ReachSafety-32bit-GemCutter-ALL-8g.epf",
+            "ReachSafety-32bit-GemCutter-ALL-12g.epf",
+            "ReachSafety-32bit-BuchiAutomizer-12g.epf",
+        ]) + [
             # Legacy path fallback.
             root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-32bit-GemCutter-ALL.epf",
         ]
@@ -620,28 +661,36 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     stage_order=str(args.wraparound_stage_order),
                     max_targets=int(args.wraparound_max_targets),
                     require_meta_step_for_global_asserts=require_meta_step,
+                    emit_reg_debug=not args.no_reg_debug,
+                    cegar_mode=str(args.wraparound_cegar_mode),
+                    stop_after=str(args.wraparound_stop_after),
                 )
             except Exception as e:
                 if args.wraparound == "force":
                     raise
                 print(f"[WRAP] skip: wraparound CEGIS failed ({type(e).__name__}: {e})")
+                if str(args.wraparound_stop_after) != "none":
+                    return 2
                 manifests = []
+
+            if str(args.wraparound_stop_after) != "none":
+                for mp in manifests:
+                    print(f"[WRAP] STOP-AFTER {args.wraparound_stop_after}: {mp}")
+                if not manifests:
+                    print(f"[WRAP] STOP-AFTER {args.wraparound_stop_after}: no wraparound candidates")
+                return 0
 
             for mp in manifests:
                 if _wraparound_manifest_certified_unsafe(mp):
                     print(f"[WRAP] CERTIFIED UNSAFE: {mp}")
-                    # Best-effort witness sanity classification for wraparound runs.
-                    # The manifest lives in the wraparound target dir, which contains the
-                    # confirm BPL and its GraphML witness.
                     try:
-                        from dslc.bench.validate_counterexample import summarize_witness, validate_wraparound_manifest
+                        from dslc.bench.validate_counterexample import validate_wraparound_manifest
 
                         _ok, _msg = validate_wraparound_manifest(mp)
-                        summ = summarize_witness(out_dir=mp.parent)
-                        tag = "[CEX]" if summ.ok else "[CEX-WARN]"
-                        print(f"{tag} {summ.kind}: {summ.details}")
+                        tag = "[CEX]" if _ok else "[CEX-WARN]"
+                        print(f"{tag} {_msg}")
                     except Exception as e:
-                        print(f"[CEX-WARN] wraparound witness summary failed ({type(e).__name__}: {e})")
+                        print(f"[CEX-WARN] wraparound manifest validation failed ({type(e).__name__}: {e})")
                     return 1
 
         if ultimate and not args.ultimate_async and int(args.ultimate_timeout_seconds) <= 0:
@@ -660,6 +709,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             pipeline_two_stage=pipeline_two_stage,
             max_steps=args.max_steps,
             honor_spec_max_steps=args.use_spec_max_steps,
+            emit_reg_debug=not args.no_reg_debug,
+            skip_duplicated_fail_fast_global_asserts=bool(args.skip_duplicated_fail_fast_global_asserts),
             ultimate=ultimate,
             toolchain=toolchain,
             witness_toolchain=witness_toolchain,
@@ -668,6 +719,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             ultimate_timeout_seconds=args.ultimate_timeout_seconds,
             resource_limits=not args.no_resource_limits,
             ultimate_xmx_gb=int(args.ultimate_xmx_gb),
+            witness_rerun=not bool(args.no_witness_rerun),
         )
         if rc == 1:
             # Best-effort witness sanity classification: distinguish "DSL global assert violated"
@@ -754,6 +806,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 pipeline_two_stage=pipeline_two_stage,
                 max_steps=args.max_steps,
                 honor_spec_max_steps=args.use_spec_max_steps,
+                emit_reg_debug=not args.no_reg_debug,
+                skip_duplicated_fail_fast_global_asserts=bool(args.skip_duplicated_fail_fast_global_asserts),
                 ultimate=ultimate,
                 toolchain=toolchain,
                 witness_toolchain=witness_toolchain,
@@ -762,6 +816,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 ultimate_timeout_seconds=args.ultimate_timeout_seconds,
                 resource_limits=not args.no_resource_limits,
                 ultimate_xmx_gb=int(args.ultimate_xmx_gb),
+                witness_rerun=not bool(args.no_witness_rerun),
             ): job
             for job in jobs
         }

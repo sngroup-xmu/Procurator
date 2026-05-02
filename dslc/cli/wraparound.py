@@ -12,6 +12,10 @@ from typing import Optional, Sequence
 from dslc.cli.common import find_default_p4b_bin, fresh_run_dir, wrap_resource_limits
 from dslc.compiler import compile_spec_file
 from dslc.analysis.wraparound_candidates import WraparoundCandidate, infer_wraparound_candidates
+from dslc.toolchain.ultimate_paths import (
+    resolve_ultimate_asset_path,
+    ultimate_asset,
+)
 from dslc.transform.wraparound import (
     WraparoundStage,
     instrument_bpl_text,
@@ -131,10 +135,10 @@ def _resolve_default_toolchains(
     """
 
     if toolchain_arg:
-        toolchain = Path(toolchain_arg).expanduser().resolve()
+        toolchain = resolve_ultimate_asset_path(toolchain_arg, root=root)
     else:
-        tc_no_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety.xml"
-        tc_witness = root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-Witness.xml"
+        tc_no_witness = ultimate_asset(root, "ReachSafety.xml")
+        tc_witness = ultimate_asset(root, "ReachSafety-Witness.xml")
         tc_legacy = root / "Procurator" / "argo" / "code" / "spec" / "config" / "ReachSafety-Witness.xml"
         # Prefer witness by default for bug finding; closure_check defaults to a
         # witness-free toolchain to avoid crashes on some SAFE tasks.
@@ -146,16 +150,103 @@ def _resolve_default_toolchains(
             toolchain = tc_legacy.resolve()
 
     closure_toolchain = (
-        Path(closure_toolchain_arg).expanduser().resolve()
+        resolve_ultimate_asset_path(closure_toolchain_arg, root=root)
         if closure_toolchain_arg
         else (
-            (root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-ReachSafety.xml").resolve()
-            if (root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-ReachSafety.xml").exists()
+            ultimate_asset(root, "ClosureCheck-ReachSafety.xml").resolve()
+            if ultimate_asset(root, "ClosureCheck-ReachSafety.xml").exists()
             else toolchain
         )
     )
 
     return toolchain, closure_toolchain
+
+
+def _resolve_default_settings(
+    *,
+    root: Path,
+    settings_arg: str,
+    closure_settings_arg: str,
+) -> tuple[Path, Path]:
+    if settings_arg:
+        settings = resolve_ultimate_asset_path(settings_arg, root=root)
+    else:
+        settings = (
+            ultimate_asset(root, "ReachSafety-32bit-GemCutter-ALL-witness.epf").resolve()
+            if ultimate_asset(root, "ReachSafety-32bit-GemCutter-ALL-witness.epf").exists()
+            else (
+                root
+                / "Procurator"
+                / "argo"
+                / "code"
+                / "spec"
+                / "config"
+                / "ReachSafety-32bit-GemCutter-ALL-witness.epf"
+            ).resolve()
+        )
+
+    closure_settings = (
+        resolve_ultimate_asset_path(closure_settings_arg, root=root)
+        if closure_settings_arg
+        else (
+            ultimate_asset(root, "ClosureCheck-32bit-GemCutter-ALL-witness.epf").resolve()
+            if ultimate_asset(root, "ClosureCheck-32bit-GemCutter-ALL-witness.epf").exists()
+            else (
+                root
+                / "Procurator"
+                / "argo"
+                / "code"
+                / "spec"
+                / "config"
+                / "ClosureCheck-32bit-GemCutter-ALL-witness.epf"
+            ).resolve()
+        )
+    )
+    if not closure_settings.exists():
+        closure_settings = settings
+
+    return settings, closure_settings
+
+
+def _resolve_cegis_toolchain_settings(
+    *,
+    root: Path,
+    toolchain_arg: str,
+    closure_toolchain_arg: str,
+    settings_arg: str,
+    closure_settings_arg: str,
+    cegar_mode: str,
+    ultimate_xmx_gb: int = 0,
+) -> tuple[Path, Path, Path, Path]:
+    toolchain, closure_toolchain = _resolve_default_toolchains(
+        root=root,
+        toolchain_arg=toolchain_arg,
+        closure_toolchain_arg=closure_toolchain_arg,
+    )
+    settings, closure_settings = _resolve_default_settings(
+        root=root,
+        settings_arg=settings_arg,
+        closure_settings_arg=closure_settings_arg,
+    )
+
+    if cegar_mode == "schedule_replay":
+        if not toolchain_arg:
+            tc_no_witness = ultimate_asset(root, "ReachSafety.xml")
+            if tc_no_witness.exists():
+                toolchain = tc_no_witness.resolve()
+        if not settings_arg:
+            st_no_witness = ultimate_asset(root, "ReachSafety-32bit-GemCutter-ALL.epf")
+            if st_no_witness.exists():
+                settings = st_no_witness.resolve()
+        if int(ultimate_xmx_gb) >= 8:
+            st_allinline = ultimate_asset(root, "ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por-allinline.epf")
+            if st_allinline.exists():
+                if not settings_arg:
+                    settings = st_allinline.resolve()
+                if not closure_settings_arg:
+                    closure_settings = st_allinline.resolve()
+
+    return toolchain, closure_toolchain, settings, closure_settings
 
 
 _RE_PROP_IMPORT_ENTRIES = re.compile(r"\bentries\s+\"([^\"]+)\"\s*;", flags=re.MULTILINE)
@@ -406,6 +497,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help="Max refinement iterations for --cegis (default: 6).",
     )
     ap.add_argument(
+        "--wraparound-cegar-mode",
+        choices=["legacy_closure_assumes", "schedule_replay"],
+        default="legacy_closure_assumes",
+        help=(
+            "Wraparound CEGAR implementation mode. "
+            "schedule_replay uses the paper-aligned schedule replay loop; "
+            "legacy_closure_assumes keeps the existing closure-only refinement path."
+        ),
+    )
+    ap.add_argument(
+        "--wraparound-stop-after",
+        choices=["none", "entry", "near_wrap", "closure"],
+        default="none",
+        help="Stop CEGIS after the selected stage and write the incremental manifest.",
+    )
+    ap.add_argument(
         "--stages",
         default="closure_check,pump,accel,confirm",
         help="Comma-separated stages: closure_check,pump,accel,confirm (default: closure_check,pump,accel,confirm)",
@@ -509,47 +616,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if (not args.legacy) and args.ultimate:
         ultimate = Path(args.ultimate).expanduser().resolve()
 
-        toolchain, closure_toolchain = _resolve_default_toolchains(
+        toolchain, closure_toolchain, settings, closure_settings = _resolve_cegis_toolchain_settings(
             root=root,
             toolchain_arg=args.toolchain,
             closure_toolchain_arg=args.closure_toolchain,
+            settings_arg=args.settings,
+            closure_settings_arg=args.closure_settings,
+            cegar_mode=args.wraparound_cegar_mode,
+            ultimate_xmx_gb=max(1, int(args.ultimate_xmx_gb)),
         )
-        settings = (
-            Path(args.settings).expanduser().resolve()
-            if args.settings
-            else (
-                (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-witness.epf").resolve()
-                if (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-witness.epf").exists()
-                else (
-                    root
-                    / "Procurator"
-                    / "argo"
-                    / "code"
-                    / "spec"
-                    / "config"
-                    / "ReachSafety-32bit-GemCutter-ALL-witness.epf"
-                ).resolve()
-            )
-        )
-        closure_settings = (
-            Path(args.closure_settings).expanduser().resolve()
-            if args.closure_settings
-            else (
-                (root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-32bit-GemCutter-ALL-witness.epf").resolve()
-                if (root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-32bit-GemCutter-ALL-witness.epf").exists()
-                else (
-                    root
-                    / "Procurator"
-                    / "argo"
-                    / "code"
-                    / "spec"
-                    / "config"
-                    / "ClosureCheck-32bit-GemCutter-ALL-witness.epf"
-                ).resolve()
-            )
-        )
-        if not closure_settings.exists():
-            closure_settings = settings
 
         from dslc.workflows.wraparound_cegis import UltimateStageRunner, run_wraparound_cegis
 
@@ -573,6 +648,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             closure_toolchain=closure_toolchain,
             settings=settings,
             closure_settings=closure_settings,
+            cegar_mode=args.wraparound_cegar_mode,
+            stop_after=args.wraparound_stop_after,
         )
         # Print a stable summary that downstream scripts (e.g. ablations) can parse.
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -843,11 +920,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         closure_toolchain_arg=args.closure_toolchain,
     )
     settings = (
-        Path(args.settings).expanduser().resolve()
+        resolve_ultimate_asset_path(args.settings, root=root)
         if args.settings
         else (
-            (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-witness.epf").resolve()
-            if (root / "dslc" / "toolchain" / "ultimate" / "ReachSafety-32bit-GemCutter-ALL-witness.epf").exists()
+            ultimate_asset(root, "ReachSafety-32bit-GemCutter-ALL-witness.epf").resolve()
+            if ultimate_asset(root, "ReachSafety-32bit-GemCutter-ALL-witness.epf").exists()
             else (
                 root
                 / "Procurator"
@@ -860,11 +937,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         )
     )
     closure_settings = (
-        Path(args.closure_settings).expanduser().resolve()
+        resolve_ultimate_asset_path(args.closure_settings, root=root)
         if args.closure_settings
         else (
-            (root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-32bit-GemCutter-ALL-witness.epf").resolve()
-            if (root / "dslc" / "toolchain" / "ultimate" / "ClosureCheck-32bit-GemCutter-ALL-witness.epf").exists()
+            ultimate_asset(root, "ClosureCheck-32bit-GemCutter-ALL-witness.epf").resolve()
+            if ultimate_asset(root, "ClosureCheck-32bit-GemCutter-ALL-witness.epf").exists()
             else (
                 root
                 / "Procurator"

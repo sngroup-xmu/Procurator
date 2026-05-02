@@ -21,8 +21,8 @@ class WitnessAssumption:
 
 
 # Accept both equality constraints (x == c / x = c) and simple assignments that
-# appear in witnesses as sourcecode (x := c). We later filter to literal RHS only.
-_RE_SIMPLE_EQ = re.compile(r"^(?P<var>[A-Za-z_][A-Za-z0-9_.]*)\s*(==|=|:=)\s*(?P<rhs>.+)$")
+# may appear in witnesses as sourcecode (x := c). We later filter to literal RHS only.
+_RE_SIMPLE_EQ = re.compile(r"^(?P<var>[A-Za-z_][A-Za-z0-9_.]*)\s*(?P<op>==|=|:=)\s*(?P<rhs>.+)$")
 
 
 def _strip_ns(tag: str) -> str:
@@ -48,7 +48,12 @@ def _iter_graphml_data_text(root: ET.Element) -> Iterable[Tuple[Optional[str], s
                 yield (node_id, txt)
 
 
-def extract_assumptions_from_graphml(graphml_text: str) -> List[WitnessAssumption]:
+def extract_assumptions_from_graphml(
+    graphml_text: str,
+    *,
+    include_sourcecode: bool = True,
+    include_assignment: bool = True,
+) -> List[WitnessAssumption]:
     """
     Best-effort extraction of assumptions from SV-COMP-style GraphML witnesses.
 
@@ -65,7 +70,7 @@ def extract_assumptions_from_graphml(graphml_text: str) -> List[WitnessAssumptio
 
     out: List[WitnessAssumption] = []
 
-    def _consume_payload(node_id: Optional[str], txt: str) -> None:
+    def _consume_payload(node_id: Optional[str], txt: str, *, from_sourcecode: bool) -> None:
         # Split multi-line / multi-statement payloads.
         #
         # Ultimate commonly emits a conjunction of atomic constraints in a single
@@ -82,12 +87,20 @@ def extract_assumptions_from_graphml(graphml_text: str) -> List[WitnessAssumptio
                 p = p[1:-1].strip()
             # Keep only equalities/assignments. This is intentionally conservative: we
             # want constraints that are easy to re-inject as Boogie assumes.
-            if _RE_SIMPLE_EQ.match(p):
-                out.append(WitnessAssumption(expr=p, node_id=node_id))
+            m = _RE_SIMPLE_EQ.match(p)
+            if not m:
+                continue
+            if (not include_assignment) and m.group("op") == ":=":
+                continue
+            # Callers may want to ignore all sourcecode payloads and only consume explicit
+            # witness assumptions.
+            if from_sourcecode and (not include_sourcecode):
+                continue
+            out.append(WitnessAssumption(expr=p, node_id=node_id))
 
     # 1) Node-level <data> entries (legacy/variant witnesses).
     for node_id, txt in _iter_graphml_data_text(root):
-        _consume_payload(node_id, txt)
+        _consume_payload(node_id, txt, from_sourcecode=False)
 
     # 2) Edge-level constraints: Ultimate primarily stores constraints here.
     for edge in root.iter():
@@ -98,12 +111,13 @@ def extract_assumptions_from_graphml(graphml_text: str) -> List[WitnessAssumptio
                 continue
             # Some witnesses store assignments as "sourcecode" on edges rather than nodes.
             # We consume both and later filter aggressively (only literal RHS, only allowed vars).
-            if d.attrib.get("key") not in {"assumption", "sourcecode"}:
+            key = d.attrib.get("key")
+            if key not in {"assumption", "sourcecode"}:
                 continue
             txt = "".join(d.itertext()).strip()
             if txt:
                 # Edge assumptions are not associated with a single node id; keep None.
-                _consume_payload(None, txt)
+                _consume_payload(None, txt, from_sourcecode=(key == "sourcecode"))
     return out
 
 

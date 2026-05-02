@@ -13,6 +13,7 @@ from dslc.cli.common import fresh_run_dir, wrap_resource_limits
 from dslc.compiler import compile_spec_file
 from dslc.speclang import decompose_global_asserts, emit_spec_text, parse_model
 from dslc.speclang.model import GlobalDecl, SpecModel
+from dslc.toolchain.ultimate_paths import resolve_ultimate_asset_path
 
 
 @dataclass(frozen=True)
@@ -269,8 +270,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     out_root = Path(args.out_root).resolve() if args.out_root else fresh_run_dir(category="ablation", name=system)
 
     ultimate_bin = Path(args.ultimate).resolve()
-    tc = Path(args.toolchain).resolve()
-    epf = Path(args.settings).resolve()
+    tc = resolve_ultimate_asset_path(args.toolchain)
+    epf = resolve_ultimate_asset_path(args.settings)
     p4b_bin = Path(args.p4b_bin).resolve()
 
     results = run_matrix(

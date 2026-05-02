@@ -425,7 +425,7 @@ def main(argv: list[str]) -> int:
             wraparound="auto",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=False,
-            extra_args=wraparound_args,
+            extra_args=wraparound_args + ["--no-slicing-control-seeds"],
             notes="",
         ),
         Bench(
@@ -447,7 +447,7 @@ def main(argv: list[str]) -> int:
             wraparound="auto",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=False,
-            extra_args=wraparound_args,
+            extra_args=wraparound_args + ["--no-slicing-control-seeds"],
             notes="",
         ),
         Bench(
@@ -458,7 +458,9 @@ def main(argv: list[str]) -> int:
             wraparound="auto",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=False,
-            extra_args=wraparound_args,
+            # Disable per-pass register snapshot debug vars for faster wraparound
+            # stages; bug predicate does not depend on __dbg snapshots.
+            extra_args=wraparound_args + ["--no-slicing-control-seeds", "--no-reg-debug"],
             notes="",
         ),
         # Non-wraparound NSDI and new-system bugs.
@@ -470,7 +472,10 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 300),
             use_spec_max_steps=False,
-            extra_args=[],
+            # This bug does not depend on clone/recirc control seeds. Disabling
+            # implicit control seeds shrinks sliced state space and improves
+            # slicing-side convergence in repeated runs.
+            extra_args=["--no-slicing-control-seeds"],
             notes="",
         ),
         Bench(
@@ -481,7 +486,10 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=True,
-            extra_args=[],
+            # Case-specific pruning: this spec is single-node and does not rely on
+            # clone/recirc control seeds. Disabling implicit control seeds shrinks
+            # the sliced model and consistently improves wall time.
+            extra_args=["--no-slicing-control-seeds"],
             notes="",
         ),
         Bench(
@@ -506,11 +514,15 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=True,
-            extra_args=[],
+            # Drop per-pass register snapshot vars; this case's bug predicate only
+            # depends on __wrote_any flags, so debug snapshots are pure overhead.
+            # Also disable implicit control seeds: this single-node table wiring bug
+            # does not depend on recirc/clone control predicates.
+            extra_args=["--no-reg-debug", "--no-slicing-control-seeds"],
             notes="",
-            # The unsliced program can OOM in Z3 during RCFG construction even with 4GB.
-            # Prefer the internal SMT solver profile for the base ablation to keep it runnable on WSL.
-            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal.epf",
+            # Base side converges better with Z3 small-blocks than internal SMTInterpol.
+            # Using 8GB + small-block profile avoids long timeout tails on WSL.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
         Bench(
             name="DistCache spine cache_frequency idx",
@@ -522,8 +534,9 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=True,
             extra_args=[],
             notes="",
-            # Base run frequently OOMs under the low-memory Z3 profile.
-            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-no-por.epf",
+            # Base run is unstable under internal-no-por (frequent timeout after step-bound fix);
+            # use 8GB + small-block profile to keep base side runnable on WSL.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
         Bench(
             name="DDOSD: window label collision (NSDI)",
@@ -546,7 +559,7 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=True,
-            extra_args=[],
+            extra_args=["--no-slicing-control-seeds"],
             notes="",
         ),
         Bench(
@@ -608,7 +621,7 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 900),
             use_spec_max_steps=True,
-            extra_args=[],
+            extra_args=["--no-reg-debug"],
             notes="",
         ),
         Bench(
@@ -619,7 +632,7 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=True,
-            extra_args=[],
+            extra_args=["--no-reg-debug"],
             notes="",
         ),
         Bench(
@@ -643,7 +656,7 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=True,
-            extra_args=[],
+            extra_args=["--no-reg-debug"],
             notes="",
         ),
         Bench(
@@ -676,7 +689,7 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=False,
-            extra_args=[],
+            extra_args=["--no-slicing-control-seeds"],
             notes="",
             # Base run tends to OOM under the 2GB/4GB Z3 profiles; prefer the 8GB profile first.
             base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf",
@@ -691,8 +704,8 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=False,
             extra_args=["--max-steps", "3", "--no-slicing-control-seeds"],
             notes="",
-            # Base run tends to OOM under the 2GB/4GB Z3 profiles; prefer the 8GB profile first.
-            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf",
+            # Base run OOMs on low-memory profile; 8GB small-blocks is required for stable UNSAFE witness.
+            base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
         Bench(
             name="NetLock: release counter underflow",
@@ -742,7 +755,12 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=False,
-            extra_args=["--max-steps", "3"],
+            extra_args=[
+                "--max-steps",
+                "3",
+                "--no-slicing-control-seeds",
+                "--no-reg-debug",
+            ],
             notes="",
         ),
         Bench(
@@ -753,7 +771,12 @@ def main(argv: list[str]) -> int:
             wraparound="off",
             timeout_s=max(ns.timeout, 600),
             use_spec_max_steps=False,
-            extra_args=["--max-steps", "3"],
+            extra_args=[
+                "--max-steps",
+                "3",
+                "--no-slicing-control-seeds",
+                "--no-reg-debug",
+            ],
             notes="",
         ),
     ]

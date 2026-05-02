@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from dslc.utils.exec import wrap_resource_limits
+from dslc.toolchain.ultimate_paths import resolve_ultimate_asset_path
 
 
 @dataclass(frozen=True)
@@ -165,6 +166,9 @@ def run_ultimate(
 
     if not ultimate.exists():
         raise FileNotFoundError(f"Ultimate executable not found: {ultimate}")
+    toolchain = resolve_ultimate_asset_path(toolchain)
+    settings = resolve_ultimate_asset_path(settings)
+
     if not toolchain.exists():
         raise FileNotFoundError(f"Ultimate toolchain not found: {toolchain}")
     if not settings.exists():
