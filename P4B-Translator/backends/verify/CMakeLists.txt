@@ -12,40 +12,62 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/translate/version.h.cmake"
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/translate/cmake/version.h.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/translate/version.h" @ONLY)
 
 set (P4VERIFY_BACKEND_VERIFY_SRCS
   bpl_verify/main.cpp
+  bpl_verify/frontend.h
+  bpl_verify/frontend.cpp
+  bpl_verify/pipeline.h
+  bpl_verify/pipeline.cpp
+  analysis/index_defs.h
+  analysis/index_defs.cpp
   analysis/monotonic.h
   analysis/monotonic.cpp
+  slicing/collectors/register_decl.h
+  slicing/collectors/register_decl.cpp
   slicing/slicer.cpp
+  slicing/slicer_apply.cpp
+  slicing/slicer_dot.cpp
   slicing/slicer.h
+  slicing/slicer_selftest.cpp
+  slicing/slicer_selftest.h
 )
 add_cpplint_files (${CMAKE_CURRENT_SOURCE_DIR} "${P4VERIFY_BACKEND_VERIFY_SRCS}")
 
 set (P4VERIFY_BACKEND_TRANSLATE_SRCS
   translate/options.h
   translate/translate.h
-  translate/translate.cpp
+  translate/impl/core/translate.cpp
+  translate/impl/lowering/translate_program.cpp
+  translate/impl/lowering/translate_statement.cpp
+  translate/impl/lowering/translate_expression.cpp
+  translate/impl/lowering/translate_method.cpp
+  translate/impl/lowering/translate_type.cpp
+  translate/impl/lowering/translate_operator.cpp
+  translate/impl/lowering/translate_bitblast.cpp
+  translate/impl/lowering/translate_table.cpp
+  translate/impl/meta/meta_emit.cpp
   translate/analyzer.h
-  translate/analyzer.cpp
+  translate/impl/support/analyzer.cpp
   translate/boogie_procedure.h
-  translate/boogie_procedure.cpp
+  translate/impl/support/boogie_procedure.cpp
   translate/boogie_statement.h
-  translate/boogie_statement.cpp
+  translate/impl/support/boogie_statement.cpp
   translate/bmv2.h
-  translate/bmv2.cpp
+  translate/impl/support/bmv2.cpp
   translate/p4ltl_utils.h
-  translate/p4ltl_utils.cpp
+  translate/impl/support/p4ltl_utils.cpp
   translate/utils.h
-  translate/utils.cpp
+  translate/impl/support/utils.cpp
 )
 add_cpplint_files (${CMAKE_CURRENT_SOURCE_DIR} "${P4VERIFY_BACKEND_TRANSLATE_SRCS}")
 
 
 build_unified(P4VERIFY_BACKEND_TRANSLATE_SRCS)
 add_library(verifybackend ${P4VERIFY_BACKEND_TRANSLATE_SRCS})
+target_include_directories(verifybackend PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/translate)
 add_dependencies(verifybackend genIR frontend)
 
 build_unified(P4VERIFY_BACKEND_VERIFY_SRCS)

@@ -9,6 +9,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "frontends/common/resolveReferences/referenceMap.h"
+#include "frontends/p4/typeMap.h"
 #include "ir/ir.h"
 #include "lib/cstring.h"
 
@@ -35,6 +37,7 @@ struct SliceResult {
     std::unordered_set<int> keepStatementIds;
     std::unordered_set<cstring> keepVarNames;
     std::unordered_set<cstring> keepTables;
+    bool filterTables = false;
     std::map<cstring, int> regMaxIndex;
     std::set<cstring> regHasNonConst;
     bool hasRecirculation = false;
@@ -57,7 +60,8 @@ class Slicer {
 const IR::P4Program* applySlice(const IR::P4Program* program,
                                 const std::unordered_set<int>& keepStatementIds,
                                 P4::ReferenceMap* refMap = nullptr,
-                                const std::unordered_set<cstring>* keepVarNames = nullptr);
+                                const std::unordered_set<cstring>* keepVarNames = nullptr,
+                                bool pruneEmptySlice = false);
 
 }  // namespace P4Verify
 

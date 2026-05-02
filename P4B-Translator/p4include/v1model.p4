@@ -595,6 +595,15 @@ extern void recirculate<T>(in T data);
 extern void clone(in CloneType type, in bit<32> session);
 
 /***
+ * Older BMv2 v1model programs use clone_preserving_field_list instead of
+ * clone3.  The third argument is a field-list index naming preserved metadata.
+ * The verifier currently tracks clone direction but not preserved metadata, so
+ * declaring this legacy helper lets such programs type-check while the
+ * translator handles it with the same clone flag abstraction as clone/clone3.
+ */
+extern void clone_preserving_field_list(in CloneType type, in bit<32> session, in bit<32> field_list);
+
+/***
  * Calling clone3 during execution of the ingress or egress control
  * will cause the packet to be cloned, sometimes also called
  * mirroring, i.e. zero or more copies of the packet are made, and

@@ -273,7 +273,7 @@ static bool isRegisterInstance(const IR::Declaration_Instance* inst) {
         return false;
     }
     std::string base = toLower(baseTypeName(inst->type));
-    return base.find("register") != std::string::npos;
+    return base == "register";
 }
 
 static std::string controlPlaneNameOrEmpty(const IR::IDeclaration* decl) {
@@ -292,6 +292,15 @@ struct UpdateInfo {
     bool delta_is_const = false;
     std::string delta_const_dec;
     bool delta_is_odd = false;
+};
+
+struct RegisterActionSummary {
+    std::string reg_name;
+    std::string action_boogie_name;
+    UpdateInfo update;
+    int value_width = -1;
+    int index_width = 32;
+    bool direct = false;
 };
 
 static bool containsVarPath(const IR::Expression* expr, const IR::Expression* needle) {
@@ -410,10 +419,11 @@ static void dedupAndAppendRegisterInfo(P4VerifyOptions* options, const RegInfo& 
     options->wraparound_registers.push_back(out);
 }
 
-static void collectActionUpdates(const IR::P4Action* action,
-                                 const std::unordered_map<std::string, RegInfo>& regs,
-                                 P4VerifyOptions* options) {
-    if (action == nullptr || action->body == nullptr || options == nullptr) {
+static void collectAffineRegisterWrites(const IR::Statement* body,
+                                        const std::string& context,
+                                        const std::unordered_map<std::string, RegInfo>& regs,
+                                        P4VerifyOptions* options) {
+    if (body == nullptr || options == nullptr) {
         return;
     }
 
@@ -600,13 +610,304 @@ static void collectActionUpdates(const IR::P4Action* action,
             }
             upd.value_width = regInfo.value_width;
             upd.index_width = regInfo.index_width;
-            upd.context = action->name.toString();
+            upd.context = cstring(context);
             options->wraparound_updates.push_back(upd);
             return;
         }
     };
 
-    visitStmt(action->body);
+    visitStmt(body);
+}
+
+static void collectActionUpdates(const IR::P4Action* action,
+                                 const std::unordered_map<std::string, RegInfo>& regs,
+                                 P4VerifyOptions* options) {
+    if (action == nullptr || action->body == nullptr || options == nullptr) {
+        return;
+    }
+    collectAffineRegisterWrites(action->body, std::string(action->name.toString().c_str()), regs, options);
+}
+
+static const IR::Function* findMonotonicRegisterActionApply(const IR::Declaration_Instance* inst) {
+    if (inst == nullptr || inst->initializer == nullptr) {
+        return nullptr;
+    }
+    if (auto block = inst->initializer->to<IR::BlockStatement>()) {
+        for (auto comp : block->components) {
+            if (auto func = comp->to<IR::Function>()) {
+                if (func->name == "apply") {
+                    return func;
+                }
+            }
+        }
+    }
+    return nullptr;
+}
+
+static bool isRegisterActionInstance(const IR::Declaration_Instance* inst, bool& direct) {
+    direct = false;
+    if (inst == nullptr || inst->type == nullptr) {
+        return false;
+    }
+    std::string base = baseTypeName(inst->type);
+    if (base == "DirectRegisterAction") {
+        direct = true;
+        return true;
+    }
+    if (base == "RegisterAction") {
+        return true;
+    }
+    return false;
+}
+
+static bool summarizeRegisterAction(const IR::Declaration_Instance* inst,
+                                    RegisterActionSummary& out) {
+    bool direct = false;
+    if (!isRegisterActionInstance(inst, direct)) {
+        return false;
+    }
+    if (inst->arguments == nullptr || inst->arguments->empty()) {
+        return false;
+    }
+    const IR::Expression* regExpr = (*inst->arguments)[0]->expression;
+    if (!extractVarPath(regExpr, out.reg_name) || out.reg_name.empty()) {
+        return false;
+    }
+    const auto dot = out.reg_name.find_last_of('.');
+    if (dot != std::string::npos) {
+        out.reg_name = out.reg_name.substr(dot + 1);
+    }
+
+    out.direct = direct;
+    if (auto typeSpec = inst->type->to<IR::Type_Specialized>()) {
+        if (typeSpec->arguments != nullptr) {
+            if (typeSpec->arguments->size() >= 1) {
+                out.value_width = typeBitWidth((*typeSpec->arguments)[0]);
+            }
+            if (typeSpec->arguments->size() >= 2) {
+                int w = typeBitWidth((*typeSpec->arguments)[1]);
+                if (w > 0) {
+                    out.index_width = w;
+                }
+            }
+        }
+    }
+
+    const IR::Function* apply = findMonotonicRegisterActionApply(inst);
+    if (apply == nullptr || apply->type == nullptr || apply->type->parameters == nullptr ||
+        apply->body == nullptr || apply->type->parameters->parameters.empty()) {
+        return false;
+    }
+    const auto* valueParam = apply->type->parameters->parameters.at(0);
+    if (valueParam == nullptr) {
+        return false;
+    }
+    const std::string valueParamName = valueParam->name.name.c_str();
+    if (valueParamName.empty()) {
+        return false;
+    }
+
+    bool found = false;
+    std::function<void(const IR::Statement*)> visitStmt = [&](const IR::Statement* stmt) {
+        if (stmt == nullptr || found) {
+            return;
+        }
+        if (auto block = stmt->to<IR::BlockStatement>()) {
+            for (auto comp : block->components) {
+                if (auto s = comp->to<IR::Statement>()) {
+                    visitStmt(s);
+                    if (found) {
+                        return;
+                    }
+                }
+            }
+            return;
+        }
+        if (auto ifs = stmt->to<IR::IfStatement>()) {
+            visitStmt(ifs->ifTrue);
+            visitStmt(ifs->ifFalse);
+            return;
+        }
+        if (auto sw = stmt->to<IR::SwitchStatement>()) {
+            for (auto c : sw->cases) {
+                if (c && c->statement) {
+                    visitStmt(c->statement);
+                    if (found) {
+                        return;
+                    }
+                }
+            }
+            return;
+        }
+        if (auto as = stmt->to<IR::AssignmentStatement>()) {
+            std::string lhsVar;
+            if (!extractVarPath(as->left, lhsVar) || lhsVar != valueParamName) {
+                return;
+            }
+            UpdateInfo ui;
+            if (matchAffineSelfUpdate(as->left, as->right, ui)) {
+                out.update = ui;
+                found = true;
+            }
+        }
+    };
+    visitStmt(apply->body);
+    return found;
+}
+
+static void addRegisterActionSummaryAliases(
+    std::unordered_map<std::string, RegisterActionSummary>& summaries,
+    const IR::Declaration_Instance* inst,
+    const RegisterActionSummary& summary) {
+    if (inst == nullptr) {
+        return;
+    }
+    RegisterActionSummary canonical = summary;
+    std::string cp = controlPlaneNameOrEmpty(inst);
+    if (!cp.empty()) {
+        canonical.action_boogie_name = sanitizeDeclName(cp);
+    }
+    if (canonical.action_boogie_name.empty()) {
+        canonical.action_boogie_name = inst->name.name.c_str();
+    }
+
+    auto add = [&](const std::string& name) {
+        if (!name.empty()) {
+            summaries[name] = canonical;
+            if (name.size() > 2 && name.rfind("_0") == name.size() - 2) {
+                summaries[name.substr(0, name.size() - 2)] = canonical;
+            }
+        }
+    };
+
+    add(inst->name.name.c_str());
+
+    if (!cp.empty()) {
+        std::string sanitized = sanitizeDeclName(cp);
+        add(sanitized);
+        const auto dot = cp.find_last_of('.');
+        if (dot != std::string::npos && dot + 1 < cp.size()) {
+            add(cp.substr(dot + 1));
+        }
+        const auto us = sanitized.find_last_of('_');
+        if (us != std::string::npos && us + 1 < sanitized.size()) {
+            add(sanitized.substr(us + 1));
+        }
+    }
+}
+
+static void emitRegisterActionExecuteUpdates(
+    const IR::P4Control* control,
+    const std::unordered_map<std::string, RegInfo>& regs,
+    const std::unordered_map<std::string, RegisterActionSummary>& summaries,
+    P4VerifyOptions* options) {
+    if (control == nullptr || options == nullptr || summaries.empty()) {
+        return;
+    }
+
+    std::unordered_set<std::string> emitted;
+
+    class ExecuteCollector : public Inspector {
+     public:
+        const std::unordered_map<std::string, RegInfo>* regs;
+        const std::unordered_map<std::string, RegisterActionSummary>* summaries;
+        P4VerifyOptions* options;
+        std::unordered_set<std::string>* emitted;
+        explicit ExecuteCollector(const std::unordered_map<std::string, RegInfo>* r,
+                                  const std::unordered_map<std::string, RegisterActionSummary>* s,
+                                  P4VerifyOptions* opt,
+                                  std::unordered_set<std::string>* e)
+            : regs(r), summaries(s), options(opt), emitted(e) {}
+
+        bool preorder(const IR::MethodCallExpression* mce) override {
+            if (mce == nullptr || mce->method == nullptr || regs == nullptr ||
+                summaries == nullptr || options == nullptr || emitted == nullptr) {
+                return false;
+            }
+            auto member = mce->method->to<IR::Member>();
+            if (member == nullptr || (member->member != "execute" && member->member != "execute_log")) {
+                return true;
+            }
+            std::string actionName;
+            if (!extractVarPath(member->expr, actionName) || actionName.empty()) {
+                return true;
+            }
+            const auto dot = actionName.find_last_of('.');
+            if (dot != std::string::npos) {
+                actionName = actionName.substr(dot + 1);
+            }
+            auto itSummary = summaries->find(actionName);
+            if (itSummary == summaries->end() && actionName.size() > 2 &&
+                actionName.rfind("_0") == actionName.size() - 2) {
+                itSummary = summaries->find(actionName.substr(0, actionName.size() - 2));
+            }
+            if (itSummary == summaries->end()) {
+                return true;
+            }
+            const RegisterActionSummary& summary = itSummary->second;
+            auto itReg = regs->find(summary.reg_name);
+            if (itReg == regs->end()) {
+                return true;
+            }
+
+            const IR::Expression* idxExpr = nullptr;
+            if (!summary.direct) {
+                if (mce->arguments == nullptr || mce->arguments->empty()) {
+                    return true;
+                }
+                idxExpr = (*mce->arguments)[0]->expression;
+            }
+            if (idxExpr == nullptr) {
+                return true;
+            }
+
+            std::unordered_set<std::string> idxVars;
+            collectVarPaths(idxExpr, idxVars);
+            std::vector<std::string> idxVarsSorted(idxVars.begin(), idxVars.end());
+            std::sort(idxVarsSorted.begin(), idxVarsSorted.end());
+
+            int idxConst = -1;
+            (void)isConstIndex(idxExpr, idxConst);
+            std::string idxExprStr;
+            const bool hasIdxExpr = extractBvExprString(idxExpr, idxExprStr);
+
+            const auto& regInfo = itReg->second;
+            std::string valueBase = summary.action_boogie_name.empty() ? actionName : summary.action_boogie_name;
+            std::string valueVar = "__ra_ret_" + valueBase;
+            std::string key = regInfo.boogie_name + "|" + actionName + "|" + idxExprStr +
+                "|" + summary.update.op + "|" + summary.update.delta_const_dec;
+            if (emitted->count(key) > 0) {
+                return true;
+            }
+            emitted->insert(key);
+
+            P4VerifyOptions::WraparoundUpdate upd;
+            upd.reg_internal = cstring(regInfo.internal_name);
+            upd.reg_boogie = cstring(regInfo.boogie_name);
+            for (const auto& v : idxVarsSorted) {
+                upd.idx_vars.push_back(cstring(v));
+            }
+            upd.idx_const = idxConst;
+            if (hasIdxExpr) {
+                upd.idx_expr = cstring(idxExprStr);
+            }
+            upd.value_var = cstring(valueVar);
+            upd.op = cstring(summary.update.op);
+            upd.delta_is_const = summary.update.delta_is_const;
+            if (summary.update.delta_is_const) {
+                upd.delta_const = cstring(summary.update.delta_const_dec);
+                upd.delta_is_odd = summary.update.delta_is_odd;
+            }
+            upd.value_width = regInfo.value_width > 0 ? regInfo.value_width : summary.value_width;
+            upd.index_width = regInfo.index_width > 0 ? regInfo.index_width : summary.index_width;
+            upd.context = cstring(actionName);
+            options->wraparound_updates.push_back(upd);
+            return true;
+        }
+    };
+
+    ExecuteCollector collector(&regs, &summaries, options, &emitted);
+    control->apply(collector);
 }
 
 }  // namespace
@@ -669,7 +970,54 @@ void analyzeWraparoundMonotonicity(const IR::P4Program* program,
     RegCollector rc(&regs, &usedTargets, options);
     program->apply(rc);
 
-    // 2) Scan actions for affine self-updates that are written back to registers.
+    // 2) Summarize TNA RegisterAction bodies, then scan controls for execute(index).
+    // This covers programs like Flowrest/ETC where the read-modify-write is encoded
+    // as `RegisterAction(reg).apply(inout x) { x = x + k; ... }` plus `ra.execute(idx)`.
+    std::unordered_map<std::string, RegisterActionSummary> registerActionSummaries;
+    class RegisterActionCollector : public Inspector {
+     public:
+        std::unordered_map<std::string, RegisterActionSummary>* summaries;
+        explicit RegisterActionCollector(std::unordered_map<std::string, RegisterActionSummary>* s)
+            : summaries(s) {}
+        bool preorder(const IR::Declaration_Instance* inst) override {
+            if (summaries == nullptr) {
+                return false;
+            }
+            RegisterActionSummary summary;
+            if (!summarizeRegisterAction(inst, summary)) {
+                return false;
+            }
+            addRegisterActionSummaryAliases(*summaries, inst, summary);
+            return false;
+        }
+    };
+
+    RegisterActionCollector rac(&registerActionSummaries);
+    program->apply(rac);
+
+    class ControlCollector : public Inspector {
+     public:
+        const std::unordered_map<std::string, RegInfo>* regs;
+        const std::unordered_map<std::string, RegisterActionSummary>* summaries;
+        P4VerifyOptions* options;
+        explicit ControlCollector(const std::unordered_map<std::string, RegInfo>* r,
+                                  const std::unordered_map<std::string, RegisterActionSummary>* s,
+                                  P4VerifyOptions* opt)
+            : regs(r), summaries(s), options(opt) {}
+        bool preorder(const IR::P4Control* control) override {
+            if (regs && summaries && options) {
+                emitRegisterActionExecuteUpdates(control, *regs, *summaries, options);
+            }
+            return true;
+        }
+    };
+
+    ControlCollector cc(&regs, &registerActionSummaries, options);
+    program->apply(cc);
+
+    // 3) Scan ordinary actions and control apply blocks for affine self-updates that are
+    // written back to registers.  Some v1model programs perform read-modify-write
+    // directly in `apply` instead of wrapping it in an action.
     class ActionCollector : public Inspector {
      public:
         const std::unordered_map<std::string, RegInfo>* regs;
@@ -687,6 +1035,24 @@ void analyzeWraparoundMonotonicity(const IR::P4Program* program,
 
     ActionCollector ac(&regs, options);
     program->apply(ac);
+
+    class ControlApplyCollector : public Inspector {
+     public:
+        const std::unordered_map<std::string, RegInfo>* regs;
+        P4VerifyOptions* options;
+        explicit ControlApplyCollector(const std::unordered_map<std::string, RegInfo>* r,
+                                       P4VerifyOptions* opt)
+            : regs(r), options(opt) {}
+        bool preorder(const IR::P4Control* control) override {
+            if (regs && options && control != nullptr && control->body != nullptr) {
+                collectAffineRegisterWrites(control->body, std::string(control->name.toString().c_str()), *regs, options);
+            }
+            return true;
+        }
+    };
+
+    ControlApplyCollector cac(&regs, options);
+    program->apply(cac);
 }
 
 }  // namespace P4Verify

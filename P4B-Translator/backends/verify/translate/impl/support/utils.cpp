@@ -17,7 +17,19 @@ bool isNumber(cstring str){
 	return isNumber(std::string(str.c_str()));
 }
 
-bool isSame(std::string s1, std::string s2){
+static std::string stripNumericSuffix(const std::string& s) {
+	const std::string::size_type pos = s.rfind('_');
+	if (pos == std::string::npos || pos + 1 >= s.size()) {
+		return s;
+	}
+	const std::string suffix = s.substr(pos + 1);
+	if (!isNumber(suffix)) {
+		return s;
+	}
+	return s.substr(0, pos);
+}
+
+static bool isSameCore(std::string s1, std::string s2){
 	if(s1.size() < s2.size()){
 		cstring tmp = s1;
 		s1 = s2;
@@ -53,41 +65,26 @@ bool isSame(std::string s1, std::string s2){
 	return false;
 }
 
-bool isSame(cstring s1, cstring s2){
-	if(s1.size() < s2.size()){
-		cstring tmp = s1;
-		s1 = s2;
-		s2 = tmp;
-	}
-	if(s1 == s2){
+bool isSame(std::string s1, std::string s2){
+	const std::string s1Stripped = stripNumericSuffix(s1);
+	const std::string s2Stripped = stripNumericSuffix(s2);
+	if (isSameCore(s1, s2)) {
 		return true;
 	}
-	else {
-		std::string s = s1.c_str();
-		std::string t = s2.c_str();
-		if(s.find(t) == std::string::npos){
-			return false;
-		}
-
-		// 1) Allow a control/namespace prefix, e.g. `Ingress_tbl` vs `tbl`.
-		if(s.size() > t.size() && s.compare(s.size() - t.size(), t.size(), t) == 0){
-			const char prev = s[s.size() - t.size() - 1];
-			if(prev == '_'){
-				return true;
-			}
-		}
-
-		// 2) Allow numeric suffixes, e.g. `tbl_0` vs `tbl`.
-		const std::string needle = t + "_";
-		const std::string::size_type pos = s.find(needle);
-		if(pos != std::string::npos){
-			const std::string::size_type idx = pos + needle.size();
-			if(idx < s.size() && isNumber(s.substr(idx))){
-				return true;
-			}
-		}
+	if ((s1Stripped != s1) && isSameCore(s1Stripped, s2)) {
+		return true;
+	}
+	if ((s2Stripped != s2) && isSameCore(s1, s2Stripped)) {
+		return true;
+	}
+	if ((s1Stripped != s1 || s2Stripped != s2) && isSameCore(s1Stripped, s2Stripped)) {
+		return true;
 	}
 	return false;
+}
+
+bool isSame(cstring s1, cstring s2){
+	return isSame(std::string(s1.c_str()), std::string(s2.c_str()));
 }
 
 int TempVariable::cnt = 0;

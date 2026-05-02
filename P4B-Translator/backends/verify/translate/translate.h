@@ -42,6 +42,10 @@ private:
     std::map<cstring, std::map<cstring, std::pair<int, int>>> structFieldRanges;
 	std::map<cstring, const IR::P4Action*> actions;
     std::map<cstring, const IR::P4Table*> tables;
+	// Effective action parameter directions keyed by translated action name.
+	// Workaround: some p4c pipelines drop out/inout directions on actions even when the
+	// source uses them, but the action body still assigns to those parameters.
+	std::unordered_map<cstring, std::vector<IR::Direction>> actionParamDirections;
     std::map<cstring, int> typeDefs;
     std::map<cstring, std::map<cstring, cstring>> procParamStructTypes;
 
@@ -52,12 +56,25 @@ private:
 	std::set<cstring> globalVariables;
 	// Best-effort: boogie var declarations (name -> type string as emitted in Boogie)
 	std::map<cstring, cstring> varTypes;
+	// Effective register domain sizes after slicing/index pruning (name -> number of slots).
+	std::map<cstring, int> registerDomainSizes;
 	std::unordered_set<cstring> emittedVarDecls;
 	std::unordered_set<cstring> emittedTypeDecls;
 	std::map<cstring, const IR::Type*> declVarTypes;
 	// Map internal declaration names to sanitized control-plane names (e.g., from @name).
 	std::map<cstring, cstring> declRenames;
 	std::unordered_set<cstring> declRenameTargets;
+	// Hash<W> extern instances keyed by translated instance name, with their
+	// Boogie return type (e.g. Hash<bit<11>> idx -> bv11).  Hash.get must stay a
+	// pure function of its data tuple; do not generalize this to arbitrary
+	// extern .get methods.
+	std::map<cstring, cstring> hashExternReturnTypes;
+	struct RandomExternInfo {
+		cstring retType;
+		cstring lo;
+		cstring hi;
+	};
+	std::map<cstring, RandomExternInfo> randomExterns;
 	BoogieProcedure* currentProcedure=nullptr;
 	cstring deparser=nullptr;
 	// options
@@ -77,6 +94,7 @@ private:
 	cstring inferBoogieType(const IR::Type *type, cstring exprText);
 	cstring getOrCreateUnusedVar(cstring typeName);
 	cstring getOrCreateNamedVar(const std::string& name, cstring typeName);
+	cstring getOrCreateFreshVar(const std::string& prefix, cstring typeName);
 	int getTypeBitwidth(const IR::Type *type);
 	void ensureStructLayout(const IR::Type_Struct *typeStruct);
 	bool getStructFieldRange(const IR::Expression *baseExpr, const cstring &field,
@@ -100,7 +118,9 @@ private:
 	std::set<cstring> forcedKeepVars;
 	std::unordered_set<cstring> usedVars;
 	cstring currentReturnVar;
+	int freshVarCount = 0;
 	bool inParser = false;
+	std::set<cstring> parserLocalVars;
 
 	std::map<cstring, std::vector<P4LTL::AstNode*>> p4ltlSpec;
 	P4LTLTranslator* ltlTranslator;
@@ -130,6 +150,8 @@ public:
 	void addFunction(cstring op, cstring opbuiltin, cstring typeName, cstring returnType);
 	void addFunction(cstring funcName, cstring func);
 	void analyzeProgram(const IR::P4Program *program);
+	void recordHashExtern(const IR::Declaration_Instance* instance, cstring name);
+	void recordRandomExtern(const IR::Declaration_Instance* instance, cstring name);
 	const IR::Function* findRegisterActionApply(const IR::Declaration_Instance* instance) const;
 	void translateRegisterActionApply(const IR::Function* func, const cstring& procName);
 	cstring remapName(cstring name) const;
@@ -144,6 +166,7 @@ public:
 	void addGlobalVariables(cstring variable);
 	bool isGlobalVariable(cstring variable);
 	void updateModifiedVariables(cstring variable);
+	void addRegisterWriteModifiedVariables(const cstring& regName);
 	void addPred(cstring proc, cstring predProc);
 
 	// P4LTL Specification

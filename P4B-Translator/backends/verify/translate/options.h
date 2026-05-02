@@ -42,6 +42,7 @@ class P4VerifyOptions : public CompilerOptions {
     bool tna = false;
 
     std::vector<cstring> slicingVarNames;
+    std::vector<cstring> slicingKeepVarNames;
     bool slicingEnabled = false;
     bool slicingDebug = false;
     cstring slicingDotDir = nullptr;
@@ -49,6 +50,7 @@ class P4VerifyOptions : public CompilerOptions {
     cstring slicingSelftestCase = nullptr;
     std::unordered_set<cstring> slicingKeepVars;
     std::unordered_set<cstring> slicingKeepTables;
+    bool slicingFilterTables = false;
     std::map<cstring, int> slicingRegMaxIndex;
     std::set<cstring> slicingRegHasNonConst;
     bool slicingRegPrune = true;
@@ -81,9 +83,24 @@ class P4VerifyOptions : public CompilerOptions {
         cstring context = nullptr;        // action/control name (best-effort)
     };
 
+    struct IndexDefinition {
+        cstring target_var = nullptr;      // dotted P4-local target (e.g., meta.register_index)
+        cstring expr = nullptr;            // best-effort Boogie expression in P4-local namespace
+        std::vector<cstring> deps;         // dotted source variables referenced by expr
+        cstring context = nullptr;         // action/control/parser name (best-effort)
+    };
+
+    struct FailFastRegisterAssert {
+        cstring reg_boogie = nullptr;
+        cstring mode = nullptr;             // "any" | "slot0"
+        cstring constant = nullptr;         // typed Boogie literal, e.g. 0bv16
+    };
+
     // Post-slicing analysis results (filled by analysis passes, emitted via --meta-out).
     std::vector<WraparoundRegisterInfo> wraparound_registers;
     std::vector<WraparoundUpdate> wraparound_updates;
+    std::vector<IndexDefinition> index_definitions;
+    std::vector<FailFastRegisterAssert> fail_fast_register_asserts;
 
     P4VerifyOptions() {
         registerOption("--translate-only", nullptr,
@@ -229,6 +246,34 @@ class P4VerifyOptions : public CompilerOptions {
                            return true;
                        },
                        "Comma-separated list of variables for slicing.");
+
+        registerOption("--slicing-keep-vars", "vars",
+                       [this](const char* arg) {
+                           auto parts = split(std::string(arg), ",");
+                           for (auto &p : parts) {
+                               slicingKeepVarNames.emplace_back(p);
+                           }
+                           return true;
+                       },
+                       "Comma-separated variables to keep in sliced output without using them as slicing roots.");
+
+        registerOption("--fail-fast-register-assert", "reg:mode:constant",
+                       [this](const char* arg) {
+                           auto parts = split(std::string(arg), ":");
+                           if (parts.size() != 3) {
+                               return false;
+                           }
+                           FailFastRegisterAssert item;
+                           item.reg_boogie = parts[0].c_str();
+                           item.mode = parts[1].c_str();
+                           item.constant = parts[2].c_str();
+                           if (item.mode != "any" && item.mode != "slot0") {
+                               return false;
+                           }
+                           fail_fast_register_asserts.push_back(item);
+                           return true;
+                       },
+                       "Add an immediate mirror-only assertion after register writes (reg:any|slot0:typed_literal).");
 
         registerOption("--no-slicing", nullptr,
                        [this](const char*) {
