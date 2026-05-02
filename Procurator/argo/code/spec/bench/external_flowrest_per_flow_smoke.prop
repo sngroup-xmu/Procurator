@@ -1,0 +1,42 @@
+// External candidate: Flowrest INFOCOM 2023 per-flow Random Forest inference.
+//
+// Source project: https://github.com/nds-group/Flowrest
+// The P4 files are copied into dataset/external_flowrest_per_flow without source
+// edits. Unsupported TNA/Tofino syntax must be handled in P4B rather than by
+// rewriting the dataset.
+
+import flowrest from "../../dataset/external_flowrest_per_flow/unsw_per_flow_16_classes.p4";
+
+topology {}
+
+node flowrest {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+    hdr.recirc.valid == false;
+
+    hdr.ethernet.ether_type == 2048; // TYPE_IPV4
+    hdr.ipv4.protocol == 6;          // TCP
+    hdr.ipv4.total_len == 64;
+    hdr.ipv4.src_addr == 167772161;  // 10.0.0.1
+    hdr.ipv4.dst_addr == 167772162;  // 10.0.0.2
+    hdr.tcp.src_port == 1234;
+    hdr.tcp.dst_port == 443;
+    meta.hdr_srcport == 1234;
+    meta.hdr_dstport == 443;
+    ig_intr_md.resubmit_flag == 0;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  max_steps = 2;
+
+  assert {
+    flowrest_hdr.ipv4.valid == true;
+  };
+}

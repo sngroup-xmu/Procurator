@@ -1,0 +1,50 @@
+// External candidate: Montimage/inband-network-telemetry flow-dos switch-flow.
+//
+// Source project: https://github.com/Montimage/inband-network-telemetry
+// Program snapshot is copied into dataset/external_int_flowdos without source
+// edits. Legacy BMv2 helper syntax such as clone_preserving_field_list is
+// supported in P4B rather than shimmed in the dataset.
+//
+// Candidate bug shape:
+//   counter_filter is an 8-bit per-source register. Each IPv4 packet writes
+//   counter_val + 1, and the report branch resets the counter when the old
+//   counter_val >= 128. If the counter is fast-forwarded near 255, the +1
+//   wraps to 0 before the reset/report logic, exposing a wraparound state.
+
+import flowdos from "../../dataset/external_int_flowdos/switch-flow.p4";
+
+topology {}
+
+node flowdos {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+    hdr.ethernet.etherType == 2048; // IPv4
+    hdr.ipv4.protocol == 6;         // TCP
+
+    // Keep the hash key stable so the candidate register index is stable.
+    hdr.ipv4.srcAddr == 167772161;  // 10.0.0.1
+    hdr.ipv4.dstAddr == 167772162;  // 10.0.0.2
+    hdr.tcp.srcPort == 1234;
+    hdr.tcp.dstPort == 80;
+
+    // Avoid parser loops over TCP options.
+    hdr.tcp.dataOffset == 5;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+
+  // The property is intentionally written as a counter should not become zero
+  // after the wraparound confirm stage. The wraparound pipeline should prove
+  // replayability before fast-forwarding the counter.
+  assert {
+    !(flowdos_MyIngress_counter_filter__wrote_any
+      && flowdos_MyIngress_counter_filter__last_value == 0);
+  };
+}

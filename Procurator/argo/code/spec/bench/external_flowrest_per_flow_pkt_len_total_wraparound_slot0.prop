@@ -1,0 +1,48 @@
+// External candidate: Flowrest INFOCOM 2023 per-flow Random Forest inference.
+//
+// Slot-0 witness for the per-flow packet-length-total wraparound:
+//   reg_pkt_len_total is 16 bits.  For a flow whose hash/index resolves to
+//   slot 0, two 32768-byte packets write 0 to the accumulated-length feature.
+//
+// The assertion uses P4B's register write mirror for index 0, so a violation
+// must contain an actual slot-0 write of zero.  The external P4 source is kept
+// unchanged; the slot-0 restriction is a satisfiable witness shape, not a
+// dataset patch.
+
+import flowrest from "../../dataset/external_flowrest_per_flow/unsw_per_flow_16_classes.p4";
+
+topology {}
+
+node flowrest {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+    hdr.udp.valid == false;
+    hdr.recirc.valid == false;
+
+    hdr.ethernet.ether_type == 2048; // TYPE_IPV4
+    hdr.ipv4.protocol == 6;          // TCP
+    hdr.ipv4.total_len == 32768;     // two packets overflow the 16-bit total
+    hdr.ipv4.src_addr == 167772161;  // 10.0.0.1
+    hdr.ipv4.dst_addr == 167772162;  // 10.0.0.2
+    hdr.tcp.src_port == 1234;
+    hdr.tcp.dst_port == 443;
+
+    ig_intr_md.resubmit_flag == 0;
+    ig_prsr_md.global_tstamp == 1;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  max_steps = 4;
+
+  assert {
+    !(flowrest_Ingress_reg_pkt_len_total__wrote_index0
+      && flowrest_Ingress_reg_pkt_len_total__last0_value == 0);
+  };
+}
