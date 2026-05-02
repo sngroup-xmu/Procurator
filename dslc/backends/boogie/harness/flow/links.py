@@ -4,10 +4,10 @@ from typing import Dict, List, Optional
 
 from lark import Tree
 
-from ..speclang.model import NodeDecl
-from .boogie_common import dsl_is_simple_local_name, is_on_wire_packet_var, is_packet_var
-from .boogie_dsl import collect_dotted_vars
-from .boogie_errors import BoogieBackendError
+from .....speclang.model import NodeDecl
+from ...core.common import dsl_is_simple_local_name, is_on_wire_packet_var, is_packet_var
+from ...core.dsl import collect_dotted_vars
+from ...core.errors import BoogieBackendError
 
 _dsl_is_simple_local_name = dsl_is_simple_local_name
 _collect_dotted_vars = collect_dotted_vars

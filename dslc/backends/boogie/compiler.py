@@ -6,27 +6,37 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ..speclang.model import SpecModel
-from .boogie_bpl import (
+from lark import Tree
+
+from ...speclang.model import SpecModel
+from .core.bpl import (
     assert_no_missing_var_decls,
     assert_no_missing_type_decls,
     collect_input_vars_and_egress_type,
     filter_input_vars_by_usage,
     looks_like_bpl,
 )
-from .boogie_errors import BoogieBackendError
-from .boogie_harness import BoogieHarnessEmitter
-from .boogie_p4b import P4BTranslator
-from .boogie_pipeline import split_pipeline_stages
-from .boogie_prefix import BoogiePrefixer, dedup_bvbuiltin_decls, ultimate_rewrite_bvbuiltin_attrs
-from .boogie_registers import collect_register_arrays, instrument_register_writes
-from .boogie_seeds import build_slicing_plan
-from .boogie_common import is_packet_var, is_skipped_input_var
+from .core.common import is_packet_var, is_skipped_input_var
+from .core.errors import BoogieBackendError
+from .core.pipeline import split_pipeline_stages
+from .core.prefix import BoogiePrefixer
+from .harness import BoogieHarnessEmitter
+from .merge import merge_boogie_program
+from .node.p4b import P4BTranslator
+from .node.registers import (
+    assert_complete_register_write_mirrors,
+    backfill_legacy_register_write_mirrors,
+    collect_register_arrays,
+    find_unmarked_register_arrays,
+)
+from .node.seeds import build_slicing_plan
+from .profile import BackendCompileProfile
 
 
 @dataclass(frozen=True)
 class _BoogieNodeInfo:
     raw_bpl: str
+    source_kind: str
     input_vars: List[str]
     egress_port_type: str
     egress_port_var: str
@@ -120,31 +130,52 @@ class BoogieBackend:
         max_steps: Optional[int] = None,
         honor_spec_max_steps: bool = False,
         emit_reg_debug: bool = True,
+        skip_duplicated_fail_fast_global_asserts: bool = False,
     ) -> Path:
         boogie_harness = boogie_harness.lower().strip()
         if boogie_harness not in {"concurrent", "sequential"}:
             raise BoogieBackendError(f"unsupported boogie harness: {boogie_harness}")
 
+        prof = BackendCompileProfile(
+            boogie_harness=boogie_harness,
+            pipeline_two_stage=pipeline_two_stage,
+            enable_slicing=enable_slicing,
+            prune_env_inputs=prune_env_inputs,
+        )
+        prof_record = prof.record
+
         work_dir = work_dir or Path(str(out_bpl) + ".work")
         work_dir.mkdir(parents=True, exist_ok=True)
 
+        t_plan = prof.mark()
         slicing_plan = build_slicing_plan(
             spec,
             enable_slicing=enable_slicing,
             keep_control_seeds=keep_control_seeds,
         )
+        prof_record["build_slicing_plan_s"] = prof.elapsed_since(t_plan)
+        p4b_fail_fast_global_assert_indices: set[int] = set()
+        p4b_fail_fast_candidates: Dict[str, List[tuple[str, int]]] = {}
 
         node_info: Dict[str, _BoogieNodeInfo] = {}
 
         # 1) Load or compile each imported unit into raw Boogie
         for alias, imp in spec.imports.items():
+            node_prof: Dict[str, object] = {}
+            t_node_total = prof.mark()
             src_path = imp.path
             effective_slicing_vars = list(slicing_plan.slicing_vars.get(alias, []))
             p4b: Optional[P4BTranslator] = None
             raw_path: Optional[Path] = None
             meta_path: Optional[Path] = None
+            fail_fast_asserts: List[str] = []
+            fail_fast_pairs: List[tuple[str, int]] = []
+            p4b_keep_vars: List[str] = []
             if src_path.endswith(".bpl"):
+                t_load_raw = prof.mark()
                 raw_text = Path(src_path).read_text(encoding="utf-8", errors="replace")
+                node_prof["load_raw_bpl_s"] = prof.elapsed_since(t_load_raw)
+                source_kind = "legacy_bpl"
                 meta_obj: Optional[dict] = None
                 meta_candidates: List[Path] = []
                 src = Path(src_path)
@@ -167,12 +198,17 @@ class BoogieBackend:
                 raw_path = work_dir / f"{alias}.raw.bpl"
                 meta_path = work_dir / f"{alias}.meta.json"
                 p4b = P4BTranslator(self._p4b_bin)
+                fail_fast_asserts = _infer_fail_fast_register_asserts(spec, alias)
+                fail_fast_pairs = _infer_fail_fast_register_assert_pairs(spec, alias)
+                t_translate = prof.mark()
                 p4b.compile_to_bpl(
                     src_path,
                     str(raw_path),
                     imp.entries_path,
                     out_meta=str(meta_path),
                     slicing_vars=effective_slicing_vars,
+                    slicing_keep_vars=p4b_keep_vars,
+                    fail_fast_register_asserts=fail_fast_asserts,
                     disable_slicing=not enable_slicing,
                     # Keep P4B slicing control seeds that influence
                     # communication behavior (forward/drop/clone/recirc) by default.
@@ -183,11 +219,17 @@ class BoogieBackend:
                     # explicitly disable this for performance.
                     keep_control_seeds=keep_control_seeds,
                 )
+                node_prof["p4_to_bpl_s"] = prof.elapsed_since(t_translate)
+                t_read_raw = prof.mark()
                 raw_text = raw_path.read_text(encoding="utf-8", errors="replace")
+                node_prof["read_translated_bpl_s"] = prof.elapsed_since(t_read_raw)
                 try:
+                    t_meta = prof.mark()
                     meta_obj = json.loads(meta_path.read_text(encoding="utf-8"))
+                    node_prof["meta_json_load_s"] = prof.elapsed_since(t_meta)
                 except Exception:
                     meta_obj = None
+                source_kind = "p4b_generated"
 
             # Declare packet vars referenced by the DSL/spec so the merged program is well-typed.
             if not looks_like_bpl(raw_text):
@@ -198,7 +240,9 @@ class BoogieBackend:
 
             # Correctness: refuse ill-typed Boogie early (e.g., missing `type T;` for `var x:T;`).
             try:
+                t_typecheck = prof.mark()
                 assert_no_missing_type_decls(raw_text)
+                node_prof["type_decl_check_s"] = prof.elapsed_since(t_typecheck)
             except ValueError as e:
                 raise BoogieBackendError(f"Invalid Boogie for node '{alias}': {e}") from e
 
@@ -207,7 +251,9 @@ class BoogieBackend:
             # If slicing/translation left a dangling reference, it is a translator/slicer bug and
             # we must fail fast; otherwise we risk silently changing semantics.
             try:
+                t_varcheck = prof.mark()
                 assert_no_missing_var_decls(raw_text, required_vars=slicing_plan.required_packet_vars.get(alias, []))
+                node_prof["var_decl_check_s"] = prof.elapsed_since(t_varcheck)
             except ValueError as e:
                 retried = False
                 if enable_slicing and p4b is not None and raw_path is not None:
@@ -216,15 +262,17 @@ class BoogieBackend:
                         for v in slicing_plan.required_packet_vars.get(alias, [])
                         if is_packet_var(v) and not is_skipped_input_var(v)
                     ]
-                    fallback_slicing_vars = sorted(set(effective_slicing_vars) | set(required_packet))
-                    if fallback_slicing_vars != sorted(set(effective_slicing_vars)):
+                    fallback_keep_vars = sorted(set(p4b_keep_vars) | set(required_packet))
+                    if fallback_keep_vars != sorted(set(p4b_keep_vars)):
                         retried = True
                         p4b.compile_to_bpl(
                             src_path,
                             str(raw_path),
                             imp.entries_path,
                             out_meta=str(meta_path) if meta_path is not None else None,
-                            slicing_vars=fallback_slicing_vars,
+                            slicing_vars=effective_slicing_vars,
+                            slicing_keep_vars=fallback_keep_vars,
+                            fail_fast_register_asserts=fail_fast_asserts,
                             disable_slicing=False,
                             keep_control_seeds=keep_control_seeds,
                         )
@@ -234,7 +282,7 @@ class BoogieBackend:
                                 meta_obj = json.loads(meta_path.read_text(encoding="utf-8"))
                             except Exception:
                                 meta_obj = None
-                        effective_slicing_vars = fallback_slicing_vars
+                        p4b_keep_vars = fallback_keep_vars
                         try:
                             assert_no_missing_var_decls(
                                 raw_text, required_vars=slicing_plan.required_packet_vars.get(alias, [])
@@ -245,6 +293,11 @@ class BoogieBackend:
                             ) from e2
                 if not retried:
                     raise BoogieBackendError(f"Invalid Boogie for node '{alias}': {e}") from e
+
+            if skip_duplicated_fail_fast_global_asserts and fail_fast_pairs:
+                p4b_fail_fast_candidates[alias] = [
+                    (item, idx) for item, idx in fail_fast_pairs if _raw_bpl_has_fail_fast_register_assert(raw_text, item)
+                ]
 
             input_vars, egress_t, declared, var_types, egress_var, type_defs = collect_input_vars_and_egress_type(
                 raw_text
@@ -284,14 +337,17 @@ class BoogieBackend:
                     resolved = _resolve_declared_name(declared, req)
                     if resolved is not None:
                         force_keep.add(resolved)
+                t_env_prune = prof.mark()
                 input_vars = filter_input_vars_by_usage(
                     raw_text,
                     input_vars,
                     force_keep=sorted(force_keep),
                 )
+                node_prof["env_input_prune_s"] = prof.elapsed_since(t_env_prune)
 
             node_info[alias] = _BoogieNodeInfo(
                 raw_bpl=raw_text,
+                source_kind=source_kind,
                 input_vars=input_vars,
                 egress_port_type=egress_t,
                 egress_port_var=egress_var,
@@ -300,20 +356,51 @@ class BoogieBackend:
                 type_defs=type_defs,
                 meta=meta_obj,
             )
+            node_prof["node_total_s"] = prof.elapsed_since(t_node_total)
+            cast_nodes = prof_record.get("nodes")
+            if isinstance(cast_nodes, dict):
+                cast_nodes[alias] = node_prof
 
         # 2) Prefix each Boogie unit to avoid collisions
         node_prefixed: Dict[str, str] = {}
         node_main_modifies: Dict[str, set[str]] = {}
         node_register_arrays: Dict[str, Dict[str, tuple[str, str]]] = {}
+        t_prefix_all = prof.mark()
         for alias, info in node_info.items():
+            t_prefix = prof.mark()
             prefixed = BoogiePrefixer(alias).prefix_content(info.raw_bpl)
             regs = collect_register_arrays(prefixed, alias)
-            prefixed = instrument_register_writes(prefixed, regs)
+            if info.source_kind == "legacy_bpl":
+                prefixed = backfill_legacy_register_write_mirrors(prefixed, regs)
+            else:
+                unmarked_regs = find_unmarked_register_arrays(prefixed, regs)
+                if unmarked_regs:
+                    raise BoogieBackendError(
+                        f"Invalid P4B Boogie for node '{alias}': register write procedures lack P4B "
+                        f"register markers for: {', '.join(unmarked_regs)}. "
+                        "P4B must emit `// <alias>_Register <name>` markers so DSLC can consume "
+                        "register state without guessing P4-local semantics."
+                    )
+                try:
+                    assert_complete_register_write_mirrors(prefixed, regs)
+                except ValueError as e:
+                    raise BoogieBackendError(f"Invalid P4B Boogie for node '{alias}': {e}") from e
+            for item, idx in p4b_fail_fast_candidates.get(alias, []):
+                prefixed_item = _prefix_fail_fast_register_assert_item(alias, item)
+                if _raw_bpl_has_fail_fast_register_assert(prefixed, prefixed_item):
+                    p4b_fail_fast_global_assert_indices.add(idx)
             node_prefixed[alias] = prefixed
             node_register_arrays[alias] = regs
             node_main_modifies[alias] = _extract_mainprocedure_modifies(prefixed, alias)
+            cast_nodes = prof_record.get("nodes")
+            if isinstance(cast_nodes, dict):
+                n = cast_nodes.get(alias)
+                if isinstance(n, dict):
+                    n["prefix_and_reg_instrument_s"] = prof.elapsed_since(t_prefix)
+        prof_record["prefix_and_reg_instrument_total_s"] = prof.elapsed_since(t_prefix_all)
 
         node_pipeline_stages = {}
+        t_pipeline = prof.mark()
         if pipeline_two_stage:
             for alias, prefixed in node_prefixed.items():
                 if not _node_needs_two_stage(prefixed, alias):
@@ -321,6 +408,7 @@ class BoogieBackend:
                 stages = split_pipeline_stages(prefixed, alias)
                 if stages:
                     node_pipeline_stages[alias] = stages
+        prof_record["pipeline_two_stage_infer_s"] = prof.elapsed_since(t_pipeline)
 
         host_to_node: Dict[str, str] = {}
         host_input_vars: Dict[str, List[str]] = {}
@@ -349,6 +437,7 @@ class BoogieBackend:
             }
 
         # 3) Emit harness
+        t_harness_emit = prof.mark()
         emitter = BoogieHarnessEmitter(
             spec,
             node_input_vars={a: info.input_vars for a, info in node_info.items()},
@@ -372,43 +461,227 @@ class BoogieBackend:
             max_steps=max_steps,
             honor_spec_max_steps=honor_spec_max_steps,
             emit_reg_debug=emit_reg_debug,
+            p4b_fail_fast_global_assert_indices=sorted(p4b_fail_fast_global_assert_indices),
         )
         helpers = emitter.emit_helpers()
         harness = emitter.emit(emit_helpers=False)
+        prof_record["python_harness_emit_s"] = prof.elapsed_since(t_harness_emit)
 
         # 4) Concatenate into a single .bpl
-        merged: List[str] = []
-        if helpers:
-            merged.append("// ===== BEGIN PREAMBLE =====\n")
-            merged.append(helpers)
-            if not helpers.endswith("\n"):
-                merged.append("\n")
-            merged.append("// ===== END PREAMBLE =====\n\n")
-
-        seen_bvbuiltins: set[str] = set()
-        for alias in sorted(node_prefixed.keys()):
-            merged.append(f"// ===== BEGIN NODE {alias} (prefixed) =====\n")
-            node_body = dedup_bvbuiltin_decls(node_prefixed[alias], seen_bvbuiltins)
-            merged.append(node_body)
-            if not node_body.endswith("\n"):
-                merged.append("\n")
-            merged.append(f"// ===== END NODE {alias} =====\n\n")
-
-        # enqueue procs (need them after node vars)
-        merged.append("// ===== BEGIN ENQUEUE PROCEDURES =====\n")
-        k = spec.global_decl.queue_capacity if spec.global_decl.queue_capacity is not None else 5
-        for l in spec.links:
-            merged.append(emitter._emit_enqueue_proc(l.src, l.dst, k))  # noqa: SLF001
-            merged.append("\n")
-        merged.append("// ===== END ENQUEUE PROCEDURES =====\n\n")
-
-        merged.append("// ===== BEGIN HARNESS =====\n")
-        merged.append(harness)
-        merged.append("// ===== END HARNESS =====\n")
-
-        merged_text = ultimate_rewrite_bvbuiltin_attrs("".join(merged))
+        t_merge_write = prof.mark()
+        merged_text = merge_boogie_program(
+            spec=spec,
+            helpers=helpers,
+            node_prefixed=node_prefixed,
+            harness=harness,
+            enqueue_emitter=emitter,
+        )
         out_bpl.write_text(merged_text, encoding="utf-8")
+        prof_record["merge_and_write_bpl_s"] = prof.elapsed_since(t_merge_write)
+        prof_record["frontend_prune_total_s"] = round(
+            float(prof_record.get("build_slicing_plan_s", 0.0))
+            + sum(
+                float(v.get("env_input_prune_s", 0.0))
+                for v in (prof_record.get("nodes", {}) or {}).values()
+                if isinstance(v, dict)
+            ),
+            6,
+        )
+        prof_record["frontend_translate_total_s"] = round(
+            sum(
+                float(v.get("p4_to_bpl_s", 0.0))
+                for v in (prof_record.get("nodes", {}) or {}).values()
+                if isinstance(v, dict)
+            ),
+            6,
+        )
+        prof_record["total_backend_compile_s"] = prof.total_elapsed()
+        prof.append()
         return out_bpl
+
+
+def _infer_fail_fast_register_asserts(spec: SpecModel, alias: str) -> List[str]:
+    """
+    Detect exact mirror-only global assertions that P4B can duplicate at write sites.
+
+    Only the narrow forms below are eligible, and the original global assertion remains
+    in the harness:
+      !(alias_Reg__wrote_any && alias_Reg__last_value == C)
+      !(alias_Reg__wrote_index0 && alias_Reg__last0_value == C)
+    """
+
+    out: List[str] = []
+    prefix = f"{alias}_"
+    for expr in spec.global_decl.assert_exprs:
+        matched = _match_fail_fast_expr(expr)
+        if matched is None:
+            continue
+        reg, mode, const_value = matched
+        if not reg.startswith(prefix):
+            continue
+        local_reg = reg[len(prefix) :]
+        if local_reg:
+            out.append(f"{local_reg}:{mode}:{const_value}")
+    return out
+
+
+def _infer_fail_fast_global_assert_indices(spec: SpecModel, alias: str) -> List[int]:
+    """
+    Return global assertion indices that were duplicated by P4B at register write sites.
+
+    The harness may skip these duplicate end-of-step checks for performance, but only
+    after a P4B-generated node accepted the corresponding fail-fast request.
+    """
+
+    out: List[int] = []
+    prefix = f"{alias}_"
+    for idx, expr in enumerate(spec.global_decl.assert_exprs):
+        matched = _match_fail_fast_expr(expr)
+        if matched is None:
+            continue
+        reg, _mode, _const_value = matched
+        if reg.startswith(prefix) and reg[len(prefix) :]:
+            out.append(idx)
+    return out
+
+
+def _infer_fail_fast_register_assert_pairs(spec: SpecModel, alias: str) -> List[tuple[str, int]]:
+    out: List[tuple[str, int]] = []
+    prefix = f"{alias}_"
+    for idx, expr in enumerate(spec.global_decl.assert_exprs):
+        matched = _match_fail_fast_expr(expr)
+        if matched is None:
+            continue
+        reg, mode, const_value = matched
+        if not reg.startswith(prefix):
+            continue
+        local_reg = reg[len(prefix) :]
+        if local_reg:
+            out.append((f"{local_reg}:{mode}:{const_value}", idx))
+    return out
+
+
+def _prefix_fail_fast_register_assert_item(alias: str, item: str) -> str:
+    parts = item.split(":")
+    if len(parts) != 3:
+        return item
+    reg, mode, const_value = parts
+    return f"{alias}_{reg}:{mode}:{const_value}"
+
+
+def _raw_bpl_has_fail_fast_register_assert(raw_text: str, item: str) -> bool:
+    parts = item.split(":")
+    if len(parts) != 3:
+        return False
+    reg, mode, const_value = parts
+    if not reg or mode not in {"any", "slot0"}:
+        return False
+    proc_sig = f"procedure {{:inline 1}} {reg}.write("
+    start = raw_text.find(proc_sig)
+    if start < 0:
+        proc_sig = f"procedure {reg}.write("
+        start = raw_text.find(proc_sig)
+    if start < 0:
+        return False
+    next_proc = raw_text.find("\nprocedure", start + len(proc_sig))
+    body = raw_text[start:] if next_proc < 0 else raw_text[start:next_proc]
+    const_patterns = {const_value}
+    if const_value.isdigit():
+        const_patterns.update({f"{const_value}bv8", f"{const_value}bv16", f"{const_value}bv32", f"{const_value}bv64"})
+    if mode == "any":
+        return (
+            "assert false;" in body
+            and f"{reg}__wrote_any" in body
+            and f"{reg}__last_value" in body
+            and any(f"{reg}__last_value == {pat}" in body for pat in const_patterns)
+        )
+    return (
+        "assert false;" in body
+        and f"{reg}__wrote_index0" in body
+        and f"{reg}__last0_value" in body
+        and any(f"{reg}__last0_value == {pat}" in body for pat in const_patterns)
+    )
+
+
+def _match_fail_fast_expr(expr: Tree) -> Optional[tuple[str, str, str]]:
+    if not isinstance(expr, Tree) or str(expr.data) != "not_op":
+        return None
+    children = [c for c in expr.children if isinstance(c, Tree)]
+    if len(children) != 1 or str(children[0].data) != "and_op":
+        return None
+    terms = [c for c in children[0].children if isinstance(c, Tree)]
+    if len(terms) != 2:
+        return None
+
+    bool_var: Optional[str] = None
+    eq_info: Optional[tuple[str, str]] = None
+    for term in terms:
+        var_name = _expr_dotted_var(term)
+        if var_name is not None:
+            bool_var = var_name
+            continue
+        maybe_eq = _expr_eq_var_number(term)
+        if maybe_eq is not None:
+            eq_info = maybe_eq
+            continue
+        return None
+
+    if bool_var is None or eq_info is None:
+        return None
+    value_var, const_value = eq_info
+    if bool_var.endswith("__wrote_any") and value_var.endswith("__last_value"):
+        reg_a = bool_var[: -len("__wrote_any")]
+        reg_b = value_var[: -len("__last_value")]
+        if reg_a == reg_b:
+            return reg_a, "any", const_value
+    if bool_var.endswith("__wrote_index0") and value_var.endswith("__last0_value"):
+        reg_a = bool_var[: -len("__wrote_index0")]
+        reg_b = value_var[: -len("__last0_value")]
+        if reg_a == reg_b:
+            return reg_a, "slot0", const_value
+    return None
+
+
+def _expr_dotted_var(expr: Tree) -> Optional[str]:
+    if not isinstance(expr, Tree):
+        return None
+    if str(expr.data) == "var" and expr.children and isinstance(expr.children[0], Tree):
+        return _expr_dotted_var(expr.children[0])
+    if str(expr.data) != "dotted_var":
+        return None
+    parts: List[str] = []
+    for child in expr.children:
+        if isinstance(child, Tree):
+            if child.children:
+                parts.append(str(child.children[0]))
+        else:
+            parts.append(str(child))
+    return ".".join(p for p in parts if p)
+
+
+def _expr_eq_var_number(expr: Tree) -> Optional[tuple[str, str]]:
+    if not isinstance(expr, Tree) or str(expr.data) != "eq":
+        return None
+    terms = [c for c in expr.children if isinstance(c, Tree)]
+    if len(terms) != 2:
+        return None
+
+    left_var = _expr_dotted_var(terms[0])
+    right_num = _expr_number(terms[1])
+    if left_var is not None and right_num is not None:
+        return left_var, right_num
+
+    right_var = _expr_dotted_var(terms[1])
+    left_num = _expr_number(terms[0])
+    if right_var is not None and left_num is not None:
+        return right_var, left_num
+    return None
+
+
+def _expr_number(expr: Tree) -> Optional[str]:
+    if isinstance(expr, Tree) and str(expr.data) == "number" and expr.children:
+        return str(expr.children[0])
+    return None
 
 
 __all__ = ["BoogieBackend"]

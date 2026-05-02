@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 
 from lark import Tree
 
-from .boogie_harness_types import _RwKey
+from ..types import _RwKey
 
 
 class BoogieHarnessPorMixin:

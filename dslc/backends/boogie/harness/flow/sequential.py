@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import List
 
-from ..speclang.model import NodeDecl
-from .boogie_errors import BoogieBackendError
+from .....speclang.model import NodeDecl
+from ...core.errors import BoogieBackendError
 
 
 class BoogieHarnessSequentialMixin:
@@ -38,8 +38,15 @@ class BoogieHarnessSequentialMixin:
             self._harness_mode == "sequential"
             and self._max_steps is not None
             and self._max_steps <= 1000
-            and bool(self._spec.global_decl.assert_exprs)
+            and bool(self._active_global_assert_exprs())
         )
+
+    def _active_global_assert_exprs(self):
+        return [
+            expr
+            for idx, expr in enumerate(self._spec.global_decl.assert_exprs)
+            if idx not in self._p4b_fail_fast_global_assert_indices
+        ]
 
     def _emit_sequential_main(
         self,
@@ -306,10 +313,20 @@ class BoogieHarnessSequentialMixin:
 
         # Construct a fresh host packet, then copy it into the node mailbox. This keeps
         # host.env { ... } semantics consistent across concurrent vs sequential harnesses.
-        for v in host_vars:
-            out.append(f"{indent2}havoc {host}_{v};\n")
+        env_lines = ""
+        top_level_const_writes: set[str] = set()
         if not self._max_env_inputs:
             env_lines = self._emit_host_env_inject_statements(host, indent=indent2)
+            if env_lines:
+                top_level_const_writes = self._collect_top_level_constant_assign_targets(
+                    env_lines, indent=indent2
+                )
+        for v in host_vars:
+            target = f"{host}_{v}"
+            if target in top_level_const_writes:
+                continue
+            out.append(f"{indent2}havoc {target};\n")
+        if not self._max_env_inputs:
             if env_lines:
                 out.append(env_lines)
             hd = self._spec.hosts.get(host)
@@ -349,13 +366,14 @@ class BoogieHarnessSequentialMixin:
         )
         global_track_lines = ""
         global_assert_lines = ""
+        active_global_asserts = self._active_global_assert_exprs()
         if self._accumulate_global_assertions():
-            for expr in self._spec.global_decl.assert_exprs:
+            for expr in active_global_asserts:
                 bpl = self._expr_to_boogie(expr, current_node=node, prefer_reg_dbg=True)
                 global_track_lines += f"{indent}if (!({bpl})) {{ procurator_bad := true; }}\n"
         else:
             global_assert_lines = self._emit_assert_lines(
-                self._spec.global_decl.assert_exprs,
+                active_global_asserts,
                 indent=indent,
                 current_node=node,
             )

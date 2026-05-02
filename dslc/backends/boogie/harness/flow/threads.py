@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import List
 
-from ..speclang.model import HostDecl, NodeDecl
-from .boogie_errors import BoogieBackendError
+from .....speclang.model import HostDecl, NodeDecl
+from ...core.errors import BoogieBackendError
 
 
 class BoogieHarnessThreadsMixin:
@@ -305,16 +305,7 @@ class BoogieHarnessThreadsMixin:
         modifies_set.update(f"{node}_dsl_{name}" for name in self._dsl_node_vars.get(node, {}).keys())
         modifies_set.update(f"dsl_{name}" for name in self._dsl_global_vars.keys())
         modifies_set.update(self._collect_dsl_modified_boogie_vars(node))
-        for regs in self._node_register_arrays.values():
-            for name, (_idx_type, elem_type) in regs.items():
-                if elem_type == "Ref" or elem_type.endswith("Ref"):
-                    continue
-                modifies_set.add(self._register_debug_var_name(name))
-                modifies_set.add(self._register_last_index_dbg_name(name))
-                modifies_set.add(self._register_last_value_dbg_name(name))
-                modifies_set.add(self._register_wrote_any_dbg_name(name))
-                modifies_set.add(self._register_wrote_index0_dbg_name(name))
-                modifies_set.add(self._register_last0_value_dbg_name(name))
+        modifies_set.update(self._all_register_debug_modifies())
         declared = self._node_declared_vars.get(node, set())
         clone_flags = []
         for flag in ("p4b_clone_i2e", "p4b_clone_e2e", "p4b_clone_i2i", "p4b_recirculate"):
@@ -536,10 +527,20 @@ class BoogieHarnessThreadsMixin:
         out.append(f"    if ({'true' if host_eager else '*'}) {{\n")
         out.append(f"      if ({target}_inbox_count < {k}) {{\n")
         # Create a fresh packet for this host send.
-        for v in host_vars:
-            out.append(f"        havoc {host}_{v};\n")
+        env_lines = ""
+        top_level_const_writes: set[str] = set()
         if not self._max_env_inputs:
             env_lines = self._emit_host_env_inject_statements(host, indent="        ")
+            if env_lines:
+                top_level_const_writes = self._collect_top_level_constant_assign_targets(
+                    env_lines, indent="        "
+                )
+        for v in host_vars:
+            target_v = f"{host}_{v}"
+            if target_v in top_level_const_writes:
+                continue
+            out.append(f"        havoc {target_v};\n")
+        if not self._max_env_inputs:
             if env_lines:
                 out.append(env_lines)
             hd = self._spec.hosts.get(host, HostDecl(name=host))
@@ -570,4 +571,3 @@ class BoogieHarnessThreadsMixin:
         out.append("  }\n")
         out.append("}\n")
         return "".join(out)
-

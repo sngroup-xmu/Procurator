@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Sequence
+from typing import List
 
-from .boogie_errors import BoogieBackendError
+from ...core.errors import BoogieBackendError
 
 
 class BoogieHarnessStartMixin:
@@ -43,20 +43,12 @@ class BoogieHarnessStartMixin:
             start_modifies.update(f"{a}_dsl_{name}" for name in self._dsl_node_vars.get(a, {}).keys())
         for h in host_aliases:
             start_modifies.update(f"{h}_dsl_{name}" for name in self._dsl_host_vars.get(h, {}).keys())
-        for a in node_aliases:
-            regs = self._node_register_arrays.get(a, {})
-            for name in regs.keys():
-                start_modifies.add(self._register_debug_var_name(name))
-                start_modifies.add(self._register_last_index_dbg_name(name))
-                start_modifies.add(self._register_last_value_dbg_name(name))
-                start_modifies.add(self._register_wrote_any_dbg_name(name))
-                start_modifies.add(self._register_wrote_index0_dbg_name(name))
-                start_modifies.add(self._register_last0_value_dbg_name(name))
-                start_modifies.add(self._register_last_index_name(name))
-                start_modifies.add(self._register_last_value_name(name))
-                start_modifies.add(self._register_wrote_any_name(name))
-                start_modifies.add(self._register_wrote_index0_name(name))
-                start_modifies.add(self._register_last0_value_name(name))
+        start_modifies.update(
+            self._register_modifies_for_nodes(
+                node_aliases,
+                include_debug=getattr(self, "_emit_reg_debug", True),
+            )
+        )
         for a in node_aliases:
             start_modifies.update(self._node_mainprocedure_modifies.get(a, set()))
             start_modifies.update(f"{a}_{v}" for v in self._node_input_vars.get(a, []))
@@ -165,20 +157,12 @@ class BoogieHarnessStartMixin:
             mods.update(f"{a}_dsl_{name}" for name in self._dsl_node_vars.get(a, {}).keys())
         for h in host_aliases:
             mods.update(f"{h}_dsl_{name}" for name in self._dsl_host_vars.get(h, {}).keys())
-        for a in node_aliases:
-            regs = self._node_register_arrays.get(a, {})
-            for name in regs.keys():
-                mods.add(self._register_debug_var_name(name))
-                mods.add(self._register_last_index_dbg_name(name))
-                mods.add(self._register_last_value_dbg_name(name))
-                mods.add(self._register_wrote_any_dbg_name(name))
-                mods.add(self._register_wrote_index0_dbg_name(name))
-                mods.add(self._register_last0_value_dbg_name(name))
-                mods.add(self._register_last_index_name(name))
-                mods.add(self._register_last_value_name(name))
-                mods.add(self._register_wrote_any_name(name))
-                mods.add(self._register_wrote_index0_name(name))
-                mods.add(self._register_last0_value_name(name))
+        mods.update(
+            self._register_modifies_for_nodes(
+                node_aliases,
+                include_debug=getattr(self, "_emit_reg_debug", True),
+            )
+        )
 
         if self._emit_trace and node_aliases:
             mods.add("trace_node_id")
@@ -226,45 +210,3 @@ class BoogieHarnessStartMixin:
                     mods.add(f"{l.dst}_{v}")
 
         return mods
-
-    def _emit_register_init_assumes(self, node_aliases: List[str]) -> str:
-        out: List[str] = []
-        for node in node_aliases:
-            regs = self._node_register_arrays.get(node, {})
-            for name, (idx_type, elem_type) in sorted(regs.items()):
-                raw = name[len(node) + 1 :] if name.startswith(f"{node}_") else name
-                init_map = self._meta_register_inits.get(node, {}).get(raw, {})
-
-                default_lit = self._render_value_zero(elem_type)
-                if isinstance(init_map, dict) and "*" in init_map:
-                    lit = self._render_typed_literal_from_str(elem_type, init_map.get("*", ""))
-                    if lit is not None:
-                        default_lit = lit
-
-                cell_inits: Dict[int, str] = {}
-                if isinstance(init_map, dict):
-                    for k, v in init_map.items():
-                        if str(k) == "*":
-                            continue
-                        try:
-                            idx_int = int(str(k))
-                        except Exception:
-                            continue
-                        lit = self._render_typed_literal_from_str(elem_type, str(v))
-                        if lit is None:
-                            continue
-                        cell_inits[idx_int] = lit
-
-                if cell_inits:
-                    idx_lits = [self._render_typed_int(idx_type, i) for i in sorted(cell_inits.keys())]
-                    guard = " && ".join(f"(i != {lit})" for lit in idx_lits)
-                    out.append(f"  assume (forall i:{idx_type} :: ({guard}) ==> {name}[i] == {default_lit});\n")
-                else:
-                    out.append(f"  assume (forall i:{idx_type} :: {name}[i] == {default_lit});\n")
-
-                idx_zero = self._render_index_zero(idx_type)
-                out.append(f"  assume {name}[{idx_zero}] == {cell_inits.get(0, default_lit)};\n")
-
-                for idx, val in sorted(cell_inits.items()):
-                    out.append(f"  assume {name}[{self._render_typed_int(idx_type, idx)}] == {val};\n")
-        return "".join(out)

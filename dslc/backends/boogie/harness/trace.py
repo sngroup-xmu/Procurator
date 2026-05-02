@@ -5,50 +5,6 @@ from typing import Dict, List, Optional
 
 class BoogieHarnessTraceMixin:
     @staticmethod
-    def _register_debug_var_name(reg_name: str) -> str:
-        return f"{reg_name}__dbg0"
-
-    @staticmethod
-    def _register_last_index_name(reg_name: str) -> str:
-        return f"{reg_name}__last_index"
-
-    @staticmethod
-    def _register_last_value_name(reg_name: str) -> str:
-        return f"{reg_name}__last_value"
-
-    @staticmethod
-    def _register_wrote_any_name(reg_name: str) -> str:
-        return f"{reg_name}__wrote_any"
-
-    @staticmethod
-    def _register_wrote_index0_name(reg_name: str) -> str:
-        return f"{reg_name}__wrote_index0"
-
-    @staticmethod
-    def _register_last0_value_name(reg_name: str) -> str:
-        return f"{reg_name}__last0_value"
-
-    @staticmethod
-    def _register_last_index_dbg_name(reg_name: str) -> str:
-        return f"{reg_name}__last_index__dbg"
-
-    @staticmethod
-    def _register_last_value_dbg_name(reg_name: str) -> str:
-        return f"{reg_name}__last_value__dbg"
-
-    @staticmethod
-    def _register_wrote_any_dbg_name(reg_name: str) -> str:
-        return f"{reg_name}__wrote_any__dbg"
-
-    @staticmethod
-    def _register_wrote_index0_dbg_name(reg_name: str) -> str:
-        return f"{reg_name}__wrote_index0__dbg"
-
-    @staticmethod
-    def _register_last0_value_dbg_name(reg_name: str) -> str:
-        return f"{reg_name}__last0_value__dbg"
-
-    @staticmethod
     def _trace_node_exec_name(node: str) -> str:
         return f"trace_{node}_exec"
 
@@ -79,6 +35,11 @@ class BoogieHarnessTraceMixin:
     @staticmethod
     def _trace_reg_last0_value_name(reg_name: str) -> str:
         return f"trace_{reg_name}__last0_value"
+
+    def _trace_registers(self):
+        for regs in self._node_register_arrays.values():
+            for name, types in sorted(regs.items()):
+                yield name, types
 
     @staticmethod
     def _trace_enqueue_exec_name(src: str, dst: str) -> str:
@@ -125,12 +86,11 @@ class BoogieHarnessTraceMixin:
                 out.append(f"var {self._trace_node_op_name(node)}: [int]{types['op']};\n")
             if "key" in types:
                 out.append(f"var {self._trace_node_key_name(node)}: [int]{types['key']};\n")
-        for regs in self._node_register_arrays.values():
-            for name, (_, elem_type) in sorted(regs.items()):
-                out.append(f"var {self._trace_reg_dbg0_name(name)}: [int]{elem_type};\n")
-                out.append(f"var {self._trace_reg_wrote_any_name(name)}: [int]bool;\n")
-                out.append(f"var {self._trace_reg_wrote_index0_name(name)}: [int]bool;\n")
-                out.append(f"var {self._trace_reg_last0_value_name(name)}: [int]{elem_type};\n")
+        for name, (_, elem_type) in self._trace_registers():
+            out.append(f"var {self._trace_reg_dbg0_name(name)}: [int]{elem_type};\n")
+            out.append(f"var {self._trace_reg_wrote_any_name(name)}: [int]bool;\n")
+            out.append(f"var {self._trace_reg_wrote_index0_name(name)}: [int]bool;\n")
+            out.append(f"var {self._trace_reg_last0_value_name(name)}: [int]{elem_type};\n")
         for link in self._spec.links:
             types = self._trace_field_types(link.src)
             out.append(f"var {self._trace_enqueue_exec_name(link.src, link.dst)}: [int]bool;\n")
@@ -174,15 +134,19 @@ class BoogieHarnessTraceMixin:
                 out.append(
                     f"{indent}{self._trace_node_key_name(node)}[procurator_step] := {self._render_value_zero(types['key'])};\n"
                 )
-        for regs in self._node_register_arrays.values():
-            for name, (_, elem_type) in sorted(regs.items()):
-                out.append(f"{indent}{self._trace_reg_wrote_any_name(name)}[procurator_step] := false;\n")
-                out.append(f"{indent}{self._trace_reg_wrote_index0_name(name)}[procurator_step] := false;\n")
-                zero = try_zero(elem_type)
-                if zero is None:
-                    continue
-                out.append(f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {zero};\n")
-                out.append(f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {zero};\n")
+        for name, (idx_type, elem_type) in self._trace_registers():
+            out.append(f"{indent}{self._trace_reg_wrote_any_name(name)}[procurator_step] := false;\n")
+            out.append(f"{indent}{self._trace_reg_wrote_index0_name(name)}[procurator_step] := false;\n")
+            zero = try_zero(elem_type)
+            if zero is None:
+                idx_zero = self._render_index_zero(idx_type)
+                out.append(f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {name}[{idx_zero}];\n")
+                out.append(
+                    f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {self._register_last0_value_name(name)};\n"
+                )
+                continue
+            out.append(f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {zero};\n")
+            out.append(f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {zero};\n")
         for link in self._spec.links:
             out.append(
                 f"{indent}{self._trace_enqueue_exec_name(link.src, link.dst)}[procurator_step] := false;\n"
@@ -220,10 +184,15 @@ class BoogieHarnessTraceMixin:
         if "key" in types:
             out.append(f"{indent}{self._trace_node_key_name(node)}[procurator_step] := {node}_hdr.nc_hdr.key;\n")
         regs = self._node_register_arrays.get(node, {})
-        for name in sorted(regs.keys()):
-            out.append(
-                f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {self._register_debug_var_name(name)};\n"
-            )
+        emit_reg_dbg = getattr(self, "_emit_reg_debug", True)
+        for name, (idx_type, elem_type) in sorted(regs.items()):
+            if emit_reg_dbg and self._register_debug_enabled_for_type(elem_type):
+                out.append(
+                    f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {self._register_debug_var_name(name)};\n"
+                )
+            else:
+                idx_zero = self._render_index_zero(idx_type)
+                out.append(f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {name}[{idx_zero}];\n")
             out.append(
                 f"{indent}{self._trace_reg_wrote_any_name(name)}[procurator_step] := {self._register_wrote_any_name(name)};\n"
             )
@@ -234,50 +203,3 @@ class BoogieHarnessTraceMixin:
                 f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {self._register_last0_value_name(name)};\n"
             )
         return "".join(out)
-
-    def _emit_register_debug_decls(self, node_aliases: List[str]) -> str:
-        out: List[str] = []
-        for node in node_aliases:
-            regs = self._node_register_arrays.get(node, {})
-            for name, (idx_type, elem_type) in sorted(regs.items()):
-                if elem_type == "Ref" or elem_type.endswith("Ref"):
-                    continue
-                dbg = self._register_debug_var_name(name)
-                out.append(f"var {dbg}: {elem_type};\n")
-                out.append(f"var {self._register_last_index_dbg_name(name)}: {idx_type};\n")
-                out.append(f"var {self._register_last_value_dbg_name(name)}: {elem_type};\n")
-                out.append(f"var {self._register_wrote_any_dbg_name(name)}: bool;\n")
-                out.append(f"var {self._register_wrote_index0_dbg_name(name)}: bool;\n")
-                out.append(f"var {self._register_last0_value_dbg_name(name)}: {elem_type};\n")
-        return "".join(out)
-
-    def _emit_register_debug_assignments(self, *, indent: str) -> str:
-        out: List[str] = []
-        for regs in self._node_register_arrays.values():
-            for name, (idx_type, elem_type) in sorted(regs.items()):
-                if elem_type == "Ref" or elem_type.endswith("Ref"):
-                    continue
-                dbg = self._register_debug_var_name(name)
-                idx_zero = self._render_index_zero(idx_type)
-                out.append(f"{indent}{dbg} := {name}[{idx_zero}];\n")
-                out.append(f"{indent}{self._register_last_index_dbg_name(name)} := {self._register_last_index_name(name)};\n")
-                out.append(f"{indent}{self._register_last_value_dbg_name(name)} := {self._register_last_value_name(name)};\n")
-                out.append(f"{indent}{self._register_wrote_any_dbg_name(name)} := {self._register_wrote_any_name(name)};\n")
-                out.append(f"{indent}{self._register_wrote_index0_dbg_name(name)} := {self._register_wrote_index0_name(name)};\n")
-                out.append(f"{indent}{self._register_last0_value_dbg_name(name)} := {self._register_last0_value_name(name)};\n")
-        return "".join(out)
-
-    def _emit_register_write_debug_init(self, node_aliases: List[str]) -> str:
-        out: List[str] = []
-        for node in node_aliases:
-            regs = self._node_register_arrays.get(node, {})
-            for name, (idx_type, elem_type) in sorted(regs.items()):
-                idx_zero = self._render_index_zero(idx_type)
-                val_zero = self._render_value_zero(elem_type)
-                out.append(f"  {self._register_last_index_name(name)} := {idx_zero};\n")
-                out.append(f"  {self._register_last_value_name(name)} := {val_zero};\n")
-                out.append(f"  {self._register_wrote_any_name(name)} := false;\n")
-                out.append(f"  {self._register_wrote_index0_name(name)} := false;\n")
-                out.append(f"  {self._register_last0_value_name(name)} := {val_zero};\n")
-        return "".join(out)
-

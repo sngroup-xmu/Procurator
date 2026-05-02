@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional, Sequence
 
-from .boogie_errors import P4BTranslatorError
+from ..core.errors import P4BTranslatorError
 
 
 class P4BTranslator:
@@ -27,6 +27,8 @@ class P4BTranslator:
         entries_path: Optional[str],
         out_meta: Optional[str] = None,
         slicing_vars: Optional[Sequence[str]] = None,
+        slicing_keep_vars: Optional[Sequence[str]] = None,
+        fail_fast_register_asserts: Optional[Sequence[str]] = None,
         disable_slicing: bool = False,
         keep_control_seeds: bool = True,
     ) -> None:
@@ -69,6 +71,10 @@ class P4BTranslator:
                 cmd.extend(["--bmv2cmds", entries_path])
             if slicing_vars and not disable_slicing:
                 cmd.append("--slicing-vars=" + ",".join(slicing_vars))
+            if slicing_keep_vars and not disable_slicing:
+                cmd.append("--slicing-keep-vars=" + ",".join(slicing_keep_vars))
+            for item in fail_fast_register_asserts or []:
+                cmd.extend(["--fail-fast-register-assert", item])
             return cmd
 
         # Default to P4_16, but fall back to P4_14 on parse errors.

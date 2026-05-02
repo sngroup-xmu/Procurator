@@ -5,10 +5,10 @@ from typing import Dict, List, Optional, Sequence
 
 from lark import Tree
 
-from ..speclang.model import HostDecl, NodeDecl
-from .boogie_common import dsl_is_simple_local_name, is_on_wire_packet_var, is_packet_var
-from .boogie_dsl import collect_dotted_vars
-from .boogie_errors import BoogieBackendError
+from .....speclang.model import HostDecl, NodeDecl
+from ...core.common import dsl_is_simple_local_name, is_on_wire_packet_var, is_packet_var
+from ...core.dsl import collect_dotted_vars
+from ...core.errors import BoogieBackendError
 
 _collect_dotted_vars = collect_dotted_vars
 _dsl_is_simple_local_name = dsl_is_simple_local_name
@@ -17,6 +17,9 @@ _is_packet_var = is_packet_var
 
 
 class BoogieHarnessDslMixin:
+    _TOPLEVEL_ASSIGN_RE = re.compile(r"^([A-Za-z0-9_\.\$\[\]]+)\s*:=\s*(.+);\s*$")
+    _ASSIGN_TOKEN_RE = re.compile(r"[A-Za-z0-9_\.\$\[\]]+")
+
     def _boogie_port_const(self, port: str, egress_type: str) -> str:
         # If type is a bitvector like bv9, render as "123bv9"; otherwise as int literal.
         m = re.fullmatch(r"bv(\d+)", egress_type.strip())
@@ -197,6 +200,7 @@ class BoogieHarnessDslMixin:
         If the expression refers to a register array element at index 0, map it to the
         debug snapshot variable to avoid heavy array reasoning in assertions.
         """
+        emit_reg_dbg = getattr(self, "_emit_reg_debug", True)
         if "[" not in name or not name.endswith("]"):
             return None
         base, idx = name.split("[", 1)
@@ -205,9 +209,13 @@ class BoogieHarnessDslMixin:
         if idx_norm not in {"0", "0bv32", "0bv16"}:
             return None
         for regs in self._node_register_arrays.values():
-            for reg_name in regs.keys():
+            for reg_name, (_idx_type, elem_type) in regs.items():
                 if base == reg_name:
-                    return self._register_debug_var_name(reg_name)
+                    # Prefer the per-pass debug snapshot when enabled; otherwise fall back to the
+                    # scalar mirror that tracks the last value written at index 0.
+                    if emit_reg_dbg and self._register_debug_enabled_for_type(elem_type):
+                        return self._register_debug_var_name(reg_name)
+                    return self._register_last0_value_name(reg_name)
         return None
 
     def _emit_global_init_statements(self, node_aliases: List[str]) -> str:
@@ -375,6 +383,48 @@ class BoogieHarnessDslMixin:
             if isinstance(stmt, Tree):
                 visit(stmt)
 
+        return out
+
+    def _collect_top_level_constant_assign_targets(self, rendered_block: str, *, indent: str) -> set[str]:
+        """
+        Collect top-level assignment LHS names that are unconditionally overwritten.
+
+        We use this to skip redundant `havoc` for fields that are deterministically
+        overwritten by env injection code on every packet construction.
+
+        Soundness guard:
+        - Only top-level statements (exact indentation match) are considered.
+        - Assignments must be plain `lhs := rhs` and non-self-referential on RHS.
+          (e.g., `x := x + 1` is excluded because old `x` matters).
+        - Assignments inside `if` branches are ignored.
+        """
+
+        out: set[str] = set()
+        for raw in rendered_block.splitlines():
+            if not raw.startswith(indent):
+                continue
+            tail = raw[len(indent) :]
+            # Ignore nested statements under `if` / `else`.
+            if tail.startswith(" ") or tail.startswith("\t"):
+                continue
+            m = self._TOPLEVEL_ASSIGN_RE.match(tail)
+            if not m:
+                continue
+            lhs = m.group(1).strip()
+            rhs = m.group(2).strip()
+            if not lhs:
+                continue
+
+            # Exclude any self-reference in RHS.
+            # For indexed lhs (e.g., arr[0]), also exclude references to the base (`arr`).
+            tokens = set(self._ASSIGN_TOKEN_RE.findall(rhs))
+            if lhs in tokens:
+                continue
+            base = lhs.split("[", 1)[0]
+            if base and base in tokens:
+                continue
+
+            out.add(lhs)
         return out
 
     def _emit_env_inject_statements(self, node: str, indent: str) -> str:

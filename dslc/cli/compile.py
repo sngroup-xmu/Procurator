@@ -86,14 +86,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         type=int,
         default=None,
         help=(
-            "Bound the number of Procurator steps (BMC-style bug finding). "
-            "UNSAFE is sound; SAFE is only within the bound. Default: unbounded."
+            "Optional bounded bug-finding/benchmark step limit. UNSAFE is sound; "
+            "SAFE is only within the bound. Default: unbounded."
         ),
     )
     ap.add_argument(
         "--use-spec-max-steps",
         action="store_true",
-        help="Honor `global.max_steps` from the DSL spec (disabled by default).",
+        help=(
+            "Use `global.max_steps` from the DSL spec as an explicit benchmark/debug bound. "
+            "Default: ignore it and keep the model unbounded."
+        ),
+    )
+    ap.add_argument(
+        "--no-reg-debug",
+        action="store_true",
+        help="Disable per-pass register debug snapshots in the generated Boogie harness.",
+    )
+    ap.add_argument(
+        "--skip-duplicated-fail-fast-global-asserts",
+        action="store_true",
+        help=(
+            "When P4B duplicates an exact register-mirror global assertion at register write sites, "
+            "omit the duplicate end-of-step harness assertion. Opt-in performance knob."
+        ),
     )
 
     args = ap.parse_args(list(argv) if argv is not None else None)
@@ -160,6 +176,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         pipeline_two_stage=pipeline_two_stage,
         max_steps=args.max_steps,
         honor_spec_max_steps=bool(args.use_spec_max_steps),
+        emit_reg_debug=not bool(args.no_reg_debug),
+        skip_duplicated_fail_fast_global_asserts=bool(args.skip_duplicated_fail_fast_global_asserts),
     )
 
     for k, v in outp.artifacts.items():

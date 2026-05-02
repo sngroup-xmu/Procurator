@@ -6,9 +6,9 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set
 
 from lark import Tree
 
-from .boogie_common import dsl_is_simple_local_name, is_on_wire_packet_var, is_packet_var, is_skipped_input_var
-from .boogie_dsl import collect_dotted_vars, dotted_var_to_str
-from ..speclang.model import SpecModel
+from ....speclang.model import SpecModel
+from ..core.common import dsl_is_simple_local_name, is_on_wire_packet_var, is_packet_var, is_skipped_input_var
+from ..core.dsl import collect_dotted_vars, dotted_var_to_str
 
 
 _DBG_IDX0_SUFFIXES = {

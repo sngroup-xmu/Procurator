@@ -4,8 +4,8 @@ from typing import List, Sequence
 
 from lark import Tree
 
-from ..speclang.model import NodeDecl
-from .boogie_common import is_on_wire_packet_var
+from .....speclang.model import NodeDecl
+from ...core.common import is_on_wire_packet_var
 
 
 class BoogieHarnessMailboxMixin:
@@ -38,10 +38,20 @@ class BoogieHarnessMailboxMixin:
         # Enqueue an external packet: havoc its fields + apply DSL env constraints at injection time.
         out.append(f"{indent}assume {dst}_inbox_count < {k};\n")
         out.append(f"{indent}{dst}_pkt_external := true;\n")
-        for v in self._node_input_vars.get(dst, []):
-            out.append(f"{indent}havoc {dst}_{v};\n")
+        env_lines = ""
+        top_level_const_writes: set[str] = set()
         if not self._max_env_inputs:
             env_lines = self._emit_env_inject_statements(dst, indent=indent)
+            if env_lines:
+                top_level_const_writes = self._collect_top_level_constant_assign_targets(
+                    env_lines, indent=indent
+                )
+        for v in self._node_input_vars.get(dst, []):
+            target = f"{dst}_{v}"
+            if target in top_level_const_writes:
+                continue
+            out.append(f"{indent}havoc {target};\n")
+        if not self._max_env_inputs:
             if env_lines:
                 out.append(env_lines)
             for expr in self._spec.nodes.get(dst, NodeDecl(name=dst)).assume_exprs:
@@ -196,4 +206,3 @@ class BoogieHarnessMailboxMixin:
         for v in vars_:
             out.append(f"{indent}{self._inbox_slot_var(node, 0, v)} := {self._inbox_slot_var(node, 1, v)};\n")
         return "".join(out)
-

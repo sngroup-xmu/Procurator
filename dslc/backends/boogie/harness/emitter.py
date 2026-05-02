@@ -5,20 +5,21 @@ from typing import Dict, List, Optional, Sequence
 
 from lark import Tree
 
-from ..speclang.model import HostDecl, LinkDecl, NodeDecl, SpecModel
-from .boogie_common import dsl_is_simple_local_name, dsl_type_to_boogie, is_on_wire_packet_var, is_packet_var
-from .boogie_dsl import collect_dotted_vars
-from .boogie_errors import BoogieBackendError
-from .boogie_harness_por import BoogieHarnessPorMixin
-from .boogie_harness_render import BoogieHarnessRenderMixin
-from .boogie_harness_sequential import BoogieHarnessSequentialMixin
-from .boogie_harness_trace import BoogieHarnessTraceMixin
-from .boogie_harness_links import BoogieHarnessLinksMixin
-from .boogie_harness_mailbox import BoogieHarnessMailboxMixin
-from .boogie_harness_start import BoogieHarnessStartMixin
-from .boogie_harness_threads import BoogieHarnessThreadsMixin
-from .boogie_harness_dsl import BoogieHarnessDslMixin
-from .boogie_pipeline import PipelineStages
+from ....speclang.model import HostDecl, LinkDecl, NodeDecl, SpecModel
+from ..core.common import dsl_is_simple_local_name, dsl_type_to_boogie, is_on_wire_packet_var, is_packet_var
+from ..core.dsl import collect_dotted_vars
+from ..core.errors import BoogieBackendError
+from ..core.pipeline import PipelineStages
+from .flow.dsl import BoogieHarnessDslMixin
+from .flow.links import BoogieHarnessLinksMixin
+from .flow.por import BoogieHarnessPorMixin
+from .flow.sequential import BoogieHarnessSequentialMixin
+from .flow.threads import BoogieHarnessThreadsMixin
+from .render import BoogieHarnessRenderMixin
+from .state.mailbox import BoogieHarnessMailboxMixin
+from .state.registers import BoogieHarnessRegistersMixin
+from .state.start import BoogieHarnessStartMixin
+from .trace import BoogieHarnessTraceMixin
 
 
 _dsl_is_simple_local_name = dsl_is_simple_local_name
@@ -33,6 +34,7 @@ class BoogieHarnessEmitter(
     BoogieHarnessPorMixin,
     BoogieHarnessDslMixin,
     BoogieHarnessMailboxMixin,
+    BoogieHarnessRegistersMixin,
     BoogieHarnessThreadsMixin,
     BoogieHarnessLinksMixin,
     BoogieHarnessStartMixin,
@@ -71,6 +73,8 @@ class BoogieHarnessEmitter(
         pipeline_two_stage: bool = True,
         max_steps: Optional[int] = None,
         honor_spec_max_steps: bool = False,
+        emit_reg_debug: bool = True,
+        p4b_fail_fast_global_assert_indices: Optional[Sequence[int]] = None,
     ):
         self._spec = spec
         self._node_input_vars = node_input_vars  # alias -> raw var names (no prefix)
@@ -90,13 +94,10 @@ class BoogieHarnessEmitter(
             h: set(self._host_input_vars.get(h, [])) for h in self._host_to_node.keys()
         }
         self._max_env_inputs = max_env_inputs
-        # NOTE: `max_steps` is a *bounded bug-finding* knob (BMC-style). It is sound for UNSAFE
-        # witnesses (the returned counterexample is concrete), but SAFE results are only within
-        # the bound.
-        #
-        # To avoid silently changing semantics across the repository, we do NOT honor
-        # `global.max_steps` from the DSL spec by default; it is only used when
-        # `honor_spec_max_steps` is explicitly enabled.
+        # NOTE: `max_steps` is a bounded bug-finding hint (BMC-style). It is sound for
+        # UNSAFE witnesses because the returned counterexample is concrete; SAFE results
+        # remain bound-local. The default product path does not use this bound; callers
+        # must opt into it explicitly for benchmarking/debugging.
         self._spec_max_steps: Optional[int] = (
             int(spec.global_decl.max_steps) if spec.global_decl.max_steps is not None else None
         )
@@ -112,6 +113,10 @@ class BoogieHarnessEmitter(
         self._max_steps = eff_max_steps
         # Step-indexed trace maps are intentionally disabled by default since they make loop proofs harder.
         self._emit_trace = False
+        # Per-pass register debug snapshot variables (reg__dbg0 / reg__last_*__dbg) can bloat SMT queries.
+        # Keep them enabled by default for trace inspection, but allow benchmarks to disable them.
+        self._emit_reg_debug = bool(emit_reg_debug)
+        self._p4b_fail_fast_global_assert_indices = set(p4b_fail_fast_global_assert_indices or [])
         self._por_enabled = por_enabled
         self._por_guard_enabled = por_guard_enabled
         harness_mode = harness_mode.lower().strip()
@@ -134,11 +139,13 @@ class BoogieHarnessEmitter(
         # meta schema: {"format":"p4bmeta-v1","var_types":{name:type},"sizes":{name:int},...}
         self._meta_var_types: Dict[str, Dict[str, str]] = {}
         self._meta_sizes: Dict[str, Dict[str, int]] = {}
+        self._meta_register_sizes: Dict[str, Dict[str, int]] = {}
         for n, m in self._node_meta.items():
             if not isinstance(m, dict):
                 continue
             vt = m.get("var_types")
             sz = m.get("sizes")
+            reg_sz = m.get("register_sizes")
             if isinstance(vt, dict):
                 self._meta_var_types[n] = {str(k): str(v) for k, v in vt.items()}
             if isinstance(sz, dict):
@@ -149,6 +156,14 @@ class BoogieHarnessEmitter(
                     except Exception:
                         continue
                 self._meta_sizes[n] = out_sz
+            if isinstance(reg_sz, dict):
+                out_reg_sz: Dict[str, int] = {}
+                for k, v in reg_sz.items():
+                    try:
+                        out_reg_sz[str(k)] = int(v)
+                    except Exception:
+                        continue
+                self._meta_register_sizes[n] = out_reg_sz
         self._meta_register_inits: Dict[str, Dict[str, Dict[str, str]]] = {}
         for n, m in self._node_meta.items():
             if not isinstance(m, dict):

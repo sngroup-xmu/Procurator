@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
-from .boogie_common import is_packet_var, is_skipped_input_var
+from .common import is_packet_var, is_skipped_input_var
 
 
 def looks_like_bpl(text: str) -> bool:

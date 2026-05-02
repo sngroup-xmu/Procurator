@@ -41,6 +41,8 @@ def compile_spec_text(
     pipeline_two_stage: bool = True,
     max_steps: Optional[int] = None,
     honor_spec_max_steps: bool = False,
+    emit_reg_debug: bool = True,
+    skip_duplicated_fail_fast_global_asserts: bool = False,
 ) -> CompileOutput:
     """
     Compile a DSL spec into a backend artifact.
@@ -108,6 +110,8 @@ def compile_spec_text(
             pipeline_two_stage=pipeline_two_stage,
             max_steps=max_steps,
             honor_spec_max_steps=honor_spec_max_steps,
+            emit_reg_debug=emit_reg_debug,
+            skip_duplicated_fail_fast_global_asserts=skip_duplicated_fail_fast_global_asserts,
         )
         return CompileOutput(backend="boogie", artifacts={"bpl": out_path})
 
@@ -139,6 +143,8 @@ def compile_spec_file(
     pipeline_two_stage: bool = True,
     max_steps: Optional[int] = None,
     honor_spec_max_steps: bool = False,
+    emit_reg_debug: bool = True,
+    skip_duplicated_fail_fast_global_asserts: bool = False,
 ) -> CompileOutput:
     spec_text = spec_path.read_text(encoding="utf-8")
     return compile_spec_text(
@@ -161,6 +167,8 @@ def compile_spec_file(
         pipeline_two_stage=pipeline_two_stage,
         max_steps=max_steps,
         honor_spec_max_steps=honor_spec_max_steps,
+        emit_reg_debug=emit_reg_debug,
+        skip_duplicated_fail_fast_global_asserts=skip_duplicated_fail_fast_global_asserts,
     )
 
 
@@ -210,12 +218,31 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--max-steps",
         type=int,
         default=None,
-        help="Bound the number of Procurator steps (BMC-style bug finding). UNSAFE is sound; SAFE is only within the bound. Default: unbounded.",
+        help=(
+            "Optional bounded bug-finding/benchmark step limit. UNSAFE is sound; "
+            "SAFE is only within the bound. Default: unbounded."
+        ),
     )
     ap.add_argument(
         "--use-spec-max-steps",
         action="store_true",
-        help="Honor `global.max_steps` from the DSL spec (disabled by default to avoid silently changing semantics).",
+        help=(
+            "Use `global.max_steps` from the DSL spec as an explicit benchmark/debug bound. "
+            "Default: ignore it and keep the model unbounded."
+        ),
+    )
+    ap.add_argument(
+        "--no-reg-debug",
+        action="store_true",
+        help="Disable per-pass register debug snapshots in the generated Boogie harness (can greatly reduce SMT load).",
+    )
+    ap.add_argument(
+        "--skip-duplicated-fail-fast-global-asserts",
+        action="store_true",
+        help=(
+            "When P4B duplicates an exact register-mirror global assertion at register write sites, "
+            "omit the duplicate end-of-step harness assertion. This is an opt-in performance knob."
+        ),
     )
 
     ap.add_argument(
@@ -240,6 +267,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     pipeline_two_stage = not args.no_two_stage
     max_steps = args.max_steps
     honor_spec_max_steps = bool(args.use_spec_max_steps)
+    emit_reg_debug = not bool(args.no_reg_debug)
+    skip_duplicated_fail_fast_global_asserts = bool(args.skip_duplicated_fail_fast_global_asserts)
 
     if max_steps is not None and max_steps <= 0:
         raise SystemExit("[ERR] --max-steps must be > 0")
@@ -268,6 +297,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             pipeline_two_stage=pipeline_two_stage,
             max_steps=max_steps,
             honor_spec_max_steps=honor_spec_max_steps,
+            emit_reg_debug=emit_reg_debug,
+            skip_duplicated_fail_fast_global_asserts=skip_duplicated_fail_fast_global_asserts,
         )
     except Exception as e:
         raise SystemExit(f"[ERR] {e}") from e
