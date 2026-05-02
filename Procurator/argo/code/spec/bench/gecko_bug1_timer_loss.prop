@@ -23,6 +23,22 @@ host io {
     hdr.ethernet.valid = true;
     hdr.ethernet.ether_type = 21845;
     hdr.albion.valid = true;
+    // Reduce irrelevant branching/state: keep register indices and address fields stable.
+    // (Put these in host.env rather than node.assume so they constrain host injection too.)
+    hdr.albion.CS_id_1 = 0;
+    hdr.albion.CS_id_2 = 0;
+    hdr.albion.CS_id_3 = 0;
+    hdr.albion.CS_offset_1 = 0;
+    hdr.albion.CS_offset_2 = 0;
+    hdr.albion.CS_offset_3 = 0;
+    hdr.albion.address_h = 0;
+    hdr.albion.address_l = 0;
+    hdr.albion.index = 0;
+    hdr.albion.num = 0;
+    hdr.albion.port = 0;
+    hdr.albion.request_id_high = 0;
+    hdr.albion.request_id_low = 0;
+    hdr.albion.time = 0;
     hdr.albion_timer.valid = false;
     // Gecko's write request does not carry albion_data in our abstraction.
     hdr.albion_data.valid = false;

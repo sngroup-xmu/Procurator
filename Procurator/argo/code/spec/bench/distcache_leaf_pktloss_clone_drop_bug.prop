@@ -86,6 +86,7 @@ host io {
 
 global {
   queue_capacity = 1;
+  max_steps = 3;
   env_thread = false;
   host_eager = true;
   deterministic_scheduler = true;

@@ -39,9 +39,10 @@ global {
   env_thread = false;
   host_eager = true;
   deterministic_scheduler = true;
-  // Two-stage harness: host_send, host_recv, node_ingress, node_egress.
-  // Bounding to 4 steps is sufficient to cover one full leaf pass for this spec.
-  max_steps = 4;
+  // Current sequential harness layout:
+  //   step0 host_send, step1 host_recv, step2 node_pass(assert checked here), step3 next host_send.
+  // This bug is fully exposed by step2, so use 3 to avoid one irrelevant extra step.
+  max_steps = 3;
 
   assert {
     leaf_netcacheEgress_cm3_reg__wrote_any && leaf_netcacheEgress_cm4_reg__wrote_any;

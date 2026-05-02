@@ -1,0 +1,22 @@
+\begin{table}[htbp]
+\centering
+\caption{System-level slicing vs. no-slicing total-time comparison (NA cases excluded)}
+\begin{tabular}{lrrrrr}
+\toprule
+System & Cases & Slicing Total (s) & No-slicing Total (s) & Speedup (N/S) & Avg Delta (s) \\
+\midrule
+NetChain & 1 & 377.367 & 791.130 & 2.096 & 413.763 \\
+P4xos & 2 & 993.378 & 836.489 & 0.842 & -78.445 \\
+Gecko & 3 & 706.752 & 842.650 & 1.192 & 45.299 \\
+DistCache & 4 & 1248.052 & 1815.275 & 1.454 & 141.806 \\
+ATP & 2 & 71.103 & 132.339 & 1.861 & 30.618 \\
+Cheetah & 1 & 38.004 & 83.848 & 2.206 & 45.844 \\
+DDOSD & 1 & 66.528 & 1667.350 & 25.062 & 1600.822 \\
+FRR & 2 & 145.377 & 579.687 & 3.987 & 217.155 \\
+FissLock & 1 & 623.140 & 660.866 & 1.061 & 37.726 \\
+NetLock & 5 & 446.713 & 876.799 & 1.963 & 86.017 \\
+P4DB & 2 & 21.746 & 35.444 & 1.630 & 6.849 \\
+P4NIS & 2 & 17.262 & 22.336 & 1.294 & 2.537 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -49,6 +49,9 @@ node spine {
 
 global {
   queue_capacity = 1;
+  // With the current sequential harness, step 0 injects external input and
+  // step 1 executes the node pass; we need 2 steps to observe the bug path.
+  max_steps = 2;
   deterministic_scheduler = true;
 
   // Make the effect observable: start from a known value.
