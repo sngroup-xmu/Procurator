@@ -24,7 +24,9 @@ build/
 UGemCutter-linux/
 .tmp/
 .venv/
+.venv-wsl/
 .cursor/
+.gemini/
 tmp/
 **/build-host/
 
