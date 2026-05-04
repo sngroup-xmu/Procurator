@@ -340,6 +340,136 @@ global {{
             text,
         )
 
+    def test_guarded_register_mirror_assert_gets_dsl_direct_check(self) -> None:
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        spec = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "spec"
+            / "bench"
+            / "external_flowrest_per_flow_flow_duration_wraparound.prop"
+        )
+        self.assertTrue(spec.exists())
+        p4b_bin = repo_root / "P4B-Translator" / "build-host" / "backends" / "verify" / "p4c-translator"
+        self.assertTrue(p4b_bin.exists())
+
+        with tempfile.TemporaryDirectory() as td:
+            outp = compile_spec_text(
+                spec_text=spec.read_text(encoding="utf-8"),
+                backend="boogie",
+                out=Path(td) / "out.bpl",
+                base_dir=spec.parent,
+                p4b_bin=p4b_bin,
+                boogie_harness="sequential",
+                pipeline_two_stage=False,
+                honor_spec_max_steps=True,
+                emit_reg_debug=False,
+            )
+            text = outp.artifacts["bpl"].read_text(encoding="utf-8", errors="replace")
+
+        direct = (
+            "if (!((dsl_phase < 3))) {\n"
+            "    assert !((flowrest_Ingress_reg_flow_duration__wrote_any && "
+            "(flowrest_Ingress_reg_flow_duration__last_value == 0bv32)));\n"
+            "  }"
+        )
+        self.assertIn("// Global assertions (direct guarded checks)", text)
+        self.assertIn(direct, text)
+        self.assertEqual(text.count("flowrest_Ingress_reg_flow_duration__last_value == 0bv32"), 1)
+        self.assertNotIn("// Global assertions (accumulated into procurator_bad)", text)
+        self.assertNotIn("assert !procurator_bad;", text)
+        self.assertNotIn(
+            "if (flowrest_Ingress_reg_flow_duration__wrote_any && "
+            "flowrest_Ingress_reg_flow_duration__last_value == 0bv32) {",
+            text,
+        )
+        self.assertNotIn("assert false;", text)
+        self.assertNotIn("assume false;", text)
+
+    def test_conjunctive_guarded_register_mirror_assert_gets_dsl_direct_check(self) -> None:
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        spec = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "spec"
+            / "bench"
+            / "external_flowrest_per_flow_flow_duration_wraparound_direct.prop"
+        )
+        self.assertTrue(spec.exists())
+        p4b_bin = repo_root / "P4B-Translator" / "build-host" / "backends" / "verify" / "p4c-translator"
+        self.assertTrue(p4b_bin.exists())
+
+        with tempfile.TemporaryDirectory() as td:
+            outp = compile_spec_text(
+                spec_text=spec.read_text(encoding="utf-8"),
+                backend="boogie",
+                out=Path(td) / "out.bpl",
+                base_dir=spec.parent,
+                p4b_bin=p4b_bin,
+                boogie_harness="sequential",
+                pipeline_two_stage=False,
+                honor_spec_max_steps=True,
+                emit_reg_debug=False,
+            )
+            text = outp.artifacts["bpl"].read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("// Global assertions (direct guarded checks)", text)
+        self.assertIn("if (((flowrest_meta.is_first != 1bv1) && (flowrest_meta.iat != 0bv32))) {", text)
+        self.assertIn(
+            "assert !((flowrest_Ingress_reg_flow_duration__wrote_any && "
+            "(flowrest_Ingress_reg_flow_duration__last_value == 0bv32)));",
+            text,
+        )
+        self.assertNotIn("// Global assertions (accumulated into procurator_bad)", text)
+        self.assertNotIn("assert !procurator_bad;", text)
+
+    def test_bounded_direct_check_preserves_accumulated_fallback_for_other_asserts(self) -> None:
+        raw_bpl = self._native_register_bpl()
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            raw_path = td_path / "node.bpl"
+            raw_path.write_text(raw_bpl, encoding="utf-8")
+            spec = f"""
+import s1 from "{raw_path.as_posix()}";
+topology {{ }}
+node s1 {{
+  external_input = true;
+}}
+global {{
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  max_steps = 2;
+  int phase = 0;
+  assert {{
+    !(s1_my_reg__wrote_any && s1_my_reg__last_value == 0 && phase == 0);
+    true;
+  }};
+}}
+"""
+            outp = compile_spec_text(
+                spec_text=spec,
+                backend="boogie",
+                out=td_path / "out.bpl",
+                boogie_harness="sequential",
+                pipeline_two_stage=False,
+                honor_spec_max_steps=True,
+                emit_reg_debug=False,
+            )
+            text = outp.artifacts["bpl"].read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("// Global assertions (direct guarded checks)", text)
+        self.assertIn(
+            "assert !((s1_my_reg__wrote_any && (s1_my_reg__last_value == 0bv32)));",
+            text,
+        )
+        self.assertIn("// Global assertions (accumulated into procurator_bad)", text)
+        self.assertIn("if (!(true)) { procurator_bad := true; }", text)
+        self.assertIn("assert !procurator_bad;", text)
+
     def test_fail_fast_can_skip_duplicate_global_assert_when_opted_in(self) -> None:
         repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
         spec = (
@@ -380,7 +510,7 @@ global {{
         self.assertNotIn("// Global assertions (accumulated into procurator_bad)", text)
         self.assertNotIn("assert !procurator_bad;", text)
 
-    def test_skip_duplicate_assert_keeps_global_assert_when_not_inferred(self) -> None:
+    def test_skip_duplicate_assert_keeps_guarded_dsl_direct_check_when_p4b_not_inferred(self) -> None:
         repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
         spec = (
             repo_root
@@ -415,8 +545,9 @@ global {{
             "flowrest_Ingress_reg_pkt_len_total__last_value == 0bv16) {",
             text,
         )
-        self.assertIn("// Global assertions (accumulated into procurator_bad)", text)
-        self.assertIn("assert !procurator_bad;", text)
+        self.assertIn("// Global assertions (direct guarded checks)", text)
+        self.assertNotIn("// Global assertions (accumulated into procurator_bad)", text)
+        self.assertNotIn("assert !procurator_bad;", text)
 
     def test_required_env_packet_vars_are_kept_without_widening_p4_slice(self) -> None:
         repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
@@ -664,6 +795,74 @@ global {{
                         boogie_harness="sequential",
                         pipeline_two_stage=False,
                     )
+
+    def test_dslc_owns_control_seeds_for_p4b_slicing(self) -> None:
+        raw_bpl = """\
+type Ref;
+var p4b_recirculate:bool;
+var standard_metadata.egress_port:bv9;
+var hdr.ipv4:Ref;
+var hdr.ipv4.ttl:bv8;
+var isValid:[Ref]bool;
+
+procedure mainProcedure() returns()
+  modifies p4b_recirculate;
+{
+}
+"""
+
+        seen: dict[str, object] = {}
+
+        class FakeP4BTranslator:
+            def __init__(self, _p4b_bin: str):
+                pass
+
+            def compile_to_bpl(
+                self,
+                _p4_path: str,
+                out_bpl: str,
+                _entries_path: str | None,
+                out_meta: str | None = None,
+                **kwargs: object,
+            ) -> None:
+                seen.update(kwargs)
+                Path(out_bpl).write_text(raw_bpl, encoding="utf-8")
+                if out_meta:
+                    Path(out_meta).write_text("{}", encoding="utf-8")
+
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            p4 = td_path / "prog.p4"
+            p4.write_text("#include <core.p4>\n", encoding="utf-8")
+
+            spec = f"""
+import s1 from "{p4.as_posix()}";
+topology {{ }}
+node s1 {{
+  external_input = true;
+}}
+global {{
+  queue_capacity = 1;
+  assert {{ s1_hdr.ipv4.ttl == s1_hdr.ipv4.ttl; }}
+  ;
+}}
+"""
+            with mock.patch("dslc.backends.boogie.compiler.P4BTranslator", FakeP4BTranslator):
+                compile_spec_text(
+                    spec_text=spec,
+                    backend="boogie",
+                    out=td_path / "out.bpl",
+                    p4b_bin=Path("/fake/p4c-translator"),
+                    boogie_harness="sequential",
+                    pipeline_two_stage=False,
+                    emit_reg_debug=False,
+                    keep_control_seeds=True,
+                )
+
+        self.assertFalse(seen.get("keep_control_seeds"))
+        slicing_vars = set(seen.get("slicing_vars") or [])
+        self.assertIn("p4b_recirculate", slicing_vars)
+        self.assertIn("hdr.ipv4.ttl", slicing_vars)
 
     def test_p4b_generated_nodes_must_mark_register_arrays(self) -> None:
         raw_bpl_without_marker = self._native_register_bpl(include_marker=False)

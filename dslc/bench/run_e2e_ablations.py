@@ -281,6 +281,11 @@ def _sanity_check(*, root: Path, out_dir: str) -> str:
       - wraparound: manifest must be certified (entry unsafe, confirm unsafe, closure safe)
     """
     od = Path(out_dir)
+    focused = sorted(od.glob("*.focused-index0.unsafe.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if focused:
+        s = summarize_witness(out_dir=od)
+        return "OK" if s.ok else f"FAIL({s.kind})"
+
     witness = list(od.glob("*.bpl-witness.graphml"))
     if witness:
         s = summarize_witness(out_dir=od)

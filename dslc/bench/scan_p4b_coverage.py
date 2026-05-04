@@ -16,6 +16,9 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dslc.backends.boogie.node.p4b import _maybe_tofino_cpp_defines
+from dslc.bench.p4b_semantic_audit import CHECK_FAIL as SEMANTIC_FAIL
+from dslc.bench.p4b_semantic_audit import CHECK_SKIP as SEMANTIC_SKIP
+from dslc.bench.p4b_semantic_audit import audit_paths
 from dslc.cli.common import find_default_p4b_bin
 from dslc.utils.repo import repo_root
 
@@ -47,18 +50,31 @@ def _read(path: Path) -> str:
 
 
 def _target_kind(text: str) -> Optional[str]:
+    has_v1model = (
+        "<v1model.p4>" in text
+        or '"v1model.p4"' in text
+        or "V1Switch" in text
+        or "standard_metadata_t" in text
+    )
+    has_psa = "<psa.p4>" in text or '"psa.p4"' in text or "PSA_Switch" in text
+    has_pna = "<pna.p4>" in text or '"pna.p4"' in text or "PNA_NIC" in text
+    has_tna = (
+        "<tna.p4>" in text
+        or '"tna.p4"' in text
+        or "<t2na.p4>" in text
+        or '"t2na.p4"' in text
+    )
+
+    if has_v1model:
+        return "v1model"
+    if has_psa:
+        return "psa"
+    if has_pna:
+        return "pna"
     if "<tna.p4>" in text or '"tna.p4"' in text or "<t2na.p4>" in text or '"t2na.p4"' in text:
         return "tna"
-    if "RegisterAction<" in text or "ingress_intrinsic_metadata_t" in text:
+    if has_tna or "RegisterAction<" in text or "ingress_intrinsic_metadata_t" in text:
         return "tna-like"
-    if "<psa.p4>" in text or '"psa.p4"' in text or "PSA_Switch" in text:
-        return "psa"
-    if "<pna.p4>" in text or '"pna.p4"' in text or "PNA_NIC" in text:
-        return "pna"
-    if "<v1model.p4>" in text or '"v1model.p4"' in text:
-        return "v1model"
-    if "standard_metadata_t" in text or "V1Switch" in text:
-        return "v1model-like"
     if "<ebpf_model.p4>" in text or '"ebpf_model.p4"' in text:
         return "ebpf"
     if "<ubpf_model.p4>" in text or '"ubpf_model.p4"' in text:
@@ -204,6 +220,13 @@ def _classify_failure(output: str, returncode: int) -> str:
         return "include"
     if "syntax error" in msg or "parse error" in msg or "parser error" in msg:
         return "frontend_parse"
+    if (
+        "no argument supplied for parameter" in msg
+        or "cannot unify type" in msg
+        or "does not match invocation type" in msg
+        or "invalid declaration" in msg and "instantiations cannot be in a control" in msg
+    ):
+        return "source_type"
     if "compiler bug" in msg and "frontends/" in msg:
         return "frontend_internal"
     if "type error" in msg or "type-error" in msg or "typechecking" in msg or "type checking" in msg or "cannot unify" in msg:
@@ -316,9 +339,14 @@ def _counts(records: Iterable[dict[str, Any]], key: str) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
+def _semantic_counts(rows: Iterable[dict[str, Any]]) -> dict[str, int]:
+    return _counts((r for r in rows if "semantic_status" in r), "semantic_status")
+
+
 def _markdown(report: dict[str, Any]) -> str:
     rows = report["records"]
     ok_statuses = {"OK", "DISCOVERED"}
+    semantic_counts = _semantic_counts(rows)
     lines: list[str] = []
     lines.append("# P4B Architecture Coverage Scan")
     lines.append("")
@@ -359,6 +387,27 @@ def _markdown(report: dict[str, Any]) -> str:
     lines.append("|---|---:|")
     for k, v in _counts(rows, "category").items():
         lines.append(f"| `{k}` | {v} |")
+    if semantic_counts:
+        lines.append("")
+        lines.append("### By Semantic Status")
+        lines.append("")
+        lines.append("| semantic | count |")
+        lines.append("|---|---:|")
+        for k, v in semantic_counts.items():
+            lines.append(f"| `{k}` | {v} |")
+        lines.append("")
+        lines.append("### Semantic Weaknesses / Failures")
+        lines.append("")
+        lines.append("| path | semantic | details |")
+        lines.append("|---|---|---|")
+        for r in rows:
+            semantic = r.get("semantic_status")
+            if semantic not in {"FAIL", "WEAK"}:
+                continue
+            details = "<br>".join(str(x) for x in (r.get("semantic_failures") or []))
+            if len(details) > 900:
+                details = details[:900] + "..."
+            lines.append(f"| `{r['path']}` | `{semantic}` | {details} |")
     lines.append("")
     lines.append("## Failures")
     lines.append("")
@@ -374,10 +423,18 @@ def _markdown(report: dict[str, Any]) -> str:
     lines.append("")
     lines.append("## All Programs")
     lines.append("")
-    lines.append("| path | target | status | category | wall(s) |")
-    lines.append("|---|---|---|---|---:|")
+    if semantic_counts:
+        lines.append("| path | target | status | category | semantic | wall(s) |")
+        lines.append("|---|---|---|---|---|---:|")
+    else:
+        lines.append("| path | target | status | category | wall(s) |")
+        lines.append("|---|---|---|---|---:|")
     for r in rows:
-        lines.append(f"| `{r['path']}` | `{r['target']}` | `{r['status']}` | `{r['category']}` | {r['wall_s']} |")
+        if semantic_counts:
+            semantic = r.get("semantic_status", "-")
+            lines.append(f"| `{r['path']}` | `{r['target']}` | `{r['status']}` | `{r['category']}` | `{semantic}` | {r['wall_s']} |")
+        else:
+            lines.append(f"| `{r['path']}` | `{r['target']}` | `{r['status']}` | `{r['category']}` | {r['wall_s']} |")
     lines.append("")
     return "\n".join(lines)
 
@@ -398,6 +455,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--include-sanitized", action="store_true", help="Include .p4b_sanitized_* temporary files.")
     ap.add_argument("--include-modules", action="store_true", help="Also include parser/control/include modules that are not top-level architecture programs.")
     ap.add_argument("--with-slicing", action="store_true", help="Exercise default P4B slicing too. Default is base translation coverage with --no-slicing.")
+    ap.add_argument("--semantic-audit", action="store_true", help="Audit source features against generated BPL/meta evidence.")
     ap.add_argument("--list-only", action="store_true", help="Only discover candidates and write reports without invoking P4B.")
     ns = ap.parse_args(argv)
 
@@ -452,8 +510,37 @@ def main(argv: Optional[list[str]] = None) -> int:
             with_slicing=ns.with_slicing,
             include_cache=include_cache,
         )
+        if ns.semantic_audit and rec.get("status") == "OK" and rec.get("out_bpl"):
+            try:
+                rec.update(
+                    audit_paths(
+                        cand.path,
+                        root / rec["out_bpl"],
+                        root / rec["out_meta"] if rec.get("out_meta") else None,
+                        slicing_mode=ns.with_slicing,
+                    )
+                )
+            except Exception as exc:
+                rec.update(
+                    {
+                        "semantic_status": SEMANTIC_FAIL,
+                        "semantic_features": [],
+                        "semantic_checks": [],
+                        "semantic_failures": [f"semantic audit crashed: {exc}"],
+                    }
+                )
+        elif ns.semantic_audit:
+            rec.update(
+                {
+                    "semantic_status": SEMANTIC_SKIP,
+                    "semantic_features": [],
+                    "semantic_checks": [],
+                    "semantic_failures": [],
+                }
+            )
         records.append(rec)
-        print(f"{rec['status']:4} {rec['category']:24} {rec['wall_s']:8.3f}s {rec['path']}", flush=True)
+        semantic = f" semantic={rec['semantic_status']}" if "semantic_status" in rec else ""
+        print(f"{rec['status']:4} {rec['category']:24} {rec['wall_s']:8.3f}s{semantic} {rec['path']}", flush=True)
 
     report = {
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -469,6 +556,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "candidate_count_in_batch": candidate_count_in_batch,
         "next_offset": ns.offset + len(records),
         "with_slicing": ns.with_slicing,
+        "semantic_audit": ns.semantic_audit,
         "records": records,
     }
     out_json = (root / ns.out_json).resolve() if ns.out_json else out_dir / "coverage.json"
@@ -479,7 +567,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     print(f"wrote {out_md}")
     if not records:
         return 2
-    return 0 if all(r["status"] in {"OK", "DISCOVERED"} for r in records) else 1
+    compile_ok = all(r["status"] in {"OK", "DISCOVERED"} for r in records)
+    semantic_ok = not ns.semantic_audit or all(r.get("semantic_status") != SEMANTIC_FAIL for r in records)
+    return 0 if compile_ok and semantic_ok else 1
 
 
 if __name__ == "__main__":

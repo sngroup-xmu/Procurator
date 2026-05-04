@@ -10,12 +10,32 @@ class TestScanP4BCoverage(unittest.TestCase):
         self.assertEqual(_target_kind('#include <psa.p4>\nPSA_Switch(ip, pre, ep, bq) main;'), "psa")
         self.assertEqual(_target_kind('#include <t2na.p4>\nSwitch(pipe) main;'), "tna")
 
+    def test_target_kind_prefers_explicit_v1model_over_stray_tna_include(self) -> None:
+        text = """
+            #include <core.p4>
+            #include <tna.p4>
+            control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t sm) { apply {} }
+            V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
+        """
+
+        self.assertEqual(_target_kind(text), "v1model")
+
     def test_classify_frontend_internal_and_hyphen_type_error(self) -> None:
         self.assertEqual(
             _classify_failure("Compiler Bug: frontends/p4/functionsInlining.cpp:41: Null stat", 1),
             "frontend_internal",
         )
         self.assertEqual(_classify_failure("[--Werror=type-error] error: cast not supported", 1), "frontend_type")
+
+    def test_classify_source_type_mismatch(self) -> None:
+        self.assertEqual(
+            _classify_failure("Actual error: ig_tm_md: No argument supplied for parameter", 1),
+            "source_type",
+        )
+        self.assertEqual(
+            _classify_failure("Cannot unify type 'bit<32>' with type 'MsgType_t'", 1),
+            "source_type",
+        )
 
     def test_discover_candidates_accepts_multiple_roots(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -67,6 +87,7 @@ class TestScanP4BCoverage(unittest.TestCase):
                 "p4b_bin": "/p4b",
                 "scan_roots": ["samples"],
                 "with_slicing": False,
+                "semantic_audit": True,
                 "timeout_s": 1,
                 "offset": 5,
                 "limit": 10,
@@ -81,6 +102,7 @@ class TestScanP4BCoverage(unittest.TestCase):
                         "target": "psa",
                         "status": "DISCOVERED",
                         "category": "not_run",
+                        "semantic_status": "SKIP",
                         "wall_s": 0.0,
                         "error_tail": "",
                     }
@@ -90,6 +112,8 @@ class TestScanP4BCoverage(unittest.TestCase):
 
         self.assertIn("| ok | 1 |", md)
         self.assertIn("| fail | 0 |", md)
+        self.assertIn("### By Semantic Status", md)
+        self.assertIn("| `SKIP` | 1 |", md)
         self.assertIn("Batch: `offset=5, limit=10, max_wall_seconds=30.0`", md)
         self.assertIn("Batch counts: `before_batch=25, in_batch=10, recorded=1, next_offset=6`", md)
         self.assertIn("Stopped early: `max-wall-seconds 30s reached`", md)
