@@ -492,6 +492,88 @@ static std::string stripTrailingNumericSuffix(const std::string& name) {
     return name.substr(0, pos);
 }
 
+static void addUniqueString(std::vector<std::string>* values, const std::string& value) {
+    if (values == nullptr || value.empty()) {
+        return;
+    }
+    if (std::find(values->begin(), values->end(), value) == values->end()) {
+        values->push_back(value);
+    }
+}
+
+static std::vector<std::string> actionNameAliases(const std::string& name) {
+    std::vector<std::string> aliases;
+    auto add = [&](const std::string& candidate) {
+        if (candidate.empty()) {
+            return;
+        }
+        addUniqueString(&aliases, candidate);
+        const std::string stripped = stripTrailingNumericSuffix(candidate);
+        addUniqueString(&aliases, stripped);
+    };
+
+    add(name);
+
+    std::string base = name;
+    static const std::string applySuffix = ".apply";
+    if (base.size() > applySuffix.size() &&
+        base.compare(base.size() - applySuffix.size(), applySuffix.size(), applySuffix) == 0) {
+        base.erase(base.size() - applySuffix.size());
+        add(base);
+    }
+
+    const size_t dot = base.rfind('.');
+    if (dot != std::string::npos && dot + 1 < base.size()) {
+        add(base.substr(dot + 1));
+    }
+
+    std::string underscored = base;
+    std::replace(underscored.begin(), underscored.end(), '.', '_');
+    add(underscored);
+
+    const size_t underscore = underscored.find('_');
+    if (underscore != std::string::npos && underscore + 1 < underscored.size()) {
+        add(underscored.substr(underscore + 1));
+    }
+
+    return aliases;
+}
+
+template <typename Map>
+static typename Map::const_iterator findByActionAliases(const Map& map, const std::string& name) {
+    typename Map::const_iterator found = map.end();
+    for (const auto& alias : actionNameAliases(name)) {
+        auto it = map.find(alias);
+        if (it != map.end()) {
+            if (found != map.end() && found != it) {
+                return map.end();
+            }
+            found = it;
+        }
+    }
+    return found;
+}
+
+static bool contextMatches(const std::string& defContext, const std::string& useContext) {
+    if (defContext.empty() || useContext.empty()) {
+        return false;
+    }
+    if (defContext == useContext) {
+        return true;
+    }
+    if (useContext.size() > defContext.size() &&
+        useContext.compare(useContext.size() - defContext.size(), defContext.size(), defContext) == 0 &&
+        useContext[useContext.size() - defContext.size() - 1] == '.') {
+        return true;
+    }
+    if (defContext.size() > useContext.size() &&
+        defContext.compare(defContext.size() - useContext.size(), useContext.size(), useContext) == 0 &&
+        defContext[defContext.size() - useContext.size() - 1] == '.') {
+        return true;
+    }
+    return false;
+}
+
 static std::string rewriteHashSignatureTypes(
     const std::string& expr,
     const std::unordered_map<std::string, std::string>& substTypes) {
@@ -560,19 +642,20 @@ static std::string rewriteHashSignatureTypes(
     return out;
 }
 
-static void appendDefinition(P4VerifyOptions* options,
-                             const std::string& lhs,
-                             const std::string& rhs,
-                             const std::set<std::string>& deps,
-                             const std::string& context) {
-    if (options == nullptr || lhs.empty() || rhs.empty()) {
+static void appendDefinitionTo(std::vector<P4VerifyOptions::IndexDefinition>* defs,
+                               const std::string& lhs,
+                               const std::string& rhs,
+                               const std::set<std::string>& deps,
+                               const std::string& context,
+                               bool ambiguous = false) {
+    if (defs == nullptr || lhs.empty() || rhs.empty()) {
         return;
     }
-    for (const auto& existing : options->index_definitions) {
+    for (const auto& existing : *defs) {
         const std::string target = existing.target_var ? existing.target_var.c_str() : "";
         const std::string expr = existing.expr ? existing.expr.c_str() : "";
         const std::string ctx = existing.context ? existing.context.c_str() : "";
-        if (target == lhs && expr == rhs && ctx == context) {
+        if (target == lhs && expr == rhs && ctx == context && existing.ambiguous == ambiguous) {
             return;
         }
     }
@@ -583,7 +666,23 @@ static void appendDefinition(P4VerifyOptions* options,
         def.deps.push_back(cstring(dep));
     }
     def.context = cstring(context);
-    options->index_definitions.push_back(def);
+    def.ambiguous = ambiguous;
+    defs->push_back(def);
+}
+
+static void appendDefinition(P4VerifyOptions* options,
+                             const std::string& lhs,
+                             const std::string& rhs,
+                             const std::set<std::string>& deps,
+                             const std::string& context,
+                             bool ambiguous = false) {
+    if (options == nullptr || lhs.empty() || rhs.empty()) {
+        return;
+    }
+    appendDefinitionTo(&options->deterministic_definitions, lhs, rhs, deps, context, ambiguous);
+    if (isIndexDefinitionTarget(lhs)) {
+        appendDefinitionTo(&options->index_definitions, lhs, rhs, deps, context, ambiguous);
+    }
 }
 
 static std::string localIndexAlias(const std::string& name) {
@@ -606,12 +705,57 @@ static void appendDefinitionWithAliases(P4VerifyOptions* options,
                                         const std::string& lhs,
                                         const std::string& rhs,
                                         const std::set<std::string>& deps,
-                                        const std::string& context) {
-    appendDefinition(options, lhs, rhs, deps, context);
+                                        const std::string& context,
+                                        bool ambiguous = false) {
+    appendDefinition(options, lhs, rhs, deps, context, ambiguous);
     const std::string alias = localIndexAlias(lhs);
-    if (!alias.empty() && isIndexDefinitionTarget(alias)) {
-        appendDefinition(options, alias, rhs, deps, context);
+    if (!alias.empty()) {
+        appendDefinition(options, alias, rhs, deps, context, ambiguous);
     }
+}
+
+static void collectIdentTokens(const std::string& expr, std::set<std::string>* out) {
+    if (out == nullptr) {
+        return;
+    }
+    for (size_t i = 0; i < expr.size();) {
+        if (!isIdentStart(expr[i])) {
+            i++;
+            continue;
+        }
+        size_t j = i + 1;
+        while (j < expr.size() && isIdentBody(expr[j])) {
+            j++;
+        }
+        std::string tok = expr.substr(i, j - i);
+        const size_t dollar = tok.find('$');
+        if (dollar != std::string::npos) {
+            tok = tok.substr(0, dollar);
+        }
+        if (!tok.empty() && tok != "true" && tok != "false") {
+            out->insert(tok);
+        }
+        i = j;
+    }
+}
+
+static std::set<std::string> substituteDeps(
+    const std::set<std::string>& deps,
+    const std::unordered_map<std::string, std::string>& subst) {
+    std::set<std::string> out;
+    for (const auto& dep : deps) {
+        auto it = subst.find(dep);
+        if (it == subst.end()) {
+            out.insert(dep);
+            continue;
+        }
+        std::set<std::string> renderedDeps;
+        collectIdentTokens(it->second, &renderedDeps);
+        if (!renderedDeps.empty()) {
+            out.insert(renderedDeps.begin(), renderedDeps.end());
+        }
+    }
+    return out;
 }
 
 static bool renderV1ModelHashDefinition(const IR::MethodCallExpression* mce,
@@ -710,13 +854,65 @@ class IndexDefCollector : public Inspector {
     P4::ReferenceMap* refMap;
     std::vector<std::string> contexts;
     std::vector<std::string> actionStack;
+    std::vector<std::vector<std::string>> actionAliasStack;
     std::unordered_map<std::string, std::string> renames;
     std::unordered_map<std::string, std::vector<std::string>> actionParams;
+    std::unordered_map<std::string, std::vector<std::vector<std::string>>> actionParamAliases;
     std::unordered_map<std::string, std::unordered_map<std::string, std::string>> actionParamTypes;
     std::unordered_map<std::string, std::vector<DefinitionSummary>> actionDefinitions;
+    std::unordered_map<std::string, std::vector<DefinitionSummary>> deterministicDefinitionsByName;
+    std::unordered_map<std::string, std::vector<DefinitionSummary>> actionLocalDefinitions;
 
     explicit IndexDefCollector(P4VerifyOptions* opt, P4::ReferenceMap* refs)
         : options(opt), refMap(refs) {}
+
+    void finalize() {
+        if (options == nullptr || actionLocalDefinitions.empty()) {
+            return;
+        }
+        const auto indexDefs = options->index_definitions;
+        const auto deterministicDefs = options->deterministic_definitions;
+        options->index_definitions.clear();
+        options->deterministic_definitions.clear();
+        auto expandDefs = [&](const std::vector<P4VerifyOptions::IndexDefinition>& defs) {
+        for (const auto& def : defs) {
+            const std::string lhs = def.target_var ? def.target_var.c_str() : "";
+            const std::string rhs = def.expr ? def.expr.c_str() : "";
+            const std::string ctx = def.context ? def.context.c_str() : "";
+            std::set<std::string> deps;
+            for (const auto& dep : def.deps) {
+                deps.insert(dep.c_str());
+            }
+            std::unordered_map<std::string, std::string> localSubst;
+            for (const auto& kv : actionLocalDefinitions) {
+                if (kv.first == lhs) {
+                    continue;
+                }
+                const DefinitionSummary* unique = nullptr;
+                for (const auto& summary : kv.second) {
+                    if (!contextMatches(summary.context, ctx)) {
+                        continue;
+                    }
+                    if (unique != nullptr && unique->expr != summary.expr) {
+                        unique = nullptr;
+                        break;
+                    }
+                    unique = &summary;
+                }
+                if (unique != nullptr) {
+                    localSubst[kv.first] = unique->expr;
+                }
+            }
+            std::string expanded = substituteIdentifierTokens(rhs, localSubst);
+            std::set<std::string> expandedDeps = substituteDeps(deps, localSubst);
+            expandedDeps.erase(lhs);
+            const bool ambiguous = def.ambiguous;
+            appendDefinition(options, lhs, expanded, expandedDeps, ctx, ambiguous);
+        }
+        };
+        expandDefs(deterministicDefs);
+        (void)indexDefs;
+    }
 
     void recordRename(const IR::IDeclaration* decl) {
         if (decl == nullptr) {
@@ -735,6 +931,11 @@ class IndexDefCollector : public Inspector {
 
     bool preorder(const IR::Declaration_Instance* inst) override {
         recordRename(inst);
+        return true;
+    }
+
+    bool preorder(const IR::Declaration_Variable* var) override {
+        recordRename(var);
         return true;
     }
 
@@ -763,28 +964,57 @@ class IndexDefCollector : public Inspector {
 
     bool preorder(const IR::P4Action* action) override {
         recordRename(action);
-        std::string actionName = action ? action->name.toString().c_str() : "";
-        auto itRename = renames.find(actionName);
+        const std::string rawActionName = action ? action->name.toString().c_str() : "";
+        std::string actionName = rawActionName;
+        auto itRename = renames.find(rawActionName);
         if (itRename != renames.end()) {
             actionName = itRename->second;
         }
+        std::vector<std::string> actionAliases = actionNameAliases(rawActionName);
+        for (const auto& alias : actionNameAliases(actionName)) {
+            addUniqueString(&actionAliases, alias);
+        }
+        std::sort(actionAliases.begin(), actionAliases.end());
+        actionAliases.erase(std::unique(actionAliases.begin(), actionAliases.end()), actionAliases.end());
         contexts.push_back(actionName);
         actionStack.push_back(actionName);
+        actionAliasStack.push_back(actionAliases);
         std::vector<std::string> params;
         if (action != nullptr && action->parameters != nullptr) {
             std::unordered_map<std::string, std::string> paramTypes;
+            std::vector<std::vector<std::string>> paramAliases;
             for (auto parameter : action->parameters->parameters) {
                 if (parameter != nullptr) {
                     std::string name = parameter->name.name.c_str();
                     params.push_back(name);
+                    std::vector<std::string> aliases;
+                    addUniqueString(&aliases, name);
+                    addUniqueString(&aliases, stripTrailingNumericSuffix(name));
+                    cstring cp = parameter->controlPlaneName();
+                    if (!cp.isNullOrEmpty()) {
+                        std::string sanitized = idxDefSanitizeDeclName(cp.c_str());
+                        if (!sanitized.empty()) {
+                            addUniqueString(&aliases, sanitized);
+                            addUniqueString(&aliases, stripTrailingNumericSuffix(sanitized));
+                        }
+                    }
+                    std::sort(aliases.begin(), aliases.end());
+                    aliases.erase(std::unique(aliases.begin(), aliases.end()), aliases.end());
                     std::string typ = boogieType(parameter->type, refMap);
-                    paramTypes[name] = typ;
-                    paramTypes[stripTrailingNumericSuffix(name)] = typ;
+                    for (const auto& alias : aliases) {
+                        paramTypes[alias] = typ;
+                    }
+                    paramAliases.push_back(aliases);
                 }
             }
-            actionParamTypes[actionName] = paramTypes;
+            for (const auto& alias : actionAliases) {
+                actionParamTypes[alias] = paramTypes;
+                actionParamAliases[alias] = paramAliases;
+            }
         }
-        actionParams[actionName] = params;
+        for (const auto& alias : actionAliases) {
+            actionParams[alias] = params;
+        }
         return true;
     }
 
@@ -794,6 +1024,9 @@ class IndexDefCollector : public Inspector {
         }
         if (!actionStack.empty()) {
             actionStack.pop_back();
+        }
+        if (!actionAliasStack.empty()) {
+            actionAliasStack.pop_back();
         }
     }
 
@@ -813,8 +1046,7 @@ class IndexDefCollector : public Inspector {
             return true;
         }
         std::string lhs;
-        if (!idxDefExtractVarPath(stmt->left, refMap, &renames, lhs) ||
-            !isIndexDefinitionTarget(lhs)) {
+        if (!idxDefExtractVarPath(stmt->left, refMap, &renames, lhs)) {
             return true;
         }
         std::string rhs;
@@ -824,7 +1056,19 @@ class IndexDefCollector : public Inspector {
         std::set<std::string> deps;
         idxDefCollectVarPaths(stmt->right, refMap, &renames, &deps);
         const std::string ctx = contexts.empty() ? "" : contexts.back();
-        appendDefinitionWithAliases(options, lhs, rhs, deps, ctx);
+        DefinitionSummary deterministic;
+        deterministic.target = lhs;
+        deterministic.expr = rhs;
+        deterministic.deps = deps;
+        deterministic.context = ctx;
+        deterministicDefinitionsByName[lhs].push_back(deterministic);
+        if (!actionStack.empty() && lhs.find('.') == std::string::npos &&
+            !isIndexDefinitionTarget(lhs)) {
+            actionLocalDefinitions[lhs].push_back(deterministic);
+        }
+        if (lhs.find('.') != std::string::npos || isIndexDefinitionTarget(lhs)) {
+            appendDefinitionWithAliases(options, lhs, rhs, deps, ctx);
+        }
         if (!actionStack.empty()) {
             DefinitionSummary summary;
             summary.target = lhs;
@@ -832,7 +1076,12 @@ class IndexDefCollector : public Inspector {
             summary.deps = deps;
             summary.context = ctx;
             summary.paramTypes = actionParamTypes[actionStack.back()];
-            actionDefinitions[actionStack.back()].push_back(summary);
+            std::vector<std::string> aliases = actionAliasStack.empty()
+                                                   ? std::vector<std::string>{actionStack.back()}
+                                                   : actionAliasStack.back();
+            for (const auto& alias : aliases) {
+                actionDefinitions[alias].push_back(summary);
+            }
         }
         return true;
     }
@@ -855,7 +1104,12 @@ class IndexDefCollector : public Inspector {
                 summary.deps = hashDeps;
                 summary.context = ctx;
                 summary.paramTypes = actionParamTypes[actionStack.back()];
-                actionDefinitions[actionStack.back()].push_back(summary);
+                std::vector<std::string> aliases = actionAliasStack.empty()
+                                                       ? std::vector<std::string>{actionStack.back()}
+                                                       : actionAliasStack.back();
+                for (const auto& alias : aliases) {
+                    actionDefinitions[alias].push_back(summary);
+                }
             }
             return true;
         }
@@ -867,7 +1121,7 @@ class IndexDefCollector : public Inspector {
             actionName.empty()) {
             return true;
         }
-        auto itDefs = actionDefinitions.find(actionName);
+        auto itDefs = findByActionAliases(actionDefinitions, actionName);
         if (itDefs == actionDefinitions.end() || itDefs->second.empty()) {
             return true;
         }
@@ -875,7 +1129,7 @@ class IndexDefCollector : public Inspector {
             return true;
         }
 
-        const auto itParam = actionParams.find(actionName);
+        const auto itParam = findByActionAliases(actionParams, actionName);
         if (itParam == actionParams.end()) {
             return true;
         }
@@ -885,6 +1139,7 @@ class IndexDefCollector : public Inspector {
         }
 
         std::unordered_map<std::string, std::string> subst;
+        auto itAliases = findByActionAliases(actionParamAliases, actionName);
         size_t n = std::min(params.size(), stmt->methodCall->arguments->size());
         for (size_t i = 0; i < n; ++i) {
             const IR::Argument* arg = stmt->methodCall->arguments->at(i);
@@ -893,8 +1148,16 @@ class IndexDefCollector : public Inspector {
             }
             std::string rendered;
             if (renderExpr(arg->expression, refMap, &renames, &rendered, nullptr)) {
-                subst[params[i]] = rendered;
-                subst[stripTrailingNumericSuffix(params[i])] = rendered;
+                if (itAliases != actionParamAliases.end() && i < itAliases->second.size()) {
+                    for (const auto& alias : itAliases->second[i]) {
+                        if (!alias.empty()) {
+                            subst[alias] = rendered;
+                        }
+                    }
+                } else {
+                    subst[params[i]] = rendered;
+                    subst[stripTrailingNumericSuffix(params[i])] = rendered;
+                }
             }
         }
         if (subst.empty()) {
@@ -934,6 +1197,7 @@ void analyzeIndexDefinitions(const IR::P4Program* program,
     }
     IndexDefCollector collector(options, refMap);
     program->apply(collector);
+    collector.finalize();
 }
 
 }  // namespace P4Verify

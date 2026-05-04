@@ -15,16 +15,18 @@
 #include "backends/verify/slicing/slicer_selftest.h"
 #include "backends/verify/translate/bmv2.h"
 #include "backends/verify/translate/translate.h"
+#ifdef P4VERIFY_ENABLE_P4LTL
 #include "frontends/parsers/p4ltl/p4ltlast.hpp"
 #include "frontends/parsers/p4ltl/p4ltlparser.hpp"
 #include "frontends/parsers/p4ltl/p4ltllexer.hpp"
+#endif
 #include "lib/nullstream.h"
 
 namespace P4Verify {
 namespace {
 
 std::unique_ptr<BMV2CmdsAnalyzer> loadBmv2Commands(const P4VerifyOptions& options) {
-    std::ifstream bmv2cmds(options.cmdFile);
+    std::ifstream bmv2cmds(options.cmdFile.c_str());
     if (!bmv2cmds) {
         return nullptr;
     }
@@ -142,15 +144,17 @@ int runSlicingPipeline(const IR::P4Program** program,
             options.slicingRegHasNonConst = sres.regHasNonConst;
         }
         if (options.loadIRFromJson) {
-            // JSON IR statement pruning is intentionally disabled.  Keep register
-            // index/RW metadata from the slicer, but do not filter declarations or
-            // tables while the original, unpruned control flow can still reference
-            // them.
+            // JSON IR statement pruning is intentionally disabled.  Do not shrink
+            // register domains either: the original, unpruned control flow can
+            // still reference indices outside the seed slice.
             options.slicingKeepVars.clear();
             options.slicingKeepTables.clear();
             options.slicingFilterTables = false;
+            options.slicingRegMaxIndex.clear();
+            options.slicingRegHasNonConst.clear();
             if (options.slicingDebug) {
                 std::cerr << "[slicer] json-safe: var/table filtering disabled "
+                          << "and register index pruning disabled "
                           << "(statement pruning skipped)\n";
             }
         }
@@ -183,7 +187,13 @@ void loadP4LtlSpec(Translator* translator, const P4VerifyOptions& options) {
     if (!options.p4ltlSpec) {
         return;
     }
-    std::ifstream fin(options.p4ltlFile);
+#ifndef P4VERIFY_ENABLE_P4LTL
+    (void)translator;
+    ::error("legacy --p4ltl support is unavailable in this p4c frontend sync; "
+            "build with ENABLE_P4VERIFY_P4LTL after restoring the P4LTL parser");
+    return;
+#else
+    std::ifstream fin(options.p4ltlFile.c_str());
     if (!fin) {
         return;
     }
@@ -212,31 +222,49 @@ void loadP4LtlSpec(Translator* translator, const P4VerifyOptions& options) {
         P4LTL::P4LTLParser parser{scanner, root};
         int result = parser.parse();
         if (result == 0 && root) {
-            std::cout << "P4LTL parsing result: ";
-            std::cout << root->toString() << std::endl;
+            if (std::getenv("P4VERIFY_DEBUG_P4LTL") != nullptr) {
+                std::cerr << "[p4verify-p4ltl] parsing result: "
+                          << root->toString() << std::endl;
+            }
             translator->setP4LTLSpec(key, root);
-            std::cout << std::endl;
         }
     }
+#endif
 }
 
 bool emitBoogieAndMeta(const IR::P4Program* program,
                        BMV2CmdsAnalyzer* bmv2Analyzer,
                        P4::ReferenceMap* refMap,
                        P4VerifyOptions& options) {
-    std::ostream* out = openFile(options.outputBplFile, false);
+    const bool debugJson = std::getenv("P4VERIFY_DEBUG_JSON_FRONTEND") != nullptr;
+    if (debugJson) {
+        std::cerr << "[p4verify-json] emitBoogieAndMeta begin" << std::endl;
+    }
+    auto out = openFile(options.outputBplFile.c_str(), false);
     if (out == nullptr) {
         return false;
     }
 
+    if (debugJson) {
+        std::cerr << "[p4verify-json] constructing translator" << std::endl;
+    }
     Translator translator(*out, options, bmv2Analyzer, refMap);
+    if (debugJson) {
+        std::cerr << "[p4verify-json] loading p4ltl" << std::endl;
+    }
     loadP4LtlSpec(&translator, options);
+    if (debugJson) {
+        std::cerr << "[p4verify-json] translating program" << std::endl;
+    }
     translator.translate(program);
+    if (debugJson) {
+        std::cerr << "[p4verify-json] writing bpl" << std::endl;
+    }
     translator.writeToFile();
     out->flush();
 
     if (options.outputMetaFile != nullptr) {
-        std::ostream* metaOut = openFile(options.outputMetaFile, false);
+        auto metaOut = openFile(options.outputMetaFile.c_str(), false);
         if (metaOut == nullptr) {
             return false;
         }
@@ -258,7 +286,7 @@ int runVerifyBackend(const IR::P4Program* inputProgram,
 
     auto bmv2Analyzer = loadBmv2Commands(options);
     if (options.cmdFile != nullptr && bmv2Analyzer == nullptr) {
-        std::ifstream probe(options.cmdFile);
+        std::ifstream probe(options.cmdFile.c_str());
         if (probe) {
             return 1;
         }

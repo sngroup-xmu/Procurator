@@ -130,10 +130,11 @@ static void writeJsonWraparoundUpdates(std::ostream &out,
 	    out << "]";
 }
 
-static void writeJsonIndexDefinitions(std::ostream &out,
-                                      const std::vector<P4VerifyOptions::IndexDefinition> &defs,
-                                      const std::string &indent) {
-    out << indent << "\"index_definitions\": [";
+static void writeJsonDefinitions(std::ostream &out,
+                                 const std::string &key,
+                                 const std::vector<P4VerifyOptions::IndexDefinition> &defs,
+                                 const std::string &indent) {
+    out << indent << "\"" << key << "\": [";
     if (!defs.empty()) {
         out << "\n";
         for (size_t i = 0; i < defs.size(); ++i) {
@@ -155,7 +156,8 @@ static void writeJsonIndexDefinitions(std::ostream &out,
                 out << "\"" << jsonEscape(d.deps[j].c_str()) << "\"";
             }
             out << "], ";
-            out << "\"context\": \"" << jsonEscape(ctx) << "\"";
+            out << "\"context\": \"" << jsonEscape(ctx) << "\", ";
+            out << "\"ambiguous\": " << (d.ambiguous ? "true" : "false");
             out << "}";
         }
         out << "\n" << indent;
@@ -274,7 +276,9 @@ void Translator::writeMetaToFile(std::ostream &metaOut) const {
     metaOut << ",\n";
     writeJsonWraparoundUpdates(metaOut, options.wraparound_updates, "    ");
     metaOut << ",\n";
-    writeJsonIndexDefinitions(metaOut, options.index_definitions, "    ");
+    writeJsonDefinitions(metaOut, "index_definitions", options.index_definitions, "    ");
+    metaOut << ",\n";
+    writeJsonDefinitions(metaOut, "deterministic_definitions", options.deterministic_definitions, "    ");
     metaOut << "\n  },\n";
 
     // Control-plane register initialization (BMV2 `register_write`)

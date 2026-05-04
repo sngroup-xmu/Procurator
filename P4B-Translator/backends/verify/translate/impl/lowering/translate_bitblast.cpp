@@ -12,12 +12,14 @@ cstring Translator::bitBlastingTempDecl(const cstring &tmpPrefix, int size){
         if(currentProcedure != nullptr)
             currentProcedure->addModifiedGlobalVariables(tempVar);
     }
+    return "";
 }
 
 cstring Translator::bitBlastingTempAssign(const cstring &tmpPrefix, int start, int end){
     for(int i = start; i <= end; i++){
         currentProcedure->addStatement(getIndent()+connect(tmpPrefix, i)+" := false;\n");
     }
+    return "";
 }
 
 cstring Translator::exprXor(const cstring &a, const cstring &b){
@@ -74,7 +76,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
                 cstring tmpPrefix = getTempPrefix();
                 bitBlastingTempDecl(tmpPrefix, size);
 
-                int right = atoi(translate(opBinary->right));
+                int right = atoi(translate(opBinary->right).c_str());
                 cstring left = translate(opBinary->left);
 
                 if(right >= size) bitBlastingTempAssign(tmpPrefix, 0, size-1);
@@ -95,7 +97,7 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
                 cstring tmpPrefix = getTempPrefix();
                 bitBlastingTempDecl(tmpPrefix, size);
 
-                int right = atoi(translate(opBinary->right));
+                int right = atoi(translate(opBinary->right).c_str());
                 cstring left = translate(opBinary->left);
 
                 if(right >= size) bitBlastingTempAssign(tmpPrefix, 0, size-1);
@@ -134,10 +136,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
             currentProcedure->addStatement(getIndent()+connect(tmpPrefix, 0)+" := "
                 +exprXor(connect(left, 0), connect(right, 0))+";\n");
@@ -176,10 +178,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             // -right
@@ -239,10 +241,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix, size);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             for(int i = 0; i < size; i++){
@@ -264,10 +266,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix, size);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             for(int i = 0; i < size; i++){
@@ -289,10 +291,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix, size);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             for(int i = 0; i < size; i++){
@@ -319,10 +321,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             for(int i = 0; i <= size; i++){
@@ -366,10 +368,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             for(int i = 0; i <= size; i++){
@@ -412,10 +414,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             for(int i = 0; i < size; i++){
@@ -453,10 +455,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
 
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             for(int i = 0; i < size; i++){
@@ -488,10 +490,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix, 1);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             cstring stmt = getIndent()+connect(tmpPrefix, 0)+ " := ";
@@ -513,10 +515,10 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             bitBlastingTempDecl(tmpPrefix, 1);
             cstring left = translate(opBinary->left), right = translate(opBinary->right);
             if(isNumber(left)){
-                left = integerBitBlasting(atoi(left), size);
+                left = integerBitBlasting(atoi(left.c_str()), size);
             }
             if(isNumber(right)){
-                right = integerBitBlasting(atoi(right), size);
+                right = integerBitBlasting(atoi(right.c_str()), size);
             }
 
             cstring stmt = getIndent()+connect(tmpPrefix, 0)+ " := ";
@@ -530,7 +532,6 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
         }
     }
     else if (opBinary->left->type->to<IR::Type_Boolean>()){
-        std::cout << opBinary->left->type->toString() << std::endl;
         return "("+translate(opBinary->left)+") "+opBinary->getStringOp()+" ("+translate(opBinary->right)+")";
     }
     return "";
@@ -573,7 +574,7 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
                 cstring funcName = "shl."+typeName+"_"+right;
 
                 function = "function {:inline true} "+funcName+"(num:int) : ";
-                function += "int {(num*"+powerFunc+")\%"+powerFunc+"}\n";
+                function += "int {(num*"+powerFunc+")%"+powerFunc+"}\n";
                 
                 addFunction(funcName, function);
 
@@ -618,7 +619,7 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
                         cstring shl_funcName = "shl."+typeName+"_"+toString(i);
                         cstring shl_powerFunc = "power_2_"+toString(i)+"()";
                         shl_function = "function {:inline true} "+shl_funcName+"(num:int) : ";
-                        shl_function += "int {(num*"+shl_powerFunc+")\%"+shl_powerFunc+"}\n";
+                        shl_function += "int {(num*"+shl_powerFunc+")%"+shl_powerFunc+"}\n";
                         addFunction(shl_funcName, shl_function);
                     }
                     function = "function {:inline true} "+funcName+"(num:int, n:int) : ";
@@ -647,7 +648,7 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
                 cstring funcName = "shr."+typeName+"_"+right;
 
                 function = "function {:inline true} "+funcName+"(num:int) : ";
-                function += "int {(num-num\%"+powerFunc+")/"+powerFunc+"}\n";
+                function += "int {(num-num%"+powerFunc+")/"+powerFunc+"}\n";
                 
                 addFunction(funcName, function);
                 
@@ -662,31 +663,34 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
             cstring funcName = "mul."+typeName;
             
             function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
-                "(left\%"+powerFunc+")*(right\%"+powerFunc+"))\%"+powerFunc+"}\n";
+                "(left%"+powerFunc+")*(right%"+powerFunc+"))%"+powerFunc+"}\n";
             
             addFunction(funcName, function);
             
             return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
         }
         else if (auto add = opBinary->to<IR::Add>()){
-            // TODO: left/right may be integers
+            // Arithmetic operands are normalized through modulo reduction, so int
+            // literals and bitvector expressions share one Boogie helper.
             cstring powerFunc = "power_2_"+toString(size)+"()";
             cstring funcName = "add."+typeName;
 
             function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
-                "(left\%"+powerFunc+")+(right\%"+powerFunc+"))\%"+powerFunc+"}\n";
+                "(left%"+powerFunc+")+(right%"+powerFunc+"))%"+powerFunc+"}\n";
             
             addFunction(funcName, function);
             
             return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
         }
         else if (auto addSat = opBinary->to<IR::AddSat>()) {
-            // TODO: left/right may be integers
+            // Saturating arithmetic is currently approximated by the same modular
+            // helper as Add; callers that need exact saturation should avoid the
+            // bitblasting lowering mode until that model is strengthened.
             cstring powerFunc = "power_2_"+toString(size)+"()";
             cstring funcName = "add."+typeName;
 
             function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
-                "(left\%"+powerFunc+")+(right\%"+powerFunc+"))\%"+powerFunc+"}\n";
+                "(left%"+powerFunc+")+(right%"+powerFunc+"))%"+powerFunc+"}\n";
             
             addFunction(funcName, function);
             
@@ -698,7 +702,7 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
             cstring funcName = "sub."+typeName;
 
             function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
-                powerFunc+" + (left\%"+powerFunc+") - (right\%"+powerFunc+"))\%"+powerFunc+"}\n";
+                powerFunc+" + (left%"+powerFunc+") - (right%"+powerFunc+"))%"+powerFunc+"}\n";
             
             addFunction(funcName, function);
 
@@ -710,7 +714,7 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
             cstring funcName = "sub."+typeName;
 
             function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
-                powerFunc+" + (left\%"+powerFunc+") - (right\%"+powerFunc+"))\%"+powerFunc+"}\n";
+                powerFunc+" + (left%"+powerFunc+") - (right%"+powerFunc+"))%"+powerFunc+"}\n";
             
             addFunction(funcName, function);
 
@@ -726,8 +730,8 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
                 
                 // eg: band( ((left-left%power_2_0())/power_2_0())%2, 
                 //           ((right-right%power_2_0())/power_2_0())%2 ) * power_2_0()
-                function += "    band( ((left-left\%"+powerFunc+")/"+powerFunc+")\%2, "+
-                    "((right-right\%"+powerFunc+")/"+powerFunc+")\%2 ) * " + powerFunc;
+                function += "    band( ((left-left%"+powerFunc+")/"+powerFunc+")%2, "+
+                    "((right-right%"+powerFunc+")/"+powerFunc+")%2 ) * " + powerFunc;
                 
                 if(i < size-1)
                     function += " +";
@@ -749,8 +753,8 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
 
                 // eg: bor( ((left-left%power_2_0())/power_2_0())%2, 
                 //          ((right-right%power_2_0())/power_2_0())%2 ) * power_2_0()
-                function += "    bor( ((left-left\%"+powerFunc+")/"+powerFunc+")\%2, "+
-                    "((right-right\%"+powerFunc+")/"+powerFunc+")\%2 ) * " + powerFunc;
+                function += "    bor( ((left-left%"+powerFunc+")/"+powerFunc+")%2, "+
+                    "((right-right%"+powerFunc+")/"+powerFunc+")%2 ) * " + powerFunc;
                 
                 if(i < size-1)
                     function += " +";
@@ -772,8 +776,8 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
 
                 // eg: bor( ((left-left%power_2_0())/power_2_0())%2, 
                 //          ((right-right%power_2_0())/power_2_0())%2 ) * power_2_0()
-                function += "    bxor( ((left-left\%"+powerFunc+")/"+powerFunc+")\%2, "+
-                    "((right-right\%"+powerFunc+")/"+powerFunc+")\%2 ) * " + powerFunc;
+                function += "    bxor( ((left-left%"+powerFunc+")/"+powerFunc+")%2, "+
+                    "((right-right%"+powerFunc+")/"+powerFunc+")%2 ) * " + powerFunc;
                 
                 if(i < size-1)
                     function += " +";
@@ -825,13 +829,6 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
         }
     }
     else{
-        // std::cout << opBinary->node_type_name() << std::endl;
-        // std::cout << opBinary << std::endl;
-        // std::cout << opBinary->left->type << std::endl;
-        // std::cout << opBinary->left->type->node_type_name() << std::endl;
-        // std::cout << opBinary->right->type << std::endl;
-        // std::cout << opBinary->right->type->node_type_name() << std::endl;
-        // std::cout << std::endl;
         return "("+translate(opBinary->left)+") "+opBinary->getStringOp()+" ("+translate(opBinary->right)+")";
     }
     return "";

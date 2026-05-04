@@ -13,7 +13,6 @@ void Analyzer::analyzeP4Program(const IR::P4Program *program){
 }
 
 void Analyzer::analyzeP4Parser(const IR::P4Parser *p4Parser){
-	std::cout << "parser" << std::endl;
 	// The name & instance of each state
 	std::map<cstring, const IR::ParserState*> parserStates;
 	// The predcessors of each state
@@ -54,7 +53,6 @@ void Analyzer::analyzeP4Parser(const IR::P4Parser *p4Parser){
 				preStates[nextState].push_back(stateName);
 			}
 		}
-		// std::cout << "state " << stateName << std::endl;
 	}
 
 	std::queue<const IR::ParserState*> queue;
@@ -62,20 +60,6 @@ void Analyzer::analyzeP4Parser(const IR::P4Parser *p4Parser){
 	inQueue["start"] = true;
 	visited["start"] = true;
 	while(!queue.empty()){
-		// show Queue
-		int size = queue.size();
-		std::cout << "Queue: ";
-		while(size != 0){
-			size--;
-			const IR::ParserState* parserState = queue.front();
-			cstring stateName = parserState->name.toString();
-			std::cout << stateName << " ";
-			queue.pop();
-			queue.push(parserState);
-		}
-		std::cout << std::endl;
-
-
 		const IR::ParserState* parserState = queue.front();
 		cstring stateName = parserState->name.toString();
 		queue.pop();

@@ -9,6 +9,18 @@
 #include <string>
 #include <vector>
 
+namespace {
+
+bool isNoActionName(const cstring& actionName) {
+    if (actionName == nullptr) {
+        return false;
+    }
+    std::string s(actionName.c_str());
+    return s == "NoAction" || s.rfind("NoAction_", 0) == 0;
+}
+
+}  // namespace
+
 void Translator::translate(const IR::P4Table *p4Table){
     cstring name = translate(p4Table->name);
     cstring tableName = name+".apply";
@@ -17,20 +29,6 @@ void Translator::translate(const IR::P4Table *p4Table){
         options.slicingKeepTables.count(name) == 0) {
         return;
     }
-
-    // add table entry
-    // BoogieProcedure tableEntry = BoogieProcedure(tableName+"_table_entry");
-    // tableEntry.addDeclaration("\n// Table Entry "+tableName+"_table_entry"+"\n");
-    // tableEntry.addDeclaration("procedure "+tableName+"_table_entry"+"();\n");
-    // addProcedure(tableEntry);
-
-    // add table exit
-    // BoogieProcedure tableExit = BoogieProcedure(tableName+"_table_exit");
-    // tableExit.addDeclaration("\n// Table Exit "+tableName+"_table_exit"+"\n");
-    // tableExit.addDeclaration("procedure "+tableName+"_table_exit();\n");
-    // addProcedure(tableExit);
-
-
     BoogieProcedure table = BoogieProcedure(tableName);
     bool hasIfChain = false;
     table.addDeclaration("\n// Table "+name+"\n");
@@ -54,7 +52,6 @@ void Translator::translate(const IR::P4Table *p4Table){
                         stmt += ";\n";
                         table.addStatement(stmt);
                         table.addModifiedGlobalVariables(expr);
-                        // std::cout << expr << std::endl;
                     }
                 }
             }
@@ -82,7 +79,6 @@ void Translator::translate(const IR::P4Table *p4Table){
                         }
                         if(existInSpec) break;
                     }
-                    // std::cout << tableKeySpec << ": " << existInSpec << std::endl << std::endl;;
                     if(!existInSpec) continue;
                     if(expr!=nullptr && expr.find("[")==nullptr && expr.find("(")==nullptr) {
                         cstring tableKey = name+"."+expr;
@@ -112,7 +108,6 @@ void Translator::translate(const IR::P4Table *p4Table){
                 if(rule != nullptr){
                     if(rule->getTable() == name){
                         ruleExist = true;
-                        rule->show();
                         cstring condition = "if(";
                         if(firstRule) firstRule = false;
                         else condition = "else "+condition;
@@ -171,8 +166,6 @@ void Translator::translate(const IR::P4Table *p4Table){
     }
 
     if(!ruleExist) {
-
-        // std::cout << tableName << std::endl;
         cstring gotoStmt = getIndent()+"goto ";
 
         for(auto property:p4Table->properties->properties){
@@ -181,7 +174,14 @@ void Translator::translate(const IR::P4Table *p4Table){
                 for(auto actionElement:actionList->actionList){
                     if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
                         cstring actionName = translate(actionCallExpr->method);
-                        const IR::P4Action* action = actions[actionName];
+                        if (isNoActionName(actionName)) {
+                            continue;
+                        }
+                        auto actionIt = actions.find(actionName);
+                        if (actionIt == actions.end() || actionIt->second == nullptr) {
+                            continue;
+                        }
+                        const IR::P4Action* action = actionIt->second;
                         for(auto parameter:action->parameters->parameters){
                             if(options.ultimateAutomizer && options.bitBlasting &&
                                 parameter->type->to<IR::Type_Bits>()){
@@ -595,15 +595,6 @@ void Translator::translate(const IR::P4Table *p4Table){
 	                    }
 
 	                    if(!handledDefault){
-	                        auto isNoAction = [](const cstring& actionName) -> bool {
-	                            if (actionName == nullptr) {
-	                                return false;
-	                            }
-	                            // BMv2 uses NoAction / NoAction_*; do not assume its position in the action list.
-	                            std::string s(actionName.c_str());
-	                            return s == "NoAction" || s.rfind("NoAction_", 0) == 0;
-	                        };
-
 	                        // In BMv2, if no table rules are configured (and control-plane does not override the
 	                        // default), the table deterministically executes the P4-program default action.
 	                        if (options.gotoOrIf && bMV2CmdsAnalyzer != nullptr) {
@@ -648,7 +639,7 @@ void Translator::translate(const IR::P4Table *p4Table){
 	                                } else if (auto pe = actionElement->expression->to<IR::PathExpression>()) {
 	                                    actionName = translate(pe);
 	                                }
-	                                if (actionName == nullptr || isNoAction(actionName)) {
+	                                if (actionName == nullptr || isNoActionName(actionName)) {
 	                                    continue;
 	                                }
 	                                if(!firstAction) gotoStmt += ", ";
@@ -664,7 +655,6 @@ void Translator::translate(const IR::P4Table *p4Table){
 	                        }
 
 	                        bool firstAction = true;
-	                        // std::cout << tableName << " " << actionList->actionList.size() << std::endl;
 	                        for(auto actionElement:actionList->actionList){
 	                            cstring actionName = nullptr;
 	                            if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
@@ -672,10 +662,9 @@ void Translator::translate(const IR::P4Table *p4Table){
 	                            } else if (auto pe = actionElement->expression->to<IR::PathExpression>()) {
 	                                actionName = translate(pe);
 	                            }
-	                            if (actionName == nullptr || isNoAction(actionName)) {
+	                            if (actionName == nullptr || isNoActionName(actionName)) {
 	                                continue;
 	                            }
-	                            // std::cout << "action: " << actionName << std::endl;
 	                            std::string label("\n"+getIndent());
 	                            label += "action_"; label += actionName; label += ":\n";
 	                            if(options.gotoOrIf){
@@ -1087,7 +1076,6 @@ cstring Translator::translate(const IR::P4Table *p4Table, std::map<cstring, cstr
                     }
                 }
             }
-            // TODO: add keys
             // add action call statements
             int cnt = actionList->actionList.size();
             for(auto actionElement:actionList->actionList){
@@ -1108,9 +1096,6 @@ cstring Translator::translate(const IR::P4Table *p4Table, std::map<cstring, cstr
                     const IR::P4Action* action = actions[actionName];
                     if(switchCases[name+".action."+actionName] != nullptr)
                         res += switchCases[name+".action."+actionName];
-                    // std::cout << name+".action."+actionName << std::endl;
-                    // std::cout << switchCases[name+".action."+actionName] << std::endl;
-                    // res += switchCases[name+".action."+actionName];
                     std::vector<cstring> inVars;
                     std::vector<cstring> outVars;
                     for (auto parameter : action->parameters->parameters) {
@@ -1166,8 +1151,6 @@ void Translator::translate(const IR::ActionList *actionList, cstring arg){
     if(cnt == 0 || cnt == 1) limit.addDeclaration("true");
     for(auto actionElement:actionList->actionList){
         cnt--;
-        // NoAction should not be considered
-        // if(cnt == 0) break;
         if(auto actionCallExpr = actionElement->expression->to<IR::MethodCallExpression>()){
             cstring actionName = translate(actionCallExpr->method);
             addDeclaration("const unique "+arg+"."+actionName+" : "+arg+";\n");
@@ -1179,9 +1162,4 @@ void Translator::translate(const IR::ActionList *actionList, cstring arg){
         }
     }
     limit.addDeclaration(");\n");
-    // addProcedure(limit);
-    // mainProcedure.addFrontStatement("    call "+limitName+"();\n");
-    // mainProcedure.addSucc(limitName);
-    // addPred(limitName, mainProcedure.getName());
-    //TODO: add children
 }

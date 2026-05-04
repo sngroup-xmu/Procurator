@@ -97,7 +97,6 @@ public:
 	bool hasTableAddCmds(cstring table) const;
 	TableSetDefault* getTableSetDefaultCmd(cstring table) const;
 	std::vector<RegisterWrite*> getRegisterWriteCmds() const;
-	// std::vector<TableDelete*> getTableDeleteCmds();
 	};
 
 

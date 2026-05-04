@@ -72,6 +72,16 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         if (member->member == "execute" || member->member == "execute_log") {
             cstring base = translate(member->expr);
             auto it = registerActions.find(base);
+            if (it == registerActions.end() && !isGlobalVariable(base)) {
+                cstring raw = methodCallExpression->method->toString();
+                std::string rawStr = raw.c_str();
+                std::string needle = "." + member->member.toString();
+                size_t pos = rawStr.find(needle);
+                if (pos != std::string::npos) {
+                    base = cstring(rawStr.substr(0, pos));
+                    it = registerActions.find(base);
+                }
+            }
             if (it != registerActions.end()) {
                 const RegisterActionInfo &info = it->second;
                 const IR::Expression* idxExpr = nullptr;
@@ -111,6 +121,80 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 currentProcedure->addStatement(getIndent()+"call "+info.regName+".write("+idx+", "+valVar+");\n");
                 addRegisterWriteModifiedVariables(info.regName);
                 return retVar;
+            }
+        }
+    }
+
+    if (auto member = methodCallExpression->method->to<IR::Member>()) {
+        if (member->member == "count" || member->member == "increment" || member->member == "add") {
+            cstring base = translate(member->expr);
+            auto counterIt = counterExterns.find(base);
+            if (counterIt != counterExterns.end()) {
+                const CounterExternInfo& info = counterIt->second;
+                cstring idx = renderBoogieZeroLiteral(info.indexType);
+                cstring val = info.oneValue;
+                if (methodCallExpression->arguments != nullptr &&
+                    methodCallExpression->arguments->size() >= 1) {
+                    idx = translate((*methodCallExpression->arguments)[0]);
+                }
+                if (member->member == "add" &&
+                    methodCallExpression->arguments != nullptr &&
+                    methodCallExpression->arguments->size() >= 2) {
+                    val = translate((*methodCallExpression->arguments)[1]);
+                }
+                if (member->member == "add") {
+                    res += base+".add("+idx+", "+val+")";
+                } else if (member->member == "increment") {
+                    res += base+".increment("+idx+")";
+                } else {
+                    res += base+".count("+idx+")";
+                }
+                currentProcedure->addModifiedGlobalVariables(base+"__counter");
+                currentProcedure->addModifiedGlobalVariables(base+"__last_index");
+                currentProcedure->addModifiedGlobalVariables(base+"__last_value");
+                currentProcedure->addModifiedGlobalVariables(base+"__wrote_any");
+                currentProcedure->addModifiedGlobalVariables(base+"__wrote_index0");
+                currentProcedure->addModifiedGlobalVariables(base+"__last0_value");
+                return res;
+            }
+        }
+    }
+
+    if (auto member = methodCallExpression->method->to<IR::Member>()) {
+        if (member->member == "execute") {
+            cstring base = translate(member->expr);
+            auto meterIt = meterExterns.find(base);
+            if (meterIt != meterExterns.end()) {
+                const MeterExternInfo& info = meterIt->second;
+                cstring idx = renderBoogieZeroLiteral(info.indexType);
+                cstring colorArg = "";
+                if (methodCallExpression->arguments != nullptr &&
+                    methodCallExpression->arguments->size() >= 1) {
+                    if (info.direct) {
+                        colorArg = translate((*methodCallExpression->arguments)[0]);
+                    } else {
+                        idx = translate((*methodCallExpression->arguments)[0]);
+                        if (methodCallExpression->arguments->size() >= 2) {
+                            colorArg = translate((*methodCallExpression->arguments)[1]);
+                        }
+                    }
+                }
+                cstring tmp = getOrCreateFreshVar("meter_execute", info.colorType);
+                if (currentProcedure != nullptr) {
+                    if (colorArg != "") {
+                        currentProcedure->addStatement(getIndent()+"call "+tmp+" := "+base+".execute_colored("+idx+", "+colorArg+");\n");
+                    } else {
+                        currentProcedure->addStatement(getIndent()+"call "+tmp+" := "+base+".execute("+idx+");\n");
+                    }
+                    currentProcedure->addModifiedGlobalVariables(tmp);
+                    currentProcedure->addModifiedGlobalVariables(base+"__meter");
+                    currentProcedure->addModifiedGlobalVariables(base+"__last_index");
+                    currentProcedure->addModifiedGlobalVariables(base+"__last_color");
+                    currentProcedure->addModifiedGlobalVariables(base+"__executed_any");
+                    currentProcedure->addModifiedGlobalVariables(base+"__executed_index0");
+                    currentProcedure->addModifiedGlobalVariables(base+"__last0_color");
+                }
+                return tmp;
             }
         }
     }
@@ -233,7 +317,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         currentProcedure->addModifiedGlobalVariables(arg+".valid");
         if(options.addValidityAssertion){
             cstring stmt = "assert("+arg+".valid);";
-            if(currentProcedure->lastStatement().find(stmt)!= nullptr){
+            if(currentProcedure->lastStatement().find(stmt.c_str())!= nullptr){
                 currentProcedure->removeLastStatement();
             }
         } 
@@ -331,24 +415,20 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     }
 
     if(method=="hash"){
-        // hash(result, hashAlgorithm, from, tuple, to)
         if (methodCallExpression->arguments == nullptr ||
-            methodCallExpression->arguments->size() < 5) {
+            methodCallExpression->arguments->size() < 3) {
             return "";
         }
         cstring arg0 = translate((*methodCallExpression->arguments)[0]);  // return addr
         cstring typeName = translate((*methodCallExpression->arguments)[0]->expression->type);
 
         cstring algorithm = translate((*methodCallExpression->arguments)[1]);
-        const auto *arg2Expr = (*methodCallExpression->arguments)[2]->expression;
-        const auto *arg3Expr = (*methodCallExpression->arguments)[3]->expression;
-        const auto *arg4Expr = (*methodCallExpression->arguments)[4]->expression;
 
         if (typeDefs.find(typeName) != typeDefs.end()) {
             typeName = "bv" + toString(typeDefs[typeName]);
         }
         if (typeName == "") {
-            typeName = "bv32";
+            typeName = kDefaultBv32Type;
         }
         bool isBv = typeName.find("bv") == 0;
         if (!isBv) {
@@ -453,6 +533,52 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 }
                 return renderHashArg(expr, "");
             };
+
+        if (methodCallExpression->arguments->size() == 3) {
+            const auto *dataExpr = (*methodCallExpression->arguments)[2]->expression;
+            if (!renderHashData(dataExpr)) {
+                res += "havoc "+arg0+";\n";
+            } else {
+                std::string mangledMethod = "hash";
+                if (algorithm != "") {
+                    mangledMethod += "_";
+                    mangledMethod += sanitizeHashSignaturePart(algorithm.c_str());
+                }
+                for (const auto& argType : renderedArgTypes) {
+                    mangledMethod += "$";
+                    mangledMethod += sanitizeHashSignaturePart(argType.c_str());
+                }
+                cstring hashMethod = cstring(mangledMethod);
+                cstring decl = "function " + hashMethod + "(";
+                for (size_t i = 0; i < renderedArgTypes.size(); ++i) {
+                    if (i != 0) {
+                        decl += ", ";
+                    }
+                    decl += "arg"+toString(static_cast<int>(i))+":"+renderedArgTypes[i];
+                }
+                decl += ") returns(" + typeName + ");\n";
+                addFunction(hashMethod, decl);
+
+                res += arg0 + " := " + hashMethod + "(";
+                for (size_t i = 0; i < renderedArgs.size(); ++i) {
+                    if (i != 0) {
+                        res += ", ";
+                    }
+                    res += renderedArgs[i];
+                }
+                res += ");\n";
+            }
+            currentProcedure->addModifiedGlobalVariables(arg0);
+            return res;
+        }
+
+        // v1model-style hash(result, algorithm, base, data, max).
+        if (methodCallExpression->arguments->size() < 5) {
+            return "";
+        }
+        const auto *arg2Expr = (*methodCallExpression->arguments)[2]->expression;
+        const auto *arg3Expr = (*methodCallExpression->arguments)[3]->expression;
+        const auto *arg4Expr = (*methodCallExpression->arguments)[4]->expression;
 
         // Keep v1model hash deterministic for a fixed algorithm/range/data tuple.
         // We still model the hash as uninterpreted, and retain the range assume below.
@@ -560,24 +686,11 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
     std::string s = method.c_str();
     std::string::size_type idx = s.find("isValid");
     if(idx != std::string::npos){
-        int i = idx;
-        // if(options.addValidityAssertion){
-        //     cstring assertStmt = "assert(isValid["+s.substr(0, idx-1)+"]);";
-        //     while(currentProcedure->lastStatement().find(assertStmt)!= nullptr){
-        //         currentProcedure->removeLastStatement();
-        //     }
-        // }
         if(options.gotoOrIf)
             return "isValid["+s.substr(0, idx-1)+"]";
         else
             return s.substr(0, idx-1)+".valid";
-        // std::cout << s.substr(0, idx-1) << std::endl;
-        // std::cout << "find... " << i << std::endl;
     }
-    // if(method.find("isValid") != nullptr){
-    //     std::string s = method.c_str();
-    //     std::cout << "find... " << s.find("isValid") << std::endl;
-    // }
     if(method.find("setValid(") != nullptr || method.find("setInvalid(")){
         if(options.addValidityAssertion){
             if(currentProcedure->lastStatement().find("assert(")!= nullptr){
@@ -593,15 +706,11 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         std::string s = argument.c_str();
         std::string::size_type idx = s.find("next");
         if(idx != std::string::npos){
-            int i = idx;
             cstring succ = "packet_in.extract.headers.";
             succ += s.substr(4, idx-5)+".next";
             res = succ+"("+s.substr(0, idx-1)+")";
             currentProcedure->addSucc(succ);
             addPred(succ, currentProcedure->getName());
-            // std::cout << s.substr(0, idx-1) << std::endl;
-            // std::cout << "find... " << i << std::endl;
-            // return "isValid["+s.substr(0, idx-1)+"]";
             return res;
         }
     }

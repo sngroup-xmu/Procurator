@@ -25,16 +25,13 @@ cstring Translator::translate(const IR::Type *type){
 
 cstring Translator::translate(const IR::Type_Bits *typeBits){
     updateMaxBitvectorSize(typeBits);
-    // if(options.ultimateAutomizer)
-        // return "int";
     std::stringstream ss;
     ss << "bv" << typeBits->size;
-    // std::cout << "Type_Bits" << std::endl;
-    // std::cout << ss.str() << std::endl;
     return ss.str();
 }
 
 cstring Translator::translate(const IR::Type_Boolean *typeBoolean){
+    (void)typeBoolean;
     return "bool";
 }
 
@@ -46,7 +43,7 @@ cstring Translator::translate(const IR::Type_Name *typeName){
     return translate(typeName->path);
 }
 
-cstring Translator::translate(const IR::Type_Stack *typeStack, cstring arg){
+cstring Translator::translate(const IR::Type_Array *typeStack, cstring arg){
     const IR::Type_Header* typeHeader = resolveHeaderType(typeStack->elementType);
     if(typeHeader!=nullptr && stacks.find(arg)==stacks.end()){
         stacks.insert(arg);

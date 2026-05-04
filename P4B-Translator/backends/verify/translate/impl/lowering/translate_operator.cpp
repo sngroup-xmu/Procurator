@@ -42,7 +42,7 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
             if (maxBitvectorSize > 0)
                 typeName = "bv" + toString(maxBitvectorSize);
             else
-                typeName = "bv32";
+                typeName = kDefaultBv32Type;
         }
     }
     if (typeDefs.find(typeName) != typeDefs.end()) {
@@ -80,67 +80,67 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
         return translate(expr) + bvType;
     };
 
-    if (auto shl = opBinary->to<IR::Shl>()) {
+    if (opBinary->is<IR::Shl>()) {
         addFunction("shl", "bvshl", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "shl."+returnType+"("+left+", "+right+")";
     }
-    else if (auto shr = opBinary->to<IR::Shr>()) {
+    else if (opBinary->is<IR::Shr>()) {
         addFunction("shr", "bvlshr", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "shr."+returnType+"("+left+", "+right+")";
     }
-    else if (auto mul = opBinary->to<IR::Mul>()) {
+    else if (opBinary->is<IR::Mul>()) {
         addFunction("mul", "bvmul", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "mul."+returnType+"("+left+", "+right+")";
     }
-    else if (auto add = opBinary->to<IR::Add>()) {
+    else if (opBinary->is<IR::Add>()) {
         addFunction("add", "bvadd", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "add."+returnType+"("+left+", "+right+")";
     }
-    else if (auto addSat = opBinary->to<IR::AddSat>()) {
+    else if (opBinary->is<IR::AddSat>()) {
         addFunction("add", "bvadd", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "add."+returnType+"("+left+", "+right+")";
     }
-    else if (auto sub = opBinary->to<IR::Sub>()) {
+    else if (opBinary->is<IR::Sub>()) {
         addFunction("sub", "bvsub", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "sub."+returnType+"("+left+", "+right+")";
     }
-    else if (auto subSat = opBinary->to<IR::SubSat>()) {
+    else if (opBinary->is<IR::SubSat>()) {
         addFunction("sub", "bvsub", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "sub."+returnType+"("+left+", "+right+")";
     }
-    else if (auto bAnd = opBinary->to<IR::BAnd>()) {
+    else if (opBinary->is<IR::BAnd>()) {
         addFunction("band", "bvand", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "band."+returnType+"("+left+", "+right+")";
     }
-    else if (auto bOr = opBinary->to<IR::BOr>()) {
+    else if (opBinary->is<IR::BOr>()) {
         addFunction("bor", "bvor", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "bor."+returnType+"("+left+", "+right+")";
     }
-    else if (auto bXor = opBinary->to<IR::BXor>()) {
+    else if (opBinary->is<IR::BXor>()) {
         addFunction("bxor", "bvxor", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "bxor."+returnType+"("+left+", "+right+")";
     }
-    else if (auto geq = opBinary->to<IR::Geq>()) {
+    else if (opBinary->is<IR::Geq>()) {
         cstring left = renderInfIntWithBvType(opBinary->left, typeName);
         cstring right = renderInfIntWithBvType(opBinary->right, typeName);
 
@@ -153,7 +153,7 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
         }
         return "("+left+" >= "+right+")";
     }
-    else if (auto leq = opBinary->to<IR::Leq>()) {
+    else if (opBinary->is<IR::Leq>()) {
         cstring left = renderInfIntWithBvType(opBinary->left, typeName);
         cstring right = renderInfIntWithBvType(opBinary->right, typeName);
 
@@ -163,7 +163,7 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
         }
         return "("+left+" <= "+right+")";
     }
-    else if (auto grt = opBinary->to<IR::Grt>()) {
+    else if (opBinary->is<IR::Grt>()) {
         cstring left = renderInfIntWithBvType(opBinary->left, typeName);
         cstring right = renderInfIntWithBvType(opBinary->right, typeName);
 
@@ -173,7 +173,7 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
         }
         return "("+left+" > "+right+")";
     }
-    else if (auto lss = opBinary->to<IR::Lss>()) {
+    else if (opBinary->is<IR::Lss>()) {
         cstring left = renderInfIntWithBvType(opBinary->left, typeName);
         cstring right = renderInfIntWithBvType(opBinary->right, typeName);
 
@@ -183,10 +183,10 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
         }
         return "("+left+" < "+right+")";
     }
-    else if (auto equ = opBinary->to<IR::Equ>()) {
+    else if (opBinary->is<IR::Equ>()) {
         return "(" + translate(opBinary->left) + " == " + translate(opBinary->right) + ")";
     }
-    else if (auto equ = opBinary->to<IR::Neq>()) {
+    else if (opBinary->is<IR::Neq>()) {
         return "(" + translate(opBinary->left) + " != " + translate(opBinary->right) + ")";
     }
     else if (auto arrayIndex = opBinary->to<IR::ArrayIndex>()) {
@@ -209,7 +209,7 @@ cstring Translator::translate(const IR::Operation_Unary *opUnary){
     else if (auto lnot = opUnary->to<IR::LNot>()){
         return translate(lnot);
     }
-    else if (auto cmpl = opUnary->to<IR::Cmpl>()) {
+    else if (opUnary->is<IR::Cmpl>()) {
         if(auto typeBits = opUnary->type->to<IR::Type_Bits>()){
             if(options.ultimateAutomizer){
                 cstring returnType = translate(opUnary->type);
@@ -222,7 +222,7 @@ cstring Translator::translate(const IR::Operation_Unary *opUnary){
                     powerFunc = "power_2_"+toString(i)+"()";
                     
                     // eg: bnot( ((num-num%power_2_0())/power_2_0())%2 ) * power_2_0()
-                    function += "    bnot( ((num-num\%"+powerFunc+")/"+powerFunc+")\%2 ) * " + powerFunc;
+                    function += "    bnot( ((num-num%"+powerFunc+")/"+powerFunc+")%2 ) * " + powerFunc;
                     
                     if(i < size-1)
                         function += " +";
@@ -236,7 +236,6 @@ cstring Translator::translate(const IR::Operation_Unary *opUnary){
             }
         }
 
-        // cstring typeName = translate(opBinary->left->type);
         cstring returnType = translate(opUnary->type);
         cstring functionName = "bnot."+returnType;
         cstring opbuiltin = "bvnot";
@@ -252,4 +251,3 @@ cstring Translator::translate(const IR::Operation_Unary *opUnary){
     }
     return "";
 }
-

@@ -13,8 +13,42 @@
 #include <unordered_set>
 #include <vector>
 
-static cstring renderBoogieZeroLiteral(const cstring& typeName,
-                                       const std::map<cstring, int>& typeDefs) {
+namespace {
+
+const IR::Type* specializedTypeArgForRegister(const IR::Type* type, size_t idx) {
+    if (type == nullptr) {
+        return nullptr;
+    }
+    if (auto typeSpec = type->to<IR::Type_Specialized>()) {
+        if (typeSpec->arguments != nullptr && typeSpec->arguments->size() > idx) {
+            return (*typeSpec->arguments)[idx];
+        }
+    }
+    if (auto typeSpec = type->to<IR::Type_SpecializedCanonical>()) {
+        if (typeSpec->arguments != nullptr && typeSpec->arguments->size() > idx) {
+            return (*typeSpec->arguments)[idx];
+        }
+    }
+    return nullptr;
+}
+
+bool constantValueFromExpr(const IR::Expression* expr, big_int* value) {
+    if (expr == nullptr || value == nullptr) {
+        return false;
+    }
+    if (auto constant = expr->to<IR::Constant>()) {
+        *value = constant->value;
+        return true;
+    }
+    if (auto cast = expr->to<IR::Cast>()) {
+        return constantValueFromExpr(cast->expr, value);
+    }
+    return false;
+}
+
+}  // namespace
+
+cstring Translator::renderBoogieZeroLiteral(const cstring& typeName) {
     if (typeName == "bool") {
         return "false";
     }
@@ -28,14 +62,29 @@ static cstring renderBoogieZeroLiteral(const cstring& typeName,
     return "0";
 }
 
+cstring Translator::renderBoogieOneLiteral(const cstring& typeName) {
+    if (typeName == "bool") {
+        return "true";
+    }
+    if (typeName.startsWith("bv")) {
+        return "1" + typeName;
+    }
+    auto it = typeDefs.find(typeName);
+    if (it != typeDefs.end()) {
+        return "1bv" + cstring(std::to_string(it->second));
+    }
+    return "1";
+}
+
 void Translator::translate(const IR::P4Program *program){
     analyzeProgram(program);
+    const bool debugObjects = std::getenv("P4VERIFY_DEBUG_TRANSLATE_OBJECTS") != nullptr;
     
-    // std::cout << "translate P4Program" << std::endl;
-    // Add main program
-
-    // Translate objects
     for(auto obj:program->objects){
+        if (debugObjects) {
+            std::cerr << "[p4verify-obj] " << obj->node_type_name()
+                      << " " << obj << std::endl;
+        }
         translate(obj);
     }
     addFunction("sub", "bvsub", "bv17", "bv17");
@@ -46,20 +95,15 @@ void Translator::translate(const IR::P4Program *program){
 }
 
 void Translator::translate(const IR::Type_Error *typeError){
-    // std::cout << "translate Type_Error: " << typeError->error << std::endl;
-    // for(auto elem:typeError->members){
-    //     if(auto member = elem->to<IR::Declaration_ID>()){
-    //         std::cout << member->name << std::endl;
-    //     }
-    // }
+    (void)typeError;
 }
 
 void Translator::translate(const IR::Type_Extern *typeExtern){
-    // std::cout << "translate Type_Extern" << std::endl;
+    (void)typeExtern;
 }
 
 void Translator::translate(const IR::Type_Enum *typeEnum){
-    // std::cout << "translate Type_Enum" << std::endl;
+    (void)typeEnum;
 }
 
 void Translator::translate(const IR::Declaration_Instance *instance, cstring instanceName){
@@ -69,9 +113,12 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
     if(instanceName != "") name = instanceName;
     recordHashExtern(instance, name);
     recordRandomExtern(instance, name);
+    recordCounterExtern(instance, name);
 
-    std::cout << "**instance: " << typeName << " " << name << std::endl;
-    std::cout << "**instance: " << instance->toString() << std::endl << std::endl;
+    if (std::getenv("P4VERIFY_DEBUG_TRANSLATE_INSTANCES") != nullptr) {
+        std::cerr << "[p4verify-instance] " << typeName << " " << name << std::endl;
+        std::cerr << "[p4verify-instance] " << instance->toString() << std::endl;
+    }
 
     if(typeName == "Pipeline"){
         BoogieProcedure pipe = BoogieProcedure(name);
@@ -127,45 +174,172 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addPred(name, mainProcedure.getName());
     }
 
-    if(typeName=="V1Switch"){
+    if (counterExterns.find(name) != counterExterns.end()) {
+        const CounterExternInfo &info = counterExterns[name];
+        if (emittedVarDecls.find(name) != emittedVarDecls.end()) {
+            return;
+        }
+        addDeclaration("\n// Counter "+name+"\n");
+        addDeclaration("var "+name+"__counter:["+info.indexType+"]"+info.valueType+";\n");
+        addDeclaration("var "+name+"__last_index:"+info.indexType+";\n");
+        addDeclaration("var "+name+"__last_value:"+info.valueType+";\n");
+        addDeclaration("var "+name+"__wrote_any:bool;\n");
+        addDeclaration("var "+name+"__wrote_index0:bool;\n");
+        addDeclaration("var "+name+"__last0_value:"+info.valueType+";\n");
+        addGlobalVariables(name+"__counter");
+        addGlobalVariables(name+"__last_index");
+        addGlobalVariables(name+"__last_value");
+        addGlobalVariables(name+"__wrote_any");
+        addGlobalVariables(name+"__wrote_index0");
+        addGlobalVariables(name+"__last0_value");
+        emittedVarDecls.insert(name);
+
+        cstring zeroIndex = renderBoogieZeroLiteral(info.indexType);
+        cstring oneValue = renderBoogieOneLiteral(info.valueType);
+        addFunction("add", "bvadd", info.valueType, info.valueType);
+
+        BoogieProcedure count = BoogieProcedure(name+".count");
+        count.addDeclaration("procedure {:inline 1} "+name+".count(index:"+info.indexType+")\n");
+        incIndent();
+        count.addStatement(getIndent()+"call "+name+".add(index, "+oneValue+");\n");
+        decIndent();
+        count.addModifiedGlobalVariables(name+"__counter");
+        count.addModifiedGlobalVariables(name+"__last_index");
+        count.addModifiedGlobalVariables(name+"__last_value");
+        count.addModifiedGlobalVariables(name+"__wrote_any");
+        count.addModifiedGlobalVariables(name+"__wrote_index0");
+        count.addModifiedGlobalVariables(name+"__last0_value");
+        addProcedure(count);
+
+        BoogieProcedure increment = BoogieProcedure(name+".increment");
+        increment.addDeclaration("procedure {:inline 1} "+name+".increment(index:"+info.indexType+")\n");
+        incIndent();
+        increment.addStatement(getIndent()+"call "+name+".add(index, "+oneValue+");\n");
+        decIndent();
+        increment.addModifiedGlobalVariables(name+"__counter");
+        increment.addModifiedGlobalVariables(name+"__last_index");
+        increment.addModifiedGlobalVariables(name+"__last_value");
+        increment.addModifiedGlobalVariables(name+"__wrote_any");
+        increment.addModifiedGlobalVariables(name+"__wrote_index0");
+        increment.addModifiedGlobalVariables(name+"__last0_value");
+        addProcedure(increment);
+
+        BoogieProcedure add = BoogieProcedure(name+".add");
+        add.addDeclaration("procedure {:inline 1} "+name+".add(index:"+info.indexType+", value:"+info.valueType+")\n");
+        incIndent();
+        cstring rhs;
+        if (info.valueType.startsWith("bv")) {
+            rhs = "add."+info.valueType+"("+name+"__counter[index], value)";
+        } else {
+            rhs = name+"__counter[index] + value";
+        }
+        add.addStatement(getIndent()+name+"__counter[index] := "+rhs+";\n");
+        add.addStatement(getIndent()+name+"__last_index := index;\n");
+        add.addStatement(getIndent()+name+"__last_value := "+name+"__counter[index];\n");
+        add.addStatement(getIndent()+name+"__wrote_any := true;\n");
+        add.addStatement(getIndent()+"if (index == "+zeroIndex+") {\n");
+        incIndent();
+        add.addStatement(getIndent()+name+"__wrote_index0 := true;\n");
+        add.addStatement(getIndent()+name+"__last0_value := "+name+"__counter[index];\n");
+        decIndent();
+        add.addStatement(getIndent()+"}\n");
+        decIndent();
+        add.addModifiedGlobalVariables(name+"__counter");
+        add.addModifiedGlobalVariables(name+"__last_index");
+        add.addModifiedGlobalVariables(name+"__last_value");
+        add.addModifiedGlobalVariables(name+"__wrote_any");
+        add.addModifiedGlobalVariables(name+"__wrote_index0");
+        add.addModifiedGlobalVariables(name+"__last0_value");
+        addProcedure(add);
+    }
+
+    if (meterExterns.find(name) != meterExterns.end()) {
+        const MeterExternInfo &info = meterExterns[name];
+        if (emittedVarDecls.find(name) != emittedVarDecls.end()) {
+            return;
+        }
+        addDeclaration("\n// Meter "+name+"\n");
+        addDeclaration("var "+name+"__meter:["+info.indexType+"]"+info.colorType+";\n");
+        addDeclaration("var "+name+"__last_index:"+info.indexType+";\n");
+        addDeclaration("var "+name+"__last_color:"+info.colorType+";\n");
+        addDeclaration("var "+name+"__executed_any:bool;\n");
+        addDeclaration("var "+name+"__executed_index0:bool;\n");
+        addDeclaration("var "+name+"__last0_color:"+info.colorType+";\n");
+        addGlobalVariables(name+"__meter");
+        addGlobalVariables(name+"__last_index");
+        addGlobalVariables(name+"__last_color");
+        addGlobalVariables(name+"__executed_any");
+        addGlobalVariables(name+"__executed_index0");
+        addGlobalVariables(name+"__last0_color");
+        emittedVarDecls.insert(name);
+
+        cstring zeroIndex = renderBoogieZeroLiteral(info.indexType);
+        BoogieProcedure execute = BoogieProcedure(name+".execute");
+        execute.addDeclaration("procedure {:inline 1} "+name+".execute(index:"+info.indexType+") returns (color:"+info.colorType+")\n");
+        incIndent();
+        execute.addStatement(getIndent()+"havoc color;\n");
+        execute.addStatement(getIndent()+name+"__meter[index] := color;\n");
+        execute.addStatement(getIndent()+name+"__last_index := index;\n");
+        execute.addStatement(getIndent()+name+"__last_color := color;\n");
+        execute.addStatement(getIndent()+name+"__executed_any := true;\n");
+        execute.addStatement(getIndent()+"if (index == "+zeroIndex+") {\n");
+        incIndent();
+        execute.addStatement(getIndent()+name+"__executed_index0 := true;\n");
+        execute.addStatement(getIndent()+name+"__last0_color := color;\n");
+        decIndent();
+        execute.addStatement(getIndent()+"}\n");
+        decIndent();
+        execute.addModifiedGlobalVariables(name+"__meter");
+        execute.addModifiedGlobalVariables(name+"__last_index");
+        execute.addModifiedGlobalVariables(name+"__last_color");
+        execute.addModifiedGlobalVariables(name+"__executed_any");
+        execute.addModifiedGlobalVariables(name+"__executed_index0");
+        execute.addModifiedGlobalVariables(name+"__last0_color");
+        addProcedure(execute);
+
+        BoogieProcedure executeColored = BoogieProcedure(name+".execute_colored");
+        executeColored.addDeclaration("procedure {:inline 1} "+name+".execute_colored(index:"+info.indexType+
+                                      ", prior:"+info.colorType+") returns (color:"+info.colorType+")\n");
+        incIndent();
+        executeColored.addStatement(getIndent()+"call color := "+name+".execute(index);\n");
+        decIndent();
+        executeColored.addModifiedGlobalVariables(name+"__meter");
+        executeColored.addModifiedGlobalVariables(name+"__last_index");
+        executeColored.addModifiedGlobalVariables(name+"__last_color");
+        executeColored.addModifiedGlobalVariables(name+"__executed_any");
+        executeColored.addModifiedGlobalVariables(name+"__executed_index0");
+        executeColored.addModifiedGlobalVariables(name+"__last0_color");
+        addProcedure(executeColored);
+    }
+
+    if(typeName=="V1Switch" || typeName=="PNA_NIC"){
         BoogieProcedure main = BoogieProcedure(name);
         main.addDeclaration("procedure {:inline 1} "+name+"()\n");
         incIndent();
 
         if(options.whileLoop) {
-            // if(options.addInvariant){
-            //     main.addStatement(getIndent()+"while (true)\n");
-            //     main.addStatement(getIndent()+"invariant(true);\n");
-            //     // need to specify the variable set for invariant
-            //     main.addStatement(getIndent()+"{\n");
-            // }else{
-            //     main.addStatement(getIndent()+"while (true){\n");
-            // }
             main.addStatement(getIndent()+"call havocProcedure();\n");
             main.addSucc(havocProcedure.getName());
-            // main.addStatement(getIndent()+"call clear_drop();\n");
-            // main.addSucc("clear_drop");
-            // main.addStatement(getIndent()+"call clear_forward();\n");
-            // main.addSucc("clear_forward");
             addPred(havocProcedure.getName(), name);
         }
 
-        int cnt = instance->arguments->size();
+        int argumentCount = instance->arguments->size();
+        int argumentIndex = 0;
         for(auto argument:*instance->arguments){
-            cnt--;
-            if(cnt != 0){
-                cstring procName = translate(argument->expression);
-                if(options.ultimateAutomizer){
-                    if(auto typeParser = argument->expression->type->to<IR::Type_Parser>()){
-                        procName = "_parser_"+procName;
-                    }
-                }
-                main.addStatement(getIndent()+"call "+procName+"();\n");
-                main.addSucc(procName);
-                addPred(procName, name);
+            argumentIndex++;
+            cstring procName = translate(argument->expression);
+            if (typeName == "V1Switch" && argumentIndex == argumentCount) {
+                deparser = procName;
+                continue;
             }
-            else
-                deparser = translate(argument->expression);
+            if(options.ultimateAutomizer){
+                if(argument->expression->type->is<IR::Type_Parser>()){
+                    procName = "_parser_"+procName;
+                }
+            }
+            main.addStatement(getIndent()+"call "+procName+"();\n");
+            main.addSucc(procName);
+            addPred(procName, name);
         }
         main.addStatement(getIndent()+"if(forward == false){\n");
         incIndent();
@@ -178,14 +352,9 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         // add children
         addProcedure(main);
         if(options.whileLoop){
-            // if(options.p4ltlSpec){
-                // mainProcedure.addStatement("        call "+name+"();\n");
-            // }
-            // else{
-                mainProcedure.addStatement("    while(true){\n");
-                mainProcedure.addStatement("        call "+name+"();\n");
-                mainProcedure.addStatement("    }\n");
-            // }
+            mainProcedure.addStatement("    while(true){\n");
+            mainProcedure.addStatement("        call "+name+"();\n");
+            mainProcedure.addStatement("    }\n");
         }
         else
             mainProcedure.addStatement("    call "+name+"();\n");
@@ -193,8 +362,6 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addPred(name, mainProcedure.getName());
     }
 
-    // TOFO: rename
-    // std::cout << "name: " << name << std::endl;
     if(typeName=="register" || typeName=="Register"){
         if (emittedVarDecls.find(name) != emittedVarDecls.end()) {
             return;
@@ -203,44 +370,60 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
             !shouldKeepVar(name.c_str())) {
             return;
         }
+        const bool debugRegisterLowering = std::getenv("P4VERIFY_DEBUG_REGISTER_LOWERING") != nullptr;
+        auto regDebug = [&](const char* msg) {
+            if (debugRegisterLowering) {
+                std::cerr << "[p4verify-reg] " << name << ": " << msg << std::endl;
+            }
+        };
+        regDebug("begin");
 
         // size
-        auto constant = (*instance->arguments)[0]->expression->to<IR::Constant>();
-        cstring size = toString(constant->value);
-        int effectiveSize = -1;
-        if (constant->value >= 0 && constant->value <= std::numeric_limits<int>::max()) {
-            effectiveSize = static_cast<int>(constant->value);
+        big_int registerSize = 0;
+        if (instance->arguments == nullptr || instance->arguments->empty() ||
+            !constantValueFromExpr((*instance->arguments)[0]->expression, &registerSize)) {
+            std::cerr << "[p4verify] unsupported register size expression for "
+                      << name << ": " << instance << std::endl;
+            return;
         }
-
-        // std::cout << "size: " << size << std::endl;
+        cstring size = toString(registerSize);
+        int effectiveSize = -1;
+        if (registerSize >= 0 && registerSize <= std::numeric_limits<int>::max()) {
+            effectiveSize = static_cast<int>(registerSize);
+        }
+        regDebug("size");
 
         // value type
-        auto valueType = instance->type->to<IR::Type_Specialized>();
-        cstring valueTypeName = translate((*valueType->arguments)[0]);
+        const IR::Type* registerValueType = specializedTypeArgForRegister(instance->type, 0);
+        if (registerValueType == nullptr) {
+            std::cerr << "[p4verify] unsupported register value type for "
+                      << name << ": " << instance->type << std::endl;
+            return;
+        }
+        cstring valueTypeName = translate(registerValueType);
 
-        if(options.ultimateAutomizer && (*valueType->arguments)[0]->to<IR::Type_Bits>()){
+        if(options.ultimateAutomizer && registerValueType->to<IR::Type_Bits>()){
             valueTypeName = "int";
         }
-
-        // std::cout << "valueTypeName: " << valueTypeName << std::endl;
+        regDebug("value type");
 
         // index type
         cstring sizeTypeName;
-        if((*valueType->arguments).size() > 1){
-            sizeTypeName = translate((*valueType->arguments)[1]);
+        if(const IR::Type* registerIndexType = specializedTypeArgForRegister(instance->type, 1)){
+            sizeTypeName = translate(registerIndexType);
         } else {
-            sizeTypeName = options.ultimateAutomizer ? "int" : "bv32";
+            sizeTypeName = options.ultimateAutomizer ? "int" : kDefaultBv32Type;
         }
         if(options.ultimateAutomizer){
             sizeTypeName = "int";
         }
+        regDebug("index type");
 
-        // std::cout << "sizeTypeName: " << sizeTypeName << std::endl;
-
-        if (options.slicingEnabled && options.slicingRegPrune &&
+        if (!options.loadIRFromJson &&
+            options.slicingEnabled && options.slicingRegPrune &&
             !options.slicingRegMaxIndex.empty() &&
-            (!options.slicingKeepVars.empty() || options.loadIRFromJson) &&
-            (options.loadIRFromJson || shouldKeepVar(name.c_str()))) {
+            !options.slicingKeepVars.empty() &&
+            shouldKeepVar(name.c_str())) {
             auto it = options.slicingRegMaxIndex.find(name);
             if (it == options.slicingRegMaxIndex.end()) {
                 std::string withSuffix = name.c_str();
@@ -252,8 +435,8 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
                 options.slicingRegHasNonConst.count(cstring((nameStr + "_0").c_str())) > 0;
             if (it != options.slicingRegMaxIndex.end() && !hasNonConst) {
                 int originalSize = -1;
-                if (constant->value >= 0 && constant->value <= std::numeric_limits<int>::max()) {
-                    originalSize = static_cast<int>(constant->value);
+                if (registerSize >= 0 && registerSize <= std::numeric_limits<int>::max()) {
+                    originalSize = static_cast<int>(registerSize);
                 }
                 int maxIndex = it->second;
                 if (originalSize > 0 && maxIndex >= 0 && maxIndex + 1 < originalSize) {
@@ -262,16 +445,11 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
                 }
             }
         }
-
-        // Consider the register as a set of variables (e.g., reg1, reg2, ...)
-        // TODO: rename register
-        // addDeclaration("\n// Register "+name+"\n");
-        // for(int i = 0; i < constant->value; i++){
-            // addDeclaration(name+toString(i)+":"+valueTypeName+";\n");
-        // }
+        regDebug("prune");
 
         addDeclaration("\n// Register "+name+"\n");
         addDeclaration("var "+name+":["+sizeTypeName+"]"+valueTypeName+";\n");
+        regDebug("var decl");
         if (effectiveSize >= 0) {
             registerDomainSizes[name] = effectiveSize;
         }
@@ -280,6 +458,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addDeclaration("var "+name+"__wrote_any:bool;\n");
         addDeclaration("var "+name+"__wrote_index0:bool;\n");
         addDeclaration("var "+name+"__last0_value:"+valueTypeName+";\n");
+        regDebug("mirror decls");
 
         cstring sizeConstType = sizeTypeName;
         int sizeWidth = -1;
@@ -295,7 +474,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         }
         if (sizeTypeName != "int" && sizeWidth > 0) {
             big_int maxVal = (big_int(1) << sizeWidth) - 1;
-            if (constant->value > maxVal) {
+            if (registerSize > maxVal) {
                 sizeConstType = "int";
             }
         }
@@ -311,6 +490,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
             }
             addDeclaration("axiom "+name+".size == "+size+litSuffix+";\n");
         }
+        regDebug("size const");
         
         addGlobalVariables(name);
         addGlobalVariables(name+"__last_index");
@@ -318,9 +498,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addGlobalVariables(name+"__wrote_any");
         addGlobalVariables(name+"__wrote_index0");
         addGlobalVariables(name+"__last0_value");
-        // std::cout << typeName << " " << name << " " << size << " " << 
-        //     valueTypeName << std::endl;
-
+        regDebug("globals");
 
         /* read and write functions 
            may be related to renaming
@@ -331,13 +509,14 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         read.addDeclaration("function {:inline true}"+read.getName()+"(reg:["+sizeTypeName+"]"+valueTypeName
             +", index:"+sizeTypeName+")"+"returns ("+valueTypeName+") {reg[index]}\n");
         addProcedure(read);
+        regDebug("read proc");
 
         // write function
         BoogieProcedure write = BoogieProcedure(name+".write");
         // two parameters, reg[index] := value
         write.addDeclaration("procedure {:inline 1} "+write.getName()+"(index:"+sizeTypeName+", value:"
             +valueTypeName+")\n");
-        cstring indexZero = renderBoogieZeroLiteral(sizeTypeName, typeDefs);
+        cstring indexZero = renderBoogieZeroLiteral(sizeTypeName);
         incIndent();
         write.addStatement(getIndent()+name+"[index] := value;\n");
         write.addStatement(getIndent()+name+"__last_index := index;\n");
@@ -389,20 +568,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         write.addModifiedGlobalVariables(name+"__wrote_index0");
         write.addModifiedGlobalVariables(name+"__last0_value");
         addProcedure(write);
-
-
-        // Register initialization
-        // cstring registerInitName = name+".init";
-        // BoogieProcedure registerInit = BoogieProcedure(registerInitName);
-
-        // registerInit.addDeclaration("procedure {:inline 1} "+registerInitName+"();\n");
-        // registerInit.addDeclaration("    ensures(forall idx:"+sizeTypeName+":: "+name+"[idx]==0"+valueTypeName+");\n");
-        // registerInit.addModifiedGlobalVariables(name);
-        
-        // addProcedure(registerInit);
-        // mainProcedure.addFrontStatement("    call "+registerInitName+"();\n");
-        // mainProcedure.addModifiedGlobalVariables(name);
-        // addPred(registerInitName, mainProcedure.getName());
+        regDebug("write proc");
     }
 
     std::string typeNameStr = typeName.c_str();
@@ -426,10 +592,10 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
             }
         }
         if (info.valueType == "") {
-            info.valueType = "bv32";
+            info.valueType = kDefaultBv32Type;
         }
         if (info.indexType == "") {
-            info.indexType = "bv32";
+            info.indexType = kDefaultBv32Type;
         }
         if (info.retType == "") {
             info.retType = info.valueType;
@@ -512,7 +678,7 @@ void Translator::translate(const IR::Type_Struct *typeStruct, cstring arg){
 }
 
 void Translator::translate(const IR::StructField *field){
-    // std::cout << "translate StructField" << std::endl;
+    (void)field;
 }
 
 void Translator::translate(const IR::StructField *field, cstring arg){
@@ -554,8 +720,6 @@ void Translator::translate(const IR::StructField *field, cstring arg){
             }
         }
 
-        // std::cout << (headers.find(fieldName)!=headers.end()) << std::endl;
-        // std::cout << (structs.find(fieldName)!=structs.end()) << std::endl;
     }
     else if(field->type->node_type_name() == "Type_Boolean"){
         cstring fieldName = arg+"."+field->name;
@@ -593,19 +757,10 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         addGlobalVariables(fieldName);
         updateVariableSize(fieldName, typeBits->size);
         if(fieldName.startsWith("meta.") || fieldName.startsWith("standard_metadata.")){
-            // std::set<cstring> incSet = {};
-            // std::set<cstring> nonnegSet = {};
             std::set<cstring> havocSet = {"ingress_port", "instance_type", "packet_length", 
                                           "enq_timestamp", "deq_timedelta", "deq_qdepth",
                                           "ingress_global_timestamp", "egress_global_timestamp"
                                          };
-            // if(incSet.find(field->name) != incSet.end()){
-
-            // }
-            // else if(nonnegSet.find(filed->name) != nonnegSet.end()){
-            //     havocProcedure.addStatement("    havoc "+fieldName+";\n");
-            // }
-            // else if(havocSet.find(field->name) != havocSet.end()){
             if(havocSet.find(field->name) != havocSet.end()){
                 havocProcedure.addStatement("    havoc "+fieldName+";\n");
                 havocProcedure.addStatement("    assume(0 <= "+fieldName+" && "+
@@ -620,8 +775,6 @@ void Translator::translate(const IR::StructField *field, cstring arg){
     else if(field->type->node_type_name() == "Type_Varbits"){
         auto typeVarbits = field->type->to<IR::Type_Varbits>();
         cstring fieldName = arg+"."+field->name;
-        // std::cout << "Type_Varbits " << typeVarbits->size << std::endl;
-        // updateMaxBitvectorSize(typeVarbits->size);
         if(isGlobalVariable(fieldName)) return;
         if(options.bitBlasting){
             bitBlastingTempDecl(fieldName, typeVarbits->size);
@@ -632,14 +785,13 @@ void Translator::translate(const IR::StructField *field, cstring arg){
         else
             addDeclaration("var "+fieldName+":bv"+std::to_string(typeVarbits->size)+";\n");
         addGlobalVariables(fieldName);
-        // updateVariableSize(arg+"."+field->name, typeVarbits->size);
     }
-    else if(field->type->node_type_name() == "Type_Stack"){
+    else if(P4VerifyCompat::isHeaderStackType(field->type)){
         cstring fieldName = arg+"."+field->name;
         if(isGlobalVariable(fieldName)) return;
         addDeclaration("const "+fieldName+":HeaderStack;\n");
         addGlobalVariables(fieldName);
-        if (auto typeStack = field->type->to<IR::Type_Stack>()){
+        if (auto typeStack = P4VerifyCompat::asHeaderStackType(field->type)){
             translate(typeStack, fieldName);
         }
     }
@@ -653,21 +805,10 @@ void Translator::translate(const IR::StructField *field, cstring arg){
 }
 
 void Translator::translate(const IR::Type_Header *typeHeader){
-    // cstring arg = ""
-    // addDeclaration("\n// Header "+typeHeader->name.toString()+"\n");
-    // addDeclaration("var "+arg+":Ref;\n");
-    // addGlobalVariables(arg);
-    // for(const IR::StructField* field:typeHeader->fields){
-    //     translate(field, arg);
-    // }
-    // for(const IR::StructField* field:typeHeader->fields){
-    //     translate(field);
-    // }
-    // std::cout << "translate typeHeader" << std::endl;
+    (void)typeHeader;
 }
 
 void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
-    // std::cout << "\n// Header "+arg+"\n" << std::endl;
     if(emittedVarDecls.find(arg) != emittedVarDecls.end()) return;
     addDeclaration("\n// Header "+typeHeader->name.toString()+"\n");
     addDeclaration("var "+arg+":Ref;\n");
@@ -741,24 +882,21 @@ void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
                 }
             }
             else{
-                // havocProcedure.addStatement("    "+oldFieldName+" := "+
-                //    fieldName +";\n");
-                // havocProcedure.addModifiedGlobalVariables(oldFieldName);
             }
         }
     }
 }
 
 void Translator::translate(const IR::Type_Parser *typeParser){
-    // std::cout << "translate Parser" << std::endl;
+    (void)typeParser;
 }
 
 void Translator::translate(const IR::Type_Control *typeControl){
-    // std::cout << "translate Control" << std::endl;
+    (void)typeControl;
 }
 
 void Translator::translate(const IR::Type_Package *typePackage){
-    // std::cout << "translate package" << std::endl;
+    (void)typePackage;
 }
 
 void Translator::translate(const IR::P4Parser *p4Parser){
@@ -789,11 +927,7 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     parser.addDeclaration("\n// Parser "+parserName+"\n");
     parser.addDeclaration("procedure {:inline 1} "+parserName+"()\n");
     incIndent();
-    cstring localDecl = "";
-    cstring localDeclArg = "";
-    int cnt = p4Parser->parserLocals.size();
     for(auto parserLocal:p4Parser->parserLocals){
-        cnt--;
         parser.addStatement(translate(parserLocal));
         if (auto declVar = parserLocal->to<IR::Declaration_Variable>()) {
             cstring name = translate(declVar->name);
@@ -847,19 +981,6 @@ void Translator::translate(const IR::P4Parser *p4Parser){
             parserLocalVars.insert(name);
             parser.addModifiedGlobalVariables(name);
         }
-        // if (auto declVar = parserLocal->to<IR::Declaration_Variable>()) {
-        //     cstring name = translate(declVar->name);
-        //     cstring type = translate(declVar->type);
-        //     if(options.gotoOrIf)
-        //         currentProcedure->addVariableDeclaration(getIndent()+"var "+name+":"+type+";\n");
-        //     // addGlobalVariables(name);
-        //     localDecl += name+":"+type;
-        //     localDeclArg += translate(declVar->name);
-        // }
-        // if(cnt > 0){
-        //     localDecl += ", ";
-        //     localDeclArg += ", ";
-        // }
     }
 
     if(options.gotoOrIf){
@@ -867,7 +988,6 @@ void Translator::translate(const IR::P4Parser *p4Parser){
         parser.addStatement(getIndent()+"goto State$"+parserName+"$start;\n");
         for(auto state:p4Parser->states){
             translate(state, parserName);
-            // translate(state, localDecl, localDeclArg);
         }
 
         parser.addStatement("\n"+getIndent()+"State$accept:\n");
@@ -886,7 +1006,6 @@ void Translator::translate(const IR::P4Parser *p4Parser){
         addProcedure(parser);
     }
     else{
-        // parser.addStatement("    call start("+localDeclArg+");\n");
         cstring startState = parserName+"$start";
         parser.addStatement("    call "+startState+"();\n");
         parser.addSucc(startState);
@@ -894,13 +1013,11 @@ void Translator::translate(const IR::P4Parser *p4Parser){
 
         // add accept & reject
         BoogieProcedure accept = BoogieProcedure(parserName+"$"+"accept");
-        // accept.addDeclaration("procedure {:inline 1} accept("+localDecl+")\n");
         accept.addDeclaration("procedure {:inline 1} "+accept.getName()+"()\n");
         accept.setImplemented();
         addProcedure(accept);
 
         BoogieProcedure reject = BoogieProcedure(parserName+"$"+"reject");
-        // reject.addDeclaration("procedure reject("+localDecl+");\n");
         reject.addDeclaration("procedure  "+reject.getName()+"();\n");
         reject.addDeclaration("    ensures drop==true;\n");
         reject.addModifiedGlobalVariables("drop");
@@ -916,10 +1033,8 @@ void Translator::translate(const IR::P4Parser *p4Parser){
         addProcedure(parser);
         for(auto state:p4Parser->states){
             translate(state, parserName);
-            // translate(state, localDecl, localDeclArg);
         }
     }
-    // TODO: parser local variables
     parserLocalVars = prevParserLocalVars;
     inParser = prevInParser;
 }
@@ -994,7 +1109,8 @@ void Translator::computeParserStateLabels(const IR::P4Parser* p4Parser) {
                 continue;
             }
             const std::string normalized = stripNumericSuffix(r);
-            if ((r.size() >= suffix.size()
+            if (normalized == base ||
+                (r.size() >= suffix.size()
                  && r.compare(r.size() - suffix.size(), suffix.size(), suffix) == 0) ||
                 (normalized.size() >= suffix.size()
                  && normalized.compare(normalized.size() - suffix.size(), suffix.size(), suffix) == 0)) {
@@ -1030,7 +1146,29 @@ void Translator::computeParserStateLabels(const IR::P4Parser* p4Parser) {
     }
 }
 
-void Translator::translate(const IR::ParserState *parserState, cstring parserName, cstring localDecl, cstring localDeclArg){
+cstring Translator::parserTransitionLabel(const IR::PathExpression* pathExpression, cstring parserName) {
+    if (pathExpression == nullptr) {
+        return "";
+    }
+    cstring nextState = translate(pathExpression->path);
+    if (refMap && pathExpression->path) {
+        if (auto decl = refMap->getDeclaration(pathExpression->path, false)) {
+            if (auto parserState = decl->to<IR::ParserState>()) {
+                auto it = parserStateLabels.find(parserState);
+                if (it != parserStateLabels.end()) {
+                    nextState = it->second;
+                } else {
+                    nextState = translate(parserState->name);
+                }
+            }
+        }
+    }
+    return (nextState == "accept" || nextState == "reject")
+               ? ("State$" + nextState)
+               : ("State$" + parserName + "$" + nextState);
+}
+
+void Translator::translate(const IR::ParserState *parserState, cstring parserName, cstring localDeclArg){
     if(options.gotoOrIf){
         cstring rawStateName = parserState->name.toString();
         if (rawStateName == "accept" || rawStateName == "reject") {
@@ -1045,41 +1183,21 @@ void Translator::translate(const IR::ParserState *parserState, cstring parserNam
 
         cstring stateName = parserName + "$" + shortStateName;
         cstring stateLabel = getIndent(); stateLabel += "    State$"; stateLabel += stateName;
-        // BoogieProcedure state = BoogieProcedure(stateName);
-        // state.isParserState = true;
-        // currentProcedure = &state;
-        // state.addDeclaration("\n//Parser State "+stateName+"\n");
-        // state.addDeclaration("procedure {:inline 1} "+stateName+"("+localDecl+")\n");
-        // incIndent();
-        // currentProcedure->addStatement(stateLabel+":\n");
         currentProcedure->addStatement("\n"+stateLabel+":\n");
         for(auto statOrDecl:parserState->components){
             currentProcedure->addStatement(translate(statOrDecl));
         }
         if(parserState->selectExpression!=nullptr){
             if (auto pathExpression = parserState->selectExpression->to<IR::PathExpression>()){
-                // For parser state transitions, prefer the raw path name over the refMap
-                // declaration name to keep goto labels consistent with `parserState->name`.
-                // Some targets (e.g., Tofino/TNA) introduce qualified names like
-                // `TofinoIngressParser_parse_resubmit` in the reference map while the
-                // actual state labels remain `parse_resubmit`, causing "goto label not found".
-                cstring nextState = translate(pathExpression->path);
-                cstring nextStateLabel = (nextState == "accept" || nextState == "reject")
-                                             ? ("State$" + nextState)
-                                             : ("State$" + parserName + "$" + nextState);
+                cstring nextStateLabel = parserTransitionLabel(pathExpression, parserName);
                 currentProcedure->addStatement(getIndent()+"goto "+nextStateLabel+";\n");
-                // currentProcedure->addSucc(nextS)
-                // state.addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
-                // state.addSucc(nextState);
-                // addPred(nextState, stateName);
             }
             else if(auto selectExpression = parserState->selectExpression->to<IR::SelectExpression>()){
                 currentProcedure->addStatement(translate(selectExpression, parserName, stateName, localDeclArg));
             }
         }
-        // TODO: add succ
-        // decIndent();
-        // addProcedure(state);
+        // Goto-mode parser states are labels inside one procedure; call-graph succ/pred
+        // edges are only emitted in procedure-mode parser lowering.
     }
     else{
         cstring stateName = parserState->name.toString();
@@ -1101,7 +1219,6 @@ void Translator::translate(const IR::ParserState *parserState, cstring parserNam
         if(parserState->selectExpression!=nullptr){
             if (auto pathExpression = parserState->selectExpression->to<IR::PathExpression>()){
                 cstring nextState = parserName+"$"+translate(pathExpression);
-                // state.addStatement(getIndent()+"call "+nextState+"("+localDeclArg+");\n");
                 state.addStatement(getIndent()+"call "+nextState+"();\n");
                 state.addSucc(nextState);
                 addPred(nextState, stateName);
@@ -1117,6 +1234,7 @@ void Translator::translate(const IR::ParserState *parserState, cstring parserNam
 
 void Translator::translate(const IR::P4Control *p4Control){
     cstring controlName = p4Control->name.toString();
+    const bool debugObjects = std::getenv("P4VERIFY_DEBUG_TRANSLATE_OBJECTS") != nullptr;
     // Declare apply-parameter header/metadata instances (e.g., hdr_eg) as global fields.
     if (p4Control->getApplyParameters() != nullptr) {
         for (auto param : p4Control->getApplyParameters()->parameters) {
@@ -1139,7 +1257,6 @@ void Translator::translate(const IR::P4Control *p4Control){
     for(auto declaration:*p4Control->getDeclarations()){
         if(declaration->to<IR::Declaration_Instance>())
             declarations.push_back(translate(declaration->getName()));
-        // std::cout << "**declaration: " << translate(declaration->getName()) << std::endl;
     }
     currentProcedure = &procedures[controlName];
 
@@ -1195,6 +1312,11 @@ void Translator::translate(const IR::P4Control *p4Control){
 
     for(auto controlLocal:p4Control->controlLocals){
         currentProcedure = &procedures[controlName];
+        if (debugObjects) {
+            std::cerr << "[p4verify-local] " << controlName << " "
+                      << controlLocal->node_type_name() << " "
+                      << controlLocal << std::endl;
+        }
         if(auto instance = controlLocal->to<IR::Declaration_Instance>()){
             cstring instanceName = translate(instance->getName());
             cstring renamedInstance = "";
@@ -1203,14 +1325,14 @@ void Translator::translate(const IR::P4Control *p4Control){
                     continue;
                 }
                 size_t base = instanceName.size();
-                if(declaration.size() <= base + 1 || declaration[base] != '_') {
+                if(declaration.size() <= base + 1 || declaration.c_str()[base] != '_') {
                     continue;
                 }
                 if(declaration.size()>renamedInstance.size()){
                     size_t idx = base + 1;
                     bool digit = true;
                     for(size_t i = idx; i < declaration.size(); i++){
-                        if(!(declaration[i] >= '0' && declaration[i] <= '9')){
+                        if(!(declaration.c_str()[i] >= '0' && declaration.c_str()[i] <= '9')){
                             digit = false;
                         }   
                     }
@@ -1238,7 +1360,7 @@ void Translator::translate(const IR::P4Control *p4Control){
 }
 
 void Translator::translate(const IR::Method *method){
-    // std::cout << "translate method" << std::endl;
+    (void)method;
 }
 
 void Translator::translate(const IR::P4Action *p4Action){

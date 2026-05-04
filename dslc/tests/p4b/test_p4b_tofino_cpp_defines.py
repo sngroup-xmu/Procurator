@@ -20,7 +20,8 @@ class TestP4BTofinoCppDefines(unittest.TestCase):
             p.write_text("#include <core.p4>\n#include <tna.p4>\n", encoding="utf-8")
             old = os.environ.pop("P4B_TARGET_TOFINO", None)
             try:
-                self.assertEqual(_maybe_tofino_cpp_defines(str(p)), ["-D__TARGET_TOFINO__=1"])
+                args = _maybe_tofino_cpp_defines(str(p))
+                self.assertEqual(args[0], "-D__TARGET_TOFINO__=1")
             finally:
                 if old is not None:
                     os.environ["P4B_TARGET_TOFINO"] = old
@@ -32,12 +33,33 @@ class TestP4BTofinoCppDefines(unittest.TestCase):
             old = os.environ.get("P4B_TARGET_TOFINO")
             os.environ["P4B_TARGET_TOFINO"] = "2"
             try:
-                self.assertEqual(_maybe_tofino_cpp_defines(str(p)), ["-D__TARGET_TOFINO__=2"])
+                args = _maybe_tofino_cpp_defines(str(p))
+                self.assertEqual(args[0], "-D__TARGET_TOFINO__=2")
             finally:
                 if old is None:
                     os.environ.pop("P4B_TARGET_TOFINO", None)
                 else:
                     os.environ["P4B_TARGET_TOFINO"] = old
+
+    def test_tna_include_path_can_be_overridden(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inc = root / "tofino-include"
+            inc.mkdir()
+            (inc / "tna.p4").write_text("", encoding="utf-8")
+            p = root / "a.p4"
+            p.write_text("#include <tna.p4>\n", encoding="utf-8")
+
+            old = os.environ.get("P4B_TOFINO_INCLUDE_PATH")
+            os.environ["P4B_TOFINO_INCLUDE_PATH"] = str(inc)
+            try:
+                args = _maybe_tofino_cpp_defines(str(p))
+                self.assertEqual(args, ["-D__TARGET_TOFINO__=1", "-I", str(inc)])
+            finally:
+                if old is None:
+                    os.environ.pop("P4B_TOFINO_INCLUDE_PATH", None)
+                else:
+                    os.environ["P4B_TOFINO_INCLUDE_PATH"] = old
 
     def test_invalid_env_raises(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -57,4 +79,3 @@ class TestP4BTofinoCppDefines(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -15,6 +15,9 @@
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/translate/cmake/version.h.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/translate/version.h" @ONLY)
 
+option(ENABLE_P4VERIFY_P4LTL
+  "Build legacy P4LTL support for the verify backend" OFF)
+
 set (P4VERIFY_BACKEND_VERIFY_SRCS
   bpl_verify/main.cpp
   bpl_verify/frontend.h
@@ -58,16 +61,23 @@ set (P4VERIFY_BACKEND_TRANSLATE_SRCS
   translate/bmv2.h
   translate/impl/support/bmv2.cpp
   translate/p4ltl_utils.h
-  translate/impl/support/p4ltl_utils.cpp
   translate/utils.h
   translate/impl/support/utils.cpp
 )
+if (ENABLE_P4VERIFY_P4LTL)
+  list(APPEND P4VERIFY_BACKEND_TRANSLATE_SRCS
+    translate/impl/support/p4ltl_utils.cpp
+  )
+  add_compile_definitions(P4VERIFY_ENABLE_P4LTL=1)
+endif ()
 add_cpplint_files (${CMAKE_CURRENT_SOURCE_DIR} "${P4VERIFY_BACKEND_TRANSLATE_SRCS}")
 
 
 build_unified(P4VERIFY_BACKEND_TRANSLATE_SRCS)
 add_library(verifybackend ${P4VERIFY_BACKEND_TRANSLATE_SRCS})
 target_include_directories(verifybackend PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/translate)
+target_link_libraries(verifybackend PUBLIC ir-generated frontend p4ctoolkit)
+target_compile_definitions(verifybackend PUBLIC P4VERIFY_LEGACY_CSTRING_IMPLICIT=1)
 add_dependencies(verifybackend genIR frontend)
 
 build_unified(P4VERIFY_BACKEND_VERIFY_SRCS)
@@ -99,4 +109,6 @@ add_custom_target(linkp4verify
   COMMAND ${CMAKE_COMMAND} -E create_symlink ${P4C_BINARY_DIR_PATH_REL}/p4_14include ${CMAKE_CURRENT_BINARY_DIR}/p4_14include
   )
 
+add_dependencies(linkp4verify update_includes)
+add_dependencies(p4c-translator linkp4verify)
 add_dependencies(p4c_driver linkp4verify)

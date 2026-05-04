@@ -64,35 +64,34 @@ class TestP4BTranslatorBoogieOutParams(unittest.TestCase):
         # (2) Negative bitvector literals must be normalized (Ultimate rejects `-1bv32`).
         self.assertNotIn("-1bv", txt)
 
-        # (1) DDOSD out params must become Boogie returns.
-        # In the buggy version, Ultimate TypeChecker rejects assignments to out params
-        # because they were encoded as in-parameters.
-        proc_names = [
-            "cs_hash",
-            "cs_ghash",
-            "median",
-            "ingress_cs_hash",
-            "ingress_cs_ghash",
-            "ingress_median",
-        ]
-        for name in proc_names:
-            # NOTE: use *single* backslashes for regex escapes in raw strings.
-            # `\\b` would match a literal `\b` in the text, not a word-boundary.
-            m = re.search(rf"(?m)^\s*procedure\b.*\b{name}(?:_\d+)?\b.*\breturns\s*\(", txt)
-            self.assertIsNotNone(m, f"procedure {name} must use Boogie returns")
+        # (1) DDOSD out effects must be modeled as writes to caller-visible
+        # variables.  Newer p4c frontends lift action parameters into control
+        # locals before the verify backend sees the IR, so these helpers may be
+        # no-arg procedures with `modifies` rather than Boogie-return procedures.
+        expected_effects = {
+            "ingress_cs_hash": ["src_h1_0", "src_h2_0", "src_h3_0", "src_h4_0"],
+            "ingress_cs_ghash": ["src_g1_0", "src_g2_0", "src_g3_0", "src_g4_0"],
+            "ingress_median": ["meta.ip_count"],
+            r"cs_hash_\d+": ["dst_h1_0", "dst_h2_0", "dst_h3_0", "dst_h4_0"],
+            r"cs_ghash_\d+": ["dst_g1_0", "dst_g2_0", "dst_g3_0", "dst_g4_0"],
+            r"median_\d+": ["meta.ip_count"],
+        }
+        for proc, vars_ in expected_effects.items():
+            m = re.search(
+                rf"(?ms)^procedure\s+\{{:\s*inline\s+1\}}\s+{proc}\b[^\n]*\n"
+                rf"(?:\s+modifies\s+(?P<mods>[^;]+);\n)?\s*\{{(?P<body>.*?)^\}}",
+                txt,
+            )
+            self.assertIsNotNone(m, f"missing procedure {proc}")
+            assert m is not None
+            mods = m.group("mods") or ""
+            body = m.group("body")
+            for var in vars_:
+                self.assertIn(var, mods, f"{proc} must advertise modification of {var}")
+                self.assertRegex(body, rf"\b{re.escape(var)}\s*:=", f"{proc} must assign {var}")
 
-        # Call sites should use `call out := foo(in)` (not by-ref in-params).
-        # Check both the helper wrappers (ingress_*) and the underlying actions (*_N).
-        call_targets = [
-            "ingress_cs_hash",
-            "ingress_cs_ghash",
-            "ingress_median",
-            r"cs_hash_\d+",
-            r"cs_ghash_\d+",
-            r"median_\d+",
-        ]
-        for tgt in call_targets:
-            self.assertRegex(txt, rf":=\s*{tgt}\s*\(", f"missing return-style call to {tgt}")
+        for tgt in ["ingress_cs_hash", "ingress_cs_ghash", "ingress_median", "cs_hash_1", "cs_ghash_1", "median_1"]:
+            self.assertRegex(txt, rf"(?m)^\s*call\s+{tgt}\(\);", f"missing call to {tgt}")
 
 
 if __name__ == "__main__":

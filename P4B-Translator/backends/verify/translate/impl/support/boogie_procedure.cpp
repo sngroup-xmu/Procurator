@@ -127,13 +127,6 @@ cstring BoogieProcedure::toString(){
 				res += ", ";
 			}
 	    }
-		// for(cstring variable:modifies){
-		// 	res += variable;
-		// 	cnt--;
-		// 	if(cnt != 0){
-		// 		res += ", ";
-		// 	}
-		// }
 		res += ";\n";
 	}
 	

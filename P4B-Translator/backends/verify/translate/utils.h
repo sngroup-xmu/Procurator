@@ -4,6 +4,7 @@
 #include "lib/cstring.h"
 #include <cstdint>
 #include <vector>
+#include "backends/verify/verify_compat.h"
 
 bool isNumber(std::string str);
 

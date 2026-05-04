@@ -4,7 +4,10 @@
 #include <vector>
 #include <map>
 #include <set>
+#include "backends/verify/verify_compat.h"
+#ifdef P4VERIFY_ENABLE_P4LTL
 #include "frontends/parsers/p4ltl/p4ltlast.hpp"
+#endif
 #include "backends/verify/translate/translate.h"
 #include "backends/verify/translate/utils.h"
 
@@ -50,11 +53,16 @@ const cstring P4LTL_KEYS_CPI = "//#CPI:";
 const cstring P4LTL_KEYS_CPI_MODEL = "//#CPI_MODEL:";
 const cstring P4LTL_KEYS_CPI_SPEC = "//#CPI_SPEC:";
 
-// bool isAPNode(P4LTL::AstNode* node);
-// std::vector<P4LTL::AstNode*> getAllNodes(P4LTL::AstNode* root);
-// std::vector<P4LTL::AstNode*> getAllAPs(P4LTL::AstNode* root);
-
 class Translator;
+
+namespace P4LTL {
+#ifndef P4VERIFY_ENABLE_P4LTL
+class AstNode {
+ public:
+	cstring toString() const { return ""; }
+};
+#endif
+}
 
 class CPIRule{
 private:
@@ -83,17 +91,6 @@ public:
 	cstring getAction(){ return action; }
 	std::map<cstring, cstring> getKeys(){ return keys; }
 	std::vector<cstring> getParams(){ return params; }
-	void show(){
-		std::cout << "table: " << table << std::endl;
-		std::cout << "action: " << action << std::endl;
-		for(auto item : keys){
-			std::cout << "match: " << item.first << item.second << std::endl;
-		}
-		for(auto item : params){
-			std::cout << "param: " << item << std::endl;
-		}
-		std::cout << std::endl;
-	}
 };
 
 class P4LTLTranslator{
@@ -113,6 +110,7 @@ public:
 	P4LTLTranslator(Translator* translator){
 		p4Translator = translator;
 	}
+#ifdef P4VERIFY_ENABLE_P4LTL
 	cstring translateP4LTL(P4LTL::AstNode* node);
 	cstring translateP4LTL(P4LTL::BinOpNode* node);
 	cstring translateP4LTL(P4LTL::UOpNode* node);
@@ -131,29 +129,46 @@ public:
 	std::map<cstring, std::set<cstring>> getOldArrays(P4LTL::AstNode* root);
 
 	bool isActionApplied(P4LTL::AstNode* root, cstring action);
+#else
+	cstring translateP4LTL(P4LTL::AstNode*) { return ""; }
+	std::set<cstring> getOldExprs(P4LTL::AstNode*) { return {}; }
+	std::map<cstring, std::set<cstring>> getOldArrays(P4LTL::AstNode*) { return {}; }
+	bool isActionApplied(P4LTL::AstNode*, cstring) { return false; }
+#endif
 
-	int getSize(cstring variable);
+	int getSize(cstring variable) {
+		auto it = sizes.find(variable);
+		return it == sizes.end() ? -1 : it->second;
+	}
 
 	bool isBvType(cstring type);
 	int getBvLength(cstring type);
 
-	std::map<cstring, cstring> getFreeVariables();
+	std::map<cstring, cstring> getFreeVariables() { return freeVars; }
 	void addFreeVariable(cstring variable);
+#ifdef P4VERIFY_ENABLE_P4LTL
 	void createFreeVariables(cstring decl);
+#else
+	void createFreeVariables(cstring) {}
+#endif
 	bool isFreeVariable(cstring variable);
 	
-	std::vector<cstring> getVariables();
+	std::vector<cstring> getVariables() { return vars; }
 	void addVariable(cstring stmt);
 
-	std::vector<cstring> getStatements();
+	std::vector<cstring> getStatements() { return stmts; }
 	void addStatement(cstring stmt);
 
-	std::vector<cstring> getDeclarations();
+	std::vector<cstring> getDeclarations() { return declarations; }
 	void addDeclaration(cstring declaration);
 
 	bool alreadyDeclared(cstring expr);
 	cstring getCacheVariable(cstring expr);
 
+#ifdef P4VERIFY_ENABLE_P4LTL
 	CPIRule* analyzeRule(P4LTL::AstNode* root);
+#else
+	CPIRule* analyzeRule(P4LTL::AstNode*) { return nullptr; }
+#endif
 };
 #endif

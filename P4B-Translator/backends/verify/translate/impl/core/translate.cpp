@@ -8,6 +8,28 @@
 #include <string>
 #include <vector>
 
+const cstring Translator::kDefaultBv32Type = "bv32";
+
+static bool isHeaderStackElementChild(const std::string& name) {
+    if (name.rfind("hdr.", 0) != 0) {
+        return false;
+    }
+    size_t pos = std::string("hdr.").size();
+    while (pos < name.size()) {
+        size_t dot = name.find('.', pos);
+        std::string seg = name.substr(pos, dot == std::string::npos ? std::string::npos : dot - pos);
+        if (!seg.empty() &&
+            std::all_of(seg.begin(), seg.end(), [](char c) { return c >= '0' && c <= '9'; })) {
+            return dot != std::string::npos && dot + 1 < name.size();
+        }
+        if (dot == std::string::npos) {
+            return false;
+        }
+        pos = dot + 1;
+    }
+    return false;
+}
+
 Translator::Translator(std::ostream &out, P4VerifyOptions &options,
                        BMV2CmdsAnalyzer* bMV2CmdsAnalyzer, P4::ReferenceMap* refMap)
     : out(out), options(options), bMV2CmdsAnalyzer(bMV2CmdsAnalyzer), refMap(refMap){
@@ -75,6 +97,14 @@ Translator::Translator(std::ostream &out, P4VerifyOptions &options,
     addGlobalVariables("p4b_clone_i2i");
     declaration += "var p4b_recirculate:bool;\n";
     addGlobalVariables("p4b_recirculate");
+    declaration += "var p4b_digest:bool;\n";
+    addGlobalVariables("p4b_digest");
+    declaration += "var p4b_checksum_verified:bool;\n";
+    addGlobalVariables("p4b_checksum_verified");
+    declaration += "var p4b_checksum_updated:bool;\n";
+    addGlobalVariables("p4b_checksum_updated");
+    declaration += "var p4b_checksum_error:bool;\n";
+    addGlobalVariables("p4b_checksum_error");
     mainProcedure.addFrontStatement("    p4b_clone_i2e := false;\n");
     mainProcedure.addModifiedGlobalVariables("p4b_clone_i2e");
     mainProcedure.addFrontStatement("    p4b_clone_e2e := false;\n");
@@ -83,6 +113,14 @@ Translator::Translator(std::ostream &out, P4VerifyOptions &options,
     mainProcedure.addModifiedGlobalVariables("p4b_clone_i2i");
     mainProcedure.addFrontStatement("    p4b_recirculate := false;\n");
     mainProcedure.addModifiedGlobalVariables("p4b_recirculate");
+    mainProcedure.addFrontStatement("    p4b_digest := false;\n");
+    mainProcedure.addModifiedGlobalVariables("p4b_digest");
+    mainProcedure.addFrontStatement("    p4b_checksum_verified := false;\n");
+    mainProcedure.addModifiedGlobalVariables("p4b_checksum_verified");
+    mainProcedure.addFrontStatement("    p4b_checksum_updated := false;\n");
+    mainProcedure.addModifiedGlobalVariables("p4b_checksum_updated");
+    mainProcedure.addFrontStatement("    p4b_checksum_error := false;\n");
+    mainProcedure.addModifiedGlobalVariables("p4b_checksum_error");
 
     headers = std::map<cstring, const IR::Type_Header*>();
     structs = std::map<cstring, const IR::Type_Struct*>();
@@ -166,6 +204,21 @@ void Translator::addDeclaration(cstring decl){
                         emittedVarDecls.insert(cstring(name));
                     }
                 }
+            } else if (line.compare(i, 5, "const") == 0 &&
+                       (i + 5 >= line.size() || line[i + 5] == ' ' || line[i + 5] == '\t')) {
+                i += 6;
+                while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) i++;
+                if (line.compare(i, 7, "unique ") == 0) {
+                    i += 7;
+                }
+                size_t colon = line.find(':', i);
+                if (colon != std::string::npos) {
+                    std::string name = line.substr(i, colon - i);
+                    while (!name.empty() && (name.back() == ' ' || name.back() == '\t')) name.pop_back();
+                    if (!name.empty()) {
+                        emittedVarDecls.insert(cstring(name));
+                    }
+                }
             }
         }
     } else {
@@ -179,6 +232,24 @@ void Translator::addDeclaration(cstring decl){
             while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) i++;
             if (line.compare(i, 4, "var ") == 0) {
                 i += 4;
+                size_t colon = line.find(':', i);
+                if (colon != std::string::npos) {
+                    std::string name = line.substr(i, colon - i);
+                    while (!name.empty() && (name.back() == ' ' || name.back() == '\t')) name.pop_back();
+                    if (!shouldKeepVar(name)) {
+                        continue;
+                    }
+                    if (!name.empty()) {
+                        emittedVarDecls.insert(cstring(name));
+                    }
+                }
+            } else if (line.compare(i, 5, "const") == 0 &&
+                       (i + 5 >= line.size() || line[i + 5] == ' ' || line[i + 5] == '\t')) {
+                i += 6;
+                while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) i++;
+                if (line.compare(i, 7, "unique ") == 0) {
+                    i += 7;
+                }
                 size_t colon = line.find(':', i);
                 if (colon != std::string::npos) {
                     std::string name = line.substr(i, colon - i);
@@ -285,10 +356,16 @@ bool Translator::shouldKeepVar(const std::string& name) const {
         name.find("egress_port") != std::string::npos) {
         return true;
     }
+    std::string nameStr = name;
     if (options.slicingKeepVars.count(cstring(name)) > 0) {
         return true;
     }
-    std::string nameStr = name;
+    if (nameStr.rfind("hdr.", 0) == 0 && nameStr.find(".last.") != std::string::npos) {
+        std::string stackBase = nameStr.substr(0, nameStr.find(".last."));
+        if (options.slicingKeepVars.count(cstring(stackBase)) > 0) {
+            return true;
+        }
+    }
     if (options.slicingKeepVars.count(cstring(nameStr + "_0")) > 0) {
         return true;
     }
@@ -324,6 +401,21 @@ bool Translator::shouldKeepVar(const std::string& name) const {
         }
         return false;
     };
+    {
+        static const std::string sizeSuffix = ".size";
+        if (nameStr.size() > sizeSuffix.size() &&
+            nameStr.rfind(sizeSuffix) == nameStr.size() - sizeSuffix.size()) {
+            std::string base = nameStr.substr(0, nameStr.size() - sizeSuffix.size());
+            if (baseKept(base) ||
+                shouldKeepVar(base) ||
+                options.slicingRegMaxIndex.find(cstring(base)) != options.slicingRegMaxIndex.end() ||
+                options.slicingRegMaxIndex.find(cstring(base + "_0")) != options.slicingRegMaxIndex.end() ||
+                options.slicingRegHasNonConst.count(cstring(base)) > 0 ||
+                options.slicingRegHasNonConst.count(cstring(base + "_0")) > 0) {
+                return true;
+            }
+        }
+    }
     {
         static const std::vector<std::string> registerMirrorSuffixes = {
             "__last_index",
@@ -423,6 +515,9 @@ bool Translator::shouldKeepVar(const std::string& name) const {
             name[name.size() - key.size() - 1] == '_') {
             return true;
         }
+    }
+    if (isHeaderStackElementChild(nameStr)) {
+        return true;
     }
     return false;
 }
@@ -554,6 +649,86 @@ void Translator::recordRandomExtern(const IR::Declaration_Instance* instance, cs
     randomExterns[name] = info;
 }
 
+void Translator::recordCounterExtern(const IR::Declaration_Instance* instance, cstring name) {
+    if (instance == nullptr || name == "") {
+        return;
+    }
+    std::string base = externBaseTypeName(instance->type);
+    if (base != "Counter" && base != "DirectCounter" &&
+        base != "counter" && base != "direct_counter" &&
+        base != "CounterArray" && base != "DirectCounterArray") {
+        return;
+    }
+    static const cstring kDefaultCounterValueType = "bv64";
+
+    CounterExternInfo info;
+    const bool isCounterArray = base == "CounterArray" || base == "DirectCounterArray";
+    info.direct = base == "DirectCounter" || base == "direct_counter" || base == "DirectCounterArray";
+    // Use a compact numeric state summary for counter-like externs.  Generic
+    // PSA/TNA counters default to a 64-bit value.  eBPF CounterArray.add takes
+    // 32-bit increments, so its summary value type intentionally follows the
+    // 32-bit architectural counter element model rather than the PSA/TNA default.
+    info.indexType = kDefaultBv32Type;
+    info.valueType = isCounterArray ? kDefaultBv32Type : kDefaultCounterValueType;
+    if (!isCounterArray) {
+        const IR::Type* arg0 = specializedTypeArg(instance->type, 0);
+        if (arg0 != nullptr) {
+            cstring valueType = inferBoogieType(arg0, "");
+            if (valueType == "") {
+                valueType = translate(arg0);
+            }
+            if (valueType != "" && valueType != "bool" &&
+                (valueType == "int" || valueType.startsWith("bv"))) {
+                info.valueType = valueType;
+            }
+        }
+    }
+    if (!info.direct) {
+        if (const IR::Type* arg1 = specializedTypeArg(instance->type, 1)) {
+            cstring indexType = inferBoogieType(arg1, "");
+            if (indexType == "") {
+                indexType = translate(arg1);
+            }
+            if (indexType != "" && indexType != "bool" &&
+                (indexType == "int" || indexType.startsWith("bv"))) {
+                info.indexType = indexType;
+            }
+        }
+    }
+    info.oneValue = "1";
+    if (info.valueType.startsWith("bv")) {
+        info.oneValue += info.valueType;
+    }
+    counterExterns[name] = info;
+}
+
+void Translator::recordMeterExtern(const IR::Declaration_Instance* instance, cstring name) {
+    if (instance == nullptr || name == "") {
+        return;
+    }
+    std::string base = externBaseTypeName(instance->type);
+    if (base != "Meter" && base != "DirectMeter" &&
+        base != "meter" && base != "direct_meter") {
+        return;
+    }
+    MeterExternInfo info;
+    info.direct = base == "DirectMeter" || base == "direct_meter";
+    info.indexType = kDefaultBv32Type;
+    info.colorType = "int";
+    if (!info.direct) {
+        if (const IR::Type* arg0 = specializedTypeArg(instance->type, 0)) {
+            cstring indexType = inferBoogieType(arg0, "");
+            if (indexType == "") {
+                indexType = translate(arg0);
+            }
+            if (indexType != "" && indexType != "bool") {
+                info.indexType = indexType;
+            }
+        }
+    }
+    meterExterns[name] = info;
+}
+
 void Translator::analyzeProgram(const IR::P4Program *program){
     auto recordStructValueType = [&](const IR::Type* type) {
         if (type == nullptr) {
@@ -618,6 +793,8 @@ void Translator::analyzeProgram(const IR::P4Program *program){
                 else if (auto inst = controlLocal->to<IR::Declaration_Instance>()) {
                     recordHashExtern(inst, translate(inst->getName()));
                     recordRandomExtern(inst, translate(inst->getName()));
+                    recordCounterExtern(inst, translate(inst->getName()));
+                    recordMeterExtern(inst, translate(inst->getName()));
                     std::string base = externBaseTypeName(inst->type);
                     if (base == "RegisterAction" || base == "DirectRegisterAction") {
                         if (!inst->arguments->empty()) {
@@ -642,6 +819,8 @@ void Translator::analyzeProgram(const IR::P4Program *program){
             recordDeclName(instance);
             recordHashExtern(instance, translate(instance->getName()));
             recordRandomExtern(instance, translate(instance->getName()));
+            recordCounterExtern(instance, translate(instance->getName()));
+            recordMeterExtern(instance, translate(instance->getName()));
             std::string base = externBaseTypeName(instance->type);
             if (base == "RegisterAction" || base == "DirectRegisterAction") {
                 if (!instance->arguments->empty()) {
@@ -843,8 +1022,6 @@ void Translator::addRegisterWriteModifiedVariables(const cstring& regName) {
 }
 
 void Translator::addPred(cstring proc, cstring predProc){
-    // if(pred[proc]==nullptr)
-    //     pred[proc] = std::vector<cstring>(0);
     pred[proc].push_back(predProc);
 }
 
@@ -865,7 +1042,6 @@ void Translator::updateMaxBitvectorSize(const IR::Type_Bits *typeBits){
 }
 
 void Translator::updateVariableSize(cstring name, int n){
-    // std::cout << "update size: " << name << " " << n << std::endl;
     sizes[name] = n;
 }
 
@@ -908,7 +1084,7 @@ cstring Translator::inferBoogieType(const IR::Type *type, cstring exprText){
         if (ret == "") {
             if (type->to<IR::Type_Header>() != nullptr) {
                 ret = "Ref";
-            } else if (type->to<IR::Type_Stack>() != nullptr) {
+            } else if (P4VerifyCompat::isHeaderStackType(type)) {
                 ret = "HeaderStack";
             } else if (type->to<IR::Type_Boolean>() != nullptr) {
                 ret = "bool";
@@ -1363,14 +1539,10 @@ void Translator::addUAFunctions(){
         }
     }
 
-    declaration += "function {:inline true} band(left:int, right:int) : int{((left+right)-(left+right)\%2)/2}\n";
-    // declaration += "function band(left:int, right:int) : int{if(left>0 && right>0) then 1 else 0}\n";
-    declaration += "function {:inline true} bxor(left:int, right:int) : int{(left+right)\%2}\n";
-    // declaration += "function bxor(left:int, right:int) : int{if((left==0&&right>0) || (left>0&&right==0)) then 1 else 0}\n";
-    declaration += "function {:inline true} bor(left:int, right:int) : int{(left+right)\%2+((left+right)-((left+right)\%2))/2}\n";
-    // declaration += "function bor(left:int, right:int) : int{if(left>0 || right>0) then 1 else 0}\n";
-    declaration += "function {:inline true} bnot(num:int) : int{1-num\%2}\n";
-    // declaration += "function bnot(num:int) : int{if(num == 0) then 1 else 0}\n";
+    declaration += "function {:inline true} band(left:int, right:int) : int{((left+right)-(left+right)%2)/2}\n";
+    declaration += "function {:inline true} bxor(left:int, right:int) : int{(left+right)%2}\n";
+    declaration += "function {:inline true} bor(left:int, right:int) : int{(left+right)%2+((left+right)-((left+right)%2))/2}\n";
+    declaration += "function {:inline true} bnot(num:int) : int{1-num%2}\n";
     
 }
 
@@ -1382,7 +1554,6 @@ void Translator::writeToFile(){
             if(p4ltlSpec.find(str) != p4ltlSpec.end()){
                 for(auto spec:p4ltlSpec[str]){
                     cstring cont = ltlTranslator->translateP4LTL(spec);
-                    std::cout << str << std::endl << " " << cont << std::endl;
                     if(str == P4LTL_KEYS_CPI_SPEC) out << P4LTL_KEYS_CPI;
                     else out << str;
                     out << " " << cont << "\n";
@@ -1393,7 +1564,8 @@ void Translator::writeToFile(){
 
         for(auto item:ltlTranslator->getFreeVariables()){
             if(isGlobalVariable(item.first)){
-                std::cout << "ERROR: "+item.first+" is a global variable. Please change the name.\n";
+                std::cerr << "ERROR: " << item.first
+                          << " is a global variable. Please change the name.\n";
                 std::abort();
             }
             addGlobalVariables(item.second);
@@ -1402,11 +1574,7 @@ void Translator::writeToFile(){
                 mainProcedure.addFrontStatement("    assume(0 <= "+item.second+" && "+
                         item.second + " < power_2_" +toString(ltlTranslator->getSize(item.second))
                         +"() );\n");
-                // std::couts << item.second << " " << ltlTranslator->getSize(item.second) << std::endl;
             }
-
-            // havocProcedure.addStatement("    havoc "+item.second+";\n");
-            // havocProcedure.addModifiedGlobalVariables(item.second);
         }
         for(cstring variable:ltlTranslator->getVariables()){
             addGlobalVariables(variable);
@@ -1451,13 +1619,6 @@ void Translator::writeToFile(){
                             "] := "+ arrayName+"["+arrayIndex+"];\n");
                     }
                 }
-                // std::cout << oldArrays.size() << std::endl;
-        //         if(oldExprs.find(fieldName) != oldExprs.end()){
-        //             havocProcedure.addStatement("    "+oldFieldName+" := "+
-        //                fieldName +";\n");
-        //             havocProcedure.addModifiedGlobalVariables(oldFieldName);
-        //             break;
-        //         }
             }
         }
     }
@@ -1471,7 +1632,6 @@ void Translator::writeToFile(){
     if(options.whileLoop)
         addProcedure(havocProcedure);
     std::queue<BoogieProcedure*> queue;
-    // queue.push(&mainProcedure);
     for (std::map<cstring, BoogieProcedure>::iterator iter=procedures.begin();
         iter!=procedures.end(); iter++){
         for (std::set<cstring>::iterator iter2=iter->second.modifies.begin();
@@ -1523,27 +1683,9 @@ void Translator::writeToFile(){
 
 
     out << declaration;
-    // out << "\n";
-    // out << mainProcedure.toString();
-    // std::cout << mainProcedure.getName() << std::endl;
-    // std::cout << "Succ:" << std::endl;
-    // for(cstring succ:mainProcedure.succ){
-    //     std::cout << "  " << succ << std::endl;
-    // }
-    // for(BoogieProcedure procedure:procedures){
-    //     out << "\n";
-    //     out << procedure.toString();
-    // }
     std::map<cstring, BoogieProcedure>::iterator iter;
     for (iter=procedures.begin(); iter!=procedures.end(); iter++){
         if(iter->first != deparser){
-            // std::cout << iter->first << std::endl;
-            // std::cout << "Succ:" << std::endl;
-            // for(cstring succ:iter->second.succ){
-            //     std::cout << "  " << succ << std::endl;
-            // }
-            // std::cout << std::endl;
-            // out << "\n";
             out << iter->second.toString();
         }
     }

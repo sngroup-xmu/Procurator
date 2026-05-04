@@ -1,7 +1,7 @@
 #ifndef BACKENDS_VERIFY_TRANSLATE_BOOGIE_STATEMENT_H_
 #define BACKENDS_VERIFY_TRANSLATE_BOOGIE_STATEMENT_H_
 
-#include "lib/cstring.h"
+#include "backends/verify/verify_compat.h"
 
 class BoogieStatement{
 private:

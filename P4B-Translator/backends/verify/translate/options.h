@@ -88,6 +88,7 @@ class P4VerifyOptions : public CompilerOptions {
         cstring expr = nullptr;            // best-effort Boogie expression in P4-local namespace
         std::vector<cstring> deps;         // dotted source variables referenced by expr
         cstring context = nullptr;         // action/control/parser name (best-effort)
+        bool ambiguous = false;            // true if context/alias analysis found multiple meanings
     };
 
     struct FailFastRegisterAssert {
@@ -100,6 +101,7 @@ class P4VerifyOptions : public CompilerOptions {
     std::vector<WraparoundRegisterInfo> wraparound_registers;
     std::vector<WraparoundUpdate> wraparound_updates;
     std::vector<IndexDefinition> index_definitions;
+    std::vector<IndexDefinition> deterministic_definitions;
     std::vector<FailFastRegisterAssert> fail_fast_register_asserts;
 
     P4VerifyOptions() {
@@ -189,15 +191,6 @@ class P4VerifyOptions : public CompilerOptions {
         /*
           Use Ultimate Automizer as backend
         */
-        // registerOption("--ua", nullptr,
-        //                [this](const char*) {
-        //                    ultimateAutomizer = true;
-        //                    bv2int = true;
-        //                    gotoOrIf = false;
-        //                    whileLoop = true;
-        //                    bitBlasting = true;
-        //                    return true; },
-        //                "use Ultimate Automizer as the backend");
         registerOption("--ua", nullptr,
                        [this](const char*) {
                            ultimateAutomizer = true;

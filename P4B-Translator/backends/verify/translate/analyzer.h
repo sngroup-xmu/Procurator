@@ -3,7 +3,7 @@
 
 #include <queue>
 #include <map>
-#include "ir/ir.h"
+#include "backends/verify/verify_compat.h"
 
 /* 
   used to analyze P4 programs

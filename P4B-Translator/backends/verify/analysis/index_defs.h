@@ -1,7 +1,7 @@
 #ifndef BACKENDS_VERIFY_ANALYSIS_INDEX_DEFS_H_
 #define BACKENDS_VERIFY_ANALYSIS_INDEX_DEFS_H_
 
-#include "ir/ir.h"
+#include "backends/verify/verify_compat.h"
 
 namespace P4 {
 class ReferenceMap;

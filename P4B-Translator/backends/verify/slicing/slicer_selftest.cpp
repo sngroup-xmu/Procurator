@@ -35,6 +35,7 @@ int runSlicingSelftest(cstring selftestCase,
         caseName != "distcache_reg_alias" && caseName != "distcache_parser_select" &&
         caseName != "recirc_meta_flow" && caseName != "frr_pkt_par_write" &&
         caseName != "netlock_pushback_underflow" && caseName != "etc_pkt_len_target_prefix" &&
+        caseName != "flowrest_flow_duration_target_prefix" &&
         caseName != "flowdos_hash_index_dependency") {
         std::cerr << "[SELFTEST] unknown case: " << caseName << "\n";
         return 2;
@@ -284,13 +285,24 @@ int runSlicingSelftest(cstring selftestCase,
                 bool inComputeHash = false;
                 bool foundHashCall = false;
 
+                static bool isComputeHashName(cstring name) {
+                    const std::string s = name.c_str();
+                    return s.find("compute_hash") != std::string::npos;
+                }
+
+                static bool isHashName(cstring name) {
+                    const std::string s = name.c_str();
+                    return s == "hash" || s.find("_hash") != std::string::npos ||
+                           s.find("hash_") != std::string::npos;
+                }
+
                 bool preorder(const IR::P4Action* action) override {
-                    inComputeHash = action && action->name.name == "compute_hash";
+                    inComputeHash = action && isComputeHashName(action->name.name);
                     return inComputeHash;
                 }
 
                 void postorder(const IR::P4Action* action) override {
-                    if (action && action->name.name == "compute_hash") {
+                    if (action && isComputeHashName(action->name.name)) {
                         inComputeHash = false;
                     }
                 }
@@ -300,7 +312,11 @@ int runSlicingSelftest(cstring selftestCase,
                         return true;
                     }
                     if (auto pe = call->method->to<IR::PathExpression>()) {
-                        if (pe->path && pe->path->name.name == "hash") {
+                        if (pe->path && isHashName(pe->path->name.name)) {
+                            foundHashCall = true;
+                        }
+                    } else if (auto member = call->method->to<IR::Member>()) {
+                        if (isHashName(member->member.name)) {
                             foundHashCall = true;
                         }
                     }
@@ -395,6 +411,39 @@ int runSlicingSelftest(cstring selftestCase,
                    "expected same-index propagation to Ingress_reg_flow_ID");
             expect(maxIdx == 0, "expected regMaxIndex(Ingress_reg_flow_ID) == 0");
         }
+    } else if (caseName == "flowrest_flow_duration_target_prefix") {
+        // Flowrest target-register slicing regression:
+        // reg_flow_duration depends on the timestamp register, flow-ID register, and
+        // iat calculation. Slicing must keep that dependency chain while pruning sibling
+        // feature registers from the same established-flow branch.
+        expect(_setContains(sres.keepVarNames, "read_flow_duration.execute"),
+               "expected keepVarNames contains read_flow_duration.execute");
+        expect(_setContains(sres.keepVarNames, "read_time_last_pkt.execute"),
+               "expected keepVarNames contains read_time_last_pkt.execute");
+        expect(_setContains(sres.keepVarNames, "read_only_flow_ID.execute"),
+               "expected keepVarNames contains read_only_flow_ID.execute");
+        expect(_setContains(sres.keepVarNames, "update_flow_ID.execute"),
+               "expected keepVarNames contains update_flow_ID.execute");
+        expect(_setContains(sres.keepVarNames, "get_iat_value"),
+               "expected keepVarNames contains get_iat_value");
+        expect(_setContains(sres.keepVarNames, "meta.iat"),
+               "expected keepVarNames contains meta.iat");
+        expect(_setContains(sres.keepVarNames, "ig_prsr_md.global_tstamp"),
+               "expected keepVarNames contains ig_prsr_md.global_tstamp");
+        expect(_setContains(sres.keepVarNames, "Ingress_reg_flow_duration"),
+               "expected keepVarNames contains Ingress_reg_flow_duration");
+
+        expect(!_setContains(sres.keepVarNames, "read_pkt_count.execute"),
+               "expected keepVarNames does NOT contain read_pkt_count.execute");
+        expect(!_setContains(sres.keepVarNames, "read_pkt_len_max.execute"),
+               "expected keepVarNames does NOT contain read_pkt_len_max.execute");
+        expect(!_setContains(sres.keepVarNames, "read_pkt_len_min.execute"),
+               "expected keepVarNames does NOT contain read_pkt_len_min.execute");
+        expect(!_setContains(sres.keepVarNames, "read_pkt_len_total.execute"),
+               "expected keepVarNames does NOT contain read_pkt_len_total.execute");
+        expect(!_setContains(sres.keepVarNames, "read_flow_iat_max.execute"),
+               "expected keepVarNames does NOT contain read_flow_iat_max.execute");
+        expect(sres.keepTables.empty(), "expected Flowrest flow_duration slice keeps no tables");
     }
 
     if (ok) {

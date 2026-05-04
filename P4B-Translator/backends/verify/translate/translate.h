@@ -14,7 +14,9 @@
 #include "utils.h"
 #include "bmv2.h"
 #include "backends/verify/translate/options.h"
+#ifdef P4VERIFY_ENABLE_P4LTL
 #include "frontends/parsers/p4ltl/p4ltlast.hpp"
+#endif
 
 class P4LTLTranslator;
 class CPIRule;
@@ -24,12 +26,13 @@ class ReferenceMap;
 
 class Translator{
 private:
+	static const cstring kDefaultBv32Type;
+
 	BoogieProcedure mainProcedure;
 
 	// havoc header fields
 	BoogieProcedure havocProcedure;
 	
-	// std::vector<BoogieProcedure> procedures;
 	std::map<cstring, BoogieProcedure> procedures;
 	cstring declaration;
 	cstring code;
@@ -75,6 +78,19 @@ private:
 		cstring hi;
 	};
 	std::map<cstring, RandomExternInfo> randomExterns;
+	struct CounterExternInfo {
+		cstring indexType;
+		cstring valueType;
+		cstring oneValue;
+		bool direct = false;
+	};
+	std::map<cstring, CounterExternInfo> counterExterns;
+	struct MeterExternInfo {
+		cstring indexType;
+		cstring colorType;
+		bool direct = false;
+	};
+	std::map<cstring, MeterExternInfo> meterExterns;
 	BoogieProcedure* currentProcedure=nullptr;
 	cstring deparser=nullptr;
 	// options
@@ -91,8 +107,10 @@ private:
 
 	int maxBitvectorSize;
 	std::map<cstring, int> sizes; // 0 means bool
-	cstring inferBoogieType(const IR::Type *type, cstring exprText);
-	cstring getOrCreateUnusedVar(cstring typeName);
+		cstring inferBoogieType(const IR::Type *type, cstring exprText);
+		cstring renderBoogieZeroLiteral(const cstring& typeName);
+		cstring renderBoogieOneLiteral(const cstring& typeName);
+		cstring getOrCreateUnusedVar(cstring typeName);
 	cstring getOrCreateNamedVar(const std::string& name, cstring typeName);
 	cstring getOrCreateFreshVar(const std::string& prefix, cstring typeName);
 	int getTypeBitwidth(const IR::Type *type);
@@ -129,6 +147,7 @@ private:
 	std::unordered_map<const IR::ParserState*, cstring> parserStateLabels;
 	std::unordered_set<cstring> parserStateLabelsUsed;
 	void computeParserStateLabels(const IR::P4Parser* p4Parser);
+	cstring parserTransitionLabel(const IR::PathExpression* pathExpression, cstring parserName);
 
 public:
 	Translator(std::ostream &out, P4VerifyOptions &options,
@@ -152,6 +171,8 @@ public:
 	void analyzeProgram(const IR::P4Program *program);
 	void recordHashExtern(const IR::Declaration_Instance* instance, cstring name);
 	void recordRandomExtern(const IR::Declaration_Instance* instance, cstring name);
+	void recordCounterExtern(const IR::Declaration_Instance* instance, cstring name);
+	void recordMeterExtern(const IR::Declaration_Instance* instance, cstring name);
 	const IR::Function* findRegisterActionApply(const IR::Declaration_Instance* instance) const;
 	void translateRegisterActionApply(const IR::Function* func, const cstring& procName);
 	cstring remapName(cstring name) const;
@@ -240,7 +261,7 @@ public:
 	cstring translate(const IR::Type_Boolean *typeBoolean);
 	cstring translate(const IR::Type_Specialized *typeSpecialized);
 	cstring translate(const IR::Type_Name *typeName);
-	cstring translate(const IR::Type_Stack *typeStack, cstring arg);
+	cstring translate(const IR::Type_Array *typeStack, cstring arg);
 	cstring translate(const IR::Type_Typedef *typeTypedef);
 
 	// Operation (also Expression)
@@ -267,7 +288,7 @@ public:
 	void translate(const IR::Type_Package *typePackage);
 
 	void translate(const IR::P4Parser *p4Parser);
-	void translate(const IR::ParserState *parserState, cstring parserName, cstring localDecl="", cstring localDeclArg="");
+	void translate(const IR::ParserState *parserState, cstring parserName, cstring localDeclArg="");
 	void translate(const IR::P4Control *p4Control);
 	void translate(const IR::Method *method);
 	void translate(const IR::P4Action *p4Action);

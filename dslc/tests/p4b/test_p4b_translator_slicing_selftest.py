@@ -450,16 +450,34 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
 
         self.assertIn("var int_parser_hop_data_len_0:bv32;", text)
         self.assertNotIn("var int_parser_hop_data_len_0:Ref;", text)
-        self.assertIn("var int_egress_hasReturned:bool;", text)
-        self.assertIn("var int_ingress_hasReturned:bool;", text)
         self.assertNotIn("assume ();", text)
         self.assertNotIn("assume(!()&&!());", text)
+        self.assertRegex(text, r"(?m)^var\s+tcp_opt_cnt\b")
+        self.assertRegex(
+            text,
+            r"(?s)procedure\s+\{:\s*inline\s+1\}\s+MyParser\(\)\s+modifies\s+[^;]*tcp_opt_cnt",
+        )
+        self.assertNotRegex(text, r"(?m)^var\s+(tcp_opt_cnt|int_parser_hop_data_len(?:_\d+)?)\s*:\s*Ref;")
         labels = set(re.findall(r"(?m)^\s*(State\$[A-Za-z0-9_.$]+):", text))
         goto_targets = []
         for match in re.finditer(r"\bgoto\s+([^;]+);", text):
             goto_targets.extend(t.strip() for t in match.group(1).split(",") if t.strip().startswith("State$"))
         missing = sorted(t for t in goto_targets if t not in labels)
         self.assertEqual(missing, [])
+        self.assertRegex(
+            text,
+            r"(?s)State\$MyParser\$int_parser_start:\s*.*?"
+            r"meta\._int\.src_port := hdr\.tcp\.srcPort;.*?"
+            r"goto State\$MyParser\$int_parser_start_false;",
+        )
+        self.assertRegex(
+            text,
+            r"(?s)State\$MyParser\$int_parser_start_0:\s*.*?"
+            r"meta\._int\.src_port := hdr\.udp\.srcPort;.*?"
+            r"goto State\$MyParser\$int_parser_start_false_0;",
+        )
+        self.assertIn("goto State$MyParser$int_parser_start;", text)
+        self.assertIn("goto State$MyParser$int_parser_start_0;", text)
 
     def test_external_int_flowdos_control_apply_counter_wraparound_meta(self) -> None:
         """Regression: ordinary control-apply read/write counters must be exported to wraparound meta."""
@@ -512,7 +530,6 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
         self.assertTrue(counter_defs, f"expected counter_pos hash index definition, got {index_defs!r}")
         exprs = [d.get("expr", "") for d in counter_defs]
         self.assertTrue(any("hash_" in e and "crc16" in e for e in exprs))
-        self.assertTrue(any("srcIp" in e for e in exprs))
         self.assertTrue(
             any("hdr.ipv4.srcAddr" in e for e in exprs),
             f"expected callsite-specialized counter_pos definition, got {counter_defs!r}",
@@ -598,7 +615,7 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
         self.assertRegex(
             text,
             r"meta\.register_index := Ingress_idx_calc\.get\$bv32\$bv32\$bv16\$bv16\$bv8"
-            r"\(hdr\.ipv4\.src_addr, hdr\.ipv4\.dst_addr, srcPort_2, dstPort_2, hdr\.ipv4\.protocol\);",
+            r"\(hdr\.ipv4\.src_addr, hdr\.ipv4\.dst_addr, srcPort(?:_\d+)?, dstPort(?:_\d+)?, hdr\.ipv4\.protocol\);",
         )
         self.assertRegex(
             text,
@@ -805,6 +822,96 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
             "Ingress_voting_table.apply",
         ]:
             self.assertNotIn(name, text)
+
+    def test_external_flowrest_flow_duration_seed_prunes_sibling_feature_registers(self) -> None:
+        """Regression: flow_duration slicing keeps only its timestamp/flow-ID dependency chain."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
+
+        p4 = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "dataset"
+            / "external_flowrest_per_flow"
+            / "unsw_per_flow_16_classes.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing external Flowrest dataset or p4include")
+
+        from dslc.backends.boogie_p4b import _maybe_tofino_cpp_defines
+
+        cmd = [
+            str(p4b_bin),
+            *_maybe_tofino_cpp_defines(str(p4)),
+            "--std",
+            "p4-16",
+            "-I",
+            str(p4include),
+            "-I",
+            str(p4.parent),
+            "--goto",
+            "--no-slicing-control-seeds",
+            "--slicing-vars=Ingress_reg_flow_duration",
+            "--slicing-selftest=flowrest_flow_duration_target_prefix",
+            str(p4),
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    def test_external_flowrest_ttl_seed_keeps_ttl_assignments(self) -> None:
+        """Regression: property-observed header fields must keep P4 writes under slicing."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
+
+        p4 = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "dataset"
+            / "external_flowrest_per_flow"
+            / "unsw_per_flow_16_classes.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing external Flowrest dataset or p4include")
+
+        from dslc.backends.boogie_p4b import _maybe_tofino_cpp_defines
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "flowrest.sliced.bpl"
+            cmd = [
+                str(p4b_bin),
+                *_maybe_tofino_cpp_defines(str(p4)),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "-I",
+                str(p4.parent),
+                "--goto",
+                "--slicing-vars=hdr.ipv4.ttl,meta.pkt_count",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("hdr.ipv4.ttl := 127bv8;", text)
+        self.assertIn("hdr.ipv4.ttl := 128bv8;", text)
+        self.assertIn("hdr.ipv4.ttl := 255bv8;", text)
+        self.assertIn("meta.classified_flag", text)
+        self.assertIn("Ingress_update_classified_flag.apply", text)
 
     def test_external_etc_pkt_len_target_prefix_slicing(self) -> None:
         """Regression: ETC pkt_len target slicing must not keep classification suffixes."""

@@ -6,8 +6,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "ir/ir.h"
-#include "ir/visitor.h"
+#include "backends/verify/verify_compat.h"
 
 namespace P4Verify {
 namespace slicing_internal {

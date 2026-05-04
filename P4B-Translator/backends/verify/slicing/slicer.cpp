@@ -364,6 +364,8 @@ default_done:
     program->apply(regDeclCollector);
     std::set<VarKey, VarKeyLess> seedVars =
         normalizeSeeds(seedInputs, &regDeclCollector.regs, &regDeclCollector.controlToInternal);
+    std::set<VarKey, VarKeyLess> explicitSeedVars =
+        normalizeSeeds(opts.seedVars, &regDeclCollector.regs, &regDeclCollector.controlToInternal);
     auto tableDefinesSeed = [&](cstring tableName, const IR::P4Table* table) -> bool {
         if (!table) {
             return false;
@@ -599,6 +601,16 @@ def_done:
         for (const auto& d : node.defs) {
             if (seedVars.count(d)) {
                 return true;
+            }
+        }
+        return false;
+    };
+    auto keepNodeDefinesExplicitSeed = [&](const NodeInfo& node) -> bool {
+        for (const auto& d : node.defs) {
+            for (const auto& seed : explicitSeedVars) {
+                if (varKeyIsPrefix(d, seed) || varKeyIsPrefix(seed, d)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -939,7 +951,11 @@ def_done:
         std::unordered_set<int> targetWork;
         for (int id : work) {
             auto it = cfg.nodes.find(id);
-            if (it != cfg.nodes.end() && keepNodeIsTargetRegisterWrite(it->second)) {
+            if (it == cfg.nodes.end()) {
+                continue;
+            }
+            if (keepNodeIsTargetRegisterWrite(it->second) ||
+                keepNodeDefinesExplicitSeed(it->second)) {
                 targetWork.insert(id);
             }
         }

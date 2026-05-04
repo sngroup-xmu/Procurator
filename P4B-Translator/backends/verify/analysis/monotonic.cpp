@@ -708,17 +708,18 @@ static bool summarizeRegisterAction(const IR::Declaration_Instance* inst,
     }
 
     bool found = false;
+    int valueParamAssignments = 0;
+    int affineAssignments = 0;
+    int nonAffineSelfDependentAssignments = 0;
+    bool sawAffineBeforeNonAffine = false;
     std::function<void(const IR::Statement*)> visitStmt = [&](const IR::Statement* stmt) {
-        if (stmt == nullptr || found) {
+        if (stmt == nullptr) {
             return;
         }
         if (auto block = stmt->to<IR::BlockStatement>()) {
             for (auto comp : block->components) {
                 if (auto s = comp->to<IR::Statement>()) {
                     visitStmt(s);
-                    if (found) {
-                        return;
-                    }
                 }
             }
             return;
@@ -732,9 +733,6 @@ static bool summarizeRegisterAction(const IR::Declaration_Instance* inst,
             for (auto c : sw->cases) {
                 if (c && c->statement) {
                     visitStmt(c->statement);
-                    if (found) {
-                        return;
-                    }
                 }
             }
             return;
@@ -744,15 +742,34 @@ static bool summarizeRegisterAction(const IR::Declaration_Instance* inst,
             if (!extractVarPath(as->left, lhsVar) || lhsVar != valueParamName) {
                 return;
             }
+            valueParamAssignments++;
             UpdateInfo ui;
             if (matchAffineSelfUpdate(as->left, as->right, ui)) {
+                affineAssignments++;
                 out.update = ui;
                 found = true;
+                return;
+            }
+            if (containsVarPath(as->right, as->left)) {
+                nonAffineSelfDependentAssignments++;
+                return;
+            }
+            if (found) {
+                sawAffineBeforeNonAffine = true;
             }
         }
     };
     visitStmt(apply->body);
-    return found;
+    if (!found || affineAssignments != 1) {
+        return false;
+    }
+    if (nonAffineSelfDependentAssignments != 0) {
+        return false;
+    }
+    if (sawAffineBeforeNonAffine) {
+        return false;
+    }
+    return valueParamAssignments >= 1;
 }
 
 static void addRegisterActionSummaryAliases(

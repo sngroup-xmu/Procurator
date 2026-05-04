@@ -261,7 +261,7 @@ static bool isPacketCarriedType(const IR::Type* type) {
     if (!type) {
         return false;
     }
-    if (type->is<IR::Type_Header>() || type->is<IR::Type_Stack>()) {
+    if (type->is<IR::Type_Header>() || P4VerifyCompat::isHeaderStackType(type)) {
         return true;
     }
     if (type->is<IR::Type_Struct>()) {
@@ -491,7 +491,7 @@ static void collectExprKeys(const IR::Expression* expr,
                     return;
                 }
                 const IR::Type* t = typeMap ? typeMap->getType(arr->left) : nullptr;
-                auto stack = t ? t->to<IR::Type_Stack>() : nullptr;
+                auto stack = P4VerifyCompat::asHeaderStackType(t);
                 if (stack && stack->sizeKnown()) {
                     unsigned sz = stack->getSize();
                     for (unsigned i = 0; i < sz; ++i) {
@@ -519,7 +519,7 @@ static void collectExprKeys(const IR::Expression* expr,
                 addVarKey(out, base);
             } else {
                 const IR::Type* t = typeMap ? typeMap->getType(arr->left) : nullptr;
-                auto stack = t ? t->to<IR::Type_Stack>() : nullptr;
+                auto stack = P4VerifyCompat::asHeaderStackType(t);
                 if (stack && stack->sizeKnown()) {
                     unsigned sz = stack->getSize();
                     for (unsigned i = 0; i < sz; ++i) {
@@ -612,7 +612,7 @@ static bool collectHeaderStackPopFrontKeys(const IR::Expression* receiver,
         return false;
     }
     const IR::Type* recvType = typeMap->getType(receiver);
-    auto stack = recvType ? recvType->to<IR::Type_Stack>() : nullptr;
+    auto stack = P4VerifyCompat::asHeaderStackType(recvType);
     if (!stack || !stack->sizeKnown()) {
         return false;
     }

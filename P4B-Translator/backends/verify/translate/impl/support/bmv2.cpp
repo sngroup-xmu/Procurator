@@ -6,7 +6,6 @@ BMV2CmdsAnalyzer::BMV2CmdsAnalyzer(std::ifstream* fin){
 	while(getline(*fin, s)){
 		cstring label = BMV2Cmd::splitFirst(s);
 		if(label == TABLE_ADD){
-			// std::cout << BMV2Cmd::splitFirst(s) << std::endl;
 			BMV2Cmd* cmd = new TableAdd(s);
 			cmds.push_back(cmd);
 		}
@@ -18,27 +17,10 @@ BMV2CmdsAnalyzer::BMV2CmdsAnalyzer(std::ifstream* fin){
 			cmds.push_back(cmd);
 		}
 		else if(label == REGISTER_WRITE){
-			// std::cout << BMV2Cmd::splitFirst(s) << std::endl;
 			BMV2Cmd* cmd = new RegisterWrite(s);
 			cmds.push_back(cmd);
 		}
-		else{
-			// std::cout << BMV2Cmd::splitFirst(s) << std::endl;
-		}
-		// std::cout << s << std::endl;
 	}
-
-	// std::cout << hasTableAddCmds() << std::endl;
-
-	// char *line = NULL;
-	// size_t len = 0;
-	// ssize_t read;
-
-	// while ((read = getline(&line, &len, fin)) != -1){
-	// 	std::cout << s << std::endl;
-	// 	BMV2Cmd* cmd;
-	// 	printf("%s", line);
-	// }
 }
 
 std::vector<TableAdd*> BMV2CmdsAnalyzer::getTableAddCmds(cstring table) const{
@@ -121,7 +103,6 @@ std::vector<cstring> BMV2Cmd::split(std::string str){
 		if(!token.empty()){
 			res.push_back(token);
 		}
-		// std::cout << "  push_back:  " << str.substr(idx1, idx2-idx1) << std::endl;
 		idx1 = idx2+1;
 		while(idx1 != str.length() && str[idx1]==' '){
 			idx1++;
@@ -139,7 +120,6 @@ std::vector<cstring> BMV2Cmd::split(std::string str){
 		if(!token.empty()){
 			res.push_back(token);
 		}
-		// std::cout << "  push_back_rest:  " << str.substr(idx1) << std::endl;
 	}
 
 	return res;
@@ -192,21 +172,14 @@ TableAdd::TableAdd(cstring _cont){
 		throw "ERROR: Illegal table_add command!!!\nUsage: table_add <table name> <action name> <match fields> => <action parameters> [priority]";
 	}
 
-	// std::cout << "  fields:" << std::endl;
 	for(int i = 3; i < idx; i++){
 		fields.push_back(vec[i]);
-		// std::cout << "    " << vec[i] << std::endl;
 	}
 
-	// std::cout << "  parameters:" << std::endl;
 	int size = vec.size();
 	for(int i = idx+1; i < size; i++){
 		parameters.push_back(vec[i]);
-		// std::cout << "    " << vec[i] << std::endl;
 	}
-
-	// std::cout << table << std::endl;
-	// std::cout << action << std::endl;
 }
 
 TableDelete::TableDelete(cstring _cont){

@@ -1,4 +1,5 @@
 import re
+import json
 import subprocess
 import tempfile
 import unittest
@@ -45,10 +46,10 @@ class TestP4BFlowDoSHash(unittest.TestCase):
             subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             text = out_bpl.read_text(encoding="utf-8", errors="replace")
 
-        self.assertIn("buge.bv32(counter_pos_0, 0bv32)", text)
-        self.assertIn("bule.bv32(counter_pos_0, 4095bv32)", text)
-        self.assertIsNone(re.search(r"counter_pos_0\s*>=\s*0bv32", text))
-        self.assertIsNone(re.search(r"4096bv32\s*>=\s*counter_pos_0", text))
+        self.assertRegex(text, r"assume\(buge\.bv32\(counter_pos(?:_\d+)?, 0bv32\)")
+        self.assertRegex(text, r"bule\.bv32\(counter_pos(?:_\d+)?, 4095bv32\)\);")
+        self.assertIsNone(re.search(r"counter_pos(?:_\d+)?\s*>=\s*0bv32", text))
+        self.assertIsNone(re.search(r"4096bv32\s*>=\s*counter_pos(?:_\d+)?", text))
 
     def test_v1model_hash_range_coerces_mixed_width_args(self) -> None:
         """Regression: forced hash range width must change the Boogie expression too."""
@@ -84,6 +85,93 @@ class TestP4BFlowDoSHash(unittest.TestCase):
         self.assertIn("0bv12++ecmp_count", text)
         self.assertIn("sub.bv14(0bv12++ecmp_count, 1bv14)", text)
         self.assertRegex(text, r"function hash__crc16\$bv14\$bv32\$bv32\$bv8\$bv16\$bv16\$bv16\$bv14")
+
+    def test_flowdos_counter_reset_candidate_is_not_a_certificate(self) -> None:
+        """Regression: candidate extraction stays separate from closure certification."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "external_int_flowdos" / "switch-flow.p4"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing FlowDoS dataset or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "flowdos.bpl"
+            meta = Path(td) / "flowdos.meta.json"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "--goto",
+                "--meta-out",
+                str(meta),
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            data = json.loads(meta.read_text(encoding="utf-8"))
+
+        updates = data.get("wraparound", {}).get("updates", [])
+        counter = [u for u in updates if u.get("reg") == "MyIngress_counter_filter"]
+        self.assertTrue(counter, updates)
+        self.assertEqual(counter[0].get("op"), "add")
+        self.assertEqual(counter[0].get("delta_const"), "1")
+        self.assertNotIn("certified", counter[0])
+
+    def test_flowrest_pkt_len_total_register_action_exports_steady_affine_update(self) -> None:
+        """Regression: init-or-accumulate RegisterAction still exports the steady pump."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4 = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "dataset"
+            / "external_flowrest_per_flow"
+            / "unsw_per_flow_16_classes.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing Flowrest dataset or p4include")
+
+        from dslc.backends.boogie.node.p4b import _maybe_tofino_cpp_defines
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "flowrest.bpl"
+            meta = Path(td) / "flowrest.meta.json"
+            cmd = [
+                str(p4b_bin),
+                *_maybe_tofino_cpp_defines(str(p4)),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "--goto",
+                "--meta-out",
+                str(meta),
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            data = json.loads(meta.read_text(encoding="utf-8"))
+
+        updates = data.get("wraparound", {}).get("updates", [])
+        hits = [u for u in updates if u.get("reg") == "Ingress_reg_pkt_len_total"]
+        self.assertTrue(hits, updates)
+        self.assertTrue(any(u.get("op") == "add" and u.get("delta_is_const") is False for u in hits), hits)
 
 
 if __name__ == "__main__":

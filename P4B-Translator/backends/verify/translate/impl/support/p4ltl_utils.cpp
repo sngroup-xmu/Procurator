@@ -1,20 +1,5 @@
 #include "backends/verify/translate/p4ltl_utils.h"
 
-// bool isAPNode(P4LTL::AstNode* node){
-// 	if(dynamic_cast<P4LTL::P4LTLAtomicProposition*>(node) != nullptr)
-// 		return true;
-// 	return false;
-// }
-
-
-// std::vector<P4LTL::AstNode*> getAllAPs(P4LTL::AstNode* root){
-// 	std::vector<P4LTL::AstNode*> aps;
-// 	for(auto child: getAllNodes(root)){
-// 		if(isAPNode(child)) aps.push_back(child);
-// 	}
-// 	return aps;
-// }
-
 void P4LTLTranslator::getAllNodes(std::vector<P4LTL::AstNode*>& nodes, P4LTL::AstNode* root){
 	nodes.push_back(root);
     for(auto child: root->getOutgoingNodes()){
@@ -104,15 +89,11 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::AstNode* node){
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
-	// std::cout << "BinOpNode" << std::endl;
-	// std::cout << node->toString() << std::endl;
 	if(auto binTempOp = dynamic_cast<P4LTL::BinaryTemporalOperator*>(node)){
-		// std::cout << "BinaryTemporalOperator" << std::endl << node->getOp() << std::endl;
 		return "("+translateP4LTL(binTempOp->getLeft())+binTempOp->getOp()
 				+translateP4LTL(binTempOp->getRight())+")";
 	}
 	else if(auto extendedCompOp = dynamic_cast<P4LTL::ExtendedComparativeOperator*>(node)){
-		// std::cout << "ExtendedComparativeOperator" << std::endl << node->getOp() << std::endl;
 		cstring expr = extendedCompOp->toString();
 		if(alreadyDeclared(expr)){
 			return "("+getCacheVariable(expr)+" == true)";
@@ -132,58 +113,27 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 		if(sizeLeft != -1 || sizeRight != -1){
 			if(sizeLeft == -1) sizeLeft = sizeRight;
 			else if(sizeRight == -1) sizeRight = sizeLeft;
-			
+
 			if(sizeLeft != sizeRight){
-				std::cout << "ERROR: " << left << extendedCompOp->getOp() << right 
+				std::cerr << "ERROR: " << left << extendedCompOp->getOp() << right
 					<< " is not legal." << std::endl;
 			}
 			else{
 				sizes[variable] = sizeLeft;
-				// std::cout << "update size: " << variable << " = " << extendedCompOp->toString() << std::endl;
-				// std::cout << "              " << sizeLeft << std::endl << std::endl;
-				
-				cstring size = p4Translator->toString(sizeLeft);
-				cstring powerFunc = "power_2_"+size+"()";
-            	cstring funcName = "";
             	addStatement(variable+" := ("+left+extendedCompOp->getOp()+right+");\n");
-            	// // if(extendedCompOp->getOp() == " == ") funcName = "beq.bv"+size;
-            	// if(extendedCompOp->getOp() == " == ") {
-	            // 	addStatement(variable+" := ("+left+" == "+right+");\n");
-            	// }
-            	// // else if(extendedCompOp->getOp() == " != ") funcName = "bneq.bv"+size;
-            	// else if(extendedCompOp->getOp() == " != "){
-	            // 	addStatement(variable+" := ("+left+" != "+right+");\n");
-            	// }
-            	// else{
-	            // 	if(extendedCompOp->getOp() == " > ") funcName = "bugt.bv"+size;
-	            // 	else if(extendedCompOp->getOp() == " >= ") funcName = "bsge.bv"+size;
-	            // 	else if(extendedCompOp->getOp() == " < ") funcName = "bult.bv"+size;
-	            // 	else if(extendedCompOp->getOp() == " <= ") funcName = "bsle.bv"+size;
-	            // 	cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : bool{((left\%"
-	            // 		+powerFunc+")"+extendedCompOp->getOp()+"(right\%"+powerFunc+"))}\n";
-	            // 	p4Translator->addFunction(funcName, function);
-	            // 	addStatement(variable+" := "+funcName+"("+left+", "+right+");\n");
-            	// }
 			}
 		}
 		else{
-			// std::cout << "unknown size: " << left << " " << right << std::endl;
 			addStatement(variable+" := "+left+extendedCompOp->getOp()+right+";\n");
 		}
 		return "("+variable+" == true)";
-		// return "("+translateP4LTL(extendedCompOp->getLeft())+extendedCompOp->getOp()
-		// 		+translateP4LTL(extendedCompOp->getRight())+")";
 	}
 	else if(auto binPredOp = dynamic_cast<P4LTL::BinaryPredicateOperator*>(node)){
-		// std::cout << "BinaryPredicateOperator" << std::endl << node->getOp() << std::endl;
-
 		return "("+translateP4LTL(binPredOp->getLeft())+binPredOp->getOp()
 				+translateP4LTL(binPredOp->getRight())+")";
 	}
 	// + - *
 	else if(auto binTermOp = dynamic_cast<P4LTL::BinaryTermOperator*>(node)){
-		// std::cout << "BinaryTermOperator" << std::endl << node->getOp() << std::endl;
-
 		cstring expr = binTermOp->toString();
 		if(alreadyDeclared(expr)){
 			return getCacheVariable(expr);
@@ -202,16 +152,14 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
 		if(sizeLeft != -1 || sizeRight != -1){
 			if(sizeLeft == -1) sizeLeft = sizeRight;
 			else if(sizeRight == -1) sizeRight = sizeLeft;
-			
+
 			if(sizeLeft != sizeRight){
-				std::cout << "ERROR: " << left << binTermOp->getOp() << right 
+				std::cerr << "ERROR: " << left << binTermOp->getOp() << right
 					<< " is not legal." << std::endl;
 			}
 			else{
 				sizes[variable] = sizeLeft;
-				// std::cout << "update size: " << variable << " = " << binTermOp->toString() << std::endl;
-				// std::cout << "              " << sizeLeft << std::endl << std::endl;
-				
+
 				cstring size = p4Translator->toString(sizeLeft);
 				cstring powerFunc = "power_2_"+size+"()";
             	cstring funcName = "";
@@ -219,13 +167,12 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BinOpNode* node){
             	else if(binTermOp->getOp() == " - ") funcName = "sub.bv"+size;
             	else if(binTermOp->getOp() == " * ") funcName = "mul.bv"+size;
             	cstring function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
-                	"(left\%"+powerFunc+")+(right\%"+powerFunc+"))\%"+powerFunc+"}\n";
+					"(left%"+powerFunc+")+(right%"+powerFunc+"))%"+powerFunc+"}\n";
             	p4Translator->addFunction(funcName, function);
             	addStatement(variable+" := "+funcName+"("+left+", "+right+");\n");
 			}
 		}
 		else{
-			// std::cout << "unknown size: " << left << " " << right << std::endl;
 			addStatement(variable+" := "+left+binTermOp->getOp()+right+";\n");
 		}
 		return variable;
@@ -291,9 +238,6 @@ cstring P4LTLTranslator::translateP4LTL(P4LTL::BooleanLiteral* node){
 }
 
 cstring P4LTLTranslator::translateP4LTL(P4LTL::Name* node){
-	// if(auto oldExpression = dynamic_cast<P4LTL::OldExpression*>(node)){
-	// 	return "_old_"+oldExpression->getOutgoingNodes()[0]->toString();
-	// }
 	{
 		cstring res = node->toString();
 		if(isFreeVariable(res)){
@@ -358,15 +302,15 @@ void P4LTLTranslator::addFreeVariable(cstring variable){
 	std::string str = variable.c_str();
 	int idx = str.find(':');
 	if(idx == -1){
-		std::cout << "ERROR: free variable must be declared with TYPE.\n" 
-			<< str << std::endl; 
+		std::cerr << "ERROR: free variable must be declared with TYPE.\n"
+			<< str << std::endl;
 		std::abort();
 	}
 	cstring name, type;
 	name = str.substr(0, idx);
 	type = str.substr(idx+1);
 	if(type != "bool" && type != "int" && !isBvType(type)){
-		std::cout << "ERROR: Unsupported type \""<< type << "\"" << std::endl; 
+		std::cerr << "ERROR: Unsupported type \""<< type << "\"" << std::endl;
 		std::abort();
 	}
 	freeVars[name] = "_p4ltl_free_"+name;
@@ -374,7 +318,8 @@ void P4LTLTranslator::addFreeVariable(cstring variable){
 		int length = getBvLength(type);
 		sizes["_p4ltl_free_"+name] = length;
 		addDeclaration("\nvar "+freeVars[name]+":int;\n");
-		// TODO: add assumptions for bv
+		// P4LTL encodes free bitvectors as bounded integers; predicate translation
+		// introduces the range assumptions at each use site.
 	}
 	else{
 		addDeclaration("\nvar "+freeVars[name]+":"+type+";\n");
@@ -458,22 +403,18 @@ CPIRule* P4LTLTranslator::analyzeRule(P4LTL::AstNode* root){
 						if(match->getOp() == " && "){
 							if(auto tableApply = dynamic_cast<P4LTL::Apply*>(match->getLeft())){
 								table = tableApply->getTable();
-								// std::cout << "##Table: " << table << std::endl;;
 							}
 							if(auto keyValue = dynamic_cast<P4LTL::ExtendedComparativeOperator*>(match->getRight())){
 								if(auto keyExpr = dynamic_cast<P4LTL::Key*>(keyValue->getLeft())){
 									key = keyExpr->getKey();
 								}
 								value = keyValue->getOp() + translateP4LTL(keyValue->getRight());
-								// std::cout << key << value << std::endl;
 							}
-							// TODO: multiple rules
 						}
 					}
 				}
 				if(auto actionApply = dynamic_cast<P4LTL::Apply*>(binOp->getRight())){
 					action = actionApply->getAction();
-					// std::cout << "##Action: " << action << std::endl;
 				}
 				else if(auto actionParam = dynamic_cast<P4LTL::BinaryPredicateOperator*>(binOp->getRight())){
 					if(auto actionApply2 = dynamic_cast<P4LTL::Apply*>(actionParam->getLeft())){

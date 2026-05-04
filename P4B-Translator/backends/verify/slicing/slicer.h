@@ -11,8 +11,7 @@
 
 #include "frontends/common/resolveReferences/referenceMap.h"
 #include "frontends/p4/typeMap.h"
-#include "ir/ir.h"
-#include "lib/cstring.h"
+#include "backends/verify/verify_compat.h"
 
 class BMV2CmdsAnalyzer;
 

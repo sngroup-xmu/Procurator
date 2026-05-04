@@ -25,9 +25,6 @@ cstring Translator::translate(const IR::Expression *expression){
     else if (auto pathExpression = expression->to<IR::PathExpression>()){
         return translate(pathExpression);
     }
-    // else if (auto selectExpression = expression->to<IR::SelectExpression>()){
-    //     return translate(selectExpression);
-    // }
     else if (auto methodCallExpression = expression->to<IR::MethodCallExpression>()){
         return translate(methodCallExpression);
     }
@@ -49,7 +46,7 @@ cstring Translator::translate(const IR::Expression *expression){
     else if (auto opUnary = expression->to<IR::Operation_Unary>()){
         return translate(opUnary);
     }
-    else if (auto defaultExpression = expression->to<IR::DefaultExpression>()){
+    else if (expression->is<IR::DefaultExpression>()){
         return "default";
     }
     return "";
@@ -59,7 +56,6 @@ cstring Translator::translate(const IR::Expression *expression){
 
 
 cstring Translator::translate(const IR::Member *member){
-    // std::cout << "member: " << member->member.toString() << std::endl;
     if(member->member.toString()=="extract")
         return "packet_in.extract";
     if(member->member.toString()=="lookahead")
@@ -68,33 +64,26 @@ cstring Translator::translate(const IR::Member *member){
         return "setValid("+translate(member->expr)+")";
     if(member->member.toString()=="setInvalid")
         return "setInvalid("+translate(member->expr)+")";
-    // TODO: NoAction should not be considered
     if(member->member.toString()=="hit"){
         cstring expr = translate(member->expr);
         std::string s = expr.c_str();
         std::string::size_type idx = s.find(".apply()");
         if(idx != std::string::npos){
-            int i = idx;
             cstring tableName = s.substr(0, idx);
             currentProcedure->addStatement(getIndent()+"call "+tableName+".apply();\n");
             currentProcedure->addSucc(tableName+".apply");
-            // IR::P4Table* p4Table = tables[tableName];
             return tableName+".hit";
         }
-        // std::cout << translate(member->expr).find(".apply()") << std::endl;
-        // std::cout << translate(member->expr) << std::endl;
-        // std::cout << member << std::endl;
     }
 
     // For header stack
     if(auto arrayIndex = member->expr->to<IR::ArrayIndex>()){
         if(options.addBoundAssertion){
-            if(auto typeStack = arrayIndex->left->type->to<IR::Type_Stack>()){
+            if(auto typeStack = P4VerifyCompat::asHeaderStackType(arrayIndex->left->type)){
                 currentProcedure->addStatement(getIndent()+"assert ("
                                                 +translate(arrayIndex->right)+ "<" +
                                                 translate(typeStack->size)+");\n");
                 }
-            // }
         }
         return translate(arrayIndex->left)+"."+translate(arrayIndex->right)+"."+member->member.toString();
     }
@@ -121,25 +110,16 @@ cstring Translator::translate(const IR::Member *member){
         }
     }
 
-    if(auto typeHeader = member->type->to<IR::Type_Header>()){
+    if(member->type->is<IR::Type_Header>()){
         cstring hdr = translate(member->expr)+"."+member->member.toString();
-        // cstring stmt = getIndent()+"assert(isValid["+hdr+"]);\n";
         cstring stmt = getIndent()+"assert("+hdr+".valid);\n";
         if(options.addValidityAssertion){
             if(hdr.find(".next") == nullptr && hdr.find(".last") == nullptr){
                 if(currentProcedure->lastStatement() == "" || 
                     (currentProcedure->lastStatement() != stmt 
-                        && stmt.find(currentProcedure->lastStatement()) == nullptr)){
+                        && stmt.find(currentProcedure->lastStatement().c_str()) == nullptr)){
                     if(isIfStatement) storeAssertionStatement(stmt);
                     else currentProcedure->addStatement(stmt);
-                    // std::cout << translate(member->expr)+"."+member->member.toString() << std::endl;
-                }
-                else{
-                    // currentProcedure->addStatement(stmt);
-                    // std::cout << "fail to add:" << std::endl;
-                    // std::cout << stmt << std::endl;
-                    // std::cout << "last statement:" << std::endl;
-                    // std::cout << currentProcedure->lastStatement() << std::endl;
                 }
             }
         }
@@ -413,21 +393,21 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
         for(auto selectCase:selectExpression->selectCases){
             std::stringstream ss_cnt;
             ss_cnt << cnt;
-            if (auto defaultExpression = selectCase->keyset->to<IR::DefaultExpression>()){
+            if (selectCase->keyset->is<IR::DefaultExpression>()){
                 if(flag)
                     continue;
                 flag = true;
                 cstring nextState = nullptr;
                 if (auto pathExpr = selectCase->state->to<IR::PathExpression>()) {
                     nextState = translate(pathExpr->path);
+                    defaultBlock += getIndent() + "goto " + parserTransitionLabel(pathExpr, parserName) + ";\n";
                 } else {
                     nextState = translate(selectCase->state);
+                    cstring nextStateLabel = (nextState == "accept" || nextState == "reject")
+                                                 ? ("State$" + nextState)
+                                                 : ("State$" + parserName + "$" + nextState);
+                    defaultBlock += getIndent() + "goto " + nextStateLabel + ";\n";
                 }
-
-                cstring nextStateLabel = (nextState == "accept" || nextState == "reject")
-                                             ? ("State$" + nextState)
-                                             : ("State$" + parserName + "$" + nextState);
-                defaultBlock += getIndent() + "goto " + nextStateLabel + ";\n";
                 // defaultBlock += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
                 currentProcedure->addSucc(nextState);
                 addPred(nextState, currentProcedure->getName());
@@ -515,20 +495,17 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
         // res += "State$"+stateName+"$"+"Exit:\n";
     }
     else{
-        cstring defaultCondition = "";
         cstring defaultBlock = "";
         bool flag = false;  // avoid multiple default cases
-        // int cnt = selectExpression->selectCases.size();
         int cnt = 0;
         for(auto selectCase:selectExpression->selectCases){
-            if (auto defaultExpression = selectCase->keyset->to<IR::DefaultExpression>()){
+            if (selectCase->keyset->is<IR::DefaultExpression>()){
                 if(flag)
                     continue;
                 flag = true;
                 cstring nextState = translate(selectCase->state);
                 nextState = parserName + "$" + nextState;
                 defaultBlock += "call "+nextState+"("+localDeclArg+");\n";
-                // defaultBlock += getIndent()+"call "+nextState+"("+localDeclArg+");\n";
                 currentProcedure->addSucc(nextState);
                 addPred(nextState, currentProcedure->getName());
             }
@@ -715,7 +692,7 @@ cstring Translator::translate(const IR::Constant *constant){
     if(options.ultimateAutomizer){
         std::stringstream ss;
         ss << constant->value;
-        if(auto typeBits = constant->type->to<IR::Type_Bits>()) return ss.str();
+        if(constant->type->is<IR::Type_Bits>()) return ss.str();
         return ss.str()+translate(constant->type);
     }
 
@@ -746,8 +723,6 @@ cstring Translator::translate(const IR::ConstructorCallExpression *constructorCa
 
 cstring Translator::translate(const IR::Cast *cast){
     if (cast->destType->to<IR::Type_Bits>() || cast->destType->to<IR::Type_Name>()){
-
-    // if (auto destType = cast->destType->to<IR::Type_Bits>()){
         int dstSize = -1, srcSize = -1;
         if(auto destType = cast->destType->to<IR::Type_Bits>()){
             dstSize = destType->size;
@@ -766,7 +741,7 @@ cstring Translator::translate(const IR::Cast *cast){
             updateMaxBitvectorSize(srcType);
             srcSize = srcType->size;
         }
-        else if(auto srcType = cast->expr->type->to<IR::Type_Unknown>()){
+        else if(cast->expr->type->is<IR::Type_Unknown>()){
             if(currentProcedure->parameters.find(expr)!=
                 currentProcedure->parameters.end()){
                 srcSize = currentProcedure->parameters[expr];
@@ -793,7 +768,7 @@ cstring Translator::translate(const IR::Cast *cast){
         if(srcSize!=-1){
             if(dstSize < srcSize) {
                 if(options.ultimateAutomizer)
-                    return "("+expr+"\%"+"power_2_"+toString(dstSize)+"())";
+                    return "("+expr+"%"+"power_2_"+toString(dstSize)+"())";
                 else
                     return expr+"["+std::to_string(dstSize)+":0]";
             }
@@ -819,12 +794,12 @@ cstring Translator::translate(const IR::Slice *slice){
     if(options.ultimateAutomizer){
         cstring res = "";
         cstring expr = translate(slice->e0);
-        int start = atoi(translate(slice->e1));
-        int end = atoi(translate(slice->e2));
+        int start = atoi(translate(slice->e1).c_str());
+        int end = atoi(translate(slice->e2).c_str());
         // eg: n[3:0] = n2_n1_n0
         //            = ( (n-n%power_2_0())/power_2_0() %(power_2_3()) )
-        res = "( ("+expr+"-"+expr+"\%power_2_"+toString(end)+"())/power_2_"+toString(end)+"()"
-            + "\%(power_2_" + toString(start+1-end) + "()) )";
+        res = "( ("+expr+"-"+expr+"%power_2_"+toString(end)+"())/power_2_"+toString(end)+"()"
+            + "%(power_2_" + toString(start+1-end) + "()) )";
         return res;
     }
 
@@ -860,8 +835,8 @@ cstring Translator::translate(const IR::Mask *mask){
                     
                     // eg: band( ((left-left%power_2_0())/power_2_0())%2, 
                     //           ((right-right%power_2_0())/power_2_0())%2 ) * power_2_0()
-                    function += "    band( ((left-left\%"+powerFunc+")/"+powerFunc+")\%2, "+
-                        "((right-right\%"+powerFunc+")/"+powerFunc+")\%2 ) * " + powerFunc;
+                    function += "    band( ((left-left%"+powerFunc+")/"+powerFunc+")%2, "+
+                        "((right-right%"+powerFunc+")/"+powerFunc+")%2 ) * " + powerFunc;
                     
                     if(i < typeBits->size-1)
                         function += " +";
