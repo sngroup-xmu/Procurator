@@ -159,6 +159,9 @@ def _maybe_tofino_cpp_defines(p4_path: str) -> List[str]:
     Some programs include `#include <tna.p4>` which expects `__TARGET_TOFINO__`
     to be defined (1 for Tofino1, 2 for Tofino2). When compiling with an
     in-repo p4c-based frontend, this macro is typically not set automatically.
+    Upstream p4c also keeps TNA headers under the Tofino backend include
+    directory rather than the root `p4include/`, so add that include path when
+    it is available.
 
     We auto-define it only when the source looks like TNA to avoid perturbing
     non-Tofino programs.
@@ -182,7 +185,27 @@ def _maybe_tofino_cpp_defines(p4_path: str) -> List[str]:
     if "<tna.p4>" not in text and "\"tna.p4\"" not in text:
         return []
 
-    return [f"-D__TARGET_TOFINO__={target}"]
+    args = [f"-D__TARGET_TOFINO__={target}"]
+    include_dir = _find_tofino_include_dir(Path(p4_path))
+    if include_dir is not None:
+        args.extend(["-I", str(include_dir)])
+    return args
+
+
+def _find_tofino_include_dir(anchor: Path) -> Optional[Path]:
+    env = os.getenv("P4B_TOFINO_INCLUDE_PATH", "").strip()
+    if env and Path(env).is_dir():
+        return Path(env)
+
+    for parent in [anchor.parent, *anchor.parents]:
+        candidates = [
+            parent / "P4B-Translator" / "backends" / "tofino" / "bf-p4c" / "p4include",
+            parent / "backends" / "tofino" / "bf-p4c" / "p4include",
+        ]
+        for cand in candidates:
+            if (cand / "tna.p4").is_file():
+                return cand
+    return None
 
 
 _RE_READ_CALL = re.compile(r"\b(?P<base>[A-Za-z_][A-Za-z0-9_]*)\.read\(\s*(?P=base)\s*,")

@@ -151,6 +151,7 @@ class CegisAttemptConfig:
     step_op: str
     step_delta: int
     proj_predicates: Tuple[str, ...] = ()
+    proj_exprs: Tuple[str, ...] = ()
     projection_complete: bool = True
     # CEGIS-synthesized constraints used for *CLOSURE only* (Boogie expressions).
     #
@@ -168,6 +169,10 @@ class CegisAttemptArtifacts:
     entry_log: str
     closure_log: str
     confirm_log: str
+    # Optional source artifacts when confirm_bpl/confirm_log point at a focused
+    # under-approximation derived from the ordinary near-wrap program.
+    source_confirm_bpl: str = ""
+    source_confirm_log: str = ""
     # Optional retry log for closure_check when we re-run it with a larger timeout.
     closure_log_retry: str = ""
     # Optional artifacts for the pump-enable (reach `target != MAX`) refinement.
@@ -233,6 +238,9 @@ def _manifest_certified_unsafe_data(data: dict) -> bool:
         base_hash = str(data.get("base_bpl_sha256") or "")
         if not base_hash:
             return False
+        manifest_cand = data.get("candidate")
+        manifest_index_value = manifest_cand.get("index_value") if isinstance(manifest_cand, dict) else None
+        manifest_index_expr = manifest_cand.get("index_expr") if isinstance(manifest_cand, dict) else None
         for a in attempts:
             if not isinstance(a, dict):
                 continue
@@ -272,13 +280,18 @@ def _manifest_certified_unsafe_data(data: dict) -> bool:
                 continue
             if any(not is_stable_projection_predicate_text(str(expr)) for expr in cfg_pred):
                 continue
+            cfg_expr = cfg.get("proj_exprs") if isinstance(cfg, dict) else None
+            if cfg_expr is None:
+                cfg_expr = []
+            if not isinstance(cfg_expr, (list, tuple)):
+                continue
             sched_target_regs = sched.get("target_regs") or []
             if not isinstance(sched_target_regs, (list, tuple)) or not sched_target_regs:
                 continue
             sched_proj = sched.get("projection") or []
             if not isinstance(sched_proj, (list, tuple)):
                 continue
-            expected_len = len(cfg_proj) + len(cfg_pred)
+            expected_len = len(cfg_proj) + len(cfg_pred) + len(cfg_expr)
             if len(sched_proj) != expected_len:
                 continue
             try:
@@ -300,8 +313,8 @@ def _manifest_certified_unsafe_data(data: dict) -> bool:
                 expected_candidate_id = compute_wraparound_candidate_id(
                     pump_reg=str(cfg.get("pump_reg") or ""),
                     accel_regs=[str(v) for v in cfg_accel_regs],
-                    index_value=cfg.get("index_value"),
-                    index_expr=cfg.get("index_expr"),
+                    index_value=manifest_index_value if isinstance(manifest_cand, dict) else cfg.get("index_value"),
+                    index_expr=manifest_index_expr if isinstance(manifest_cand, dict) else cfg.get("index_expr"),
                     cutpoint_cond=cfg.get("cutpoint_cond"),
                     step_op=str(cfg.get("step_op") or ""),
                     step_delta=cfg_step_delta,
@@ -336,7 +349,9 @@ def _manifest_certified_unsafe_data(data: dict) -> bool:
                     projection_ok = False
                     break
             if projection_ok:
-                for i, (pred, cfg_expr) in enumerate(zip(sched_proj[len(cfg_proj) :], cfg_pred)):
+                pred_start = len(cfg_proj)
+                expr_start = pred_start + len(cfg_pred)
+                for i, (pred, cfg_pred_expr) in enumerate(zip(sched_proj[pred_start:expr_start], cfg_pred)):
                     if not isinstance(pred, dict):
                         projection_ok = False
                         break
@@ -349,7 +364,25 @@ def _manifest_certified_unsafe_data(data: dict) -> bool:
                     if str(pred.get("lhs") or "") != f"predicate:{i}":
                         projection_ok = False
                         break
-                    if str(pred.get("rhs") or "") != str(cfg_expr):
+                    if str(pred.get("rhs") or "") != str(cfg_pred_expr):
+                        projection_ok = False
+                        break
+            if projection_ok:
+                expr_start = len(cfg_proj) + len(cfg_pred)
+                for i, (pred, cfg_proj_expr) in enumerate(zip(sched_proj[expr_start:], cfg_expr)):
+                    if not isinstance(pred, dict):
+                        projection_ok = False
+                        break
+                    if str(pred.get("source") or "") != "dependency_projection":
+                        projection_ok = False
+                        break
+                    if str(pred.get("kind") or "") != "expr":
+                        projection_ok = False
+                        break
+                    if str(pred.get("lhs") or "") != f"expr:{i}":
+                        projection_ok = False
+                        break
+                    if str(pred.get("rhs") or "") != str(cfg_proj_expr):
                         projection_ok = False
                         break
             if not projection_ok:
@@ -720,8 +753,9 @@ def _confirm_unroll_schedule(*, base: int, max_unroll: int) -> List[int]:
     Generate a small, deterministic unroll schedule for CONFIRM.
 
     Motivation: some wraparound bugs require a slightly longer suffix than the
-    default bound (e.g., P2C after overflow). We first try the base bound for
-    speed, then grow it a few times before giving up on this candidate.
+    default bound (e.g., P2C after overflow), while other cases become harder
+    when an unnecessary extra suffix is unrolled. We therefore start at the
+    smallest meaningful suffix and grow toward the requested/default bound.
     """
 
     b = max(1, int(base))
@@ -734,10 +768,14 @@ def _confirm_unroll_schedule(*, base: int, max_unroll: int) -> List[int]:
     #
     # We keep the schedule short and align to common "one more packet/round" increments.
     out: List[int] = []
-    for inc in (0, 1, 2, 4):
+    for v in range(1, min(b, cap) + 1):
+        out.append(v)
+    for inc in (1, 2, 4):
         v = min(cap, b + inc)
         if v not in out:
             out.append(v)
+    if cap not in out:
+        out.append(cap)
     return out
 
 
@@ -1130,6 +1168,7 @@ def run_wraparound_cegis_multi(
                     reason="group0(all_regs): " + "; ".join(sorted(set(c.reason for c in cands))),
                     step_op=base0.step_op,
                     step_delta=base0.step_delta,
+                    stable_substitutions=base0.stable_substitutions,
                 )
             )
 

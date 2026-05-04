@@ -9,6 +9,7 @@ from dslc.analysis.wraparound_candidates import WraparoundCandidate
 from dslc.analysis.wraparound_projection import extract_dependency_projection
 from dslc.speclang.parse import parse_model
 from dslc.transform.wraparound import WraparoundStage, instrument_bpl_text
+from dslc.transform.wraparound_analyze import _parse_global_var_types
 from dslc.workflows.wraparound_cegis import (
     CegisAttemptArtifacts,
     CegisAttemptConfig,
@@ -17,14 +18,21 @@ from dslc.workflows.wraparound_cegis import (
     WraparoundCegarMode,
     WraparoundStopAfter,
     _confirm_unroll_schedule,
-    _dynamic_index_fallback_diagnostic,
     _effective_scalar_projection_vars,
     _index_expr_global_deps,
     _index_expr_unresolved_value_deps,
     _refine_proj_vars_greedy,
-    _unresolved_index_fallback_diagnostic,
     _write_manifest,
     normalize_wraparound_stop_after,
+)
+from dslc.workflows.wraparound_support.prefix_cutpoint import (
+    branch_projection_resolves_only_ambiguity as _branch_projection_resolves_only_ambiguity,
+    conjoin_cutpoint as _conjoin_cutpoint,
+    entry_prefix_mirror_assumes as _entry_prefix_mirror_assumes,
+    focused_near_wrap_text as _focused_near_wrap_text,
+    insert_confirm_prefix_marker as _insert_confirm_prefix_marker,
+    select_cutpoint_guard_branch as _select_cutpoint_guard_branch,
+    unique_exprs as _unique_exprs,
 )
 from dslc.workflows.wraparound_support.refinement import (
     _find_latest_graphml_witness_since,
@@ -88,42 +96,37 @@ def _run_schedule_replay_cegar_loop(
     base_hash = sha256_text(base_text)
     diagnostic = ""
     index_deps = _index_expr_global_deps(index_expr=cand.index_expr, base_text=base_text)
+    index_projection_notes: List[str] = []
+    index_projection_complete = True
     if index_deps:
-        diagnostic = _dynamic_index_fallback_diagnostic(index_deps)
-        return _write_manifest(
-            out_dir=out_dir,
-            spec_path=spec_path,
-            base_bpl=base_bpl,
-            work_dir=work_dir,
-            cand=cand,
-            attempts=attempts,
-            cegar_mode=WraparoundCegarMode.SCHEDULE_REPLAY.value,
-            base_bpl_sha256=base_hash,
-            blockers=blockers,
-            certified=False,
-            diagnostic=diagnostic,
-        )
+        index_projection_complete = False
+        index_projection_notes.append("dynamic_index_preloop_globals=" + ",".join(index_deps))
+        index_projection_notes.append("dependency_projection_incomplete")
     unresolved_index_deps = _index_expr_unresolved_value_deps(index_expr=cand.index_expr, base_text=base_text)
     if unresolved_index_deps:
-        diagnostic = _unresolved_index_fallback_diagnostic(unresolved_index_deps)
-        return _write_manifest(
-            out_dir=out_dir,
-            spec_path=spec_path,
-            base_bpl=base_bpl,
-            work_dir=work_dir,
-            cand=cand,
-            attempts=attempts,
-            cegar_mode=WraparoundCegarMode.SCHEDULE_REPLAY.value,
-            base_bpl_sha256=base_hash,
-            blockers=blockers,
-            certified=False,
-            diagnostic=diagnostic,
-        )
+        index_projection_complete = False
+        index_projection_notes.append("dynamic_index_unresolved_values=" + ",".join(unresolved_index_deps))
+        index_projection_notes.append("dependency_projection_incomplete")
     closure_assumes: List[str] = []
     witness_profile_done = False
     dep_projection = extract_dependency_projection(bpl_text=base_text, candidate=cand)
     requested_proj_vars = list(dep_projection.proj_vars)
-    proj_predicates = list(dep_projection.proj_predicates)
+    base_cutpoint_cond = str(cand.cutpoint_cond or "true")
+    selected_branch, selected_branch_index, branch_notes = _select_cutpoint_guard_branch(dep_projection)
+    branch_projection_complete = _branch_projection_resolves_only_ambiguity(dep_projection, selected_branch)
+    if selected_branch and branch_projection_complete:
+        selected_set = set(selected_branch)
+        cutpoint_set = set(getattr(dep_projection, "cutpoint_predicates", ()) or ())
+        non_branch_predicates = [p for p in dep_projection.proj_predicates if p not in cutpoint_set or p in selected_set]
+        proj_predicates = _unique_exprs([*non_branch_predicates, *selected_branch])
+        effective_cutpoint_cond = _conjoin_cutpoint(base_cutpoint_cond, selected_branch)
+        projection_complete_base = True
+    else:
+        proj_predicates = list(dep_projection.proj_predicates)
+        effective_cutpoint_cond = base_cutpoint_cond
+        projection_complete_base = bool(dep_projection.complete)
+    schedule_cand = replace(cand, cutpoint_cond=effective_cutpoint_cond)
+    proj_exprs = list(dep_projection.proj_exprs)
     proj_vars = _effective_scalar_projection_vars(base_text, requested_proj_vars)
     base_proj_set = set(proj_vars)
     filtered_initial_proj = [v for v in requested_proj_vars if v not in base_proj_set]
@@ -134,6 +137,7 @@ def _run_schedule_replay_cegar_loop(
     seeded_confirm_bpl: Optional[Path] = None
     seeded_confirm_log: Optional[Path] = None
     seeded_unroll: Optional[int] = None
+    reached_entry_prefix_unroll: Optional[int] = None
 
     try:
         spec_model = parse_model(spec_text)
@@ -159,15 +163,122 @@ def _run_schedule_replay_cegar_loop(
         return static_schedule.with_projection_vars(
             proj_vars,
             proj_predicates=proj_predicates,
+            proj_exprs=proj_exprs,
             conditions=condition_preds,
             source=dep_projection.source,
         )
 
     def _cutpoint_assumes() -> tuple[str, ...]:
-        cond = str(cand.cutpoint_cond or "").strip()
+        cond = str(effective_cutpoint_cond).strip()
         if not cond or cond == "true":
             return ()
         return (cond,)
+
+    def _write_near_wrap_bpl(
+        *,
+        stem: str,
+        unroll: int,
+        prefix_unroll: Optional[int] = None,
+        index_value: int,
+        proj_vars: List[str],
+        proj_predicates: List[str],
+        proj_exprs: List[str],
+        step_delta: int,
+        det_period: Optional[int],
+    ) -> tuple[Path, Path]:
+        if prefix_unroll is not None:
+            bpl = out_dir / f"{stem}.near_wrap.prefix{prefix_unroll}.unroll{unroll}.bpl"
+        else:
+            bpl = out_dir / f"{stem}.near_wrap.unroll{unroll}.bpl"
+        log = out_dir / f"{stem}.near_wrap.unroll{unroll}.log"
+        bpl_text_for_confirm = base_text
+        insertion_marker = None
+        if prefix_unroll is not None:
+            total_unroll = max(1, int(prefix_unroll)) + max(1, int(unroll))
+            bpl_text_for_confirm, prefix_steps = _unroll_confirm_like_mainprocedure(
+                bpl_text=base_text,
+                requested_steps=total_unroll,
+                deterministic_period=det_period,
+            )
+            logical_prefix = max(1, int(prefix_unroll))
+            prefix_step_count = logical_prefix * det_period if det_period else logical_prefix
+            bpl_text_for_confirm, insertion_marker = _insert_confirm_prefix_marker(
+                bpl_text_for_confirm,
+                prefix_steps=prefix_step_count,
+            )
+        txt = instrument_bpl_text(
+            bpl_text=bpl_text_for_confirm,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg=cand.pump_reg,
+            accel_regs=list(cand.accel_regs),
+            index_value=int(index_value),
+            index_expr=cand.index_expr,
+            proj_vars=list(proj_vars),
+            proj_predicates=proj_predicates,
+            proj_exprs=proj_exprs,
+            cutpoint_cond=effective_cutpoint_cond,
+            step_op=cand.step_op,
+            step_delta=step_delta,
+            extra_assumes=_cutpoint_assumes(),
+            confirm_insertion_marker=insertion_marker,
+        )
+        if prefix_unroll is None:
+            txt, _confirm_steps = _unroll_confirm_like_mainprocedure(
+                bpl_text=txt,
+                requested_steps=unroll,
+                deterministic_period=det_period,
+            )
+        bpl.write_text(txt, encoding="utf-8")
+        return bpl, log
+
+    def _write_focused_near_wrap_bpl(confirm_bpl: Path, confirm_log: Path) -> Optional[tuple[Path, Path]]:
+        focused_text = _focused_near_wrap_text(
+            confirm_bpl.read_text(encoding="utf-8"),
+            candidate=cand,
+        )
+        if focused_text is None:
+            return None
+        focused_bpl = confirm_bpl.with_name(confirm_bpl.stem + ".focused.bpl")
+        focused_log = confirm_log.with_name(confirm_log.stem + ".focused" + confirm_log.suffix)
+        focused_bpl.write_text(focused_text, encoding="utf-8")
+        return focused_bpl, focused_log
+
+    def _write_prefix_entry_bpl(
+        *,
+        stem: str,
+        unroll: int,
+        index_value: int,
+        proj_vars: List[str],
+        proj_predicates: List[str],
+        proj_exprs: List[str],
+        step_delta: int,
+        det_period: Optional[int],
+    ) -> tuple[Path, Path, int]:
+        bpl = out_dir / f"{stem}.entry_prefix.unroll{unroll}.bpl"
+        log = out_dir / f"{stem}.entry_prefix.unroll{unroll}.log"
+        txt, effective_steps = _unroll_confirm_like_mainprocedure(
+            bpl_text=base_text,
+            requested_steps=unroll,
+            deterministic_period=det_period,
+        )
+        txt = instrument_bpl_text(
+            bpl_text=txt,
+            stage=WraparoundStage.ENTRY_CHECK,
+            pump_reg=cand.pump_reg,
+            accel_regs=list(cand.accel_regs),
+            index_value=int(index_value),
+            index_expr=cand.index_expr,
+            proj_vars=list(proj_vars),
+            proj_predicates=proj_predicates,
+            proj_exprs=proj_exprs,
+            cutpoint_cond=effective_cutpoint_cond,
+            step_op=cand.step_op,
+            step_delta=step_delta,
+            extra_assumes=(*_cutpoint_assumes(), *entry_prefix_mirror_assumes, *blocker_exprs(blockers)),
+            entry_check_insertion="tail",
+        )
+        bpl.write_text(txt, encoding="utf-8")
+        return bpl, log, effective_steps
 
     def _seed_closure_assumes_from_near_witness(
         *,
@@ -237,27 +348,11 @@ def _run_schedule_replay_cegar_loop(
 
     static_schedule = infer_static_deterministic_schedule(
         base_bpl_text=base_text,
-        candidate=cand,
+        candidate=schedule_cand,
         base_bpl_sha256=base_hash,
     )
     if static_schedule is None:
         diagnostic = "candidate missing deterministic schedule metadata; falling back to direct verification"
-        return _write_manifest(
-            out_dir=out_dir,
-            spec_path=spec_path,
-            base_bpl=base_bpl,
-            work_dir=work_dir,
-            cand=cand,
-            attempts=attempts,
-            cegar_mode=WraparoundCegarMode.SCHEDULE_REPLAY.value,
-            base_bpl_sha256=base_hash,
-            blockers=blockers,
-            certified=False,
-            diagnostic=diagnostic,
-        )
-
-    if not dep_projection.complete:
-        diagnostic = "dependency projection incomplete; falling back to direct verification"
         return _write_manifest(
             out_dir=out_dir,
             spec_path=spec_path,
@@ -309,6 +404,11 @@ def _run_schedule_replay_cegar_loop(
         )
 
     det_period = len(static_schedule.phases)
+    var_types = _parse_global_var_types(base_text.splitlines())
+    entry_prefix_mirror_assumes = _entry_prefix_mirror_assumes(
+        branch=selected_branch,
+        var_types=var_types,
+    )
     ultimate_home_root = out_dir / "ultimate-home"
     max_iters = max(1, int(max_iters))
     confirm_unroll = max(1, int(confirm_unroll))
@@ -332,9 +432,17 @@ def _run_schedule_replay_cegar_loop(
             notes.append(f"blockers_in={len(blockers)}")
         if filtered_initial_proj:
             notes.append("filtered_proj_vars=" + ",".join(filtered_initial_proj))
+        notes.extend(index_projection_notes)
         notes.extend(dep_projection.notes)
+        notes.extend(branch_notes)
+        if reached_entry_prefix_unroll is not None:
+            notes.append(f"entry_prefix_unroll={reached_entry_prefix_unroll}")
+        if selected_branch and branch_projection_complete:
+            notes.append("dependency_projection_branch_cutpoint=" + effective_cutpoint_cond)
         if proj_predicates:
             notes.append("proj_predicates=" + ";".join(proj_predicates))
+        if proj_exprs:
+            notes.append("proj_exprs=" + ";".join(proj_exprs))
         if closure_assumes:
             notes.append(f"closure_seed_assumes={len(closure_assumes)}")
         dropped_proj = sorted(base_proj_set.difference(set(proj_vars)))
@@ -349,11 +457,12 @@ def _run_schedule_replay_cegar_loop(
             index_value=int(index_value),
             index_expr=cand.index_expr,
             proj_vars=tuple(proj_vars),
-            cutpoint_cond=cand.cutpoint_cond,
+            cutpoint_cond=effective_cutpoint_cond,
             step_op=cand.step_op,
             step_delta=step_delta,
             proj_predicates=tuple(proj_predicates),
-            projection_complete=bool(dep_projection.complete),
+            proj_exprs=tuple(proj_exprs),
+            projection_complete=bool(projection_complete_base and index_projection_complete),
             closure_assumes=tuple(closure_assumes),
             notes=tuple(notes),
         )
@@ -375,33 +484,25 @@ def _run_schedule_replay_cegar_loop(
             index_expr=cand.index_expr,
             proj_vars=list(proj_vars),
             proj_predicates=proj_predicates,
-            cutpoint_cond=cand.cutpoint_cond,
+            proj_exprs=proj_exprs,
+            cutpoint_cond=effective_cutpoint_cond,
             step_op=cand.step_op,
             step_delta=step_delta,
             extra_assumes=(*_cutpoint_assumes(), *blocker_exprs(blockers)),
         )
         entry_bpl.write_text(entry_txt, encoding="utf-8")
 
-        confirm_txt = instrument_bpl_text(
-            bpl_text=base_text,
-            stage=WraparoundStage.CONFIRM,
-            pump_reg=cand.pump_reg,
-            accel_regs=list(cand.accel_regs),
+        confirm_bpl, confirm_log = _write_near_wrap_bpl(
+            stem=stem,
+            unroll=confirm_unroll,
+            prefix_unroll=reached_entry_prefix_unroll,
             index_value=int(index_value),
-            index_expr=cand.index_expr,
-            proj_vars=list(proj_vars),
+            proj_vars=proj_vars,
             proj_predicates=proj_predicates,
-            cutpoint_cond=cand.cutpoint_cond,
-            step_op=cand.step_op,
+            proj_exprs=proj_exprs,
             step_delta=step_delta,
-            extra_assumes=_cutpoint_assumes(),
+            det_period=det_period,
         )
-        confirm_txt, _confirm_steps = _unroll_confirm_like_mainprocedure(
-            bpl_text=confirm_txt,
-            requested_steps=confirm_unroll,
-            deterministic_period=det_period,
-        )
-        confirm_bpl.write_text(confirm_txt, encoding="utf-8")
 
         closure_txt = instrument_bpl_text(
             bpl_text=base_text,
@@ -412,7 +513,8 @@ def _run_schedule_replay_cegar_loop(
             index_expr=cand.index_expr,
             proj_vars=list(proj_vars),
             proj_predicates=proj_predicates,
-            cutpoint_cond=cand.cutpoint_cond,
+            proj_exprs=proj_exprs,
+            cutpoint_cond=effective_cutpoint_cond,
             step_op=cand.step_op,
             step_delta=step_delta,
             extra_assumes=closure_assumes,
@@ -453,8 +555,89 @@ def _run_schedule_replay_cegar_loop(
                 closure_log=str(closure_log),
                 confirm_log=str(confirm_log),
             )
+        if (
+            entry_res.is_safe
+            and selected_branch
+            and branch_projection_complete
+        ):
+            prefix_schedule = _confirm_unroll_schedule(
+                base=confirm_unroll,
+                max_unroll=max_confirm_unroll if max_confirm_unroll > 0 else confirm_unroll,
+            )
+            last_prefix_res: Optional[StageRunResult] = None
+            last_prefix_bpl: Optional[Path] = None
+            last_prefix_log: Optional[Path] = None
+            for prefix_unroll in prefix_schedule:
+                prefix_bpl, prefix_log, prefix_steps = _write_prefix_entry_bpl(
+                    stem=stem,
+                    unroll=prefix_unroll,
+                    index_value=int(index_value),
+                    proj_vars=proj_vars,
+                    proj_predicates=proj_predicates,
+                    proj_exprs=proj_exprs,
+                    step_delta=step_delta,
+                    det_period=det_period,
+                )
+                last_prefix_res = runner.run(
+                    stage=f"entry_check.prefix.unroll{prefix_unroll}",
+                    input_bpl=prefix_bpl,
+                    log_path=prefix_log,
+                    ultimate_home=ultimate_home_root / stem / f"entry_prefix.unroll{prefix_unroll}",
+                    toolchain=toolchain_nowitness,
+                    settings=settings,
+                    timeout_seconds=timeout_seconds,
+                    resource_limits=resource_limits,
+                )
+                last_prefix_bpl = prefix_bpl
+                last_prefix_log = prefix_log
+                if last_prefix_res.is_unsafe:
+                    entry_res = last_prefix_res
+                    entry_bpl = prefix_bpl
+                    entry_log = prefix_log
+                    reached_entry_prefix_unroll = int(prefix_unroll)
+                    artifacts = CegisAttemptArtifacts(
+                        entry_bpl=str(entry_bpl),
+                        closure_bpl=str(closure_bpl),
+                        confirm_bpl=str(confirm_bpl),
+                        entry_log=str(entry_log),
+                        closure_log=str(closure_log),
+                        confirm_log=str(confirm_log),
+                    )
+                    cfg = replace(
+                        cfg,
+                        notes=tuple(
+                            [
+                                *cfg.notes,
+                                "initial_entry_result=SAFE",
+                                f"entry_prefix_unroll={prefix_unroll}",
+                                f"entry_prefix_effective_steps={prefix_steps}",
+                            ]
+                        ),
+                    )
+                    break
+                if last_prefix_res.is_unknown:
+                    break
+            if not entry_res.is_unsafe and last_prefix_res is not None:
+                entry_res = last_prefix_res
+                if last_prefix_bpl is not None and last_prefix_log is not None:
+                    entry_bpl = last_prefix_bpl
+                    entry_log = last_prefix_log
+                    artifacts = CegisAttemptArtifacts(
+                        entry_bpl=str(entry_bpl),
+                        closure_bpl=str(closure_bpl),
+                        confirm_bpl=str(confirm_bpl),
+                        entry_log=str(entry_log),
+                        closure_log=str(closure_log),
+                        confirm_log=str(confirm_log),
+                    )
+
         if not entry_res.is_unsafe:
-            diagnostic = "entry unreachable or blocked; falling back"
+            if entry_res.is_safe and selected_branch and branch_projection_complete:
+                diagnostic = "bounded prefix entry did not reach selected cutpoint; falling back"
+            elif entry_res.is_unknown:
+                diagnostic = "entry unknown/timeout; falling back"
+            else:
+                diagnostic = "entry unreachable or blocked; falling back"
             attempts.append(
                 CegisAttemptRecord(
                     cfg=cfg,
@@ -564,40 +747,84 @@ def _run_schedule_replay_cegar_loop(
                 confirm_log=str(confirm_log),
             )
         else:
-            for unroll in _confirm_unroll_schedule(
+            unroll_schedule = _confirm_unroll_schedule(
                 base=confirm_unroll,
                 max_unroll=max_confirm_unroll if max_confirm_unroll > 0 else confirm_unroll,
-            ):
+            )
+            for pos, unroll in enumerate(unroll_schedule):
                 if unroll != confirm_unroll:
-                    confirm_bpl = out_dir / f"{stem}.near_wrap.unroll{unroll}.bpl"
-                    confirm_log = out_dir / f"{stem}.near_wrap.unroll{unroll}.log"
-                    confirm_txt = instrument_bpl_text(
-                        bpl_text=base_text,
-                        stage=WraparoundStage.CONFIRM,
-                        pump_reg=cand.pump_reg,
-                        accel_regs=list(cand.accel_regs),
+                    confirm_bpl, confirm_log = _write_near_wrap_bpl(
+                        stem=stem,
+                        unroll=unroll,
+                        prefix_unroll=reached_entry_prefix_unroll,
                         index_value=int(index_value),
-                        index_expr=cand.index_expr,
-                        proj_vars=list(proj_vars),
-                        cutpoint_cond=cand.cutpoint_cond,
-                        step_op=cand.step_op,
+                        proj_vars=proj_vars,
+                        proj_predicates=proj_predicates,
+                        proj_exprs=proj_exprs,
                         step_delta=step_delta,
-                        extra_assumes=_cutpoint_assumes(),
+                        det_period=det_period,
                     )
-                    confirm_txt, _confirm_steps = _unroll_confirm_like_mainprocedure(
-                        bpl_text=confirm_txt,
-                        requested_steps=unroll,
-                        deterministic_period=det_period,
+                else:
+                    if reached_entry_prefix_unroll is not None:
+                        confirm_bpl = out_dir / f"{stem}.near_wrap.prefix{reached_entry_prefix_unroll}.unroll{unroll}.bpl"
+                        if not confirm_bpl.exists():
+                            confirm_bpl, confirm_log = _write_near_wrap_bpl(
+                                stem=stem,
+                                unroll=unroll,
+                                prefix_unroll=reached_entry_prefix_unroll,
+                                index_value=int(index_value),
+                                proj_vars=proj_vars,
+                                proj_predicates=proj_predicates,
+                                proj_exprs=proj_exprs,
+                                step_delta=step_delta,
+                                det_period=det_period,
+                            )
+                        else:
+                            confirm_log = out_dir / f"{stem}.near_wrap.unroll{unroll}.log"
+                    else:
+                        confirm_bpl = out_dir / f"{stem}.near_wrap.unroll{unroll}.bpl"
+                        confirm_log = out_dir / f"{stem}.near_wrap.unroll{unroll}.log"
+                artifacts = CegisAttemptArtifacts(
+                    entry_bpl=str(entry_bpl),
+                    closure_bpl=str(closure_bpl),
+                    confirm_bpl=str(confirm_bpl),
+                    entry_log=str(entry_log),
+                    closure_log=str(closure_log),
+                    confirm_log=str(confirm_log),
+                )
+
+                focused_paths: Optional[tuple[Path, Path]] = None
+                if reached_entry_prefix_unroll is not None:
+                    focused_paths = _write_focused_near_wrap_bpl(confirm_bpl, confirm_log)
+                if focused_paths is not None:
+                    source_confirm_bpl = confirm_bpl
+                    source_confirm_log = confirm_log
+                    focused_bpl, focused_log = focused_paths
+                    focused_res = runner.run(
+                        stage="near_wrap.focused",
+                        input_bpl=focused_bpl,
+                        log_path=focused_log,
+                        ultimate_home=ultimate_home_root / stem / f"near_wrap.unroll{unroll}.focused",
+                        toolchain=toolchain_nowitness,
+                        settings=settings,
+                        timeout_seconds=timeout_seconds,
+                        resource_limits=resource_limits,
                     )
-                    confirm_bpl.write_text(confirm_txt, encoding="utf-8")
-                    artifacts = CegisAttemptArtifacts(
-                        entry_bpl=str(entry_bpl),
-                        closure_bpl=str(closure_bpl),
-                        confirm_bpl=str(confirm_bpl),
-                        entry_log=str(entry_log),
-                        closure_log=str(closure_log),
-                        confirm_log=str(confirm_log),
-                    )
+                    if focused_res.is_unsafe:
+                        confirm_bpl = focused_bpl
+                        confirm_log = focused_log
+                        near_res = focused_res
+                        artifacts = CegisAttemptArtifacts(
+                            entry_bpl=str(entry_bpl),
+                            closure_bpl=str(closure_bpl),
+                            confirm_bpl=str(confirm_bpl),
+                            entry_log=str(entry_log),
+                            closure_log=str(closure_log),
+                            confirm_log=str(confirm_log),
+                            source_confirm_bpl=str(source_confirm_bpl),
+                            source_confirm_log=str(source_confirm_log),
+                        )
+                        break
 
                 near_res = runner.run(
                     stage="near_wrap",
@@ -609,7 +836,9 @@ def _run_schedule_replay_cegar_loop(
                     timeout_seconds=timeout_seconds,
                     resource_limits=resource_limits,
                 )
-                if near_res.is_unsafe or near_res.is_unknown:
+                if near_res.is_unsafe:
+                    break
+                if near_res.is_unknown:
                     break
 
         if near_res is None or not near_res.is_unsafe:
@@ -685,6 +914,27 @@ def _run_schedule_replay_cegar_loop(
             )
             break
 
+        if not cfg.projection_complete:
+            diagnostic = "near-wrap bug found but dependency projection incomplete; falling back to direct verification"
+            attempts[attempt_index] = replace(
+                attempts[attempt_index],
+                diagnostic=diagnostic,
+            )
+            _write_manifest(
+                out_dir=out_dir,
+                spec_path=spec_path,
+                base_bpl=base_bpl,
+                work_dir=work_dir,
+                cand=cand,
+                attempts=attempts,
+                cegar_mode=WraparoundCegarMode.SCHEDULE_REPLAY.value,
+                base_bpl_sha256=base_hash,
+                blockers=blockers,
+                certified=False,
+                diagnostic=diagnostic,
+            )
+            break
+
         closure_res = runner.run(
             stage="closure_check",
             input_bpl=closure_bpl,
@@ -696,7 +946,7 @@ def _run_schedule_replay_cegar_loop(
             resource_limits=resource_limits,
         )
 
-        certified = bool(closure_res.is_safe and not closure_assumes)
+        certified = bool(cfg.projection_complete and closure_res.is_safe and not closure_assumes)
         if closure_res.is_safe:
             if closure_assumes:
                 diagnostic = "closure safe under witness replay conditions only; falling back"
@@ -827,6 +1077,7 @@ def _run_schedule_replay_cegar_loop(
         seeded_confirm_bpl = None
         seeded_confirm_log = None
         seeded_unroll = None
+        reached_entry_prefix_unroll = None
         diagnostic = "closure counterexample blocked; rerunning entry"
         continue
     else:

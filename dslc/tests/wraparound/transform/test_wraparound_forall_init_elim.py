@@ -18,7 +18,7 @@ class TestWraparoundForallInitElim(unittest.TestCase):
             "  x := reg.read(reg, 0bv16++hdr.idx);\n",
             "}\n",
         ]
-        _rewrite_forall_bv32_array_inits(lines)
+        _rewrite_forall_bv32_array_inits(lines, use_assume_bounds=True)
         out = "".join(lines)
         self.assertNotIn("forall i:bv32", out)
         # Index 0 is explicitly present; the rewrite should add the missing indices 1..7.
@@ -52,9 +52,26 @@ class TestWraparoundForallInitElim(unittest.TestCase):
             "  x := reg.read(reg, 0bv16++hdr.idx);\n",
             "}\n",
         ]
-        _rewrite_forall_bv32_array_inits(lines)
+        _rewrite_forall_bv32_array_inits(lines, use_assume_bounds=True)
         out = "".join(lines)
         self.assertIn("assume (forall i:bv32 :: reg[i] == 0bv32);", out)
+
+    def test_default_rewrite_does_not_use_path_local_assume_bound(self) -> None:
+        lines = [
+            "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
+            "procedure bounded_path() returns()\n",
+            "{\n",
+            "  assume meta.idx == 0bv11;\n",
+            "  x := reg.read(reg, meta.idx);\n",
+            "}\n",
+            "procedure unbounded_path() returns()\n",
+            "{\n",
+            "  y := reg.read(reg, meta.idx);\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertIn("assume (forall i:bv11 :: reg[i] == 0bv16);", out)
 
     def test_eliminates_forall_init_except_one_index(self) -> None:
         lines = [
@@ -67,7 +84,7 @@ class TestWraparoundForallInitElim(unittest.TestCase):
             "  x := reg.read(reg, 0bv16++hdr.idx);\n",
             "}\n",
         ]
-        _rewrite_forall_bv32_array_inits(lines)
+        _rewrite_forall_bv32_array_inits(lines, use_assume_bounds=True)
         out = "".join(lines)
         self.assertNotIn("forall i:bv32", out)
         # The rewrite should add explicit init for indices 1..6, but not index 7.
@@ -75,6 +92,144 @@ class TestWraparoundForallInitElim(unittest.TestCase):
             self.assertIn(f"assume reg[{k}bv32] == 0bv1;", out)
         self.assertIn("assume reg[0bv32] == 0bv1;", out)
         self.assertIn("assume reg[7bv32] == 1bv1;", out)
+
+    def test_eliminates_forall_init_with_bv11_constant_accesses(self) -> None:
+        lines = [
+            "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
+            "assume reg[0bv11] == 0bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  x := reg[0bv11];\n",
+            "  reg[0bv11] := y;\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertNotIn("forall i:bv11", out)
+        self.assertIn("assume reg[0bv11] == 0bv16;", out)
+
+    def test_keeps_bv11_forall_when_dynamic_index_unbounded(self) -> None:
+        lines = [
+            "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
+            "assume reg[0bv11] == 0bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  x := reg.read(reg, meta.idx);\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertIn("assume (forall i:bv11 :: reg[i] == 0bv16);", out)
+
+    def test_keeps_bv11_forall_when_any_access_is_unbounded(self) -> None:
+        lines = [
+            "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
+            "assume reg[0bv11] == 0bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  x := reg[0bv11];\n",
+            "  y := reg.read(reg, meta.idx);\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertIn("assume (forall i:bv11 :: reg[i] == 0bv16);", out)
+
+    def test_eliminates_bv11_forall_from_focused_slot0_shape(self) -> None:
+        lines = [
+            "assume (forall i:bv11 :: reg_flow_ID[i] == 0bv32);\n",
+            "assume reg_flow_ID[0bv11] == 0bv32;\n",
+            "assume (forall i:bv11 :: reg_pkt_len_total[i] == 0bv16);\n",
+            "assume reg_pkt_len_total[0bv11] == 0bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  assume meta.register_index == 0bv11;\n",
+            "  reg_flow_ID[0bv11] := flow;\n",
+            "  reg_pkt_len_total[0bv11] := len;\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertNotIn("forall i:bv11", out)
+        self.assertIn("assume reg_flow_ID[0bv11] == 0bv32;", out)
+        self.assertIn("assume reg_pkt_len_total[0bv11] == 0bv16;", out)
+
+    def test_ignores_unused_inline_register_extern_body_when_inferring_domain(self) -> None:
+        lines = [
+            "function {:inline true}reg.read(reg_arg:[bv11]bv16, idx:bv11)returns (bv16) {reg_arg[idx]}\n",
+            "procedure {:inline 1} reg.write(idx:bv11, value:bv16)\n",
+            "  modifies reg;\n",
+            "{\n",
+            "  reg[idx] := value;\n",
+            "}\n",
+            "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
+            "assume reg[0bv11] == 0bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  reg[0bv11] := y;\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertNotIn("forall i:bv11", out)
+        self.assertIn("procedure {:inline 1} reg.write", out)
+        self.assertIn("reg[idx] := value;", out)
+
+    def test_uses_register_extern_call_indices_not_formal_body_index(self) -> None:
+        lines = [
+            "function {:inline true}reg.read(reg_arg:[bv11]bv16, idx:bv11)returns (bv16) {reg_arg[idx]}\n",
+            "procedure {:inline 1} reg.write(idx:bv11, value:bv16)\n",
+            "  modifies reg;\n",
+            "{\n",
+            "  reg[idx] := value;\n",
+            "}\n",
+            "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
+            "assume reg[0bv11] == 0bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  x := reg.read(reg, 0bv11);\n",
+            "  call reg.write(0bv11, y);\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertNotIn("forall i:bv11", out)
+        self.assertIn("x := reg.read(reg, 0bv11);", out)
+        self.assertIn("call reg.write(0bv11, y);", out)
+
+    def test_keeps_forall_when_register_extern_call_index_is_unbounded(self) -> None:
+        lines = [
+            "function {:inline true}reg.read(reg_arg:[bv11]bv16, idx:bv11)returns (bv16) {reg_arg[idx]}\n",
+            "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
+            "assume reg[0bv11] == 0bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  x := reg.read(reg, meta.idx);\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertIn("assume (forall i:bv11 :: reg[i] == 0bv16);", out)
+
+    def test_register_extern_body_skip_uses_exact_declared_name(self) -> None:
+        lines = [
+            "function {:inline true}other_reg.read(reg_arg:[bv11]bv16, idx:bv11)returns (bv16) {reg_arg[idx]}\n",
+            "procedure {:inline 1} other_reg.write(idx:bv11, value:bv16)\n",
+            "  modifies other_reg;\n",
+            "{\n",
+            "  other_reg[idx] := value;\n",
+            "}\n",
+            "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
+            "assume reg[0bv11] == 0bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  reg[0bv11] := y;\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertNotIn("forall i:bv11", out)
+        self.assertIn("other_reg[idx] := value;", out)
 
     def test_closure_only_helper_drops_typedef_index_array_init(self) -> None:
         lines = [

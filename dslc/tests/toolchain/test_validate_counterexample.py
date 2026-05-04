@@ -154,6 +154,93 @@ class TestValidateCounterexample(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("not certified", msg)
 
+    def test_validate_wraparound_manifest_uses_final_stage_result(self) -> None:
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from dslc.bench.validate_counterexample import validate_wraparound_manifest
+        from dslc.tests.test_wraparound_schedule import _MIN_BPL, _candidate
+        from dslc.workflows.wraparound_schedule import infer_static_deterministic_schedule, sha256_text
+
+        base_hash = sha256_text(_MIN_BPL)
+        sched = infer_static_deterministic_schedule(
+            base_bpl_text=_MIN_BPL,
+            candidate=_candidate(),
+            base_bpl_sha256=base_hash,
+        )
+        assert sched is not None
+        sched_manifest = sched.with_projection_vars(("procurator_phase",), source="dependency_projection").to_manifest()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            base = root / "base.bpl"
+            base.write_text(_MIN_BPL, encoding="utf-8")
+            artifacts = {}
+            for stage, result in [
+                ("entry", "RESULT: UNSAFE"),
+                ("near", "RESULT: UNSAFE"),
+                ("closure", "RESULT: SAFE"),
+            ]:
+                bpl = root / f"{stage}.bpl"
+                log = root / f"{stage}.log"
+                bpl.write_text(_MIN_BPL, encoding="utf-8")
+                log.write_text(
+                    f"[RUN] Ultimate {bpl.name}\n"
+                    f"[x INFO y]: Registering result {result.split(': ', 1)[1]} for location ULTIMATE.startErr0ASSERT_VIOLATIONASSERT (0 of 1 remaining)\n"
+                    "RESULT: Ultimate could not prove your program: Timeout\n"
+                    f"{result}\n",
+                    encoding="utf-8",
+                )
+                artifacts[f"{'confirm' if stage == 'near' else stage}_bpl"] = str(bpl)
+                artifacts[f"{'confirm' if stage == 'near' else stage}_log"] = str(log)
+
+            manifest = {
+                "cegar_mode": "schedule_replay",
+                "base_bpl": str(base),
+                "base_bpl_sha256": base_hash,
+                "candidate": {
+                    "pump_reg": "r",
+                    "accel_regs": ["r"],
+                    "index_value": 0,
+                    "index_expr": None,
+                    "proj_vars": ["procurator_phase"],
+                    "cutpoint_cond": "(procurator_phase == 0)",
+                    "reason": "test",
+                    "step_op": "add",
+                    "step_delta": 1,
+                },
+                "attempts": [
+                    {
+                        "artifacts": artifacts,
+                        "entry": {"result_line": "RESULT: UNSAFE"},
+                        "near_wrap": {"result_line": "RESULT: UNSAFE"},
+                        "closure": {"result_line": "RESULT: SAFE"},
+                        "certified": True,
+                        "cfg": {
+                            "pump_reg": "r",
+                            "accel_regs": ["r"],
+                            "index_value": 0,
+                            "index_expr": None,
+                            "cutpoint_cond": "(procurator_phase == 0)",
+                            "step_op": "add",
+                            "step_delta": 1,
+                            "proj_vars": ["procurator_phase"],
+                            "proj_predicates": [],
+                            "proj_exprs": [],
+                            "projection_complete": True,
+                            "closure_assumes": [],
+                        },
+                        "schedule": sched_manifest,
+                    }
+                ],
+            }
+            path = root / "wraparound.cegis.manifest.json"
+            path.write_text(json.dumps(manifest), encoding="utf-8")
+            ok, msg = validate_wraparound_manifest(path)
+
+        self.assertTrue(ok, msg)
+        self.assertIn("certified", msg)
+
     def test_witness_summary_matches_dsl_guard_line(self) -> None:
         from dslc.bench.validate_counterexample import _extract_dsl_guard_lines
 
@@ -188,6 +275,38 @@ procedure main()
             s = summarize_witness(out_dir=out_dir)
             self.assertTrue(s.ok)
             self.assertEqual(s.kind, "dsl_assert")
+
+    def test_summarize_witness_accepts_fresh_focused_marker(self) -> None:
+        import hashlib
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from dslc.bench.validate_counterexample import summarize_witness
+
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            bpl = out_dir / "toy.bpl"
+            focused = out_dir / "toy.focused-index0.bpl"
+            bpl.write_text("procedure main() {}\n", encoding="utf-8")
+            focused.write_text("procedure main() {}\n", encoding="utf-8")
+            (out_dir / "toy.focused-index0.unsafe.json").write_text(
+                json.dumps(
+                    {
+                        "kind": "focused_under_approx",
+                        "source_bpl": str(bpl),
+                        "bpl": str(focused),
+                        "source_bpl_sha256": hashlib.sha256(bpl.read_bytes()).hexdigest(),
+                        "focused_bpl_sha256": hashlib.sha256(focused.read_bytes()).hexdigest(),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            s = summarize_witness(out_dir=out_dir)
+            self.assertTrue(s.ok)
+            self.assertEqual(s.kind, "focused_under_approx")
 
     def test_summarize_witness_accepts_direct_global_assert(self) -> None:
         import tempfile

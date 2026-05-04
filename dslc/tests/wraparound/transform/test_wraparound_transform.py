@@ -149,6 +149,46 @@ procedure mainProcedure() returns()
         self.assertIn("call __wraparound_assert(true);", out)
         self.assertIn("if ((s1_sequence_reg[0bv32] != 65535bv16))", out)
 
+    def test_confirm_adds_fast_forward_target_to_mainprocedure_modifies(self) -> None:
+        src = """
+var procurator_step: int;
+var r:[bv32]bv8;
+var r__last0_value: bv8;
+
+procedure main() returns()
+  modifies r__last0_value;
+{
+  assert true;
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, r__last0_value;
+{
+  procurator_step := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+
+procedure ULTIMATE.start() returns()
+  modifies procurator_step, r__last0_value;
+{
+  call mainProcedure();
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="r",
+            accel_regs=["r"],
+        )
+        header = out.split("procedure mainProcedure() returns()", 1)[1].split("{", 1)[0]
+        self.assertIn("modifies procurator_step, r, r__last0_value;", header)
+        start_header = out.split("procedure ULTIMATE.start() returns()", 1)[1].split("{", 1)[0]
+        self.assertIn("modifies procurator_step, r, r__last0_value;", start_header)
+        self.assertIn("r[0bv32] := 255bv8;", out)
+
     def test_enable_check_inserts_goal_call(self) -> None:
         src = """
 var procurator_step: int;
@@ -222,6 +262,47 @@ procedure mainProcedure() returns()
         tail = out.split("havoc io_meta.leafswitchidx;", 1)[1]
         self.assertIn("assume(io_meta.leafswitchidx == 2bv16);", tail)
 
+    def test_confirm_dynamic_slot_defaults_require_dominating_init_prefix(self) -> None:
+        src = """
+var procurator_step: int;
+var idx: bv32;
+var reg:[bv32]bv8;
+var other:[bv32]bv1;
+var reg__last_index: bv32;
+var reg__last_value: bv8;
+var reg__wrote_any: bool;
+
+procedure helper() returns()
+{
+  assume (forall i:bv32 :: other[i] == 0bv1);
+}
+
+procedure main() returns()
+  modifies reg, reg__last_index, reg__last_value, reg__wrote_any;
+{
+  assert true;
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, reg, reg__last_index, reg__last_value, reg__wrote_any;
+{
+  procurator_step := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="reg",
+            accel_regs=["reg"],
+            index_value=None,
+            index_expr="idx",
+        )
+        self.assertNotIn("other[idx] == 0bv1", out)
+
     def test_confirm_inserts_two_phase_pump_mode_guard_even_with_havoc_reassert(self) -> None:
         # Regression: confirm should drive a two-phase env script using `dsl_pump_mode`.
         #
@@ -277,6 +358,61 @@ procedure mainProcedure() returns()
         frag = out.split("if (procurator_phase == 0)", 1)[1]
         self.assertIn("dsl_pump_mode := (reg__last0_value == 4294967295bv32);", frag)
 
+    def test_confirm_merges_fast_forward_targets_into_multiline_modifies(self) -> None:
+        src = """
+var procurator_step: int;
+var procurator_phase: int;
+var reg:[bv32]bv32;
+var reg__last0_value: bv32;
+var reg__wrote_any: bool;
+var reg__wrote_index0: bool;
+var reg__last_index: bv32;
+var reg__last_value: bv32;
+
+procedure main() returns()
+  modifies procurator_phase;
+{
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, procurator_phase,
+           reg__last0_value;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="reg",
+            accel_regs=["reg"],
+            index_value=0,
+            index_expr=None,
+            proj_vars=["procurator_phase"],
+            cutpoint_cond=None,
+            step_op="add",
+            step_delta=1,
+        )
+        main_header = out.split("procedure mainProcedure() returns()", 1)[1].split("{", 1)[0]
+        self.assertIn("modifies ", main_header)
+        for name in (
+            "procurator_step",
+            "procurator_phase",
+            "reg",
+            "reg__last0_value",
+            "reg__wrote_any",
+            "reg__wrote_index0",
+            "reg__last_index",
+            "reg__last_value",
+        ):
+            self.assertIn(name, main_header)
+        self.assertEqual(main_header.count("modifies "), 1)
+
     def test_confirm_keeps_suffix_after_gated_assert_site(self) -> None:
         src = """
 var procurator_step: int;
@@ -327,6 +463,122 @@ procedure mainProcedure() returns()
         self.assertIn("call __wraparound_assert(!(reg__wrote_index0 && reg__last0_value == 0bv32));", out)
         self.assertNotIn("assume false; // stop after wraparound target assertion", out)
         self.assertIn("suffix := suffix + 1;", out)
+
+    def test_confirm_does_not_cut_suffix_after_gated_fail_fast_assert(self) -> None:
+        # Regression for ETC-style near-wrap checks. P4B fail-fast register
+        # assertions are emitted at write sites as `assert false; assume false;`.
+        # In confirm/near-wrap we rewrite asserts through a gate that stays
+        # closed at the fast-forwarded boundary. The following `assume false`
+        # must not survive, otherwise the real post-wrap suffix is deleted.
+        src = """
+var procurator_step: int;
+var procurator_phase: int;
+var reg:[bv32]bv8;
+var reg__last0_value: bv8;
+var reg__wrote_any: bool;
+var reg__wrote_index0: bool;
+var reg__last_index: bv32;
+var reg__last_value: bv8;
+var suffix: int;
+
+procedure {:inline 1} reg.write(index:bv32, value:bv8)
+  modifies reg, reg__last0_value, reg__wrote_any,
+           reg__wrote_index0, reg__last_index, reg__last_value, suffix;
+{
+  reg[index] := value;
+  reg__last_index := index;
+  reg__last_value := value;
+  reg__wrote_any := true;
+  if (reg__wrote_any && reg__last_value == 0bv8) {
+    assert false;
+    assume false;
+  }
+  if (index == 0bv32) {
+    reg__wrote_index0 := true;
+    reg__last0_value := value;
+  }
+  suffix := suffix + 1;
+}
+
+procedure main() returns()
+  modifies procurator_phase, reg, reg__last0_value, reg__wrote_any,
+           reg__wrote_index0, reg__last_index, reg__last_value, suffix;
+{
+  call reg.write(0bv32, 0bv8);
+  assert !(reg__wrote_index0 && reg__last0_value == 0bv8);
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, procurator_phase, reg, reg__last0_value,
+           reg__wrote_any, reg__wrote_index0, reg__last_index,
+           reg__last_value, suffix;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="reg",
+            accel_regs=["reg"],
+            index_value=0,
+            index_expr=None,
+            proj_vars=["procurator_phase"],
+            cutpoint_cond=None,
+            step_op="add",
+            step_delta=1,
+        )
+        self.assertIn("call __wraparound_assert(false);", out)
+        self.assertIn("assume true; // removed after wraparound-gated assert", out)
+        self.assertNotIn("assume false;", out)
+        self.assertIn("suffix := suffix + 1;", out)
+        self.assertIn("call __wraparound_assert(!(reg__wrote_index0 && reg__last0_value == 0bv8));", out)
+
+    def test_confirm_preserves_non_fail_fast_assume_false_after_rewritten_assert(self) -> None:
+        src = """
+var procurator_step: int;
+var procurator_phase: int;
+var reg:[bv32]bv8;
+
+procedure main() returns()
+  modifies procurator_phase;
+{
+  assert false;
+  assume false;
+  procurator_phase := procurator_phase + 1;
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, procurator_phase, reg;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="reg",
+            accel_regs=["reg"],
+            index_value=0,
+            index_expr=None,
+            proj_vars=["procurator_phase"],
+            cutpoint_cond=None,
+            step_op="add",
+            step_delta=1,
+        )
+        self.assertIn("call __wraparound_assert(false);", out)
+        self.assertIn("assume false;", out)
+        self.assertNotIn("removed after wraparound-gated assert", out)
 
     def test_closure_extra_assumes_are_conditions_not_projection_asserts(self) -> None:
         src = """
@@ -694,6 +946,53 @@ procedure mainProcedure() returns()
         # Assertion wrappers (for CEGIS refinement / stable Ultimate targets).
         self.assertIn("procedure {:inline 1} __wraparound_assert", out)
         self.assertIn("procedure {:inline 1} __wraparound_closure_assert_all", out)
+
+    def test_closure_check_snapshots_projection_exprs(self) -> None:
+        src = """
+var procurator_step: int;
+var procurator_phase: int;
+var idx: bv32;
+var r:[bv32]bv8;
+var aux:[bv32]bv32;
+
+procedure main() returns()
+  modifies procurator_phase, r, aux;
+{
+  if (procurator_phase == 0) {
+    r[idx] := add.bv8(r[idx], 1bv8);
+  }
+  if (procurator_phase == 0) {
+    procurator_phase := 0;
+  } else {
+    procurator_phase := procurator_phase + 1;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, procurator_phase, idx, r, aux;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CLOSURE_CHECK,
+            pump_reg="r",
+            accel_regs=["r"],
+            index_value=None,
+            index_expr="idx",
+            proj_vars=["procurator_phase"],
+            proj_exprs=["aux[idx]"],
+            cutpoint_cond="(procurator_phase == 0)",
+        )
+        self.assertIn("var wrap_closure_expr_0: bv32;", out)
+        self.assertIn("wrap_closure_expr_0 := aux[idx];", out)
+        self.assertIn("(aux[idx] == wrap_closure_expr_0)", out)
 
     def test_closure_check_uses_precise_no_wrap_for_larger_step(self) -> None:
         src = """

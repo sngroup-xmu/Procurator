@@ -59,6 +59,7 @@ class ActorSchedule:
         proj_vars: Sequence[str],
         *,
         proj_predicates: Sequence[str] = (),
+        proj_exprs: Sequence[str] = (),
         conditions: Sequence[ProjectionPredicate] = (),
         source: str = "candidate_projection",
     ) -> "ActorSchedule":
@@ -76,7 +77,17 @@ class ActorSchedule:
             for i, expr in enumerate(proj_predicates)
             if str(expr).strip()
         )
-        projection = projection_vars + projection_preds
+        projection_exprs = tuple(
+            ProjectionPredicate(
+                lhs=f"expr:{i}",
+                rhs=str(expr).strip(),
+                kind="expr",
+                source=source,
+            )
+            for i, expr in enumerate(proj_exprs)
+            if str(expr).strip()
+        )
+        projection = projection_vars + projection_preds + projection_exprs
         return self._replace(projection=projection, conditions=tuple(conditions))
 
     def _replace(

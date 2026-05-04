@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from dslc.analysis.wraparound_candidates import WraparoundCandidate
-from dslc.workflows.wraparound_cegis import StageRunResult, _run_cegis_loop
+from dslc.workflows.wraparound_cegis import StageRunResult, _confirm_unroll_schedule, _run_cegis_loop
 
 
 class _FakeRunner:
@@ -17,6 +17,15 @@ class _FakeRunner:
     def run(self, *, stage: str, **kwargs):  # type: ignore[no-untyped-def]
         self.calls.append(stage)
         return self._results[stage]
+
+
+class TestWraparoundConfirmUnrollSchedule(unittest.TestCase):
+    def test_confirm_unroll_schedule_starts_from_minimal_suffix(self) -> None:
+        # Regression: ETC/TNA near-wrap becomes harder with an unnecessary
+        # second suffix packet.  Try the shortest confirm suffix before growing.
+        self.assertEqual(_confirm_unroll_schedule(base=3, max_unroll=5), [1, 2, 3, 4, 5])
+        self.assertEqual(_confirm_unroll_schedule(base=3, max_unroll=12), [1, 2, 3, 4, 5, 7, 12])
+        self.assertEqual(_confirm_unroll_schedule(base=2, max_unroll=2), [1, 2])
 
 
 _MIN_BPL = """\

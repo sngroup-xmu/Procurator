@@ -1,9 +1,14 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, NamedTuple, Optional, Tuple
 
 from .....speclang.model import NodeDecl
 from ...core.errors import BoogieBackendError
+
+
+class _BoundedDirectRender(NamedTuple):
+    text: str
+    handled: bool
 
 
 class BoogieHarnessSequentialMixin:
@@ -38,7 +43,7 @@ class BoogieHarnessSequentialMixin:
             self._harness_mode == "sequential"
             and self._max_steps is not None
             and self._max_steps <= 1000
-            and bool(self._active_global_assert_exprs())
+            and bool(self._accumulated_global_assert_exprs())
         )
 
     def _active_global_assert_exprs(self):
@@ -47,6 +52,332 @@ class BoogieHarnessSequentialMixin:
             for idx, expr in enumerate(self._spec.global_decl.assert_exprs)
             if idx not in self._p4b_fail_fast_global_assert_indices
         ]
+
+    def _accumulated_global_assert_exprs(self):
+        return [
+            expr
+            for expr in self._active_global_assert_exprs()
+            if not self._has_bounded_direct_global_assert(expr)
+        ]
+
+    def _has_bounded_direct_global_assert(self, expr) -> bool:
+        # Deliberately broader than P4B fail-fast matching: P4B only owns
+        # pure write-site checks like `!(reg__wrote_any && reg__last_value==C)`.
+        # This DSLC matcher accepts the harness-level guarded form because the
+        # guard can mention DSL scheduler/protocol state such as `dsl_phase`.
+        return self._bounded_direct_global_assert_parts(expr) is not None
+
+    def _emit_bounded_direct_global_assertions(self) -> bool:
+        return (
+            self._harness_mode == "sequential"
+            and self._max_steps is not None
+            and self._max_steps <= 1000
+            and any(self._has_bounded_direct_global_assert(expr) for expr in self._active_global_assert_exprs())
+        )
+
+    def _render_bounded_direct_global_assert(
+        self,
+        expr,
+        *,
+        current_node: str,
+        indent: str,
+        dsl_bounds: Optional[dict[str, int]] = None,
+    ) -> _BoundedDirectRender:
+        """
+        Emit an extra same-step assertion for guarded register-write violations.
+
+        Bounded sequential mode normally accumulates global assertion failures in
+        `procurator_bad` and asserts once at the end. That keeps repeated global
+        checks small for TraceAbstraction, but it can hide a narrow P4 write-site
+        violation behind a long final proof obligation. For assertions shaped like
+        `guard || !(reg__wrote_* && reg__last_* == C)`, a direct assertion at the
+        pass boundary is the same property at the same check point. Assertions are
+        excluded from the accumulated fallback only when this renderer either emits
+        that direct check or statically discharges the guard for the current step.
+        """
+
+        if not self._emit_bounded_direct_global_assertions():
+            return _BoundedDirectRender("", False)
+        parts = self._bounded_direct_global_assert_parts(expr)
+        if parts is None:
+            return _BoundedDirectRender("", False)
+
+        mode, guards, check = parts
+        guard_parts = [self._expr_to_boogie(g, current_node=current_node, prefer_reg_dbg=True) for g in guards]
+        if mode == "or_guard":
+            if any(self._guard_proven_true_by_dsl_bounds(g, dsl_bounds) for g in guards):
+                return _BoundedDirectRender("", True)
+            guard = guard_parts[0] if len(guard_parts) == 1 else f"({' || '.join(guard_parts)})"
+            check_bpl = self._expr_to_boogie(check, current_node=current_node, prefer_reg_dbg=True)
+            return _BoundedDirectRender(
+                f"{indent}if (!({guard})) {{\n{indent}  assert {check_bpl};\n{indent}}}\n",
+                True,
+            )
+
+        guard = guard_parts[0] if len(guard_parts) == 1 else f"({' && '.join(guard_parts)})"
+        check_bpl = self._direct_check_to_boogie(check, current_node=current_node)
+        return _BoundedDirectRender(
+            f"{indent}if ({guard}) {{\n{indent}  assert !({check_bpl});\n{indent}}}\n",
+            True,
+        )
+
+    def _bounded_direct_global_assert_parts(self, expr) -> Optional[Tuple[str, list, object]]:
+        if not hasattr(expr, "data"):
+            return None
+        terms = [c for c in getattr(expr, "children", []) if hasattr(c, "data")]
+        if str(expr.data) == "or_op" and len(terms) >= 2:
+            checks = [t for t in terms if self._is_negated_register_write_check(t)]
+            if len(checks) == 1:
+                guards = [t for t in terms if t is not checks[0]]
+                if guards:
+                    return "or_guard", guards, checks[0]
+            return None
+
+        if str(expr.data) != "not_op" or len(terms) != 1:
+            return None
+        inner = terms[0]
+        if str(getattr(inner, "data", "")) != "and_op":
+            return None
+        inner_terms = [c for c in getattr(inner, "children", []) if hasattr(c, "data")]
+        if len(inner_terms) < 3:
+            return None
+        check = self._register_write_check_terms(inner_terms)
+        if check is None:
+            return None
+        guards = [t for t in inner_terms if all(t is not c for c in check)]
+        if not guards:
+            return None
+        return "and_guard", guards, check
+
+    def _direct_check_to_boogie(self, check, *, current_node: str) -> str:
+        if isinstance(check, tuple):
+            parts = [
+                self._expr_to_boogie(c, current_node=current_node, prefer_reg_dbg=True) for c in check
+            ]
+            return f"({' && '.join(parts)})"
+        return self._expr_to_boogie(check, current_node=current_node, prefer_reg_dbg=True)
+
+    def _is_negated_register_write_check(self, expr) -> bool:
+        if str(getattr(expr, "data", "")) != "not_op":
+            return False
+        children = [c for c in getattr(expr, "children", []) if hasattr(c, "data")]
+        return len(children) == 1 and self._is_register_write_check(children[0])
+
+    def _is_register_write_check(self, expr) -> bool:
+        if str(getattr(expr, "data", "")) != "and_op":
+            return False
+        terms = [c for c in getattr(expr, "children", []) if hasattr(c, "data")]
+        if len(terms) != 2:
+            return False
+        return self._register_write_check_terms(terms) is not None
+
+    def _register_write_check_terms(self, terms) -> Optional[Tuple[object, object]]:
+        candidates: list[Tuple[object, object]] = []
+        for i, left in enumerate(terms):
+            for right in terms[i + 1 :]:
+                if self._is_register_write_check_pair(left, right):
+                    candidates.append((left, right))
+        if len(candidates) != 1:
+            return None
+        return candidates[0]
+
+    def _is_register_write_check_pair(self, left, right) -> bool:
+        for flag_expr, eq_expr in ((left, right), (right, left)):
+            flag_var = self._expr_dotted_var_name(flag_expr)
+            eq_info = self._expr_eq_var_number(eq_expr)
+            if flag_var is None or eq_info is None:
+                continue
+            value_var, _const_value = eq_info
+            if flag_var.endswith("__wrote_any") and value_var.endswith("__last_value"):
+                return flag_var[: -len("__wrote_any")] == value_var[: -len("__last_value")]
+            if flag_var.endswith("__wrote_index0") and value_var.endswith("__last0_value"):
+                return flag_var[: -len("__wrote_index0")] == value_var[: -len("__last0_value")]
+        return False
+
+    def _expr_dotted_var_name(self, expr) -> Optional[str]:
+        if not hasattr(expr, "data"):
+            return None
+        if str(expr.data) == "var":
+            children = [c for c in getattr(expr, "children", []) if hasattr(c, "data")]
+            if len(children) == 1:
+                return self._expr_dotted_var_name(children[0])
+            return None
+        if str(expr.data) != "dotted_var":
+            return None
+        return self._dotted_var_to_str(expr)
+
+    def _expr_eq_var_number(self, expr) -> Optional[tuple[str, str]]:
+        if str(getattr(expr, "data", "")) != "eq":
+            return None
+        terms = [c for c in getattr(expr, "children", []) if hasattr(c, "data")]
+        if len(terms) != 2:
+            return None
+
+        left_var = self._expr_dotted_var_name(terms[0])
+        right_num = self._expr_number_literal(terms[1])
+        if left_var is not None and right_num is not None:
+            return left_var, right_num
+
+        right_var = self._expr_dotted_var_name(terms[1])
+        left_num = self._expr_number_literal(terms[0])
+        if right_var is not None and left_num is not None:
+            return right_var, left_num
+        return None
+
+    def _expr_number_literal(self, expr) -> Optional[str]:
+        if str(getattr(expr, "data", "")) == "number" and getattr(expr, "children", None):
+            return str(expr.children[0])
+        return None
+
+    def _initial_dsl_int_upper_bounds(self) -> dict[str, int]:
+        bounds: dict[str, int] = {}
+        node = next(iter(self._spec.imports.keys()), "global")
+        for stmt in self._spec.global_decl.statements:
+            if not hasattr(stmt, "data"):
+                continue
+            st = str(stmt.data)
+            if st == "var_decl":
+                name = self._dotted_var_to_str(stmt.children[1])
+                if name not in self._dsl_global_vars or self._dsl_global_vars.get(name) != "int":
+                    continue
+                literal = self._expr_number_literal(stmt.children[3])
+                if literal is not None:
+                    bounds[f"dsl_{name}"] = int(literal)
+                else:
+                    bounds.pop(f"dsl_{name}", None)
+                continue
+            if st == "assignment":
+                self._update_dsl_int_upper_bound_from_assignment(stmt, bounds, current_node=node, conditional=False)
+        return bounds
+
+    def _update_dsl_int_upper_bounds_from_env(self, owner: str, bounds: dict[str, int]) -> None:
+        env_statements = []
+        if owner in self._spec.hosts:
+            env_statements = list(self._spec.hosts[owner].env_statements)
+        elif owner in self._spec.nodes:
+            env_statements = list(self._spec.nodes[owner].env_statements)
+
+        for stmt in env_statements:
+            if not hasattr(stmt, "data"):
+                continue
+            if str(stmt.data) == "assignment":
+                self._update_dsl_int_upper_bound_from_assignment(stmt, bounds, current_node=owner, conditional=True)
+                continue
+            # Nested conditionals and unknown statements may update DSL globals on only
+            # some paths. Drop affected bounds so assertion pruning stays conservative.
+            for name in self._assigned_dsl_global_ints(stmt):
+                bounds.pop(f"dsl_{name}", None)
+
+    def _update_dsl_int_upper_bounds_from_node_pass(self, node: str, bounds: dict[str, int]) -> None:
+        nd = self._spec.nodes.get(node, NodeDecl(name=node))
+        for stmt in nd.statements:
+            if not hasattr(stmt, "data"):
+                continue
+            if str(stmt.data) == "assignment":
+                self._update_dsl_int_upper_bound_from_assignment(
+                    stmt, bounds, current_node=node, conditional=False
+                )
+                continue
+            if str(stmt.data) == "var_decl":
+                continue
+            for name in self._assigned_dsl_global_ints(stmt):
+                bounds.pop(f"dsl_{name}", None)
+
+    def _update_dsl_int_upper_bound_from_assignment(
+        self,
+        stmt,
+        bounds: dict[str, int],
+        *,
+        current_node: str,
+        conditional: bool,
+    ) -> None:
+        lhs_tree = stmt.children[0]
+        lhs_name = self._dotted_var_to_str(lhs_tree)
+        if lhs_name not in self._dsl_global_vars or self._dsl_global_vars.get(lhs_name) != "int":
+            return
+        key = f"dsl_{lhs_name}"
+        op = str(stmt.children[1].data)
+        rhs_literal = self._expr_number_literal(stmt.children[2])
+        if rhs_literal is None:
+            bounds.pop(key, None)
+            return
+
+        rhs = int(rhs_literal)
+        if op == "assign":
+            if conditional and key in bounds:
+                bounds[key] = max(bounds[key], rhs)
+            elif not conditional:
+                bounds[key] = rhs
+            else:
+                bounds.pop(key, None)
+            return
+        if op == "addeq":
+            if key not in bounds:
+                return
+            # We only use upper bounds to prove guards true. For negative increments,
+            # keeping the old upper bound is conservative; for positive increments,
+            # the possible maximum increases by that amount.
+            if rhs > 0:
+                bounds[key] += rhs
+            return
+        bounds.pop(key, None)
+
+    def _assigned_dsl_global_ints(self, stmt) -> set[str]:
+        out: set[str] = set()
+        if not hasattr(stmt, "data"):
+            return out
+        if str(stmt.data) == "assignment":
+            lhs = self._dotted_var_to_str(stmt.children[0])
+            if lhs in self._dsl_global_vars and self._dsl_global_vars.get(lhs) == "int":
+                out.add(lhs)
+            return out
+        for child in getattr(stmt, "children", []):
+            if hasattr(child, "data"):
+                out.update(self._assigned_dsl_global_ints(child))
+        return out
+
+    def _guard_proven_true_by_dsl_bounds(self, expr, bounds: Optional[dict[str, int]]) -> bool:
+        if not bounds:
+            return False
+        if not hasattr(expr, "data"):
+            return False
+        t = str(expr.data)
+        terms = [c for c in getattr(expr, "children", []) if hasattr(c, "data")]
+        if t == "or_op":
+            return any(self._guard_proven_true_by_dsl_bounds(term, bounds) for term in terms)
+        if t not in {"less", "less_eq", "greater", "greater_eq"} or len(terms) != 2:
+            return False
+
+        left_var = self._dsl_bound_key_for_expr(terms[0])
+        right_num = self._expr_number_literal(terms[1])
+        if left_var is not None and right_num is not None and left_var in bounds:
+            upper = bounds[left_var]
+            threshold = int(right_num)
+            if t == "less":
+                return upper < threshold
+            if t == "less_eq":
+                return upper <= threshold
+
+        right_var = self._dsl_bound_key_for_expr(terms[1])
+        left_num = self._expr_number_literal(terms[0])
+        if right_var is not None and left_num is not None and right_var in bounds:
+            upper = bounds[right_var]
+            threshold = int(left_num)
+            if t == "greater":
+                return upper < threshold
+            if t == "greater_eq":
+                return upper <= threshold
+        return False
+
+    def _dsl_bound_key_for_expr(self, expr) -> Optional[str]:
+        name = self._expr_dotted_var_name(expr)
+        if name is None:
+            return None
+        if name in self._dsl_global_vars:
+            return f"dsl_{name}"
+        if name.startswith("dsl_") and name[4:] in self._dsl_global_vars:
+            return name
+        return None
 
     def _emit_sequential_main(
         self,
@@ -220,6 +551,7 @@ class BoogieHarnessSequentialMixin:
         if deterministic_unroll:
             trace_reset = self._emit_trace_step_reset(node_aliases, indent="  ")
             period = len(actions) if actions else 0
+            dsl_bounds: Optional[dict[str, int]] = self._initial_dsl_int_upper_bounds()
             for step in range(self._max_steps or 0):
                 if trace_reset:
                     out.append("  // Reset trace flags for this step.\n")
@@ -229,12 +561,24 @@ class BoogieHarnessSequentialMixin:
                     out.append(f"  // step {step}: {kind} -> {name}\n")
                     if kind == "env_inject":
                         out.append(self._emit_external_enqueue_stmt(name, k, indent="  ", deterministic=True))
+                        if dsl_bounds is not None:
+                            self._update_dsl_int_upper_bounds_from_env(name, dsl_bounds)
                     elif kind == "host_send":
                         out.append(self._emit_sequential_host_send_step(name, k=k, indent="  ", deterministic=True))
+                        if dsl_bounds is not None:
+                            self._update_dsl_int_upper_bounds_from_env(name, dsl_bounds)
                     elif kind == "host_recv":
                         out.append(self._emit_sequential_host_recv_step(name, indent="  ", deterministic=True))
                     elif kind == "node_pass":
-                        out.append(self._emit_sequential_node_pass_step(name, k=k, indent="  ", deterministic=True))
+                        out.append(
+                            self._emit_sequential_node_pass_step(
+                                name,
+                                k=k,
+                                indent="  ",
+                                deterministic=True,
+                                dsl_bounds=dsl_bounds,
+                            )
+                        )
                     elif kind == "node_ingress":
                         out.append(self._emit_sequential_node_ingress_step(name, k=k, indent="  ", deterministic=True))
                     elif kind == "node_egress":
@@ -357,7 +701,15 @@ class BoogieHarnessSequentialMixin:
         out.append(f"{indent}// host recv is currently a no-op in the Boogie backend\n")
         return "".join(out)
 
-    def _emit_sequential_node_pass_step(self, node: str, *, k: int, indent: str, deterministic: bool) -> str:
+    def _emit_sequential_node_pass_step(
+        self,
+        node: str,
+        *,
+        k: int,
+        indent: str,
+        deterministic: bool,
+        dsl_bounds: Optional[dict[str, int]] = None,
+    ) -> str:
         dsl_stmt_lines = self._emit_node_pass_statements(node, indent=indent)
         node_assert_lines = self._emit_assert_lines(
             self._spec.nodes.get(node, NodeDecl(name=node)).assert_exprs,
@@ -365,15 +717,36 @@ class BoogieHarnessSequentialMixin:
             current_node=node,
         )
         global_track_lines = ""
+        global_direct_assert_lines = ""
         global_assert_lines = ""
         active_global_asserts = self._active_global_assert_exprs()
+        direct_handled: set[int] = set()
+        if self._emit_bounded_direct_global_assertions():
+            for idx, expr in enumerate(active_global_asserts):
+                rendered = self._render_bounded_direct_global_assert(
+                    expr, current_node=node, indent=indent, dsl_bounds=dsl_bounds
+                )
+                if rendered.handled:
+                    direct_handled.add(idx)
+                global_direct_assert_lines += rendered.text
         if self._accumulate_global_assertions():
-            for expr in active_global_asserts:
+            for idx, expr in enumerate(active_global_asserts):
+                if idx in direct_handled:
+                    continue
                 bpl = self._expr_to_boogie(expr, current_node=node, prefer_reg_dbg=True)
                 global_track_lines += f"{indent}if (!({bpl})) {{ procurator_bad := true; }}\n"
         else:
+            fallback_global_asserts = (
+                [
+                    expr
+                    for idx, expr in enumerate(active_global_asserts)
+                    if idx not in direct_handled
+                ]
+                if self._emit_bounded_direct_global_assertions()
+                else active_global_asserts
+            )
             global_assert_lines = self._emit_assert_lines(
-                active_global_asserts,
+                fallback_global_asserts,
                 indent=indent,
                 current_node=node,
             )
@@ -419,7 +792,9 @@ class BoogieHarnessSequentialMixin:
             out.append(f"{indent}{node}_{flag} := false;\n")
         out.append(f"{indent}call {node}_Forward();\n")
         trace_lines = self._emit_trace_assignments(node, indent=indent, stage_id=3)
-        dbg_needed = bool(node_assert_lines or global_assert_lines or global_track_lines or trace_lines)
+        dbg_needed = bool(
+            node_assert_lines or global_assert_lines or global_direct_assert_lines or global_track_lines or trace_lines
+        )
         if dbg_needed:
             dbg = self._emit_register_debug_assignments(indent=indent)
             if dbg:
@@ -431,6 +806,9 @@ class BoogieHarnessSequentialMixin:
         if node_assert_lines:
             out.append(f"{indent}// DSL assertions (node-local)\n")
             out.append(node_assert_lines)
+        if global_direct_assert_lines:
+            out.append(f"{indent}// Global assertions (direct guarded checks)\n")
+            out.append(global_direct_assert_lines)
         if global_track_lines:
             out.append(f"{indent}// Global assertions (accumulated into procurator_bad)\n")
             out.append(global_track_lines)
@@ -439,6 +817,8 @@ class BoogieHarnessSequentialMixin:
             out.append(global_assert_lines)
         if deterministic:
             out.append(f"{indent}}}\n")
+        if dsl_bounds is not None:
+            self._update_dsl_int_upper_bounds_from_node_pass(node, dsl_bounds)
         return "".join(out)
 
     def _emit_sequential_node_ingress_step(self, node: str, *, k: int, indent: str, deterministic: bool) -> str:

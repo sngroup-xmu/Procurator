@@ -65,6 +65,7 @@ class WraparoundConfig:
     accel_targets: Tuple[WraparoundTarget, ...]
     proj_vars: Tuple[str, ...]
     proj_predicates: Tuple[str, ...]
+    proj_exprs: Tuple[str, ...]
     cutpoint_cond: str
     step_op: str
     step_delta_int: int
@@ -88,8 +89,9 @@ _RE_PHASE_WRAP = re.compile(r"\bif\s*\(\s*procurator_phase\s*==\s*(?P<n>\d+)\s*\
 _RE_PHASE_RESET = re.compile(r"\bprocurator_phase\s*:=\s*0\s*;")
 _RE_STEP_INC = re.compile(r"^\s*procurator_step\s*:=\s*procurator_step\s*\+\s*1\s*;\s*$")
 _RE_CALL_MAIN = re.compile(r"^\s*call\s+main\(\)\s*;\s*$")
-_RE_ASSUME_FORALL_BV32_INIT = re.compile(
-    r"^(?P<indent>\s*)assume\s*\(\s*forall\s+(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*bv32\s*::\s*"
+_RE_ASSUME_FORALL_BV_INIT = re.compile(
+    r"^(?P<indent>\s*)assume\s*\(\s*forall\s+(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*"
+    r"bv(?P<idx_w>\d+)\s*::\s*"
     r"(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P=var)\s*\]\s*==\s*(?P<value>[^)]+?)\s*\)\s*;\s*$"
 )
 # Conditional init where all indices except one constant are set to a value.
@@ -99,15 +101,27 @@ _RE_ASSUME_FORALL_BV32_INIT = re.compile(
 #
 # We use this in wraparound stages to safely eliminate expensive quantifiers when we can
 # infer a finite accessed index domain.
-_RE_ASSUME_FORALL_BV32_INIT_EXCEPT = re.compile(
-    r"^(?P<indent>\s*)assume\s*\(\s*forall\s+(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*bv32\s*::\s*"
-    r"\(+\s*(?P=var)\s*!=\s*(?P<exc>\d+)bv32\s*\)+\s*==>\s*"
+_RE_ASSUME_FORALL_BV_INIT_EXCEPT = re.compile(
+    r"^(?P<indent>\s*)assume\s*\(\s*forall\s+(?P<var>[A-Za-z_][A-Za-z0-9_]*)\s*:\s*"
+    r"bv(?P<idx_w>\d+)\s*::\s*"
+    r"\(+\s*(?P=var)\s*!=\s*(?P<exc>\d+)bv(?P<exc_w>\d+)\s*\)+\s*==>\s*"
     r"(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P=var)\s*\]\s*==\s*(?P<value>[^)]+?)\s*\)\s*;\s*$"
 )
-_RE_ASSUME_BV32_INDEX_INIT = re.compile(
-    r"^\s*assume\s+(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P<idx>\d+)bv32\s*\]\s*==\s*(?P<value>[^;]+?)\s*;\s*$"
+_RE_ASSUME_BV_INDEX_INIT = re.compile(
+    r"^\s*assume\s+(?P<array>[A-Za-z_][A-Za-z0-9_]*)\[\s*(?P<idx>\d+)bv(?P<idx_w>\d+)\s*\]\s*"
+    r"==\s*(?P<value>[^;]+?)\s*;\s*$"
 )
-_RE_BVULE_BV32_CALL = re.compile(r"bvule\.bv32(?:\$builtin)?\(\s*(?P<a>[^,]+?)\s*,\s*(?P<b>\d+)bv32\s*\)")
+_RE_BVULE_BV_CALL = re.compile(
+    r"\b(?:bvule|bule)\.bv(?P<width>\d+)(?:\$builtin)?\(\s*(?P<a>[^,]+?)\s*,\s*"
+    r"(?P<b>\d+)bv(?P<lit_w>\d+)\s*\)"
+)
+
+# Backward-compatible names used by older transform modules/tests.  The regexes
+# are now generic over bvN even though the function names still mention bv32.
+_RE_ASSUME_FORALL_BV32_INIT = _RE_ASSUME_FORALL_BV_INIT
+_RE_ASSUME_FORALL_BV32_INIT_EXCEPT = _RE_ASSUME_FORALL_BV_INIT_EXCEPT
+_RE_ASSUME_BV32_INDEX_INIT = _RE_ASSUME_BV_INDEX_INIT
+_RE_BVULE_BV32_CALL = _RE_BVULE_BV_CALL
 
 _PUMP_ERROR_PROC = "__wraparound_pump_error"
 _PUMP_ASSERT_MARKER = "WRAPAROUND_PUMP_ASSERT"

@@ -5,6 +5,32 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from dslc.analysis.wraparound_candidates import WraparoundCandidate
+from dslc.analysis.wraparound_projection_exprs import (
+    array_assignment_index_expr as _array_assignment_index_expr,
+    array_selects_in_expr as _array_selects_in_expr,
+    array_index_width as _array_index_width,
+    deps_in_expr as _deps_in_expr,
+    dynamic_slot_deps as _dynamic_slot_deps,
+    dynamic_slot_indices as _dynamic_slot_indices,
+    dynamic_slot_projection_exprs as _dynamic_slot_projection_exprs,
+    extract_cond_text as _extract_cond_text,
+    is_packet_slot_var as _is_packet_slot_var,
+    manifest_array_selects_are_stable as _manifest_array_selects_are_stable,
+    _is_stateful_register_array,
+    is_stable_cutpoint_var as _is_stable_cutpoint_var,
+    is_stable_projection_predicate_text,
+    normalize_expr as _normalize_expr,
+    record_array_select_indices as _record_array_select_indices,
+    stable_register_slot_projection_vars as _stable_register_slot_projection_vars,
+    specialize_dynamic_slot_guard as _specialize_dynamic_slot_guard_expr,
+    split_args as _split_args,
+    strip_wrapping_parens as _strip_wrapping_parens,
+    unique as _unique,
+    vars_in_expr as _vars_in_expr,
+    vars_in_predicates as _vars_in_predicates,
+)
+from dslc.analysis.wraparound_projection_bool import constant_bool_expr as _constant_bool_expr
+from dslc.analysis.wraparound_projection_cutpoint import cutpoint_entry_constants as _cutpoint_entry_constants
 from dslc.transform.wraparound_analyze import _extract_main_phase_bodies, _infer_deterministic_scheduler_period
 
 
@@ -20,12 +46,13 @@ _RE_PROC = re.compile(
 )
 _RE_MODIFIES = re.compile(r"^\s*modifies\s+(?P<vars>[^;]+)\s*;\s*$")
 _RE_WRITE_CALL = re.compile(r"^(?P<reg>[A-Za-z_][A-Za-z0-9_.]*)\.write$")
-
-
 @dataclass(frozen=True)
 class DependencyProjectionResult:
     proj_vars: Tuple[str, ...]
     proj_predicates: Tuple[str, ...] = ()
+    proj_exprs: Tuple[str, ...] = ()
+    cutpoint_predicates: Tuple[str, ...] = ()
+    cutpoint_guard_alternatives: Tuple[Tuple[str, ...], ...] = ()
     source: str = "dependency_projection"
     complete: bool = True
     live_deps: Tuple[str, ...] = ()
@@ -36,6 +63,13 @@ class DependencyProjectionResult:
 
 @dataclass(frozen=True)
 class _AssumeRecord:
+    expr: str
+    deps: Tuple[str, ...]
+    depth: int = 0
+
+
+@dataclass(frozen=True)
+class _GuardRecord:
     expr: str
     deps: Tuple[str, ...]
     depth: int = 0
@@ -54,9 +88,14 @@ class _Proc:
 @dataclass
 class _State:
     deps: Dict[str, Set[str]]
+    exprs: Dict[str, str] = field(default_factory=dict)
+    stable_exprs: Dict[str, str] = field(default_factory=dict)
     control_live_deps: Set[str] = field(default_factory=set)
     assume_records: List[_AssumeRecord] = field(default_factory=list)
+    guard_records_by_var: Dict[str, List[_GuardRecord]] = field(default_factory=dict)
+    guard_record_groups_by_var: Dict[str, List[Tuple[_GuardRecord, ...]]] = field(default_factory=dict)
     unresolved_calls: Set[str] = field(default_factory=set)
+    array_indices: Dict[str, Set[str]] = field(default_factory=dict)
 
 
 def extract_dependency_projection(
@@ -80,13 +119,14 @@ def extract_dependency_projection(
     lines = bpl_text.splitlines()
     var_types = _parse_var_types(lines)
     if not var_types:
-        return DependencyProjectionResult((), notes=("no_global_vars",))
+        return DependencyProjectionResult((), complete=False, notes=("no_global_vars",))
 
     default_state = _default_replay_state_vars(var_types)
     period = _infer_deterministic_scheduler_period(lines)
     if period is None or period <= 0:
         return DependencyProjectionResult(
             tuple(default_state),
+            complete=False,
             live_deps=(),
             default_state=tuple(default_state),
             notes=("missing_deterministic_scheduler",),
@@ -97,13 +137,18 @@ def extract_dependency_projection(
     except Exception:
         return DependencyProjectionResult(
             tuple(default_state),
+            complete=False,
             live_deps=(),
             default_state=tuple(default_state),
             notes=("missing_phase_bodies",),
         )
 
     procs = _parse_procedures(lines)
-    state = _State(deps={v: {v} for v in var_types})
+    state = _State(
+        deps={v: {v} for v in var_types},
+        exprs={v: v for v in var_types},
+        stable_exprs=dict(getattr(candidate, "stable_substitutions", ()) or ()),
+    )
     for body in phase_bodies:
         _process_lines(
             [ln.rstrip("\n") for ln in body],
@@ -115,6 +160,7 @@ def extract_dependency_projection(
             initial_bindings=None,
         )
 
+    candidate_index_expr = _candidate_projection_index_expr(candidate, var_types=var_types)
     target_vars = _target_observation_vars(candidate, var_types)
     live_deps: Set[str] = set()
     for v in target_vars:
@@ -126,6 +172,7 @@ def extract_dependency_projection(
     # otherwise become spurious projection state.
 
     excluded = _excluded_target_state(candidate, var_types)
+    cutpoint_consts = _cutpoint_entry_constants(bpl_text, var_types=var_types, candidate=candidate)
     predicate_exprs = _projection_predicates_for_live_deps(
         state.assume_records,
         live_deps=live_deps,
@@ -133,12 +180,62 @@ def extract_dependency_projection(
         excluded=excluded,
         var_types=var_types,
     )
+    cutpoint_predicates, incomplete_cutpoint_guards = _cutpoint_predicates_for_target_guards(
+        state.guard_records_by_var,
+        target_vars=target_vars,
+        live_deps=live_deps,
+        default_state=set(default_state),
+        excluded=excluded,
+        var_types=var_types,
+        candidate=candidate,
+        stable_consts=cutpoint_consts,
+    )
+    cutpoint_guard_alternatives = _cutpoint_guard_alternatives_for_target_guards(
+        state.guard_record_groups_by_var,
+        target_vars=target_vars,
+        live_deps=live_deps,
+        default_state=set(default_state),
+        excluded=excluded,
+        var_types=var_types,
+        candidate=candidate,
+        stable_consts=cutpoint_consts,
+    )
+    ambiguous_cutpoint_predicates = _ambiguous_predicate_pairs(cutpoint_predicates)
+    predicate_exprs = _unique([*predicate_exprs, *cutpoint_predicates])
     extra_stable_vars = _stable_register_slot_projection_vars(
         live_deps=live_deps,
         var_types=var_types,
         excluded=excluded,
+        dynamic_index=bool(candidate.index_expr),
     )
-    predicate_vars = _vars_in_predicates(predicate_exprs, var_types)
+    predicate_vars = _vars_in_predicates(
+        [*predicate_exprs, *cutpoint_predicates],
+        var_types,
+    )
+    dynamic_slot_deps = _dynamic_slot_deps(
+        live_deps=live_deps,
+        var_types=var_types,
+        excluded=excluded,
+        dynamic_index=bool(candidate.index_expr),
+        predicate_vars=predicate_vars,
+    )
+    dynamic_slot_exprs = _dynamic_slot_projection_exprs(
+        dynamic_slot_deps,
+        pump_reg=candidate.pump_reg,
+        index_expr=candidate.index_expr,
+        var_types=var_types,
+        array_indices=state.array_indices,
+        stable_substitutions=getattr(candidate, "stable_substitutions", ()) or (),
+    )
+    wrong_slot_dynamic_deps = tuple(
+        dep
+        for dep in dynamic_slot_deps
+            if _normalized_dynamic_slot_indices(state.array_indices, dep, candidate=candidate)
+        and candidate_index_expr not in _normalized_dynamic_slot_indices(state.array_indices, dep, candidate=candidate)
+    )
+    unsupported_dynamic_slot_deps = tuple(
+        dep for dep in dynamic_slot_deps if dep not in dynamic_slot_exprs and dep not in wrong_slot_dynamic_deps
+    )
     projection: List[str] = []
     for v in _unique([*default_state, *sorted(live_deps), *extra_stable_vars]):
         if v in excluded:
@@ -164,14 +261,39 @@ def extract_dependency_projection(
     ]
     if predicate_exprs:
         notes.append(f"dependency_projection_predicates={len(predicate_exprs)}")
+    if cutpoint_predicates:
+        notes.append(f"dependency_projection_cutpoint_predicates={len(cutpoint_predicates)}")
+    if cutpoint_guard_alternatives:
+        notes.append(f"dependency_projection_cutpoint_guard_alternatives={len(cutpoint_guard_alternatives)}")
+    if ambiguous_cutpoint_predicates:
+        notes.extend(("dependency_projection_ambiguous_cutpoint_predicates=" + ",".join(ambiguous_cutpoint_predicates), "dependency_projection_incomplete"))
+    if incomplete_cutpoint_guards:
+        notes.extend((f"dependency_projection_unstable_cutpoint_guards={incomplete_cutpoint_guards}", "dependency_projection_incomplete"))
     if state.unresolved_calls:
         notes.append("dependency_projection_unresolved_calls=" + ",".join(sorted(state.unresolved_calls)))
         notes.append("dependency_projection_incomplete")
+    if unsupported_dynamic_slot_deps:
+        notes.append("dependency_projection_dynamic_slot_deps=" + ",".join(unsupported_dynamic_slot_deps))
+        notes.append("dependency_projection_incomplete")
+    if wrong_slot_dynamic_deps:
+        notes.append("dependency_projection_dynamic_slot_index_mismatch=" + ",".join(wrong_slot_dynamic_deps))
+        notes.append("dependency_projection_incomplete")
+    elif dynamic_slot_exprs:
+        notes.append("dependency_projection_dynamic_slot_exprs=" + ",".join(dynamic_slot_exprs.values()))
 
     return DependencyProjectionResult(
         proj_vars=tuple(_unique(projection)),
         proj_predicates=tuple(predicate_exprs),
-        complete=not bool(state.unresolved_calls),
+        proj_exprs=tuple(dynamic_slot_exprs[dep] for dep in dynamic_slot_deps if dep in dynamic_slot_exprs),
+        cutpoint_predicates=tuple(cutpoint_predicates),
+        cutpoint_guard_alternatives=tuple(cutpoint_guard_alternatives),
+        complete=(
+            not bool(state.unresolved_calls)
+            and not bool(unsupported_dynamic_slot_deps)
+            and not bool(wrong_slot_dynamic_deps)
+            and not bool(ambiguous_cutpoint_predicates)
+            and not bool(incomplete_cutpoint_guards)
+        ),
         live_deps=tuple(sorted(live_deps)),
         default_state=tuple(default_state),
         notes=tuple(notes),
@@ -318,21 +440,33 @@ def _process_lines(
     inline_depth: int,
     max_inline_depth: int,
     initial_bindings: Optional[Dict[str, Set[str]]],
+    initial_exprs: Optional[Dict[str, str]] = None,
     inherited_guard_deps: Optional[Set[str]] = None,
+    inherited_guard_records: Optional[Sequence[_GuardRecord]] = None,
     inherited_guard_present: bool = False,
     capture_names: Optional[Sequence[str]] = None,
+    capture_exprs_out: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Set[str]]:
     saved: Dict[str, Optional[Set[str]]] = {}
+    saved_exprs: Dict[str, Optional[str]] = {}
     local_saved: Dict[str, Optional[Set[str]]] = {}
+    local_expr_saved: Dict[str, Optional[str]] = {}
     if initial_bindings:
         for name, deps in initial_bindings.items():
             saved[name] = set(state.deps[name]) if name in state.deps else None
             state.deps[name] = set(deps)
+            saved_exprs[name] = state.exprs.get(name)
+            if initial_exprs and name in initial_exprs:
+                state.exprs[name] = initial_exprs[name]
+            else:
+                state.exprs[name] = name
 
-    guard_stack: List[Tuple[Set[str], int]] = []
+    guard_stack: List[Tuple[Set[str], Tuple[_GuardRecord, ...], int]] = []
     guard_refcnt: Dict[str, int] = {}
     pending_guard: Optional[Set[str]] = None
+    pending_guard_records: Optional[Tuple[_GuardRecord, ...]] = None
     last_closed_guard: Optional[Set[str]] = None
+    last_closed_guard_records: Optional[Tuple[_GuardRecord, ...]] = None
     brace_depth = 0
 
     def active_guard_deps() -> Set[str]:
@@ -341,18 +475,27 @@ def _process_lines(
             out.add(deps)
         return out
 
+    def active_guard_records() -> List[_GuardRecord]:
+        out: List[_GuardRecord] = list(inherited_guard_records or ())
+        for _deps, records, _depth in guard_stack:
+            out.extend(records)
+        return out
+
     def active_guard_present() -> bool:
         return inherited_guard_present or bool(guard_stack)
 
     def advance_braces(line: str) -> None:
-        nonlocal brace_depth, pending_guard, last_closed_guard
+        nonlocal brace_depth, pending_guard, pending_guard_records
+        nonlocal last_closed_guard, last_closed_guard_records
         popped_on_line: Optional[Set[str]] = None
+        popped_records_on_line: Optional[Tuple[_GuardRecord, ...]] = None
         for ch in line:
             if ch == "}":
                 brace_depth -= 1
-                while guard_stack and guard_stack[-1][1] > brace_depth:
-                    gv, _depth = guard_stack.pop()
+                while guard_stack and guard_stack[-1][2] > brace_depth:
+                    gv, grecs, _depth = guard_stack.pop()
                     popped_on_line = set(gv)
+                    popped_records_on_line = tuple(grecs)
                     for v in gv:
                         cur = guard_refcnt.get(v, 0) - 1
                         if cur <= 0:
@@ -363,12 +506,15 @@ def _process_lines(
                 brace_depth += 1
                 if pending_guard is not None:
                     gv = set(pending_guard)
+                    grecs = tuple(pending_guard_records or ())
                     pending_guard = None
-                    guard_stack.append((gv, brace_depth))
+                    pending_guard_records = None
+                    guard_stack.append((gv, grecs, brace_depth))
                     for v in gv:
                         guard_refcnt[v] = guard_refcnt.get(v, 0) + 1
         if popped_on_line is not None:
             last_closed_guard = popped_on_line
+            last_closed_guard_records = popped_records_on_line
 
     try:
         for raw in lines:
@@ -379,26 +525,42 @@ def _process_lines(
                     for name in _parse_var_decl_names(s):
                         if name not in saved and name not in local_saved:
                             local_saved[name] = set(state.deps[name]) if name in state.deps else None
+                            local_expr_saved[name] = state.exprs.get(name)
                         state.deps[name] = {name}
+                        state.exprs[name] = name
                 advance_braces(ln)
                 continue
 
             if _is_if_stmt(s):
-                pending_guard = _deps_in_expr(_extract_cond_text(ln), var_types=var_types, deps=state.deps)
+                cond = _extract_cond_text(ln)
+                pending_guard = _deps_in_expr(cond, var_types=var_types, deps=state.deps)
+                pending_guard_records = (_make_guard_record(cond, pending_guard, state=state, depth=inline_depth),)
                 state.control_live_deps.update(pending_guard)
             elif _is_while_stmt(s):
-                pending_guard = _deps_in_expr(_extract_cond_text(ln), var_types=var_types, deps=state.deps)
+                cond = _extract_cond_text(ln)
+                pending_guard = _deps_in_expr(cond, var_types=var_types, deps=state.deps)
+                pending_guard_records = (_make_guard_record(cond, pending_guard, state=state, depth=inline_depth),)
                 state.control_live_deps.update(pending_guard)
             elif _is_else_if_stmt(s):
                 old = set(last_closed_guard or (guard_stack[-1][0] if guard_stack else set()))
-                pending_guard = set(old) | _deps_in_expr(_extract_cond_text(ln), var_types=var_types, deps=state.deps)
+                old_records = tuple(last_closed_guard_records or (guard_stack[-1][1] if guard_stack else ()))
+                cond = _extract_cond_text(ln)
+                cond_deps = _deps_in_expr(cond, var_types=var_types, deps=state.deps)
+                pending_guard = set(old) | cond_deps
+                pending_guard_records = (
+                    *_negate_guard_records(old_records),
+                    _make_guard_record(cond, cond_deps, state=state, depth=inline_depth),
+                )
                 state.control_live_deps.update(pending_guard)
             elif _is_else_stmt(s):
                 old = set(last_closed_guard or (guard_stack[-1][0] if guard_stack else set()))
+                old_records = tuple(last_closed_guard_records or (guard_stack[-1][1] if guard_stack else ()))
                 pending_guard = set(old)
+                pending_guard_records = _negate_guard_records(old_records)
                 state.control_live_deps.update(pending_guard)
 
             guard_deps = active_guard_deps()
+            guard_records = active_guard_records()
             keep_old = active_guard_present()
             if s.startswith("assume"):
                 assume_expr = _assume_expr_text(s)
@@ -418,6 +580,8 @@ def _process_lines(
                         state=state,
                         var_types=var_types,
                         keep_old=keep_old,
+                        expr=lhs.strip(),
+                        guard_records=guard_records,
                     )
                 advance_braces(ln)
                 continue
@@ -430,6 +594,7 @@ def _process_lines(
                     var_types=var_types,
                     procs=procs,
                     guard_deps=guard_deps,
+                    guard_records=guard_records,
                     inline_depth=inline_depth,
                     max_inline_depth=max_inline_depth,
                 )
@@ -439,6 +604,8 @@ def _process_lines(
             m_asn = _RE_ASSIGN.match(ln)
             if m_asn:
                 rhs_deps = _deps_in_expr(m_asn.group("rhs"), var_types=var_types, deps=state.deps)
+                rhs_expr = _normalize_expr(_substitute_expr(m_asn.group("rhs"), state=state))
+                _record_array_select_indices(rhs_expr, array_indices=state.array_indices, var_types=var_types)
                 for lhs in _split_args(m_asn.group("lhs")):
                     _assign_deps(
                         lhs.strip(),
@@ -446,6 +613,9 @@ def _process_lines(
                         state=state,
                         var_types=var_types,
                         keep_old=keep_old,
+                        expr=rhs_expr,
+                        guard_records=guard_records,
+                        index_expr=_array_assignment_index_expr(lhs.strip()),
                     )
 
             advance_braces(ln)
@@ -453,6 +623,9 @@ def _process_lines(
             name: set(state.deps.get(name, {name}))
             for name in (capture_names or ())
         }
+        if capture_exprs_out is not None:
+            for name in (capture_names or ()):
+                capture_exprs_out[name] = state.exprs.get(name, name)
         return captured
     finally:
         for name, old in local_saved.items():
@@ -460,12 +633,22 @@ def _process_lines(
                 state.deps.pop(name, None)
             else:
                 state.deps[name] = old
+        for name, old in local_expr_saved.items():
+            if old is None:
+                state.exprs.pop(name, None)
+            else:
+                state.exprs[name] = old
         if initial_bindings:
             for name, old in saved.items():
                 if old is None:
                     state.deps.pop(name, None)
                 else:
                     state.deps[name] = old
+            for name, old in saved_exprs.items():
+                if old is None:
+                    state.exprs.pop(name, None)
+                else:
+                    state.exprs[name] = old
     return {}
 
 
@@ -476,10 +659,13 @@ def _process_call(
     var_types: Dict[str, str],
     procs: Dict[str, _Proc],
     guard_deps: Set[str],
+    guard_records: Sequence[_GuardRecord],
     inline_depth: int,
     max_inline_depth: int,
 ) -> None:
     proc = m_call.group("proc").strip()
+    if proc.endswith(".read.read"):
+        proc = proc[: -len(".read")]
     args = _split_args(m_call.group("args"))
     lhs = (m_call.group("lhs") or "").strip()
 
@@ -489,6 +675,7 @@ def _process_call(
         idx_deps = _deps_in_expr(args[0] if args else "", var_types=var_types, deps=state.deps)
         val_deps = _deps_in_expr(args[1] if len(args) > 1 else "", var_types=var_types, deps=state.deps)
         deps = idx_deps | val_deps | guard_deps
+        value_expr = _normalize_expr(_substitute_expr(args[1] if len(args) > 1 else "", state=state))
         for v in (
             reg,
             f"{reg}__last_index",
@@ -504,6 +691,9 @@ def _process_call(
                     state=state,
                     var_types=var_types,
                     keep_old=bool(guard_deps),
+                    expr=value_expr or v,
+                    guard_records=guard_records,
+                    index_expr=args[0] if args else None,
                 )
         return
 
@@ -521,9 +711,13 @@ def _process_call(
                 state.unresolved_calls.add(f"{proc}->assigned_call")
                 return
             arg_deps = [_deps_in_expr(a, var_types=var_types, deps=state.deps) | guard_deps for a in args]
+            arg_exprs = [_normalize_expr(_substitute_expr(a, state=state)) for a in args]
             bindings = {p: set(arg_deps[i]) for i, p in enumerate(proc_obj.params) if i < len(arg_deps)}
+            binding_exprs = {p: arg_exprs[i] for i, p in enumerate(proc_obj.params) if i < len(arg_exprs)}
             for ret in proc_obj.returns:
                 bindings.setdefault(ret, {ret})
+                binding_exprs.setdefault(ret, ret)
+            ret_exprs: Dict[str, str] = {}
             ret_deps = _process_lines(
                 proc_obj.body,
                 state=state,
@@ -532,9 +726,12 @@ def _process_call(
                 inline_depth=inline_depth + 1,
                 max_inline_depth=max_inline_depth,
                 initial_bindings=bindings,
+                initial_exprs=binding_exprs,
                 inherited_guard_deps=set(guard_deps),
+                inherited_guard_records=guard_records,
                 inherited_guard_present=False,
                 capture_names=proc_obj.returns,
+                capture_exprs_out=ret_exprs,
             )
             for l, ret in zip(lhs_vars, proc_obj.returns):
                 deps = set(ret_deps.get(ret, set()))
@@ -547,6 +744,8 @@ def _process_call(
                     state=state,
                     var_types=var_types,
                     keep_old=bool(guard_deps),
+                    expr=ret_exprs.get(ret, ret),
+                    guard_records=guard_records,
                 )
             return
         if not proc_obj.body:
@@ -560,10 +759,14 @@ def _process_call(
                     state=state,
                     var_types=var_types,
                     keep_old=True,
+                    expr=mod,
+                    guard_records=guard_records,
                 )
             return
         arg_deps = [_deps_in_expr(a, var_types=var_types, deps=state.deps) | guard_deps for a in args]
+        arg_exprs = [_normalize_expr(_substitute_expr(a, state=state)) for a in args]
         bindings = {p: set(arg_deps[i]) for i, p in enumerate(proc_obj.params) if i < len(arg_deps)}
+        binding_exprs = {p: arg_exprs[i] for i, p in enumerate(proc_obj.params) if i < len(arg_exprs)}
         _process_lines(
             proc_obj.body,
             state=state,
@@ -572,18 +775,47 @@ def _process_call(
             inline_depth=inline_depth + 1,
             max_inline_depth=max_inline_depth,
             initial_bindings=bindings,
+            initial_exprs=binding_exprs,
             inherited_guard_deps=set(guard_deps),
+            inherited_guard_records=guard_records,
             inherited_guard_present=bool(guard_deps),
         )
         return
 
     if lhs:
+        if len(args) == 2 and "." in proc and proc.endswith(".read"):
+            reg = proc.rsplit(".", 1)[0]
+            if reg.endswith(".read"):
+                reg = reg[: -len(".read")]
+            if reg in var_types and _is_stateful_register_array(reg, var_types):
+                read_expr = f"{reg}[{_normalize_expr(_substitute_expr(args[1], state=state))}]"
+                read_deps = _deps_in_expr(args[1], var_types=var_types, deps=state.deps) | {reg} | set(guard_deps)
+                for l in _split_args(lhs):
+                    _assign_deps(
+                        l.strip(),
+                        read_deps,
+                        state=state,
+                        var_types=var_types,
+                        keep_old=bool(guard_deps),
+                        expr=read_expr,
+                        guard_records=guard_records,
+                    )
+                _record_array_select_indices(read_expr, array_indices=state.array_indices, var_types=var_types)
+                return
         state.unresolved_calls.add(f"{proc}->assigned_call")
         deps = set(guard_deps)
         for arg in args:
             deps.update(_deps_in_expr(arg, var_types=var_types, deps=state.deps))
         for l in _split_args(lhs):
-            _assign_deps(l.strip(), deps, state=state, var_types=var_types, keep_old=bool(guard_deps))
+            _assign_deps(
+                l.strip(),
+                deps,
+                state=state,
+                var_types=var_types,
+                keep_old=bool(guard_deps),
+                expr=l.strip(),
+                guard_records=guard_records,
+            )
     else:
         state.unresolved_calls.add(proc)
 
@@ -595,6 +827,9 @@ def _assign_deps(
     state: _State,
     var_types: Dict[str, str],
     keep_old: bool = False,
+    expr: Optional[str] = None,
+    guard_records: Sequence[_GuardRecord] = (),
+    index_expr: Optional[str] = None,
 ) -> None:
     base = lhs.split("[", 1)[0].strip()
     base = base.strip("()")
@@ -607,6 +842,78 @@ def _assign_deps(
     if keep_old:
         deps.update(old)
     state.deps[base] = deps
+    state.exprs[base] = _normalize_expr(expr or base)
+    if "[" in var_types.get(base, "") and index_expr:
+        state.array_indices.setdefault(base, set()).add(_normalize_expr(index_expr))
+    if guard_records:
+        recs = state.guard_records_by_var.setdefault(base, [])
+        recs.extend(guard_records)
+        groups = state.guard_record_groups_by_var.setdefault(base, [])
+        group = tuple(guard_records)
+        if group and (not groups or groups[-1] != group):
+            groups.append(group)
+
+
+def _make_guard_record(
+    expr: Optional[str],
+    deps: Set[str],
+    *,
+    state: _State,
+    depth: int,
+) -> _GuardRecord:
+    substituted = _normalize_expr(_substitute_expr(expr or "", state=state))
+    _record_array_select_indices(substituted, array_indices=state.array_indices, var_types={k: "" for k in state.deps})
+    return _GuardRecord(
+        expr=substituted,
+        deps=tuple(sorted(deps)),
+        depth=depth,
+    )
+
+
+def _negate_guard_records(records: Sequence[_GuardRecord]) -> Tuple[_GuardRecord, ...]:
+    out: List[_GuardRecord] = []
+    for rec in records:
+        expr = rec.expr.strip()
+        if not expr:
+            continue
+        out.append(_GuardRecord(expr=f"!({expr})", deps=rec.deps, depth=rec.depth))
+    return tuple(out)
+
+
+def _substitute_expr(expr: Optional[str], *, state: _State) -> str:
+    text = str(expr or "").strip()
+    if not text:
+        return ""
+
+    protected: Dict[str, str] = {}
+
+    def protect_read_receiver(match: re.Match[str]) -> str:
+        placeholder = f"__p4b_read_receiver_{len(protected)}__"
+        protected[placeholder] = match.group("reg")
+        return f"{match.group('reg')}.read({placeholder},"
+
+    text = re.sub(
+        r"\b(?P<reg>[A-Za-z_][A-Za-z0-9_.]*)\.read\s*\(\s*(?P=reg)\s*,",
+        protect_read_receiver,
+        text,
+    )
+
+    def repl(match: re.Match[str]) -> str:
+        tok = match.group(0)
+        if tok in protected:
+            return tok
+        stable = state.stable_exprs.get(tok)
+        if stable:
+            return f"({stable})"
+        replacement = state.exprs.get(tok)
+        if not replacement or replacement == tok:
+            return tok
+        return f"({replacement})"
+
+    substituted = _RE_IDENT.sub(repl, text)
+    for placeholder, original in protected.items():
+        substituted = substituted.replace(placeholder, original)
+    return substituted
 
 
 def _assume_expr_text(stmt: str) -> str:
@@ -633,25 +940,6 @@ def _is_else_stmt(s: str) -> bool:
 
 def _is_while_stmt(s: str) -> bool:
     return s.startswith("while") and len(s) > 5 and s[5] in " \t("
-
-
-def _strip_wrapping_parens(expr: str) -> str:
-    s = expr.strip()
-    while s.startswith("(") and s.endswith(")"):
-        depth = 0
-        wraps = True
-        for i, ch in enumerate(s):
-            if ch == "(":
-                depth += 1
-            elif ch == ")":
-                depth -= 1
-                if depth == 0 and i != len(s) - 1:
-                    wraps = False
-                    break
-        if not wraps:
-            break
-        s = s[1:-1].strip()
-    return s
 
 
 def _projection_predicates_for_live_deps(
@@ -686,6 +974,265 @@ def _projection_predicates_for_live_deps(
     return out
 
 
+def _cutpoint_predicates_for_target_guards(
+    records_by_var: Dict[str, List[_GuardRecord]],
+    *,
+    target_vars: Sequence[str],
+    live_deps: Set[str],
+    default_state: Set[str],
+    excluded: Set[str],
+    var_types: Dict[str, str],
+    candidate: WraparoundCandidate,
+    stable_consts: Dict[str, str],
+) -> Tuple[List[str], int]:
+    wanted = set(live_deps).difference(default_state).difference(excluded)
+    out: List[str] = []
+    seen: Set[str] = set()
+    incomplete = 0
+    for target in target_vars:
+        for rec in records_by_var.get(target, []):
+            expr = _specialize_dynamic_slot_guard(
+                rec.expr.strip(),
+                candidate=candidate,
+                live_deps=live_deps,
+                excluded=excluded,
+                var_types=var_types,
+                stable_consts=stable_consts,
+            )
+            const_val = _constant_bool_expr(expr)
+            if const_val is True:
+                continue
+            if const_val is False:
+                continue
+            if not expr or expr == "true" or expr in seen:
+                continue
+            deps = set(rec.deps)
+            if not deps.intersection(wanted):
+                continue
+            if deps and deps.issubset(default_state):
+                continue
+            if not _is_cutpoint_shape_predicate(
+                expr,
+                var_types=var_types,
+                default_state=default_state,
+                excluded=excluded,
+                stable_indices=(_candidate_projection_index_expr(candidate, var_types=var_types),),
+            ):
+                incomplete += 1
+                continue
+            seen.add(expr)
+            out.append(expr)
+    return out, incomplete
+
+
+def _cutpoint_guard_alternatives_for_target_guards(
+    groups_by_var: Dict[str, List[Tuple[_GuardRecord, ...]]],
+    *,
+    target_vars: Sequence[str],
+    live_deps: Set[str],
+    default_state: Set[str],
+    excluded: Set[str],
+    var_types: Dict[str, str],
+    candidate: WraparoundCandidate,
+    stable_consts: Dict[str, str],
+) -> List[Tuple[str, ...]]:
+    """
+    Preserve cutpoint guard predicates grouped by the write site that produced
+    them.
+
+    The legacy projection flattens all target-write guards into one predicate
+    set, which is the right conservative certificate input but loses the
+    branch structure needed for future cutpoint splitting.  Keeping alternatives
+    here lets callers distinguish mutually exclusive initialization and steady
+    pump branches without relaxing the current `complete` gate.
+    """
+
+    wanted = set(live_deps).difference(default_state).difference(excluded)
+    out: List[Tuple[str, ...]] = []
+    seen_groups: Set[Tuple[str, ...]] = set()
+    for target in target_vars:
+        for records in groups_by_var.get(target, []):
+            group: List[str] = []
+            for rec in records:
+                expr = _specialize_dynamic_slot_guard(
+                    rec.expr.strip(),
+                    candidate=candidate,
+                    live_deps=live_deps,
+                    excluded=excluded,
+                    var_types=var_types,
+                    stable_consts=stable_consts,
+                )
+                const_val = _constant_bool_expr(expr)
+                if const_val is True:
+                    continue
+                if const_val is False:
+                    group = []
+                    break
+                if not expr or expr == "true":
+                    continue
+                deps = set(rec.deps)
+                if not deps.intersection(wanted):
+                    continue
+                if deps and deps.issubset(default_state):
+                    continue
+                if not _is_cutpoint_shape_predicate(
+                    expr,
+                    var_types=var_types,
+                    default_state=default_state,
+                    excluded=excluded,
+                    stable_indices=(_candidate_projection_index_expr(candidate, var_types=var_types),),
+                ):
+                    continue
+                group.append(expr)
+            alt = tuple(_unique(group))
+            if not alt or alt in seen_groups:
+                continue
+            seen_groups.add(alt)
+            out.append(alt)
+    return out
+
+
+def _guard_has_dynamic_slot_dependency(
+    deps: Iterable[str],
+    *,
+    live_deps: Set[str],
+    excluded: Set[str],
+    var_types: Dict[str, str],
+    candidate: WraparoundCandidate,
+    state: Optional[_State] = None,
+) -> bool:
+    target_index_width = _array_index_width(var_types.get(candidate.pump_reg, ""))
+    if target_index_width is None:
+        return False
+    for dep in set(deps).intersection(live_deps):
+        if dep in excluded:
+            continue
+        typ = var_types.get(dep, "")
+        if "[" in typ and "]" in typ and _array_index_width(typ) == target_index_width:
+            if not _is_stateful_register_array(dep, var_types):
+                continue
+            if state is not None and candidate.index_expr:
+                indices = _normalized_dynamic_slot_indices(state.array_indices, dep, candidate=candidate)
+                if indices and candidate.index_expr not in indices:
+                    continue
+            return True
+    return False
+
+
+def _normalized_dynamic_slot_indices(
+    array_indices: Dict[str, Set[str]],
+    dep: str,
+    *,
+    candidate: WraparoundCandidate,
+) -> Set[str]:
+    subst = dict(getattr(candidate, "stable_substitutions", ()) or ())
+    out: Set[str] = set()
+    for idx in _dynamic_slot_indices(array_indices, dep):
+        cur = idx
+        for token, value in subst.items():
+            cur = re.sub(rf"\b{re.escape(token)}\b", value, cur)
+        out.add(_normalize_expr(cur))
+    return out
+
+
+def _ambiguous_predicate_pairs(predicates: Sequence[str]) -> List[str]:
+    positives = {_strip_wrapping_parens(p.strip()) for p in predicates if p.strip()}
+    ambiguous: List[str] = []
+    for pred in positives:
+        inner = _negated_predicate_inner(pred)
+        if inner and inner in positives:
+            ambiguous.append(inner)
+    return _unique(ambiguous)
+
+
+def _negated_predicate_inner(expr: str) -> Optional[str]:
+    s = expr.strip()
+    if not s.startswith("!"):
+        return None
+    inner = s[1:].strip()
+    if not inner:
+        return None
+    return _strip_wrapping_parens(inner)
+
+
+def _specialize_dynamic_slot_guard(
+    expr: str,
+    *,
+    candidate: WraparoundCandidate,
+    live_deps: Set[str],
+    excluded: Set[str],
+    var_types: Dict[str, str],
+    stable_consts: Optional[Dict[str, str]] = None,
+) -> str:
+    """Specialize register-slot guard predicates to the candidate dynamic key.
+
+    The dependency pass is intentionally lightweight and not fully path
+    sensitive.  For dynamic-index wraparound candidates, P4B's meta/index
+    recovery already gives us the concrete replay key.  A guard such as
+    `time_reg[meta.register_index] != 0` should therefore be recorded as a
+    predicate over `time_reg[candidate.index_expr]`, instead of carrying packet
+    scratch variables from the parser path used to compute `meta.register_index`.
+    """
+    return _specialize_dynamic_slot_guard_expr(
+        expr,
+        index_expr=_candidate_projection_index_expr(candidate, var_types=var_types),
+        pump_reg=candidate.pump_reg,
+        live_deps=live_deps,
+        excluded=excluded,
+        var_types=var_types,
+        stable_substitutions=getattr(candidate, "stable_substitutions", ()) or (),
+        stable_consts=stable_consts,
+    )
+
+
+def _candidate_projection_index_expr(candidate: WraparoundCandidate, *, var_types: Dict[str, str]) -> Optional[str]:
+    if candidate.index_expr:
+        return candidate.index_expr
+    if candidate.index_value is None:
+        return None
+    width = _array_index_width(var_types.get(candidate.pump_reg, ""))
+    if width is None:
+        return None
+    return f"{int(candidate.index_value)}bv{width}"
+
+
+def _is_cutpoint_shape_predicate(
+    expr: str,
+    *,
+    var_types: Dict[str, str],
+    default_state: Set[str],
+    excluded: Set[str],
+    stable_indices: Iterable[str] = (),
+) -> bool:
+    stable_index_set = {_normalize_expr(v) for v in stable_indices if str(v).strip()}
+    array_index_tokens: Set[str] = set()
+    for sel in _array_selects_in_expr(expr):
+        if _normalize_expr(sel.index) not in stable_index_set:
+            continue
+        array_index_tokens.update(_RE_IDENT.findall(sel.index))
+    state_vars = {tok for tok in _RE_IDENT.findall(expr) if tok in var_types}
+    if not state_vars:
+        return False
+    for v in state_vars:
+        if v in excluded:
+            return False
+        if v in array_index_tokens:
+            continue
+        typ = var_types.get(v, "")
+        if "[" in typ or "]" in typ:
+            continue
+        if v in default_state:
+            continue
+        if _is_stable_cutpoint_var(v):
+            continue
+        # Guard predicates may mention packet-derived scalars only when the
+        # expression itself substitutes them away to stable register slots.  A
+        # residual transient scalar would make the cutpoint depend on per-pass
+        # packet scratch state, so keep that out of certified projections.
+        return False
+    return True
+
+
 def _is_stable_projection_predicate(
     expr: str,
     *,
@@ -708,105 +1255,13 @@ def _is_stable_projection_predicate(
     return True
 
 
-def is_stable_projection_predicate_text(
-    expr: str,
-    *,
-    var_types: Optional[Dict[str, str]] = None,
-    default_state: Iterable[str] = (),
-    excluded: Iterable[str] = (),
-) -> bool:
-    """
-    Conservative manifest-facing stability check for certified projection predicates.
-
-    The extractor has full Boogie type information and uses
-    `_is_stable_projection_predicate`.  Manifest certification sometimes only has
-    serialized text, so this helper also supports a syntax-only mode.  In that
-    mode every identifier that is not a literal/keyword must itself look like
-    stable cutpoint state (`procurator_*`, mailbox counters, or DSL state).
-    """
-
-    default = set(default_state)
-    banned = set(excluded)
-    ignored = {"true", "false", "old"}
-    toks = [tok for tok in _RE_IDENT.findall(expr) if tok not in ignored]
-
-    if var_types is not None:
-        state_vars = {tok for tok in toks if tok in var_types}
-    else:
-        state_vars = set(toks)
-
-    if not state_vars:
-        return False
-
-    for v in state_vars:
-        if v in banned:
-            return False
-        if var_types is not None and not _is_snapshot_scalar(v, var_types):
-            return False
-        if v in default:
-            continue
-        if not _is_stable_cutpoint_var(v):
-            return False
-    return True
-
-
-def _vars_in_predicates(predicates: Sequence[str], var_types: Dict[str, str]) -> Set[str]:
-    out: Set[str] = set()
-    for expr in predicates:
-        for tok in _RE_IDENT.findall(expr):
-            if tok in var_types:
-                out.add(tok)
-    return out
-
-
-def _deps_in_expr(expr: Optional[str], *, var_types: Dict[str, str], deps: Dict[str, Set[str]]) -> Set[str]:
-    if not expr:
-        return set()
-    out: Set[str] = set()
-    for tok in _RE_IDENT.findall(expr):
-        if tok in deps:
-            out.update(deps[tok])
-        elif tok in var_types:
-            out.add(tok)
-    return out
-
-
-def _vars_in_expr(expr: str, *, var_types: Dict[str, str], deps: Dict[str, Set[str]]) -> Set[str]:
-    return _deps_in_expr(expr, var_types=var_types, deps=deps)
-
-
-def _extract_cond_text(line: str) -> str:
-    i = line.find("(")
-    j = line.rfind(")")
-    if i < 0 or j <= i:
-        return ""
-    return line[i + 1 : j].strip()
-
-
-def _split_args(args: str) -> List[str]:
-    out: List[str] = []
-    cur: List[str] = []
-    depth = 0
-    for ch in args:
-        if ch == "," and depth == 0:
-            out.append("".join(cur).strip())
-            cur = []
-            continue
-        cur.append(ch)
-        if ch in "([{":
-            depth += 1
-        elif ch in ")]}" and depth > 0:
-            depth -= 1
-    tail = "".join(cur).strip()
-    if tail:
-        out.append(tail)
-    return out
-
-
 def _target_observation_vars(candidate: WraparoundCandidate, var_types: Dict[str, str]) -> List[str]:
     out: List[str] = []
     for reg in _unique([candidate.pump_reg, *candidate.accel_regs]):
-        for v in (f"{reg}__last0_value", f"{reg}__last_value", reg):
+        if candidate.index_expr is None and candidate.index_value == 0 and f"{reg}__last0_value" in var_types:
+            out.append(f"{reg}__last0_value")
+            continue
+        for v in (reg, f"{reg}__last_value", f"{reg}__last0_value"):
             if v in var_types:
                 out.append(v)
                 break
@@ -822,35 +1277,6 @@ def _excluded_target_state(candidate: WraparoundCandidate, var_types: Dict[str, 
     return out
 
 
-def _stable_register_slot_projection_vars(
-    *,
-    live_deps: Set[str],
-    var_types: Dict[str, str],
-    excluded: Set[str],
-) -> List[str]:
-    """
-    Promote fixed-slot P4 register dependencies to their scalar slot mirrors.
-
-    Dependency extraction naturally tracks array registers such as
-    `foo_reg:[bv16]bv32`, but closure projection can only snapshot scalar
-    variables.  P4B emits `foo_reg__last0_value` mirrors for slot 0, and the
-    harness maintains them as a scalar view of `foo_reg[0]`.  When a live dep is
-    a non-target register array and the slot-0 mirror exists, include that
-    mirror in the projection.  The target counter itself remains excluded so the
-    pump is still allowed to change it.
-    """
-
-    out: List[str] = []
-    for dep in sorted(live_deps):
-        typ = var_types.get(dep)
-        if not typ or "[" not in typ or dep in excluded:
-            continue
-        mirror = f"{dep}__last0_value"
-        if mirror in var_types and mirror not in excluded:
-            out.append(mirror)
-    return _unique(out)
-
-
 def _is_snapshot_scalar(name: str, var_types: Dict[str, str]) -> bool:
     typ = var_types.get(name)
     if not typ:
@@ -858,30 +1284,3 @@ def _is_snapshot_scalar(name: str, var_types: Dict[str, str]) -> bool:
     if "[" in typ or "]" in typ:
         return False
     return True
-
-
-def _is_stable_cutpoint_var(name: str) -> bool:
-    if name == "procurator_phase" or name.startswith("procurator_"):
-        return True
-    if name.endswith("_inbox_count") or name.endswith("_egress_count"):
-        return True
-    if name.startswith("dsl_") or name.endswith("dsl_pump_mode"):
-        return True
-    if name.endswith("__last0_value"):
-        return True
-    return False
-
-
-def _is_packet_slot_var(name: str) -> bool:
-    return "_hdr." in name or name.endswith("_pkt_external")
-
-
-def _unique(values: Iterable[str]) -> List[str]:
-    seen: Set[str] = set()
-    out: List[str] = []
-    for v in values:
-        if v in seen:
-            continue
-        seen.add(v)
-        out.append(v)
-    return out

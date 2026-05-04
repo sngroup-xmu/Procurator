@@ -319,6 +319,43 @@ global {
             "flowdos_hash__crc16$bv32$bv32$bv32(0bv32, 167772161bv32, 4096bv32)",
         )
 
+    def test_ambiguous_meta_index_definition_is_not_used_for_fast_forward(self) -> None:
+        from dslc.analysis.wraparound_bpl_index import _derive_index_expr_from_meta_definition
+
+        bpl_text = "\n".join(
+            [
+                "var flowdos_counter_pos_0: bv32;",
+                "var flowdos_hdr.ipv4.srcAddr: bv32;",
+                "function flowdos_hash__crc16$bv32$bv32$bv32(",
+                "  flowdos_a:bv32, flowdos_b:bv32, flowdos_c:bv32",
+                ") returns(bv32);",
+                "assume (flowdos_hdr.ipv4.srcAddr == 167772161bv32);",
+            ]
+        )
+        meta = {
+            "wraparound": {
+                "index_definitions": [
+                    {
+                        "target_var": "counter_pos",
+                        "expr": "hash__crc16$bv32$int$bv32(0bv32, hdr.ipv4.srcAddr, 4096bv32)",
+                        "deps": ["hdr.ipv4.srcAddr"],
+                        "ambiguous": True,
+                    }
+                ]
+            }
+        }
+        expr = _derive_index_expr_from_meta_definition(
+            "counter_pos",
+            node="flowdos",
+            meta=meta,
+            bpl_text=bpl_text,
+            var_types={
+                "flowdos_counter_pos_0": "bv32",
+                "flowdos_hdr.ipv4.srcAddr": "bv32",
+            },
+        )
+        self.assertIsNone(expr)
+
     def test_meta_update_delta_recovers_env_fixed_header_value(self) -> None:
         """
         Flowrest/ETC feature counters often update as `x += hdr.ipv4.total_len`.
@@ -490,6 +527,197 @@ global {
 
         self.assertTrue(cands)
         self.assertEqual(cands[0].pump_reg, "etc_Ingress_reg_pkt_count")
+        self.assertEqual(cands[0].index_value, 0)
+        self.assertIsNone(cands[0].index_expr)
+
+    def test_node_assume_does_not_override_p4_computed_register_index(self) -> None:
+        spec_text = """
+import etc from "etc.p4";
+topology {}
+node etc {
+  assume {
+    meta.register_index == 0;
+  };
+}
+global {
+  assert {
+    !(etc_Ingress_reg_pkt_count__wrote_index0
+      && etc_Ingress_reg_pkt_count__last0_value == 0);
+  };
+}
+"""
+
+        bpl_text = "\n".join(
+            [
+                "var etc_hdr.ipv4.src_addr: bv32;",
+                "var etc_hdr.ipv4.dst_addr: bv32;",
+                "var etc_hdr.ipv4.protocol: bv8;",
+                "var etc_hdr.tcp.src_port: bv16;",
+                "var etc_hdr.tcp.dst_port: bv16;",
+                "var etc_meta.hdr_srcport: bv16;",
+                "var etc_meta.hdr_dstport: bv16;",
+                "var etc_meta.register_index: bv11;",
+                "var etc___ra_ret_Ingress_read_pkt_count: bv8;",
+                "var etc_Ingress_reg_pkt_count: [bv11]bv8;",
+                "var etc_Ingress_reg_pkt_count__wrote_index0: bool;",
+                "var etc_Ingress_reg_pkt_count__last0_value: bv8;",
+                "function etc_Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8(",
+                "  etc_a:bv32, etc_b:bv32, etc_c:bv16, etc_d:bv16, etc_e:bv8",
+                ") returns(bv11);",
+                "assume (etc_hdr.ipv4.src_addr == 167772161bv32);",
+                "assume (etc_hdr.ipv4.dst_addr == 167772162bv32);",
+                "assume (etc_hdr.ipv4.protocol == 6bv8);",
+                "assume (etc_hdr.tcp.src_port == 1234bv16);",
+                "assume (etc_hdr.tcp.dst_port == 443bv16);",
+                "procedure etc_Ingress() {",
+                "  call etc_Ingress_get_register_index(etc_meta.hdr_srcport, etc_meta.hdr_dstport);",
+                "  call etc___ra_ret_Ingress_read_pkt_count := etc_Ingress_read_pkt_count.apply(etc_Ingress_reg_pkt_count[etc_meta.register_index]);",
+                "}",
+                "procedure {:inline 1} etc_Ingress_get_register_index(etc_srcPort_2:bv16, etc_dstPort_2:bv16)",
+                "  modifies etc_meta.register_index;",
+                "{",
+                "  etc_meta.register_index := etc_Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8(",
+                "    etc_hdr.ipv4.src_addr, etc_hdr.ipv4.dst_addr, etc_srcPort_2, etc_dstPort_2, etc_hdr.ipv4.protocol);",
+                "}",
+            ]
+        )
+
+        meta_by_node = {
+            "etc": {
+                "wraparound": {
+                    "deterministic_definitions": [
+                        {
+                            "target_var": "meta.hdr_srcport",
+                            "expr": "hdr.tcp.src_port",
+                            "deps": ["hdr.tcp.src_port"],
+                            "context": "parse_tcp",
+                        },
+                        {
+                            "target_var": "meta.hdr_dstport",
+                            "expr": "hdr.tcp.dst_port",
+                            "deps": ["hdr.tcp.dst_port"],
+                            "context": "parse_tcp",
+                        },
+                    ],
+                    "index_definitions": [
+                        {
+                            "target_var": "meta.register_index",
+                            "expr": (
+                                "Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8("
+                                "hdr.ipv4.src_addr, hdr.ipv4.dst_addr, "
+                                "meta.hdr_srcport, meta.hdr_dstport, hdr.ipv4.protocol)"
+                            ),
+                            "deps": [
+                                "hdr.ipv4.src_addr",
+                                "hdr.ipv4.dst_addr",
+                                "meta.hdr_srcport",
+                                "meta.hdr_dstport",
+                                "hdr.ipv4.protocol",
+                            ],
+                        }
+                    ],
+                    "updates": [
+                        {
+                            "reg": "Ingress_reg_pkt_count",
+                            "value_var": "__ra_ret_Ingress_read_pkt_count",
+                            "op": "add",
+                            "delta_is_const": True,
+                            "delta_const": 1,
+                            "idx_expr": "meta.register_index",
+                        }
+                    ],
+                }
+            }
+        }
+
+        cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=bpl_text, meta_by_node=meta_by_node)
+
+        self.assertTrue(cands)
+        self.assertEqual(cands[0].pump_reg, "etc_Ingress_reg_pkt_count")
+        self.assertIsNone(cands[0].index_value)
+        self.assertEqual(
+            cands[0].index_expr,
+            (
+                "etc_Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8("
+                "167772161bv32, 167772162bv32, 1234bv16, 443bv16, 6bv8)"
+            ),
+        )
+
+    def test_index0_seed_uses_singleton_sliced_register_domain(self) -> None:
+        spec_text = """
+import etc from "etc.p4";
+topology {}
+global {
+  assert {
+    !(etc_Ingress_reg_pkt_len_total__wrote_index0
+      && etc_Ingress_reg_pkt_len_total__last0_value == 0);
+  };
+}
+"""
+
+        bpl_text = "\n".join(
+            [
+                "var etc_hdr.ipv4.src_addr: bv32;",
+                "var etc_hdr.ipv4.dst_addr: bv32;",
+                "var etc_hdr.ipv4.protocol: bv8;",
+                "var etc_meta.hdr_srcport: bv16;",
+                "var etc_meta.hdr_dstport: bv16;",
+                "var etc_meta.register_index: bv11;",
+                "var etc___ra_ret_Ingress_read_pkt_len_total: bv16;",
+                "var etc_Ingress_reg_pkt_len_total: [bv11]bv16;",
+                "var etc_Ingress_reg_pkt_len_total__wrote_index0: bool;",
+                "var etc_Ingress_reg_pkt_len_total__last0_value: bv16;",
+                "const etc_Ingress_reg_pkt_len_total.size:int;",
+                "axiom etc_Ingress_reg_pkt_len_total.size == 1;",
+                "function etc_Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8(",
+                "  etc_a:bv32, etc_b:bv32, etc_c:bv16, etc_d:bv16, etc_e:bv8",
+                ") returns(bv11);",
+                "assume (etc_hdr.ipv4.src_addr == 167772161bv32);",
+                "assume (etc_hdr.ipv4.dst_addr == 167772162bv32);",
+                "assume (etc_hdr.ipv4.protocol == 6bv8);",
+                "assume (etc_meta.hdr_srcport == 1234bv16);",
+                "assume (etc_meta.hdr_dstport == 443bv16);",
+            ]
+        )
+
+        meta_by_node = {
+            "etc": {
+                "wraparound": {
+                    "index_definitions": [
+                        {
+                            "target_var": "meta.register_index",
+                            "expr": (
+                                "Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8("
+                                "hdr.ipv4.src_addr, hdr.ipv4.dst_addr, "
+                                "meta.hdr_srcport, meta.hdr_dstport, hdr.ipv4.protocol)"
+                            ),
+                            "deps": [
+                                "hdr.ipv4.src_addr",
+                                "hdr.ipv4.dst_addr",
+                                "meta.hdr_srcport",
+                                "meta.hdr_dstport",
+                                "hdr.ipv4.protocol",
+                            ],
+                        }
+                    ],
+                    "updates": [
+                        {
+                            "reg": "Ingress_reg_pkt_len_total",
+                            "value_var": "__ra_ret_Ingress_read_pkt_len_total",
+                            "op": "add",
+                            "delta_is_const": True,
+                            "delta_const": 32768,
+                            "idx_expr": "meta.register_index",
+                        }
+                    ],
+                }
+            }
+        }
+
+        cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=bpl_text, meta_by_node=meta_by_node)
+
+        self.assertTrue(cands)
+        self.assertEqual(cands[0].pump_reg, "etc_Ingress_reg_pkt_len_total")
         self.assertEqual(cands[0].index_value, 0)
         self.assertIsNone(cands[0].index_expr)
 

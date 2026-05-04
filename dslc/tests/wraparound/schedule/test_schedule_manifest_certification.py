@@ -166,6 +166,112 @@ class WraparoundScheduleManifestTests(unittest.TestCase):
         }
         self.assertFalse(_manifest_certified_unsafe_data(manifest))
 
+    def test_schedule_manifest_rejects_unstable_array_index_predicate(self) -> None:
+        sched_manifest = _dependency_schedule_manifest_with_predicate()
+        unstable = "flow_id_reg[s1_hdr.foo] == 7bv32"
+        sched_manifest["projection"][-1]["rhs"] = unstable
+        sched_manifest["schedule_id"] = wraparound_cegis.compute_actor_schedule_id(
+            candidate_id=str(sched_manifest["candidate_id"]),
+            target_regs=[str(v) for v in sched_manifest["target_regs"]],
+            index_value=int(sched_manifest["index_value"]),
+            step_delta=int(sched_manifest["step_delta"]),
+            actors=[str(v) for v in sched_manifest["actors"]],
+            projection=list(sched_manifest["projection"]),
+            base_bpl_sha256=sha256_text(_MIN_BPL),
+        )
+        manifest = {
+            "cegar_mode": "schedule_replay",
+            "base_bpl_sha256": sha256_text(_MIN_BPL),
+            "attempts": [
+                {
+                    "cfg": _schedule_cfg(proj_predicates=(unstable,)),
+                    "entry": {"result_line": "RESULT: UNSAFE"},
+                    "near_wrap": {"result_line": "RESULT: UNSAFE"},
+                    "closure": {"result_line": "RESULT: SAFE"},
+                    "schedule": sched_manifest,
+                    "certified": True,
+                }
+            ],
+        }
+        self.assertFalse(_manifest_certified_unsafe_data(manifest))
+
+    def test_schedule_manifest_accepts_literal_array_index_predicate(self) -> None:
+        sched_manifest = _dependency_schedule_manifest_with_predicate()
+        stable = "flow_id_reg[0bv32] == 7bv32"
+        sched_manifest["projection"][-1]["rhs"] = stable
+        sched_manifest["schedule_id"] = wraparound_cegis.compute_actor_schedule_id(
+            candidate_id=str(sched_manifest["candidate_id"]),
+            target_regs=[str(v) for v in sched_manifest["target_regs"]],
+            index_value=int(sched_manifest["index_value"]),
+            step_delta=int(sched_manifest["step_delta"]),
+            actors=[str(v) for v in sched_manifest["actors"]],
+            projection=list(sched_manifest["projection"]),
+            base_bpl_sha256=sha256_text(_MIN_BPL),
+        )
+        manifest = {
+            "cegar_mode": "schedule_replay",
+            "base_bpl_sha256": sha256_text(_MIN_BPL),
+            "attempts": [
+                {
+                    "cfg": _schedule_cfg(proj_predicates=(stable,)),
+                    "entry": {"result_line": "RESULT: UNSAFE"},
+                    "near_wrap": {"result_line": "RESULT: UNSAFE"},
+                    "closure": {"result_line": "RESULT: SAFE"},
+                    "schedule": sched_manifest,
+                    "certified": True,
+                }
+            ],
+        }
+        self.assertTrue(_manifest_certified_unsafe_data(manifest))
+
+    def test_schedule_manifest_requires_expression_projection_entries(self) -> None:
+        sched_manifest = _dependency_schedule_manifest()
+        sched_manifest["projection"] = list(sched_manifest["projection"]) + [
+            {
+                "lhs": "expr:0",
+                "rhs": "flow_id_reg[0bv32]",
+                "kind": "expr",
+                "source": "dependency_projection",
+            }
+        ]
+        sched_manifest["schedule_id"] = wraparound_cegis.compute_actor_schedule_id(
+            candidate_id=str(sched_manifest["candidate_id"]),
+            target_regs=[str(v) for v in sched_manifest["target_regs"]],
+            index_value=int(sched_manifest["index_value"]),
+            step_delta=int(sched_manifest["step_delta"]),
+            actors=[str(v) for v in sched_manifest["actors"]],
+            projection=list(sched_manifest["projection"]),
+            base_bpl_sha256=sha256_text(_MIN_BPL),
+        )
+        manifest = {
+            "cegar_mode": "schedule_replay",
+            "base_bpl_sha256": sha256_text(_MIN_BPL),
+            "attempts": [
+                {
+                    "cfg": _schedule_cfg(),
+                    "entry": {"result_line": "RESULT: UNSAFE"},
+                    "near_wrap": {"result_line": "RESULT: UNSAFE"},
+                    "closure": {"result_line": "RESULT: SAFE"},
+                    "schedule": copy.deepcopy(sched_manifest),
+                    "certified": True,
+                }
+            ],
+        }
+        self.assertFalse(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["cfg"]["proj_exprs"] = ["flow_id_reg[0bv32]"]
+        self.assertTrue(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["schedule"]["projection"][-1]["rhs"] = "flow_id_reg[1bv32]"
+        manifest["attempts"][0]["schedule"]["schedule_id"] = wraparound_cegis.compute_actor_schedule_id(
+            candidate_id=str(sched_manifest["candidate_id"]),
+            target_regs=[str(v) for v in sched_manifest["target_regs"]],
+            index_value=int(sched_manifest["index_value"]),
+            step_delta=int(sched_manifest["step_delta"]),
+            actors=[str(v) for v in sched_manifest["actors"]],
+            projection=list(manifest["attempts"][0]["schedule"]["projection"]),
+            base_bpl_sha256=sha256_text(_MIN_BPL),
+        )
+        self.assertFalse(_manifest_certified_unsafe_data(manifest))
+
     def test_schedule_manifest_requires_explicit_near_wrap(self) -> None:
         sched_manifest = _dependency_schedule_manifest()
         manifest = {

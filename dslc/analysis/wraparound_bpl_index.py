@@ -337,6 +337,10 @@ def _iter_bpl_statements(body_lines: List[str]) -> List[str]:
 def _same_const_env(left: Dict[str, str], right: Dict[str, str]) -> bool:
     return left == right
 
+def _is_simple_literal_expr(expr: str) -> bool:
+    cur = expr.strip()
+    return cur in {"true", "false"} or re.match(r"^-?\d+$", cur) is not None or _RE_BV_LIT.match(cur) is not None
+
 def _eval_simple_assume(expr: str, env: Dict[str, str]) -> Optional[bool]:
     cur = _substitute_tokens(expr.strip(), env)
     cur = cur.strip()
@@ -361,11 +365,66 @@ def _eval_simple_assume(expr: str, env: Dict[str, str]) -> Optional[bool]:
         return None
     m_eq = re.match(r"^(?P<a>\S+)\s*==\s*(?P<b>\S+)$", cur)
     if m_eq:
-        return m_eq.group("a") == m_eq.group("b")
+        a = m_eq.group("a")
+        b = m_eq.group("b")
+        if a == b:
+            return True
+        if _is_simple_literal_expr(a) and _is_simple_literal_expr(b):
+            return False
+        return None
     m_neq = re.match(r"^(?P<a>\S+)\s*!=\s*(?P<b>\S+)$", cur)
     if m_neq:
-        return m_neq.group("a") != m_neq.group("b")
+        a = m_neq.group("a")
+        b = m_neq.group("b")
+        if a == b:
+            return False
+        if _is_simple_literal_expr(a) and _is_simple_literal_expr(b):
+            return True
+        return None
     return None
+
+def _assume_env_after(expr: str, env: Dict[str, str], *, var_types: Dict[str, str]) -> Optional[Dict[str, str]]:
+    val = _eval_simple_assume(expr, env)
+    if val is False:
+        return None
+    if val is True:
+        return dict(env)
+
+    cur = expr.strip()
+    while cur.startswith("(") and cur.endswith(")"):
+        cur = cur[1:-1].strip()
+
+    if "&&" in cur:
+        out = dict(env)
+        for part in cur.split("&&"):
+            out = _assume_env_after(part, out, var_types=var_types)
+            if out is None:
+                return None
+        return out
+
+    m_eq = re.match(r"^(?P<a>\S+)\s*==\s*(?P<b>\S+)$", cur)
+    if not m_eq:
+        return dict(env)
+
+    a = m_eq.group("a")
+    b = m_eq.group("b")
+    lhs_var = a if a in var_types else None
+    rhs_var = b if b in var_types else None
+    if lhs_var is not None and rhs_var is None:
+        value = _literal_value_for_type(b, var_types.get(lhs_var, ""))
+        var = lhs_var
+    elif rhs_var is not None and lhs_var is None:
+        value = _literal_value_for_type(a, var_types.get(rhs_var, ""))
+        var = rhs_var
+    else:
+        return dict(env)
+    if value is None:
+        return dict(env)
+    if var in env and env[var] != value:
+        return None
+    out = dict(env)
+    out[var] = value
+    return out
 
 def _proc_name_prefix(proc: str) -> str:
     if "_" not in proc:
@@ -450,9 +509,9 @@ def _call_args_at_proc_callsite(
 
         ma = _RE_ASSUME_STMT.match(stmt)
         if ma:
-            val = _eval_simple_assume(ma.group("expr"), env)
-            if val is not False:
-                work.append((cur_proc, pc + 1, env, stack))
+            next_env = _assume_env_after(ma.group("expr"), env, var_types=var_types)
+            if next_env is not None:
+                work.append((cur_proc, pc + 1, next_env, stack))
             continue
 
         mc = _RE_CALL_STMT.match(stmt)
@@ -527,12 +586,38 @@ def _derive_consts_before_proc_call(
 
     if not prefix:
         return dict(initial_consts)
-    return _derive_constant_assignment_literals(
-        "\n".join(prefix),
-        var_types=var_types,
-        initial_consts=initial_consts,
-        max_iters=12,
-    )
+
+    env = dict(initial_consts)
+    for stmt in prefix:
+        ma = _RE_ASSUME_STMT.match(stmt)
+        if ma:
+            next_env = _assume_env_after(ma.group("expr"), env, var_types=var_types)
+            if next_env is None:
+                break
+            env = next_env
+            continue
+
+        mh = _RE_HAVOC_STMT.match(stmt)
+        if mh:
+            for lhs in [p.strip() for p in mh.group("vars").split(",")]:
+                env.pop(lhs, None)
+            continue
+
+        m = _RE_ASSIGN_STMT.match(stmt)
+        if m:
+            lhs_parts = [p.strip() for p in m.group("lhs").split(",")]
+            if len(lhs_parts) == 1 and lhs_parts[0] in var_types:
+                lhs = lhs_parts[0]
+                rhs = _substitute_tokens(m.group("rhs").strip(), env)
+                val = _literal_value_for_type(rhs, var_types.get(lhs, ""))
+                if val is not None:
+                    env[lhs] = val
+                elif rhs != lhs:
+                    env.pop(lhs, None)
+            else:
+                for lhs in lhs_parts:
+                    env.pop(lhs, None)
+    return env
 
 def _extract_unique_proc_assignment_to(
     bpl_text: str,
@@ -714,32 +799,112 @@ def _candidate_index_definition_keys(idx_expr_raw: str, idx_expr_pref: str, *, n
         changed = len(keys) != before
     return {k for k in keys if k}
 
-def _derive_index_expr_from_meta_definition(
-    idx_expr_raw: str,
+def _meta_wraparound_definitions(meta: dict) -> List[dict]:
+    wrap = (meta or {}).get("wraparound") or {}
+    out: List[dict] = []
+    for key in ("deterministic_definitions", "index_definitions"):
+        defs = wrap.get(key) or []
+        if isinstance(defs, list):
+            out.extend(item for item in defs if isinstance(item, dict))
+    return out
+
+def _definition_context_aliases(
+    expr: str,
+    item: dict,
+    *,
+    node: str,
+    var_types: Dict[str, str],
+) -> Dict[str, str]:
+    context = item.get("context", "")
+    if not isinstance(context, str) or not context.strip():
+        return {}
+    out: Dict[str, str] = {}
+    for tok in _RE_IDENT.findall(expr):
+        if tok in var_types or tok in {"true", "false"}:
+            continue
+        matches = sorted(
+            name
+            for name in var_types
+            if name.startswith(f"{node}_") and name.endswith(f".{context}.{tok}")
+        )
+        if len(matches) == 1:
+            out[tok] = matches[0]
+    return out
+
+def _derive_stable_meta_definition_map(
+    raw_defs: List[dict],
+    *,
+    node: str,
+    bpl_text: str,
+    var_types: Dict[str, str],
+    root_consts: Dict[str, str],
+    consts: Dict[str, str],
+    declared: Set[str],
+) -> Dict[str, str]:
+    """
+    Compute a conservative fixed point over P4B deterministic/index definitions.
+
+    P4B may describe an index through intermediate metadata, e.g.
+    `meta.register_index = hash(..., meta.hdr_srcport, ...)` and
+    `meta.hdr_srcport = hdr.tcp.src_port`.  A definition becomes usable only
+    when every value dependency resolves to literals or calls over literals.
+    Multiple pure definitions for the same target are treated as ambiguous.
+    """
+
+    stable: Dict[str, str] = {}
+    for _ in range(max(1, len(raw_defs) + 1)):
+        candidates: Dict[str, Set[str]] = {}
+        for item in raw_defs:
+            target = item.get("target_var", item.get("target", ""))
+            expr = item.get("expr", "")
+            if not isinstance(target, str) or not isinstance(expr, str):
+                continue
+            if item.get("ambiguous") is True:
+                continue
+            target_pref = _prefix_expr_with_known_vars(target.strip(), node=node, var_types=var_types)
+            if target_pref not in var_types:
+                continue
+            cur = _prefix_expr_with_known_vars(expr.strip(), node=node, var_types=var_types)
+            cur = _substitute_tokens(
+                cur,
+                _definition_context_aliases(cur, item, node=node, var_types=var_types),
+            )
+            cur = _prefix_callees_with_declared_symbols(cur, node=node, declared=declared)
+            cur = _substitute_tokens(cur, root_consts)
+            cur = _substitute_tokens(cur, consts)
+            cur = _substitute_tokens(
+                cur,
+                {name: value for name, value in stable.items() if name != target_pref},
+            )
+            if _is_preloop_pure_index_expr(cur, var_types=var_types):
+                candidates.setdefault(target_pref, set()).add(cur)
+
+        next_stable = {
+            target: next(iter(values))
+            for target, values in candidates.items()
+            if len(values) == 1
+        }
+        if next_stable == stable:
+            break
+        stable = next_stable
+    return stable
+
+def _derive_stable_expr_from_meta_definition(
+    target_expr_raw: str,
     *,
     node: str,
     meta: dict,
     bpl_text: str,
     var_types: Dict[str, str],
 ) -> Optional[str]:
-    """
-    Prefer P4B's structured index definition meta over Boogie text recovery.
-
-    The P4B definition is emitted in a node-local namespace.  We prefix variables
-    against composed Boogie globals and prefix callee symbols against composed
-    function/procedure declarations.  We only accept a unique pre-loop-pure
-    expression; otherwise callers fall back to the legacy Boogie recovery path.
-    """
-
-    if not isinstance(idx_expr_raw, str) or not idx_expr_raw.strip():
+    if not isinstance(target_expr_raw, str) or not target_expr_raw.strip():
         return None
-    wrap = (meta or {}).get("wraparound") or {}
-    defs = wrap.get("index_definitions") or []
-    if not isinstance(defs, list) or not defs:
+    raw_defs = _meta_wraparound_definitions(meta)
+    if not raw_defs:
         return None
 
-    idx_expr_pref = _prefix_expr_with_known_vars(idx_expr_raw, node=node, var_types=var_types)
-    keys = _candidate_index_definition_keys(idx_expr_raw, idx_expr_pref, node=node)
+    target_expr_pref = _prefix_expr_with_known_vars(target_expr_raw, node=node, var_types=var_types)
+    keys = _candidate_index_definition_keys(target_expr_raw, target_expr_pref, node=node)
     declared = _declared_call_symbols(bpl_text)
 
     bpl_consts = _extract_bpl_constant_literals(bpl_text, var_types=var_types)
@@ -756,23 +921,259 @@ def _derive_index_expr_from_meta_definition(
     # so keep those direct literals available for pre-loop fast-forward.
     consts.update(bpl_consts)
 
-    candidates: Set[str] = set()
-    for item in defs:
+    root_consts: Dict[str, str] = {}
+    for root in _node_roots_for_index_definition(node=node, bpl_text=bpl_text):
+        root_consts.update(
+            _derive_consts_at_proc_entry(
+                bpl_text,
+                proc_name=root,
+                var_types=var_types,
+                initial_consts=bpl_consts,
+            )
+        )
+
+    stable_defs = _derive_stable_meta_definition_map(
+        raw_defs,
+        node=node,
+        bpl_text=bpl_text,
+        var_types=var_types,
+        root_consts=root_consts,
+        consts=consts,
+        declared=declared,
+    )
+    prefixed_keys = {
+        _prefix_expr_with_known_vars(key, node=node, var_types=var_types)
+        for key in keys
+    }
+    candidates: Set[str] = {
+        expr for target, expr in stable_defs.items() if target in prefixed_keys
+    }
+
+    for item in raw_defs:
         if not isinstance(item, dict):
             continue
         target = item.get("target_var", item.get("target", ""))
         expr = item.get("expr", "")
         if not isinstance(target, str) or not isinstance(expr, str):
             continue
+        if item.get("ambiguous") is True:
+            continue
         if target.strip() not in keys:
             continue
         cur = _prefix_expr_with_known_vars(expr.strip(), node=node, var_types=var_types)
+        cur = _substitute_tokens(
+            cur,
+            _definition_context_aliases(cur, item, node=node, var_types=var_types),
+        )
         cur = _prefix_callees_with_declared_symbols(cur, node=node, declared=declared)
+        cur = _substitute_tokens(cur, root_consts)
         cur = _substitute_tokens(cur, consts)
+        cur = _substitute_tokens(
+            cur,
+            {name: value for name, value in stable_defs.items() if name != target_expr_pref},
+        )
         if _is_preloop_pure_index_expr(cur, var_types=var_types):
             candidates.add(cur)
 
     return next(iter(candidates)) if len(candidates) == 1 else None
+
+def _derive_index_expr_from_meta_definition(
+    idx_expr_raw: str,
+    *,
+    node: str,
+    meta: dict,
+    bpl_text: str,
+    var_types: Dict[str, str],
+) -> Optional[str]:
+    """
+    Prefer P4B's structured index/deterministic definition meta over Boogie text recovery.
+
+    The P4B definition is emitted in a node-local namespace.  We prefix variables
+    against composed Boogie globals and prefix callee symbols against composed
+    function/procedure declarations.  We only accept a unique pre-loop-pure
+    expression; otherwise callers fall back to the legacy Boogie recovery path.
+    """
+
+    return _derive_stable_expr_from_meta_definition(
+        idx_expr_raw,
+        node=node,
+        meta=meta,
+        bpl_text=bpl_text,
+        var_types=var_types,
+    )
+
+def _derive_stable_expr_substitutions_from_meta_definitions(
+    *,
+    node: str,
+    meta: dict,
+    bpl_text: str,
+    var_types: Dict[str, str],
+) -> Dict[str, str]:
+    raw_defs = _meta_wraparound_definitions(meta)
+    if not raw_defs:
+        return {}
+
+    bpl_consts = _extract_bpl_constant_literals(bpl_text, var_types=var_types)
+    derived_consts = _derive_constant_assignment_literals(
+        bpl_text,
+        var_types=var_types,
+        initial_consts=bpl_consts,
+        max_iters=12,
+    )
+    consts = dict(derived_consts)
+    consts.update(bpl_consts)
+
+    root_consts: Dict[str, str] = {}
+    for root in _node_roots_for_index_definition(node=node, bpl_text=bpl_text):
+        root_consts.update(
+            _derive_consts_at_proc_entry(
+                bpl_text,
+                proc_name=root,
+                var_types=var_types,
+                initial_consts=bpl_consts,
+            )
+        )
+
+    return _derive_stable_meta_definition_map(
+        raw_defs,
+        node=node,
+        bpl_text=bpl_text,
+        var_types=var_types,
+        root_consts=root_consts,
+        consts=consts,
+        declared=_declared_call_symbols(bpl_text),
+    )
+
+def _node_roots_for_index_definition(*, node: str, bpl_text: str) -> List[str]:
+    prefix = f"{node}_"
+    bodies = _extract_proc_bodies(bpl_text)
+    return [name for name in (f"{prefix}mainProcedure", f"{prefix}main", f"{prefix}pipe") if name in bodies]
+
+def _derive_consts_at_proc_entry(
+    bpl_text: str,
+    *,
+    proc_name: str,
+    var_types: Dict[str, str],
+    initial_consts: Dict[str, str],
+) -> Dict[str, str]:
+    """
+    Derive literals known at the entry of a node-local procedure.
+
+    System harnesses copy env-pinned IO fields into node-local packet/meta
+    globals immediately before invoking the node pipeline.  These constants are
+    valid at the P4 pass boundary even when parser branches later assign the
+    same metadata from packet fields.  This helper follows the harness prefix up
+    to `call proc_name()` and returns that entry environment.
+    """
+
+    bodies = _extract_proc_bodies(bpl_text)
+    roots = [name for name in ("main", "mainProcedure", "ULTIMATE.start") if name in bodies]
+    if not roots:
+        return {}
+
+    labels_by_proc: Dict[str, Dict[str, int]] = {}
+    iter_bodies = {name: _iter_bpl_statements(lines) for name, lines in bodies.items()}
+    for name, stmts in iter_bodies.items():
+        labels_by_proc[name] = {
+            m.group("label"): idx for idx, stmt in enumerate(stmts) if (m := _RE_LABEL_STMT.match(stmt))
+        }
+
+    results: List[Dict[str, str]] = []
+    work: List[Tuple[str, int, Dict[str, str], Tuple[str, ...]]] = [
+        (root, 0, dict(initial_consts), tuple()) for root in roots
+    ]
+    seen: Set[Tuple[str, int, Tuple[Tuple[str, str], ...], Tuple[str, ...]]] = set()
+
+    while work and len(seen) < 4000:
+        cur_proc, pc, env, stack = work.pop()
+        stmts = iter_bodies.get(cur_proc)
+        if stmts is None:
+            continue
+        if pc >= len(stmts):
+            if stack:
+                caller_proc, caller_pc_s = stack[-1].split("@", 1)
+                work.append((caller_proc, int(caller_pc_s), env, stack[:-1]))
+            continue
+        key = (cur_proc, pc, tuple(sorted(env.items())), stack)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        stmt = stmts[pc]
+        if _RE_LABEL_STMT.match(stmt):
+            work.append((cur_proc, pc + 1, env, stack))
+            continue
+        if _RE_RETURN_STMT.match(stmt):
+            if stack:
+                caller_proc, caller_pc_s = stack[-1].split("@", 1)
+                work.append((caller_proc, int(caller_pc_s), env, stack[:-1]))
+            continue
+
+        mg = _RE_GOTO_STMT.match(stmt)
+        if mg:
+            for label in [part.strip() for part in mg.group("labels").split(",")]:
+                target = labels_by_proc.get(cur_proc, {}).get(label)
+                if target is not None:
+                    work.append((cur_proc, target + 1, dict(env), stack))
+            continue
+
+        ma = _RE_ASSUME_STMT.match(stmt)
+        if ma:
+            next_env = _assume_env_after(ma.group("expr"), env, var_types=var_types)
+            if next_env is not None:
+                work.append((cur_proc, pc + 1, next_env, stack))
+            continue
+
+        mc = _RE_CALL_STMT.match(stmt)
+        if mc:
+            callee = mc.group("proc")
+            if callee == proc_name:
+                results.append(dict(env))
+                work.append((cur_proc, pc + 1, env, stack))
+                continue
+            if callee in iter_bodies and len(stack) < 12:
+                work.append((callee, 0, env, stack + (f"{cur_proc}@{pc + 1}",)))
+            else:
+                work.append((cur_proc, pc + 1, env, stack))
+            continue
+
+        m = _RE_ASSIGN_STMT.match(stmt)
+        if m:
+            lhs_parts = [p.strip() for p in m.group("lhs").split(",")]
+            new_env = dict(env)
+            if len(lhs_parts) == 1 and lhs_parts[0] in var_types:
+                lhs = lhs_parts[0]
+                rhs = _substitute_tokens(m.group("rhs").strip(), new_env)
+                val = _literal_value_for_type(rhs, var_types.get(lhs, ""))
+                if val is not None:
+                    new_env[lhs] = val
+                elif rhs != lhs:
+                    new_env.pop(lhs, None)
+            else:
+                for lhs in lhs_parts:
+                    new_env.pop(lhs, None)
+            work.append((cur_proc, pc + 1, new_env, stack))
+            continue
+
+        mh = _RE_HAVOC_STMT.match(stmt)
+        if mh:
+            new_env = dict(env)
+            for lhs in [p.strip() for p in mh.group("vars").split(",")]:
+                new_env.pop(lhs, None)
+            work.append((cur_proc, pc + 1, new_env, stack))
+            continue
+
+        work.append((cur_proc, pc + 1, env, stack))
+
+    if not results:
+        return {}
+    keys = set().union(*(env.keys() for env in results))
+    out: Dict[str, str] = {}
+    for key in keys:
+        vals = {env.get(key) for env in results}
+        if len(vals) == 1 and None not in vals:
+            out[key] = next(iter(vals))  # type: ignore[arg-type]
+    return out
 
 def _bv_width(typ: Optional[str]) -> Optional[int]:
     if typ is None:
@@ -812,7 +1213,6 @@ def _maybe_eval_index_expr_to_constant(
     if var_val < 0 or var_val >= (1 << var_w):
         return None
     return (prefix_val << var_w) | var_val
-
 def _resolve_prefixed_name(name: str, *, node: str, var_types: Dict[str, str]) -> str:
     """
     Map an unprefixed P4B name to the composed Boogie name.

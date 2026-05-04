@@ -37,7 +37,9 @@ from .wraparound_stages import (
     _emit_local_decls,
     _emit_pump_error_proc,
     _emit_step_block,
+    _emit_target_slot_assumes,
     _emit_gated_assert_wrapper_proc,
+    _collect_zero_initialized_register_arrays,
     _rewrite_forall_bv32_array_inits,
     _rewrite_asserts_as_calls,
     _strip_debug_snapshot_for_pump,
@@ -123,6 +125,82 @@ def _emit_extra_assumes(extra_assumes: Sequence[str], *, indent: str) -> list[st
                 s = s[:-1].strip()
             out.append(f"{indent}assume({s});\n")
     return out
+
+
+def _ensure_procedure_modifies(
+    lines: list[str],
+    *,
+    proc_idx: int,
+    vars_to_add: Sequence[str],
+) -> int:
+    """Ensure a procedure declaration's modifies clause covers injected writes."""
+
+    needed = sorted({v for v in vars_to_add if v})
+    if not needed:
+        return 0
+
+    header_end = proc_idx
+    while header_end < len(lines) and "{" not in lines[header_end]:
+        header_end += 1
+    if header_end >= len(lines):
+        return 0
+
+    modifies_idx: Optional[int] = None
+    for i in range(proc_idx + 1, header_end + 1):
+        if re.match(r"^\s*modifies\b", lines[i]):
+            modifies_idx = i
+            break
+
+    if modifies_idx is None:
+        indent = "  "
+        lines.insert(header_end, f"{indent}modifies {', '.join(needed)};\n")
+        return 1
+
+    end_idx = modifies_idx
+    while end_idx <= header_end and ";" not in lines[end_idx]:
+        end_idx += 1
+    if end_idx > header_end:
+        return 0
+
+    clause = "".join(lines[modifies_idx : end_idx + 1])
+    m = re.match(r"^(?P<indent>\s*)modifies\s+(?P<body>.*?);\s*$", clause, flags=re.DOTALL)
+    if not m:
+        return 0
+    items = [p.strip() for p in re.split(r",", m.group("body")) if p.strip()]
+    merged = sorted(set(items).union(needed))
+    lines[modifies_idx : end_idx + 1] = [f"{m.group('indent')}modifies {', '.join(merged)};\n"]
+    return 1 - (end_idx - modifies_idx + 1)
+
+
+def _wraparound_fast_forward_modifies(cfg: WraparoundConfig, var_types: dict[str, str]) -> list[str]:
+    out: list[str] = []
+    for t in cfg.accel_targets:
+        out.append(t.reg_var)
+        for suffix in (
+            "__last_index",
+            "__last_value",
+            "__wrote_any",
+            "__wrote_index0",
+            "__last0_value",
+        ):
+            v = f"{t.reg_var}{suffix}"
+            if v in var_types:
+                out.append(v)
+    return out
+
+
+def _ensure_top_level_modifies_for_mainprocedure_call(
+    lines: list[str],
+    *,
+    vars_to_add: Sequence[str],
+) -> None:
+    try:
+        start_idx, _start_open, _start_close = _find_procedure_block(
+            [ln.rstrip("\n") for ln in lines], _RE_PROC_ULTIMATE_START
+        )
+    except WraparoundTransformError:
+        return
+    _ensure_procedure_modifies(lines, proc_idx=start_idx, vars_to_add=vars_to_add)
 
 
 def _reassert_simple_equalities_after_havoc(
@@ -214,11 +292,14 @@ def instrument_bpl_text(
     index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
     proj_predicates: Optional[Sequence[str]] = None,
+    proj_exprs: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
     step_op: str = "add",
     step_delta: int = 1,
     extra_assumes: Optional[Sequence[str]] = None,
     closure_unroll_steps: Optional[int] = None,
+    entry_check_insertion: str = "pre_loop",
+    confirm_insertion_marker: Optional[str] = None,
 ) -> str:
     lines = bpl_text.splitlines(keepends=True)
     no_nl_lines = [ln.rstrip("\n") for ln in lines]
@@ -239,9 +320,53 @@ def instrument_bpl_text(
         # intentionally does not.
         _strip_other_asserts_for_pump(lines)
         _strip_debug_snapshot_for_pump(lines)
-        # Locate mainProcedure and inject extra assumes + entry error after the
-        # initialization prefix but before the unbounded/bounded scheduler loop.
+
+        if entry_check_insertion not in {"pre_loop", "tail"}:
+            raise WraparoundTransformError(f"unknown ENTRY_CHECK insertion mode: {entry_check_insertion}")
+
+        # Locate mainProcedure and inject extra assumes + entry error.  The
+        # default `pre_loop` mode is the historical cheap gate.  Schedule-replay
+        # may use `tail` after a bounded prefix has already been unrolled; in
+        # that case the cutpoint is checked at the end of the finite prefix.
         _, mp_open, _mp_close = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN)
+        if entry_check_insertion == "tail":
+            cfg = analyze_bpl_for_wraparound(
+                bpl_text="".join(lines),
+                pump_reg=pump_reg,
+                accel_regs=accel_regs,
+                index_value=index_value,
+                index_expr=index_expr,
+                proj_vars=proj_vars,
+                proj_predicates=proj_predicates,
+                proj_exprs=proj_exprs,
+                cutpoint_cond=cutpoint_cond,
+                step_op=step_op,
+                step_delta=step_delta,
+                stage=stage,
+            )
+            marker_idx = None
+            for i in range(mp_open + 1, _mp_close + 1):
+                if _CLOSURE_UNROLL_MARKER_PREFIX in lines[i]:
+                    marker_idx = i
+                    break
+            if marker_idx is not None:
+                zero_init_regs = _collect_zero_initialized_register_arrays(lines[mp_open + 1 : marker_idx])
+                slot_assumes = _emit_target_slot_assumes(var_types, cfg, zero_init_regs=zero_init_regs)
+                if slot_assumes:
+                    lines.insert(marker_idx, slot_assumes)
+                    _mp_close += 1
+
+            insert_at = _mp_close
+            indent = "  "
+            if extra_assumes:
+                assume_lines = _emit_extra_assumes(extra_assumes, indent=indent)
+                lines[insert_at:insert_at] = assume_lines
+                insert_at += len(assume_lines)
+            lines[insert_at:insert_at] = [f"{indent}call {_ENTRY_ERROR_PROC}();\n"]
+            _rewrite_forall_bv32_array_inits(lines)
+            lines.append(_emit_entry_error_proc())
+            return "".join(lines)
+
         insert_at = mp_open + 1
         for i in range(mp_open + 1, _mp_close + 1):
             if _is_mainprocedure_loop_header(lines[i]):
@@ -249,10 +374,10 @@ def instrument_bpl_text(
                 break
         indent = re.match(r"^(\s*)", lines[insert_at]).group(1) if insert_at < len(lines) else "  "  # type: ignore[union-attr]
         if extra_assumes:
-            lines[insert_at:insert_at] = _emit_extra_assumes(extra_assumes, indent=indent)
-            insert_at += len(extra_assumes)
+            assume_lines = _emit_extra_assumes(extra_assumes, indent=indent)
+            lines[insert_at:insert_at] = assume_lines
+            insert_at += len(assume_lines)
             _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
-
         lines[insert_at:insert_at] = [f"{indent}call {_ENTRY_ERROR_PROC}();\n"]
         # Performance: eliminate heavy quantified register initializations when safe.
         #
@@ -295,6 +420,7 @@ def instrument_bpl_text(
             index_expr=index_expr,
             proj_vars=proj_vars,
             proj_predicates=proj_predicates,
+            proj_exprs=proj_exprs,
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
@@ -367,7 +493,7 @@ def instrument_bpl_text(
             lines[insert_at:insert_at] = _emit_extra_assumes(extra_assumes, indent=indent)
             _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
         # Performance: eliminate heavy quantified register initializations when safe.
-        _rewrite_forall_bv32_array_inits(lines)
+        _rewrite_forall_bv32_array_inits(lines, use_assume_bounds=True)
         _drop_remaining_forall_array_inits_for_closure(lines)
         _rewrite_asserts_as_calls(lines)
         lines.append(_emit_assert_wrapper_proc())
@@ -399,13 +525,14 @@ def instrument_bpl_text(
             index_expr=index_expr,
             proj_vars=proj_vars,
             proj_predicates=proj_predicates,
+            proj_exprs=proj_exprs,
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
             stage=stage,
         )
 
-        enable_init = _emit_confirm_init(var_types, cfg)
+        fast_forward_modifies = _wraparound_fast_forward_modifies(cfg, var_types)
         target_read = (
             cfg.pump_target.last0_value_var
             if cfg.pump_target.use_last0_value
@@ -417,7 +544,15 @@ def instrument_bpl_text(
         _strip_debug_snapshot_for_pump(lines)
 
         # Only supported for sequential harnesses (mainProcedure loop).
-        _, body_open_idx, body_close_idx = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN)
+        proc_idx, body_open_idx, body_close_idx = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN)
+        body_shift = _ensure_procedure_modifies(
+            lines,
+            proc_idx=proc_idx,
+            vars_to_add=fast_forward_modifies,
+        )
+        _ensure_top_level_modifies_for_mainprocedure_call(lines, vars_to_add=fast_forward_modifies)
+        body_open_idx += body_shift
+        body_close_idx += body_shift
         while_idx = None
         for i in range(body_open_idx + 1, body_close_idx + 1):
             if _is_mainprocedure_loop_header(lines[i]):
@@ -427,6 +562,8 @@ def instrument_bpl_text(
             raise WraparoundTransformError(
                 "mainProcedure loop not found (expected while(true) or while (procurator_step < ...))"
             )
+        zero_init_regs = _collect_zero_initialized_register_arrays(lines[body_open_idx + 1 : while_idx])
+        enable_init = _emit_confirm_init(var_types, cfg, zero_init_regs=zero_init_regs)
 
         # ENABLE_CHECK is a *satisfiability* query: we want to know whether the
         # accelerated counter can ever leave MAX within the given unroll bound.
@@ -490,6 +627,19 @@ def instrument_bpl_text(
         return "".join(lines)
 
     if stage == WraparoundStage.CONFIRM:
+        confirm_active_var = "__wraparound_confirm_active"
+        if confirm_insertion_marker is not None:
+            marker = str(confirm_insertion_marker).strip()
+            if not marker:
+                raise WraparoundTransformError("empty confirm insertion marker")
+            if not any(re.match(rf"^\s*var\s+{re.escape(confirm_active_var)}\s*:\s*bool\s*;\s*$", ln) for ln in lines):
+                insert_var_at = 0
+                while insert_var_at < len(lines) and lines[insert_var_at].strip().startswith(("type ", "function ")):
+                    insert_var_at += 1
+                lines.insert(insert_var_at, f"var {confirm_active_var}: bool;\n")
+                no_nl_lines = [ln.rstrip("\n") for ln in lines]
+                var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])
+
         cfg = analyze_bpl_for_wraparound(
             bpl_text=bpl_text,
             pump_reg=pump_reg,
@@ -498,24 +648,95 @@ def instrument_bpl_text(
             index_expr=index_expr,
             proj_vars=proj_vars,
             proj_predicates=proj_predicates,
+            proj_exprs=proj_exprs,
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
             stage=stage,
         )
 
-        confirm_block = _emit_confirm_init(var_types, cfg)
+        fast_forward_modifies = _wraparound_fast_forward_modifies(cfg, var_types)
         target_read = (
             cfg.pump_target.last0_value_var
             if cfg.pump_target.use_last0_value
             else f"{cfg.pump_target.reg_var}[{cfg.pump_target.index_expr}]"
         )
 
-        # Try sequential harness first (mainProcedure + while(true)).
-        try:
-            _, body_open_idx, body_close_idx = _find_procedure_block(
+        if confirm_insertion_marker is not None:
+            proc_idx, body_open_idx, body_close_idx = _find_procedure_block(
                 [ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN
             )
+            body_shift = _ensure_procedure_modifies(
+                lines,
+                proc_idx=proc_idx,
+                vars_to_add=[confirm_active_var, *fast_forward_modifies],
+            )
+            _ensure_top_level_modifies_for_mainprocedure_call(
+                lines,
+                vars_to_add=[confirm_active_var, *fast_forward_modifies],
+            )
+            proc_idx, body_open_idx, body_close_idx = _find_procedure_block(
+                [ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN
+            )
+            marker_idx = None
+            for i in range(body_open_idx + 1, body_close_idx + 1):
+                if marker in lines[i]:
+                    marker_idx = i
+                    break
+            if marker_idx is None:
+                raise WraparoundTransformError(f"confirm insertion marker not found: {marker}")
+            unroll_marker_idx = None
+            for i in range(body_open_idx + 1, body_close_idx + 1):
+                if _CLOSURE_UNROLL_MARKER_PREFIX in lines[i]:
+                    unroll_marker_idx = i
+                    break
+            if unroll_marker_idx is not None:
+                indent0 = re.match(r"^(\s*)", lines[unroll_marker_idx]).group(1)  # type: ignore[union-attr]
+                lines.insert(unroll_marker_idx, f"{indent0}{confirm_active_var} := false;\n")
+                if unroll_marker_idx <= marker_idx:
+                    marker_idx += 1
+            # The finite prefix may have initialized guard/flow registers at
+            # the selected cutpoint.  Do not re-assert initial zero defaults
+            # after that prefix; doing so can contradict the reached cutpoint.
+            confirm_block = _emit_confirm_init(var_types, cfg, zero_init_regs=())
+            confirm_block += f"  {confirm_active_var} := true;\n"
+            insert_at = marker_idx + 1
+            indent = re.match(r"^(\s*)", lines[insert_at]).group(1) if insert_at < len(lines) else "  "  # type: ignore[union-attr]
+            prefix_block: list[str] = []
+            if extra_assumes:
+                prefix_block.extend(_emit_extra_assumes(extra_assumes, indent=indent))
+            prefix_block.append(confirm_block)
+            lines[insert_at:insert_at] = prefix_block
+            _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes or ())
+            if var_types.get("dsl_pump_mode") == "bool":
+                # The fast-forwarded suffix should use the pumping packet shape.
+                lines.insert(insert_at + len(prefix_block), f"{indent}dsl_pump_mode := true;\n")
+            pump_mode_var = _find_two_phase_pump_mode_var(var_types)
+            if pump_mode_var:
+                _drive_two_phase_pump_mode_in_mainprocedure(
+                    lines,
+                    pump_mode_var=pump_mode_var,
+                    target_read=target_read,
+                    max_expr=cfg.pump_target.max_elem_expr,
+                )
+            _rewrite_forall_bv32_array_inits(lines)
+            _rewrite_asserts_as_calls(lines)
+            lines.append(_emit_gated_assert_wrapper_proc(var_types, cfg, active_var=confirm_active_var))
+            return "".join(lines)
+
+        # Try sequential harness first (mainProcedure + while(true)).
+        try:
+            proc_idx, body_open_idx, body_close_idx = _find_procedure_block(
+                [ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN
+            )
+            body_shift = _ensure_procedure_modifies(
+                lines,
+                proc_idx=proc_idx,
+                vars_to_add=fast_forward_modifies,
+            )
+            _ensure_top_level_modifies_for_mainprocedure_call(lines, vars_to_add=fast_forward_modifies)
+            body_open_idx += body_shift
+            body_close_idx += body_shift
             while_idx = None
             for i in range(body_open_idx + 1, body_close_idx + 1):
                 if _is_mainprocedure_loop_header(lines[i]):
@@ -525,16 +746,45 @@ def instrument_bpl_text(
                 raise WraparoundTransformError(
                     "mainProcedure loop not found (expected while(true) or while (procurator_step < ...))"
                 )
+            zero_init_regs = _collect_zero_initialized_register_arrays(lines[body_open_idx + 1 : while_idx])
+            confirm_block = _emit_confirm_init(var_types, cfg, zero_init_regs=zero_init_regs)
+            if confirm_insertion_marker is not None:
+                confirm_block += f"  {confirm_active_var} := true;\n"
+                _ensure_procedure_modifies(
+                    lines,
+                    proc_idx=proc_idx,
+                    vars_to_add=[confirm_active_var],
+                )
+                _ensure_top_level_modifies_for_mainprocedure_call(lines, vars_to_add=[confirm_active_var])
             # Inject existence constraints before the confirm stage so they apply to the
             # whole loop execution.
-            if extra_assumes:
+            if extra_assumes and confirm_insertion_marker is None:
                 indent = re.match(r"^(\s*)", lines[while_idx]).group(1) if while_idx < len(lines) else "  "  # type: ignore[union-attr]
                 assume_lines = _emit_extra_assumes(extra_assumes, indent=indent)
                 lines[while_idx:while_idx] = assume_lines
                 while_idx += len(assume_lines)
                 _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
 
-            lines.insert(while_idx, confirm_block)
+            if confirm_insertion_marker is None:
+                lines.insert(while_idx, confirm_block)
+            else:
+                _, body_open_idx, body_close_idx = _find_procedure_block(
+                    [ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN
+                )
+                marker_idx = None
+                for i in range(body_open_idx + 1, body_close_idx + 1):
+                    if marker in lines[i]:
+                        marker_idx = i
+                        break
+                if marker_idx is None:
+                    raise WraparoundTransformError(f"confirm insertion marker not found: {marker}")
+                indent = re.match(r"^(\s*)", lines[marker_idx]).group(1) if marker_idx < len(lines) else "  "  # type: ignore[union-attr]
+                prefix_block = [f"{indent}{confirm_active_var} := false;\n"]
+                if extra_assumes:
+                    prefix_block.extend(_emit_extra_assumes(extra_assumes, indent=indent))
+                prefix_block.append(confirm_block)
+                lines[marker_idx:marker_idx] = prefix_block
+                _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes or ())
 
             # If the spec uses a two-phase env script (`dsl_pump_mode`), drive it from the
             # current value of the pumped register:
@@ -573,7 +823,13 @@ def instrument_bpl_text(
             # Performance: eliminate heavy quantified register initializations when safe.
             _rewrite_forall_bv32_array_inits(lines)
             _rewrite_asserts_as_calls(lines)
-            lines.append(_emit_gated_assert_wrapper_proc(cfg))
+            lines.append(
+                _emit_gated_assert_wrapper_proc(
+                    var_types,
+                    cfg,
+                    active_var=confirm_active_var if confirm_insertion_marker is not None else None,
+                )
+            )
             return "".join(lines)
         except WraparoundTransformError:
             # Fall back to concurrent harness patching.
@@ -584,11 +840,35 @@ def instrument_bpl_text(
             except WraparoundTransformError:
                 _rewrite_forall_bv32_array_inits(lines)
                 _rewrite_asserts_as_calls(lines)
-                lines.append(_emit_gated_assert_wrapper_proc(cfg))
+                lines.append(_emit_gated_assert_wrapper_proc(var_types, cfg))
                 return "".join(lines)
 
         # Concurrent harness: patch ULTIMATE.start before spawning threads.
-        _, body_open_idx, body_close_idx = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_ULTIMATE_START)
+        proc_idx, body_open_idx, body_close_idx = _find_procedure_block([ln.rstrip("\n") for ln in lines], _RE_PROC_ULTIMATE_START)
+        body_shift = _ensure_procedure_modifies(
+            lines,
+            proc_idx=proc_idx,
+            vars_to_add=fast_forward_modifies,
+        )
+        if confirm_insertion_marker is not None:
+            try:
+                main_proc_idx, _main_open, _main_close = _find_procedure_block(
+                    [ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN
+                )
+                _ensure_procedure_modifies(
+                    lines,
+                    proc_idx=main_proc_idx,
+                    vars_to_add=[confirm_active_var, *fast_forward_modifies],
+                )
+                _ensure_procedure_modifies(
+                    lines,
+                    proc_idx=proc_idx,
+                    vars_to_add=[confirm_active_var],
+                )
+            except WraparoundTransformError:
+                pass
+        body_open_idx += body_shift
+        body_close_idx += body_shift
 
         insert_idx = None
         for i in range(body_open_idx + 1, body_close_idx + 1):
@@ -607,14 +887,37 @@ def instrument_bpl_text(
             # harness executes.
             insert_idx = body_open_idx + 1
 
-        if extra_assumes:
+        zero_init_regs = _collect_zero_initialized_register_arrays(lines[body_open_idx + 1 : insert_idx])
+        confirm_block = _emit_confirm_init(var_types, cfg, zero_init_regs=zero_init_regs)
+
+        if extra_assumes and confirm_insertion_marker is None:
             indent = re.match(r"^(\s*)", lines[insert_idx]).group(1) if insert_idx < len(lines) else "  "  # type: ignore[union-attr]
             assume_lines = _emit_extra_assumes(extra_assumes, indent=indent)
             lines[insert_idx:insert_idx] = assume_lines
             insert_idx += len(assume_lines)
             _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
 
-        lines.insert(insert_idx, confirm_block)
+        if confirm_insertion_marker is None:
+            lines.insert(insert_idx, confirm_block)
+        else:
+            _, body_open_idx, body_close_idx = _find_procedure_block(
+                [ln.rstrip("\n") for ln in lines], _RE_PROC_MAIN
+            )
+            marker_idx = None
+            for i in range(body_open_idx + 1, body_close_idx + 1):
+                if marker in lines[i]:
+                    marker_idx = i
+                    break
+            if marker_idx is None:
+                raise WraparoundTransformError(f"confirm insertion marker not found: {marker}")
+            indent = re.match(r"^(\s*)", lines[marker_idx]).group(1) if marker_idx < len(lines) else "  "  # type: ignore[union-attr]
+            prefix_block = [f"{indent}{confirm_active_var} := false;\n"]
+            if extra_assumes:
+                prefix_block.extend(_emit_extra_assumes(extra_assumes, indent=indent))
+            prefix_block.append(confirm_block)
+            prefix_block.append(f"{indent}{confirm_active_var} := true;\n")
+            lines[marker_idx:marker_idx] = prefix_block
+            _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes or ())
 
         # Two-phase env script (`dsl_pump_mode`) support for deterministic-scheduler
         # harnesses that inline everything into mainProcedure (no `procedure main()`).
@@ -630,7 +933,13 @@ def instrument_bpl_text(
         # Performance: eliminate heavy quantified register initializations when safe.
         _rewrite_forall_bv32_array_inits(lines)
         _rewrite_asserts_as_calls(lines)
-        lines.append(_emit_gated_assert_wrapper_proc(cfg))
+        lines.append(
+            _emit_gated_assert_wrapper_proc(
+                var_types,
+                cfg,
+                active_var=confirm_active_var if confirm_insertion_marker is not None else None,
+            )
+        )
         return "".join(lines)
 
     cfg = analyze_bpl_for_wraparound(
@@ -641,6 +950,7 @@ def instrument_bpl_text(
         index_expr=index_expr,
         proj_vars=proj_vars,
         proj_predicates=proj_predicates,
+        proj_exprs=proj_exprs,
         cutpoint_cond=cutpoint_cond,
         step_op=step_op,
         step_delta=step_delta,
@@ -735,6 +1045,7 @@ def instrument_bpl_file(
     index_expr: Optional[str] = None,
     proj_vars: Optional[Sequence[str]] = None,
     proj_predicates: Optional[Sequence[str]] = None,
+    proj_exprs: Optional[Sequence[str]] = None,
     cutpoint_cond: Optional[str] = None,
     step_op: str = "add",
     step_delta: int = 1,
@@ -749,6 +1060,7 @@ def instrument_bpl_file(
         index_expr=index_expr,
         proj_vars=proj_vars,
         proj_predicates=proj_predicates,
+        proj_exprs=proj_exprs,
         cutpoint_cond=cutpoint_cond,
         step_op=step_op,
         step_delta=step_delta,

@@ -65,6 +65,44 @@ def _emit_inline_reg_write(var_types: Dict[str, str], t: WraparoundTarget, *, va
 
     return "".join(lines)
 
+
+def _emit_target_slot_assumes(
+    var_types: Dict[str, str],
+    cfg: WraparoundConfig,
+    *,
+    zero_init_regs: Sequence[str],
+) -> str:
+    """
+    Materialize point facts for dynamic wraparound indices.
+
+    System harnesses initialize registers with quantified defaults.  For dynamic
+    indices like `hash(constants...)`, the existential near-wrap stage can spend
+    most of its time rediscovering that the non-target registers are zero at the
+    same slot.  These assumptions are redundant with the initialization, so they
+    do not change the set of executions; they only give the solver local facts at
+    the slot we are about to fast-forward.
+    """
+
+    target_by_reg = {t.reg_var for t in cfg.accel_targets}
+    idx = cfg.pump_target.index_expr
+    lines: List[str] = []
+    for name in sorted(set(zero_init_regs)):
+        if name in target_by_reg:
+            continue
+        typ = var_types.get(name)
+        if not typ:
+            continue
+        m = re.match(r"^\s*\[\s*bv(?P<idx_w>\d+)\s*\]\s*bv(?P<elem_w>\d+)\s*$", typ)
+        if not m:
+            continue
+        if int(m.group("idx_w")) != cfg.pump_target.index_width:
+            continue
+        lines.append(f"  assume {name}[{idx}] == 0bv{m.group('elem_w')};\n")
+    if not lines:
+        return ""
+    return "  // wraparound dynamic-index slot defaults (generated)\n" + "".join(lines) + "\n"
+
+
 def _step_update_expr(cfg: WraparoundConfig, x_expr: str) -> str:
     p = cfg.pump_target
     if cfg.step_op == "add":
@@ -141,6 +179,11 @@ def _emit_closure_local_decls(var_types: Dict[str, str], cfg: WraparoundConfig) 
         lines.append(f"  var {local}: {t};\n")
     for i, _pred in enumerate(cfg.proj_predicates):
         lines.append(f"  var wrap_closure_pred_{i}: bool;\n")
+    for i, expr in enumerate(cfg.proj_exprs):
+        typ = _infer_projection_expr_type(expr, var_types)
+        if not typ:
+            continue
+        lines.append(f"  var wrap_closure_expr_{i}: {typ};\n")
     lines.append("\n")
     return "".join(lines)
 
@@ -178,6 +221,10 @@ def _emit_closure_setup(var_types: Dict[str, str], cfg: WraparoundConfig) -> str
         lines.append(f"  {local} := {v};\n")
     for i, pred in enumerate(cfg.proj_predicates):
         lines.append(f"  wrap_closure_pred_{i} := ({pred});\n")
+    for i, expr in enumerate(cfg.proj_exprs):
+        if not _infer_projection_expr_type(expr, var_types):
+            continue
+        lines.append(f"  wrap_closure_expr_{i} := {expr};\n")
     lines.append("\n")
     return "".join(lines)
 
@@ -199,6 +246,8 @@ def _emit_closure_asserts(cfg: WraparoundConfig) -> str:
         cond_terms.append(f"({v} == {local})")
     for i, pred in enumerate(cfg.proj_predicates):
         cond_terms.append(f"(({pred}) == wrap_closure_pred_{i})")
+    for i, expr in enumerate(cfg.proj_exprs):
+        cond_terms.append(f"({expr} == wrap_closure_expr_{i})")
     for t in cfg.accel_targets:
         target_read = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
         local = f"wrap_closure_after_{_sanitize_local(t.reg_var)}"
@@ -210,6 +259,20 @@ def _emit_closure_asserts(cfg: WraparoundConfig) -> str:
     lines.append(f"  call __wraparound_closure_assert_all({cond_expr});\n")
     lines.append("\n")
     return "".join(lines)
+
+
+def _infer_projection_expr_type(expr: str, var_types: Dict[str, str]) -> Optional[str]:
+    m = re.match(r"^\s*(?P<array>[A-Za-z_][A-Za-z0-9_.]*)\s*\[.+\]\s*$", expr or "")
+    if not m:
+        return None
+    typ = var_types.get(m.group("array"))
+    if not typ:
+        return None
+    mt = re.match(r"^\s*\[\s*bv\d+\s*\]\s*(?P<elem>.+?)\s*$", typ)
+    if not mt:
+        return None
+    elem = mt.group("elem").strip()
+    return elem or None
 
 
 def _emit_closure_assert_wrapper_procs(cfg: WraparoundConfig) -> str:
@@ -415,26 +478,80 @@ def _normalize_boogie_expr(expr: str) -> str:
     return re.sub(r"\s+", "", expr)
 
 
-def _infer_reg_bv32_index_upper_bound(lines: Sequence[str], reg_var: str) -> Optional[int]:
+def _infer_reg_bv32_index_upper_bound(
+    lines: Sequence[str],
+    reg_var: str,
+    index_width: int = 32,
+    *,
+    use_assume_bounds: bool = False,
+) -> Optional[int]:
     write_pat = re.compile(rf"\bcall\s+{re.escape(reg_var)}\.write\(\s*(?P<idx>[^,]+?)\s*,")
     read_pat = re.compile(rf"\b{re.escape(reg_var)}\.read\(\s*{re.escape(reg_var)}\s*,\s*(?P<idx>[^)]+?)\s*\)")
+    array_access_pat = re.compile(rf"\b{re.escape(reg_var)}\[\s*(?P<idx>[^\]]+?)\s*\]")
+
+    read_callee = f"{reg_var}.read"
+    write_callee = f"{reg_var}.write"
+    reg_externs = (read_callee, write_callee)
+
+    def _declared_proc_or_function_name(raw: str) -> Optional[str]:
+        stripped = raw.strip()
+        m = re.match(
+            r"^(?:procedure|function)(?:\s+\{:[^}]*\})*\s*(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*\(",
+            stripped,
+        )
+        if not m:
+            return None
+        return m.group("name")
+
+    def _starts_reg_extern_body(raw: str) -> bool:
+        return _declared_proc_or_function_name(raw) in reg_externs
+
+    def _body_brace_delta(raw: str) -> Tuple[int, bool]:
+        without_attrs = re.sub(r"\{:[^}]*\}", "", raw)
+        return without_attrs.count("{") - without_attrs.count("}"), ("{" in without_attrs)
 
     idx_exprs: set[str] = set()
+    skipping_unused_body = False
+    skip_depth = 0
+    skip_seen_open = False
     for ln in lines:
+        stripped = ln.strip()
+        if skipping_unused_body:
+            delta, has_open = _body_brace_delta(ln)
+            skip_depth += delta
+            skip_seen_open = skip_seen_open or has_open
+            if skip_seen_open and skip_depth <= 0:
+                skipping_unused_body = False
+                skip_seen_open = False
+            continue
+        if _starts_reg_extern_body(ln):
+            skipping_unused_body = True
+            skip_depth, skip_seen_open = _body_brace_delta(ln)
+            if skip_seen_open and skip_depth <= 0:
+                skipping_unused_body = False
+                skip_seen_open = False
+            continue
+        if _RE_ASSUME_FORALL_BV32_INIT.match(stripped) or _RE_ASSUME_FORALL_BV32_INIT_EXCEPT.match(stripped):
+            continue
         m = write_pat.search(ln)
         if m:
             idx_exprs.add(m.group("idx").strip())
         for m in read_pat.finditer(ln):
             idx_exprs.add(m.group("idx").strip())
+        for m in array_access_pat.finditer(ln):
+            idx_exprs.add(m.group("idx").strip())
 
     if not idx_exprs:
         return None
 
-    # Collect candidate index upper bounds from *assumptions*.
+    # Optionally collect candidate index upper bounds from *assumptions*.
     #
-    # Correctness note: do NOT infer bounds from guards in `if (...)` conditions.
-    # Those are not guaranteed and using them here would make quantified-init
-    # elimination unsound (could introduce spurious counterexamples).
+    # Correctness note: this is disabled by default because a textual `assume`
+    # may be path-local or procedure-local and not dominate every register
+    # access. Existential stages (direct, ENTRY, CONFIRM, focused) must not use
+    # such bounds, or quantified-init elimination could introduce spurious
+    # UNSAFE witnesses. CLOSURE_CHECK may opt in because dropping initialization
+    # facts over-approximates the closure state and SAFE remains conservative.
 
     def _strip_wrapping_parens(expr: str) -> str:
         s = expr.strip()
@@ -464,114 +581,115 @@ def _infer_reg_bv32_index_upper_bound(lines: Sequence[str], reg_var: str) -> Opt
         except Exception:
             return None
 
-    # Maps from normalized expression -> numeric upper bound.
-    bv16_bounds: Dict[str, int] = {}
-    bv32_bounds: Dict[str, int] = {}
+    # Maps bitvector width -> normalized expression -> numeric upper bound.
+    bounds_by_width: Dict[int, Dict[str, int]] = {}
 
-    def _add_bound(dst: Dict[str, int], expr: str, bound: int) -> None:
+    def _add_bound(width: int, expr: str, bound: int) -> None:
+        dst = bounds_by_width.setdefault(int(width), {})
         key = _normalize_boogie_expr(expr)
         prev = dst.get(key)
         if prev is None or bound > prev:
             dst[key] = int(bound)
 
-    bule16_pat = re.compile(
-        r"\bbule\.bv16(?:\$builtin)?\(\s*(?P<a>[^,]+?)\s*,\s*(?P<b>\d+)bv16\s*\)"
-    )
-    bule32_pat = re.compile(
-        r"\bbule\.bv32(?:\$builtin)?\(\s*(?P<a>[^,]+?)\s*,\s*(?P<b>\d+)bv32\s*\)"
+    bule_pat = re.compile(
+        r"\b(?:bvule|bule)\.bv(?P<width>\d+)(?:\$builtin)?\(\s*(?P<a>[^,]+?)\s*,\s*"
+        r"(?P<b>\d+)bv(?P<lit_w>\d+)\s*\)"
     )
 
-    for ln in lines:
-        s = ln.strip()
-        if not s.startswith("assume"):
-            continue
-        # Normalize to the inside of the assume.
-        s = s[len("assume") :].strip()
-        if s.endswith(";"):
-            s = s[:-1].strip()
-        s = _strip_wrapping_parens(s)
-        if not s or s.startswith("forall"):
-            continue
-        # Skip non-conjunctive assume forms (implications/disjunctions).
-        compact = _normalize_boogie_expr(s)
-        if ("||" in compact) or ("==>" in compact) or ("<==" in compact):
-            continue
+    if use_assume_bounds:
+        for ln in lines:
+            s = ln.strip()
+            if not s.startswith("assume"):
+                continue
+            # Normalize to the inside of the assume.
+            s = s[len("assume") :].strip()
+            if s.endswith(";"):
+                s = s[:-1].strip()
+            s = _strip_wrapping_parens(s)
+            if not s or s.startswith("forall"):
+                continue
+            # Skip non-conjunctive assume forms (implications/disjunctions).
+            compact = _normalize_boogie_expr(s)
+            if ("||" in compact) or ("==>" in compact) or ("<==" in compact):
+                continue
 
-        for m in bule16_pat.finditer(s):
-            _add_bound(bv16_bounds, m.group("a"), int(m.group("b")))
-        for m in bule32_pat.finditer(s):
-            _add_bound(bv32_bounds, m.group("a"), int(m.group("b")))
+            for m in bule_pat.finditer(s):
+                if int(m.group("lit_w")) != int(m.group("width")):
+                    continue
+                _add_bound(int(m.group("width")), m.group("a"), int(m.group("b")))
 
-        # Simple equality `assume(lhs == <n>bv{16,32});` is also a usable upper bound.
-        if ("&&" not in compact) and (compact.count("==") == 1):
-            lhs, rhs = compact.split("==", 1)
-            rhs_lit = _parse_bv_lit(rhs)
-            if rhs_lit is not None:
-                n, w = rhs_lit
-                lhs_norm = _normalize_boogie_expr(_strip_wrapping_parens(lhs))
-                if w == 16:
-                    _add_bound(bv16_bounds, lhs_norm, n)
-                elif w == 32:
-                    _add_bound(bv32_bounds, lhs_norm, n)
+            # Simple equality `assume(lhs == <n>bvW);` is also a usable upper bound.
+            if ("&&" not in compact) and (compact.count("==") == 1):
+                lhs, rhs = compact.split("==", 1)
+                rhs_lit = _parse_bv_lit(rhs)
+                if rhs_lit is not None:
+                    n, w = rhs_lit
+                    lhs_norm = _normalize_boogie_expr(_strip_wrapping_parens(lhs))
+                    _add_bound(w, lhs_norm, n)
 
-    def _infer_bv32_bound_from_expr(expr: str) -> Optional[int]:
+    def _infer_bound_from_expr(expr: str) -> Optional[int]:
         e0 = _strip_wrapping_parens(expr)
         lit = _parse_bv_lit(e0)
-        if lit is not None and lit[1] == 32:
+        if lit is not None and lit[1] == int(index_width):
             return lit[0]
 
         e = _normalize_boogie_expr(e0)
-        direct = bv32_bounds.get(e)
+        direct = bounds_by_width.get(int(index_width), {}).get(e)
         if direct is not None:
             return int(direct)
 
         # Common P4B pattern: bv32 index is a concat of a zero high half with a bv16 index.
         #
         # Example: `0bv16++leaf_hdr_eg.inswitch_hdr.idx`
-        m = re.match(r"^(?P<hi>\d+)bv16\+\+(?P<lo>.+)$", e)
+        m = re.match(r"^(?P<hi>\d+)bv(?P<hi_w>\d+)\+\+(?P<lo>.+)$", e)
         if m:
             try:
                 hi = int(m.group("hi"))
             except Exception:
                 hi = 0
+            hi_w = int(m.group("hi_w"))
+            if hi_w >= int(index_width):
+                return None
+            lo_w = int(index_width) - hi_w
             lo = _strip_wrapping_parens(m.group("lo"))
             lo_norm = _normalize_boogie_expr(lo)
             lo_lit = _parse_bv_lit(lo_norm)
-            if lo_lit is not None and lo_lit[1] == 16:
+            if lo_lit is not None and lo_lit[1] == lo_w:
                 lo_bound = lo_lit[0]
             else:
-                lo_bound = bv16_bounds.get(lo_norm)
+                lo_bound = bounds_by_width.get(lo_w, {}).get(lo_norm)
             if lo_bound is not None:
-                return (hi << 16) + int(lo_bound)
+                return (hi << lo_w) + int(lo_bound)
 
         return None
 
     bounds: List[int] = []
     for idx in idx_exprs:
-        b = _infer_bv32_bound_from_expr(idx)
-        if b is not None:
-            bounds.append(int(b))
+        b = _infer_bound_from_expr(idx)
+        if b is None:
+            return None
+        bounds.append(int(b))
     return max(bounds) if bounds else None
 
 
-def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
+def _rewrite_forall_bv32_array_inits(lines: List[str], *, use_assume_bounds: bool = False) -> None:
     """
-    Replace quantified `[bv32]` array initializations with finite instantiations.
+    Replace quantified `[bvN]` array initializations with finite instantiations.
 
     Some backends emit register initialization as:
-      assume (forall i:bv32 :: reg[i] == 0bvW);
+      assume (forall i:bvN :: reg[i] == 0bvW);
     These quantifiers can make the entry/closure checks in wraparound time out
     or return UNKNOWN. For wraparound stages we only need initial values for the
     indices that can be accessed, which are typically bounded to a small range
     by prior slicing/register-index analysis.
     """
 
-    explicit: Dict[Tuple[str, str], set[int]] = {}
+    explicit: Dict[Tuple[str, int, str], set[int]] = {}
     for ln in lines:
         m = _RE_ASSUME_BV32_INDEX_INIT.match(ln.strip())
         if not m:
             continue
-        key = (m.group("array"), _normalize_boogie_expr(m.group("value")))
+        key = (m.group("array"), int(m.group("idx_w")), _normalize_boogie_expr(m.group("value")))
         explicit.setdefault(key, set()).add(int(m.group("idx")))
 
     i = 0
@@ -586,17 +704,21 @@ def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
             # Same capture names as unconditional regex, plus `exc`.
             m = m2
             try:
+                if int(m2.group("exc_w")) != int(m2.group("idx_w")):
+                    i += 1
+                    continue
                 exc_idx = int(m2.group("exc"))
             except Exception:
                 exc_idx = None
 
         indent = m.group("indent")
         reg = m.group("array")
+        idx_w = int(m.group("idx_w"))
         value = m.group("value").strip()
         value_norm = _normalize_boogie_expr(value)
-        key = (reg, value_norm)
+        key = (reg, idx_w, value_norm)
 
-        inferred_bound = _infer_reg_bv32_index_upper_bound(lines, reg)
+        inferred_bound = _infer_reg_bv32_index_upper_bound(lines, reg, idx_w, use_assume_bounds=use_assume_bounds)
         inferred_indices: set[int] = set()
         if inferred_bound is not None and inferred_bound < _MAX_FORALL_INIT_EXPANSION:
             inferred_indices = set(range(inferred_bound + 1))
@@ -629,7 +751,7 @@ def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
             del lines[i]
             continue
 
-        repl: List[str] = [f"{indent}assume {reg}[{k}bv32] == {value};\n" for k in missing]
+        repl: List[str] = [f"{indent}assume {reg}[{k}bv{idx_w}] == {value};\n" for k in missing]
         lines[i : i + 1] = repl
         # Track that all in-domain indices (except the excluded one, if present) now
         # have explicit init assumptions.
@@ -638,6 +760,27 @@ def _rewrite_forall_bv32_array_inits(lines: List[str]) -> None:
         else:
             explicit[key] = already.union(inferred_indices)
         i += len(repl)
+
+
+def _collect_zero_initialized_register_arrays(lines: Sequence[str]) -> List[str]:
+    """
+    Collect arrays with an explicit quantified zero initialization.
+
+    Confirm/near-wrap uses this only to add redundant point facts at a dynamic
+    target index.  Collecting from existing init assumptions keeps the
+    existential stage from strengthening the model by accident.
+    """
+
+    init_re = re.compile(
+        r"^\s*assume\s*\(\s*forall\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*bv\d+\s*::\s*"
+        r"(?P<array>[A-Za-z_][A-Za-z0-9_]*)\s*\[\s*[A-Za-z_][A-Za-z0-9_]*\s*\]\s*==\s*0bv\d+\s*\)\s*;\s*$"
+    )
+    out: List[str] = []
+    for line in lines:
+        m = init_re.match(line.strip())
+        if m:
+            out.append(m.group("array"))
+    return out
 
 
 def _drop_remaining_forall_array_inits_for_closure(lines: List[str]) -> None:
@@ -670,7 +813,12 @@ def _emit_assert_wrapper_proc() -> str:
     )
 
 
-def _emit_gated_assert_wrapper_proc(cfg: WraparoundConfig) -> str:
+def _emit_gated_assert_wrapper_proc(
+    var_types: Dict[str, str],
+    cfg: WraparoundConfig,
+    *,
+    active_var: Optional[str] = None,
+) -> str:
     """
     Emit a gated assert wrapper for confirm.
 
@@ -706,12 +854,40 @@ def _emit_gated_assert_wrapper_proc(cfg: WraparoundConfig) -> str:
     gate_terms: List[str] = []
     for t in cfg.accel_targets:
         r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
-        gate_terms.append(f"({r} != {_near_wrap_value_expr(cfg, t)})")
+        near = _near_wrap_value_expr(cfg, t)
+        term = f"({r} != {near})"
+        if (
+            not t.use_last0_value
+            and f"{t.reg_var}__wrote_any" in var_types
+            and f"{t.reg_var}__last_index" in var_types
+            and f"{t.reg_var}__last_value" in var_types
+        ):
+            term = (
+                f"({term} || "
+                f"({t.reg_var}__wrote_any && {t.reg_var}__last_index == {t.index_expr} "
+                f"&& {t.reg_var}__last_value != {near}))"
+            )
+        gate_terms.append(term)
     if not gate_terms:
         p = cfg.pump_target
         r = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
-        gate_terms.append(f"({r} != {_near_wrap_value_expr(cfg, p)})")
+        near = _near_wrap_value_expr(cfg, p)
+        term = f"({r} != {near})"
+        if (
+            not p.use_last0_value
+            and f"{p.reg_var}__wrote_any" in var_types
+            and f"{p.reg_var}__last_index" in var_types
+            and f"{p.reg_var}__last_value" in var_types
+        ):
+            term = (
+                f"({term} || "
+                f"({p.reg_var}__wrote_any && {p.reg_var}__last_index == {p.index_expr} "
+                f"&& {p.reg_var}__last_value != {near}))"
+            )
+        gate_terms.append(term)
     gate_cond = " || ".join(gate_terms)
+    if active_var:
+        gate_cond = f"({active_var} && ({gate_cond}))"
     return (
         f"procedure {{:inline 1}} {_ASSERT_WRAPPER_PROC}(cond: bool) returns()\n"
         "{\n"
@@ -722,6 +898,35 @@ def _emit_gated_assert_wrapper_proc(cfg: WraparoundConfig) -> str:
         "  }\n"
         "}\n\n"
     )
+
+
+def _looks_like_p4b_fail_fast_assert_cut(lines: List[str], assert_idx: int, assert_expr: str) -> bool:
+    if assert_expr.strip() != "false":
+        return False
+
+    prev_idx = assert_idx - 1
+    while prev_idx >= 0 and not lines[prev_idx].strip():
+        prev_idx -= 1
+    if prev_idx < 0:
+        return False
+
+    prev = lines[prev_idx].strip()
+    if prev == "{":
+        prev_idx -= 1
+        while prev_idx >= 0 and not lines[prev_idx].strip():
+            prev_idx -= 1
+        if prev_idx < 0:
+            return False
+        prev = lines[prev_idx].strip()
+
+    m = re.match(r"^if\s*\((?P<cond>.*)\)\s*\{?\s*$", prev)
+    if not m:
+        return False
+
+    cond = m.group("cond")
+    any_mode = "__wrote_any" in cond and "__last_value" in cond
+    slot0_mode = "__wrote_index0" in cond and "__last0_value" in cond
+    return any_mode or slot0_mode
 
 
 def _rewrite_asserts_as_calls(lines: List[str]) -> None:
@@ -738,6 +943,7 @@ def _rewrite_asserts_as_calls(lines: List[str]) -> None:
     incorrectly prove SAFE by deleting that suffix.
     """
 
+    rewritten_asserts: List[Tuple[int, str]] = []
     for i, line in enumerate(lines):
         m = _RE_ASSERT_STMT.match(line)
         if not m:
@@ -752,9 +958,38 @@ def _rewrite_asserts_as_calls(lines: List[str]) -> None:
             expr = expr[:-1].strip()
         indent = m.group("indent")
         lines[i] = f"{indent}call {_ASSERT_WRAPPER_PROC}({expr});\n"
+        rewritten_asserts.append((i, expr))
+
+    # P4B fail-fast register assertions are encoded as:
+    #
+    #   if (bad) {
+    #     assert false;
+    #     assume false;
+    #   }
+    #
+    # After we rewrite the assert into the gated confirm/near-wrap wrapper, the
+    # assertion may be intentionally disabled until the accelerated register has
+    # left the near-wrap boundary.  Keeping the following `assume false` would
+    # then delete the real suffix path and can make NEAR_WRAP incorrectly prove
+    # SAFE.  The assume is only an error-after cut; once the assertion is routed
+    # through the wrapper, the safety result does not rely on that cut.
+    for i, expr in rewritten_asserts:
+        if not _looks_like_p4b_fail_fast_assert_cut(lines, i, expr):
+            continue
+        j = i + 1
+        while j < len(lines) and not lines[j].strip():
+            j += 1
+        if j < len(lines) and lines[j].strip() == "assume false;":
+            indent = re.match(r"^(\s*)", lines[j]).group(1)  # type: ignore[union-attr]
+            lines[j] = f"{indent}assume true; // removed after wraparound-gated assert\n"
 
 
-def _emit_confirm_init(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
+def _emit_confirm_init(
+    var_types: Dict[str, str],
+    cfg: WraparoundConfig,
+    *,
+    zero_init_regs: Sequence[str] = (),
+) -> str:
     lines: List[str] = []
     lines.append("  // wraparound confirm fast-forward (generated)\n")
     for t in cfg.accel_targets:
@@ -763,6 +998,7 @@ def _emit_confirm_init(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
         # before exploring the suffix.  For add-by-1 this is MAX; for larger
         # deltas it is the predecessor that crosses 0 in one update.
         lines.append(_emit_inline_reg_write(var_types, t, value_expr=_near_wrap_value_expr(cfg, t)))
+    lines.append(_emit_target_slot_assumes(var_types, cfg, zero_init_regs=zero_init_regs))
     lines.append("\n")
     return "".join(lines)
 

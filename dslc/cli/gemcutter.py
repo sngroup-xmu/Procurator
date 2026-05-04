@@ -18,6 +18,7 @@ from dslc.toolchain.ultimate_paths import (
 )
 from dslc.transform.wraparound_stages import _rewrite_forall_bv32_array_inits
 from dslc.utils.repo import repo_root
+from dslc.workflows.focused_direct import focused_unsafe_marker_for_bpl, run_focused_direct_prepass
 from dslc.workflows.wraparound_cegis import (
     _manifest_certified_unsafe_data,
     run_wraparound_cegis_multi,
@@ -95,7 +96,7 @@ def _optimize_bpl_for_ultimate(bpl_path: Path) -> None:
         print(f"[WARN] bpl optimize skipped (read failed): {e}")
         return
 
-    before = src.count("forall i:bv32")
+    before = src.count("forall ")
     if before <= 0:
         return
 
@@ -110,7 +111,7 @@ def _optimize_bpl_for_ultimate(bpl_path: Path) -> None:
     if out == src:
         return
 
-    after = out.count("forall i:bv32")
+    after = out.count("forall ")
     try:
         bpl_path.write_text(out, encoding="utf-8")
     except Exception as e:
@@ -171,6 +172,7 @@ def _run_one(
     resource_limits: bool,
     ultimate_xmx_gb: int,
     witness_rerun: bool,
+    focused_direct: str,
 ) -> int:
     compile_spec_file(
         spec_path=job.spec_path,
@@ -199,6 +201,22 @@ def _run_one(
     if not ultimate:
         print("[NOTE] --ultimate not provided; skipping Ultimate run.")
         return 0
+
+    if focused_direct == "auto":
+        focused_rc = run_focused_direct_prepass(
+            bpl_path=job.out_bpl,
+            log_dir=job.log_path.parent,
+            ultimate=ultimate,
+            toolchain=toolchain,
+            settings=settings,
+            ultimate_home=job.ultimate_home / "focused-direct",
+            ultimate_timeout_seconds=ultimate_timeout_seconds,
+            resource_limits=resource_limits,
+            ultimate_xmx_gb=ultimate_xmx_gb,
+            optimize_bpl=_optimize_bpl_for_ultimate,
+        )
+        if focused_rc == 1:
+            return 1
 
     # Give Ultimate a bit more time to shut down cleanly after the toolchain timeout.
     # Some toolchains need >60s to flush logs / finish witnessprinter output.
@@ -352,6 +370,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         help=(
             "When P4B duplicates an exact register-mirror global assertion at register write sites, "
             "omit the duplicate end-of-step harness assertion. Opt-in performance knob for large bounded checks."
+        ),
+    )
+    ap.add_argument(
+        "--focused-direct",
+        choices=["auto", "off"],
+        default="auto",
+        help=(
+            "Run UNSAFE-only focused direct prepasses for dynamic-slot register assertions before "
+            "the full direct solver run (default: auto). Use off to force the original BPL."
         ),
     )
     ap.add_argument("--compose", action="store_true", help="Decompose global asserts into local specs and run in parallel")
@@ -720,18 +747,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             resource_limits=not args.no_resource_limits,
             ultimate_xmx_gb=int(args.ultimate_xmx_gb),
             witness_rerun=not bool(args.no_witness_rerun),
+            focused_direct=str(args.focused_direct),
         )
         if rc == 1:
             # Best-effort witness sanity classification: distinguish "DSL global assert violated"
             # vs "some internal assert violated". This is a regression aid; it does not change rc.
-            try:
-                from dslc.bench.validate_counterexample import summarize_witness
+            marker = focused_unsafe_marker_for_bpl(out_dir=job.log_path.parent, bpl_path=job.out_bpl)
+            if marker is not None:
+                print(f"[CEX] focused_under_approx: {marker}")
+            else:
+                try:
+                    from dslc.bench.validate_counterexample import summarize_witness
 
-                summ = summarize_witness(out_dir=job.out_bpl.parent)
-                tag = "[CEX]" if summ.ok else "[CEX-WARN]"
-                print(f"{tag} {summ.kind}: {summ.details}")
-            except Exception as e:
-                print(f"[CEX-WARN] witness summary failed ({type(e).__name__}: {e})")
+                    summ = summarize_witness(out_dir=job.out_bpl.parent)
+                    tag = "[CEX]" if summ.ok else "[CEX-WARN]"
+                    print(f"{tag} {summ.kind}: {summ.details}")
+                except Exception as e:
+                    print(f"[CEX-WARN] witness summary failed ({type(e).__name__}: {e})")
         return rc
 
     # Compose mode: split global asserts into local specs and run in parallel.
@@ -817,6 +849,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 resource_limits=not args.no_resource_limits,
                 ultimate_xmx_gb=int(args.ultimate_xmx_gb),
                 witness_rerun=not bool(args.no_witness_rerun),
+                focused_direct=str(args.focused_direct),
             ): job
             for job in jobs
         }

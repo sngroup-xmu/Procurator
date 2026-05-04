@@ -694,7 +694,8 @@ def _run_cegis_loop(
                 # (no unroll growth). Callers can opt into a small growth schedule by
                 # passing a larger `max_confirm_unroll`.
                 max_unroll = int(max_confirm_unroll) if int(max_confirm_unroll) > 0 else int(confirm_unroll)
-                for unroll in _confirm_unroll_schedule(base=confirm_unroll, max_unroll=max_unroll):
+                unroll_schedule = _confirm_unroll_schedule(base=confirm_unroll, max_unroll=max_unroll)
+                for pos, unroll in enumerate(unroll_schedule):
                     confirm_bpl = out_dir / f"{stem}.confirm.unroll{unroll}.bpl"
                     confirm_log = out_dir / f"{stem}.confirm.unroll{unroll}.log"
 
@@ -832,7 +833,9 @@ def _run_cegis_loop(
                         )
                         # CONFIRM is existential bug finding. We do not CEGIS-refine ENTRY/CONFIRM;
                         # closure refinement is seeded by a concrete CONFIRM witness.
-                        break  # stop unroll growth on UNKNOWN
+                        if pos == len(unroll_schedule) - 1:
+                            break
+                        continue
 
                     if not confirm_res.is_unsafe:
                         attempts.append(
@@ -1056,4 +1059,3 @@ def _run_cegis_loop(
         break
 
     return _write_manifest(out_dir=out_dir, spec_path=spec_path, base_bpl=base_bpl, work_dir=work_dir, cand=cand, attempts=attempts)
-

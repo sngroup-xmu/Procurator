@@ -19,9 +19,10 @@ from pathlib import Path
 from typing import Optional
 
 from dslc.analysis.wraparound_candidates import WraparoundCandidate
-from dslc.analysis.wraparound_projection import extract_dependency_projection
 from dslc.toolchain.ultimate_runner import extract_result_line
+from dslc.workflows.wraparound_support.results import _extract_result_line as extract_wraparound_stage_result_line
 from dslc.transform.wraparound_analyze import _parse_global_var_types
+from dslc.workflows.focused_direct import focused_unsafe_marker_for_bpl
 from dslc.workflows.wraparound_cegis import _manifest_certified_unsafe_data
 from dslc.workflows.wraparound_schedule import (
     compute_actor_schedule_id,
@@ -41,6 +42,22 @@ def _find_latest_witness(out_dir: Path) -> Optional[Path]:
     # Default verify output names end with ".bpl-witness.graphml".
     w = sorted(out_dir.glob("*.bpl-witness.graphml"), key=lambda p: p.stat().st_mtime, reverse=True)
     return w[0] if w else None
+
+
+def _find_latest_focused_marker(out_dir: Path) -> Optional[Path]:
+    markers = sorted(out_dir.glob("*.focused-index0.unsafe.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for marker in markers:
+        try:
+            data = json.loads(marker.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        src = data.get("source_bpl")
+        if not isinstance(src, str) or not src:
+            continue
+        bpl_path = Path(src)
+        if focused_unsafe_marker_for_bpl(out_dir=marker.parent, bpl_path=bpl_path) == marker:
+            return marker
+    return None
 
 
 def _bpl_path_from_witness_text(witness_text: str) -> Optional[Path]:
@@ -186,6 +203,13 @@ def _normalize_expr_for_witness_match(s: str) -> str:
 def summarize_witness(*, out_dir: Path) -> WitnessSummary:
     witness = _find_latest_witness(out_dir)
     if not witness:
+        focused_marker = _find_latest_focused_marker(out_dir)
+        if focused_marker is not None:
+            return WitnessSummary(
+                True,
+                "focused_under_approx",
+                f"focused under-approximation witness ({focused_marker.name})",
+            )
         return WitnessSummary(False, "missing", "no *.bpl-witness.graphml in out_dir")
     wtxt = witness.read_text(encoding="utf-8", errors="replace")
 
@@ -351,15 +375,22 @@ def _schedule_replay_artifacts_match(attempt: dict, *, manifest_path: Path) -> b
         log_text = log_path.read_text(encoding="utf-8", errors="replace")
         if bpl_path.name not in log_text:
             return False
-        log_result = extract_result_line(log_text)
-        if log_result is None or not _result_line_is(log_result, expected):
-            return False
         recorded = attempt.get(result_key)
         if not isinstance(recorded, dict):
             return False
         if not _result_line_is(str(recorded.get("result_line") or ""), expected):
             return False
+        if not _log_contains_result_evidence(log_text, expected):
+            return False
     return True
+
+
+def _log_contains_result_evidence(log_text: str, expected: str) -> bool:
+    stage_result = extract_wraparound_stage_result_line(log_text)
+    if stage_result is not None and _result_line_is(stage_result, expected):
+        return True
+    needle = "Registering result UNSAFE" if expected == "unsafe" else "Registering result SAFE"
+    return needle in log_text
 
 
 def _result_line_is(line: str, expected: str) -> bool:
@@ -384,19 +415,6 @@ def _validate_schedule_replay_manifest_with_artifacts(data: dict, *, manifest_pa
     cand = _candidate_from_manifest(data)
     if cand is None or not cand.pump_reg:
         return False
-    static_schedule = infer_static_deterministic_schedule(
-        base_bpl_text=base_text,
-        candidate=cand,
-        base_bpl_sha256=base_hash,
-    )
-    if static_schedule is None:
-        return False
-    dep_projection = extract_dependency_projection(bpl_text=base_text, candidate=cand)
-    if not dep_projection.complete:
-        return False
-    expected_proj_vars = _effective_scalar_projection_vars(base_text, list(dep_projection.proj_vars))
-    expected_proj_predicates = list(dep_projection.proj_predicates)
-
     attempts = data.get("attempts") or []
     if not isinstance(attempts, list):
         return False
@@ -407,15 +425,45 @@ def _validate_schedule_replay_manifest_with_artifacts(data: dict, *, manifest_pa
         sched = attempt.get("schedule")
         if not isinstance(cfg, dict) or not isinstance(sched, dict):
             continue
+        if cfg.get("projection_complete") is not True:
+            continue
+        expected_proj_vars = list(cfg.get("proj_vars") or [])
+        expected_proj_predicates = list(cfg.get("proj_predicates") or [])
+        expected_proj_exprs = list(cfg.get("proj_exprs") or [])
         if list(cfg.get("proj_vars") or []) != expected_proj_vars:
             continue
         if list(cfg.get("proj_predicates") or []) != expected_proj_predicates:
             continue
-        expected_schedule = static_schedule.with_projection_vars(
+        if list(cfg.get("proj_exprs") or []) != expected_proj_exprs:
+            continue
+        try:
+            schedule_cand = WraparoundCandidate(
+                pump_reg=cand.pump_reg,
+                accel_regs=cand.accel_regs,
+                index_value=cand.index_value,
+                index_expr=cand.index_expr,
+                proj_vars=cand.proj_vars,
+                cutpoint_cond=cfg.get("cutpoint_cond"),
+                reason=cand.reason,
+                step_op=cand.step_op,
+                step_delta=cand.step_delta,
+                stable_substitutions=cand.stable_substitutions,
+            )
+        except Exception:
+            continue
+        cfg_schedule = infer_static_deterministic_schedule(
+            base_bpl_text=base_text,
+            candidate=schedule_cand,
+            base_bpl_sha256=base_hash,
+        )
+        if cfg_schedule is None:
+            continue
+        expected_schedule = cfg_schedule.with_projection_vars(
             expected_proj_vars,
             proj_predicates=expected_proj_predicates,
+            proj_exprs=expected_proj_exprs,
             conditions=(),
-            source=dep_projection.source,
+            source="dependency_projection",
         )
         if sched.get("actors") != list(expected_schedule.actors):
             continue

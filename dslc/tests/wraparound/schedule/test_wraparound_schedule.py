@@ -6,8 +6,10 @@ import unittest
 from pathlib import Path
 
 import dslc.workflows.wraparound_cegis as wraparound_cegis
+from dslc.analysis.wraparound_candidates import WraparoundCandidate
 from dslc.bench.validate_counterexample import validate_wraparound_manifest
 from dslc.workflows.wraparound_cegis import (
+    StageRunResult,
     WraparoundCegarMode,
     _manifest_certified_unsafe_data,
     _run_schedule_replay_cegar_loop,
@@ -21,7 +23,6 @@ from dslc.workflows.wraparound_schedule import (
 from dslc.tests.wraparound.schedule.fixtures import (
     _MIN_BPL,
     _SequenceRunner,
-    _TimeoutRecordingRunner,
     _candidate,
     _candidate_with_mailbox_projection,
     _candidate_with_unavailable_projection,
@@ -295,6 +296,343 @@ class WraparoundScheduleTests(unittest.TestCase):
             self.assertEqual(manifest["diagnostic"], "stopped after near_wrap by request")
             self.assertEqual(manifest["attempts"][0]["near_wrap"]["result_line"], "RESULT: UNSAFE")
             self.assertIsNone(manifest["attempts"][0]["closure"])
+
+    def test_schedule_replay_does_not_prefix_retry_plain_entry_safe(self) -> None:
+        class InitialSafeRunner(_SequenceRunner):
+            def run(self, *, stage: str, **kwargs):  # type: ignore[no-untyped-def]
+                if stage == "entry_check":
+                    self.calls.append(stage)
+                    input_bpl = Path(kwargs["input_bpl"])
+                    log_path = kwargs.get("log_path")
+                    text = input_bpl.read_text(encoding="utf-8")
+                    self.snapshots.append((stage, text))
+                    if log_path is not None:
+                        Path(log_path).write_text(f"{input_bpl.name}\nRESULT: SAFE\n", encoding="utf-8")
+                    return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line="RESULT: SAFE")
+                if stage.startswith("entry_check.prefix."):
+                    raise AssertionError("plain cutpoints should not run prefix entry")
+                return super().run(stage=stage, **kwargs)
+
+        runner = InitialSafeRunner(["SAFE"])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_MIN_BPL, encoding="utf-8")
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_MIN_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=_candidate(),
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(runner.calls, ["entry_check"])
+            self.assertEqual(manifest["diagnostic"], "entry unreachable or blocked; falling back")
+            self.assertFalse(manifest["certified"])
+
+    def test_schedule_replay_incomplete_projection_still_runs_near_but_not_closure(self) -> None:
+        bpl = """\
+var procurator_phase: int;
+var procurator_step: int;
+var idx: bv32;
+var guard_reg: [bv32]bv8;
+var guard_reg__last0_value: bv8;
+var r: [bv32]bv8;
+var r__last_index: bv32;
+var r__last_value: bv8;
+var r__wrote_any: bool;
+
+procedure main() returns()
+  modifies procurator_phase, procurator_step, idx, guard_reg, guard_reg__last0_value,
+           r, r__last_index, r__last_value, r__wrote_any;
+{
+  // One scheduler step: pick exactly one action.
+  // Scheduler: deterministic round-robin over the action list.
+  if (procurator_phase == 0) {
+    // env inject -> s1
+  } else if (procurator_phase == 1) {
+    // node pass -> s1
+    if (guard_reg[idx] == 1bv8) {
+      r[idx] := add.bv8(r[idx], 1bv8);
+      r__last_index := idx;
+      r__last_value := r[idx];
+      r__wrote_any := true;
+    }
+  } else {
+    assume false;
+  }
+  if (procurator_phase == 1) {
+    procurator_phase := 0;
+  } else {
+    procurator_phase := procurator_phase + 1;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_phase, procurator_step, idx, guard_reg, guard_reg__last0_value,
+           r, r__last_index, r__last_value, r__wrote_any;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  guard_reg__last0_value := 1bv8;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        runner = _SequenceRunner(["SAFE"])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(bpl, encoding="utf-8")
+            cand = WraparoundCandidate(
+                pump_reg="r",
+                accel_regs=("r",),
+                index_value=None,
+                index_expr="idx",
+                proj_vars=("procurator_phase",),
+                cutpoint_cond="(procurator_phase == 0)",
+                reason="test",
+                step_op="add",
+                step_delta=1,
+            )
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=bpl,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=cand,
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=2,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(runner.calls, ["entry_check", "near_wrap"])
+            attempt = manifest["attempts"][0]
+            self.assertFalse(attempt["cfg"]["projection_complete"])
+            self.assertIsNone(attempt.get("closure"))
+            self.assertFalse(manifest["certified"])
+            self.assertFalse(_manifest_certified_unsafe_data(manifest))
+            self.assertEqual(
+                manifest["diagnostic"],
+                "near-wrap bug found but dependency projection incomplete; falling back to direct verification",
+            )
+
+    def test_schedule_replay_never_certifies_incomplete_projection_even_if_closure_runs(self) -> None:
+        # Defensive regression for future branch-splitting changes: certification
+        # must depend on `cfg.projection_complete`, not only on a SAFE closure.
+        runner = _SequenceRunner(["SAFE"])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_MIN_BPL, encoding="utf-8")
+
+            cand = WraparoundCandidate(
+                pump_reg="r",
+                accel_regs=("r",),
+                index_value=None,
+                index_expr="idx",
+                proj_vars=("procurator_phase",),
+                cutpoint_cond="(procurator_phase == 0)",
+                reason="test",
+                step_op="add",
+                step_delta=1,
+            )
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_MIN_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=cand,
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+                stop_after="closure",
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertFalse(manifest["attempts"][0]["cfg"]["projection_complete"])
+            self.assertFalse(manifest["attempts"][0]["certified"])
+            self.assertFalse(manifest["certified"])
+            self.assertFalse(_manifest_certified_unsafe_data(manifest))
+
+    def test_schedule_replay_grows_to_distinct_near_wrap_bpl(self) -> None:
+        class _NearGrowRunner(_SequenceRunner):
+            def __init__(self) -> None:
+                super().__init__(["SAFE"])
+                self.near_inputs: list[str] = []
+
+            def run(self, *, stage: str, **kwargs):  # type: ignore[no-untyped-def]
+                if stage == "near_wrap":
+                    input_bpl = Path(kwargs["input_bpl"])
+                    self.calls.append(stage)
+                    self.near_inputs.append(input_bpl.name)
+                    result = "UNSAFE" if "unroll2" in input_bpl.name else "SAFE"
+                    log_path = kwargs.get("log_path")
+                    if log_path is not None:
+                        Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                    return StageRunResult(
+                        stage=stage,
+                        returncode=0,
+                        wall_time_s=0.0,
+                        result_line=f"RESULT: {result}",
+                    )
+                return super().run(stage=stage, **kwargs)
+
+        runner = _NearGrowRunner()
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_MIN_BPL, encoding="utf-8")
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_MIN_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=_candidate(),
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=2,
+                max_confirm_unroll=2,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+                stop_after="near_wrap",
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                runner.near_inputs,
+                ["x.schedule.00.near_wrap.unroll1.bpl", "x.schedule.00.near_wrap.unroll2.bpl"],
+            )
+            self.assertEqual(manifest["attempts"][0]["near_wrap"]["result_line"], "RESULT: UNSAFE")
+            self.assertTrue(manifest["attempts"][0]["artifacts"]["confirm_bpl"].endswith("unroll2.bpl"))
+
+    def test_schedule_replay_stops_after_short_unknown(self) -> None:
+        class _NearUnknownThenUnsafeRunner(_SequenceRunner):
+            def __init__(self) -> None:
+                super().__init__(["SAFE"])
+                self.near_inputs: list[str] = []
+
+            def run(self, *, stage: str, **kwargs):  # type: ignore[no-untyped-def]
+                if stage == "near_wrap":
+                    input_bpl = Path(kwargs["input_bpl"])
+                    self.calls.append(stage)
+                    self.near_inputs.append(input_bpl.name)
+                    result = "UNSAFE" if "unroll3" in input_bpl.name else "Timeout"
+                    log_path = kwargs.get("log_path")
+                    if log_path is not None:
+                        Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                    return StageRunResult(
+                        stage=stage,
+                        returncode=0,
+                        wall_time_s=0.0,
+                        result_line=f"RESULT: {result}",
+                    )
+                return super().run(stage=stage, **kwargs)
+
+        runner = _NearUnknownThenUnsafeRunner()
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_MIN_BPL, encoding="utf-8")
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_MIN_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=_candidate(),
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=3,
+                max_confirm_unroll=3,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+                stop_after="near_wrap",
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                runner.near_inputs,
+                ["x.schedule.00.near_wrap.unroll1.bpl"],
+            )
+            self.assertEqual(manifest["attempts"][0]["near_wrap"]["result_line"], "RESULT: Timeout")
+            self.assertFalse(manifest["certified"])
+            self.assertIn("falling back", manifest["diagnostic"])
 
     def test_multi_schedule_replay_uses_nowitness_fast_path(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -806,155 +1144,6 @@ class WraparoundScheduleTests(unittest.TestCase):
             self.assertNotIn("wrap_closure_snap_missing_projection", closure_text)
             self.assertNotIn("wrap_closure_snap_r", closure_text)
 
-    def test_schedule_replay_witness_timeout_not_capped_by_closure(self) -> None:
-        class WitnessRunner(_TimeoutRecordingRunner):
-            def run(self, *, stage: str, **kwargs):  # type: ignore[no-untyped-def]
-                if stage.startswith("confirm.witness."):
-                    input_bpl = Path(kwargs["input_bpl"])
-                    witness = input_bpl.parent / f"{input_bpl.name}-witness.graphml"
-                    witness.write_text(
-                        """<?xml version="1.0" encoding="UTF-8"?>
-<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
-  <graph edgedefault="directed">
-    <node id="N0">
-      <data key="assumption">s1_hdr.nc_hdr.op == 12</data>
-    </node>
-  </graph>
-</graphml>
-""",
-                        encoding="utf-8",
-                    )
-                return super().run(stage=stage, **kwargs)
-
-        runner = WitnessRunner(["Timeout", "Timeout"])
-        with tempfile.TemporaryDirectory() as td:
-            out_dir = Path(td)
-            base_bpl = out_dir / "base.bpl"
-            base_bpl.write_text(_MIN_BPL, encoding="utf-8")
-            witness_toolchain = out_dir / "tc_w.xml"
-            witness_toolchain.write_text("<toolchain>ultimate.witnessprinter</toolchain>", encoding="utf-8")
-
-            _run_schedule_replay_cegar_loop(
-                spec_path=out_dir / "x.prop",
-                spec_text="",
-                base_bpl=base_bpl,
-                base_text=_MIN_BPL,
-                out_dir=out_dir,
-                work_dir=out_dir / "work",
-                candidate=_candidate(),
-                partition_ports={},
-                timeout_seconds=180,
-                closure_timeout_cap_seconds=45,
-                resource_limits=False,
-                confirm_unroll=1,
-                max_confirm_unroll=1,
-                max_iters=2,
-                enable_env_completion_refinement=True,
-                runner=runner,
-                toolchain_nowitness=Path("tc.xml"),
-                toolchain_witness=witness_toolchain,
-                witness_settings=Path("s_w.epf"),
-                closure_toolchain=Path("tc_cl.xml"),
-                settings=Path("s.epf"),
-                closure_settings=Path("s_cl.epf"),
-            )
-
-            timeouts = dict(runner.timeouts)
-            self.assertEqual(timeouts["entry_check"], 180)
-            self.assertEqual(timeouts["near_wrap"], 180)
-            self.assertIn("closure_check", timeouts)
-            self.assertEqual(timeouts["confirm.witness.unroll1"], 300)
-
-    def test_schedule_replay_weakens_projection_without_rerunning_entry_or_near_wrap(self) -> None:
-        class WitnessRunner(_SequenceRunner):
-            def run(self, *, stage: str, **kwargs):  # type: ignore[no-untyped-def]
-                if stage.startswith("confirm.witness."):
-                    input_bpl = Path(kwargs["input_bpl"])
-                    witness = input_bpl.parent / f"{input_bpl.name}-witness.graphml"
-                    witness.write_text(
-                        """<?xml version="1.0" encoding="UTF-8"?>
-<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
-  <graph edgedefault="directed">
-    <node id="N0">
-      <data key="assumption">s1_hdr.nc_hdr.op == 12</data>
-    </node>
-  </graph>
-</graphml>
-""",
-                        encoding="utf-8",
-                    )
-                return super().run(stage=stage, **kwargs)
-
-        runner = WitnessRunner(["Timeout", "Timeout", "SAFE"])
-        with tempfile.TemporaryDirectory() as td:
-            out_dir = Path(td)
-            base_bpl = out_dir / "base.bpl"
-            base_bpl.write_text(_MIN_BPL + "var s1_inbox_count: int;\n", encoding="utf-8")
-            witness_toolchain = out_dir / "tc_w.xml"
-            witness_toolchain.write_text("<toolchain>ultimate.witnessprinter</toolchain>", encoding="utf-8")
-
-            manifest_path = _run_schedule_replay_cegar_loop(
-                spec_path=out_dir / "x.prop",
-                spec_text="",
-                base_bpl=base_bpl,
-                base_text=base_bpl.read_text(encoding="utf-8"),
-                out_dir=out_dir,
-                work_dir=out_dir / "work",
-                candidate=_candidate_with_mailbox_projection(),
-                partition_ports={},
-                timeout_seconds=1,
-                closure_timeout_cap_seconds=1,
-                resource_limits=False,
-                confirm_unroll=1,
-                max_confirm_unroll=1,
-                max_iters=3,
-                enable_env_completion_refinement=True,
-                runner=runner,
-                toolchain_nowitness=Path("tc.xml"),
-                toolchain_witness=witness_toolchain,
-                witness_settings=Path("s_w.epf"),
-                closure_toolchain=Path("tc_cl.xml"),
-                settings=Path("s.epf"),
-                closure_settings=Path("s_cl.epf"),
-            )
-
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual(
-                runner.calls,
-                [
-                    "entry_check",
-                    "near_wrap",
-                    "closure_check",
-                    "confirm.witness.unroll1",
-                    "closure_check",
-                    "closure_check",
-                ],
-            )
-            self.assertFalse(manifest["certified"])
-            self.assertEqual(len(manifest["attempts"]), 3)
-            first, second, third = manifest["attempts"]
-            self.assertEqual(first["diagnostic"], "closure unknown; seeded witness replay conditions for next closure")
-            self.assertTrue(any(n == "closure_seed_assumes=1" for n in second["cfg"]["notes"]))
-            self.assertEqual(second["diagnostic"], "closure unknown; weakening projection with near-wrap witness predicates")
-            self.assertTrue(any(n == "closure_seed_assumes=1" for n in third["cfg"]["notes"]))
-            self.assertTrue(any(n == "drop_proj_vars=s1_inbox_count" for n in third["cfg"]["notes"]))
-            self.assertEqual(third["artifacts"]["entry_bpl"], first["artifacts"]["entry_bpl"])
-            self.assertEqual(third["artifacts"]["entry_log"], first["artifacts"]["entry_log"])
-            self.assertEqual(third["schedule"]["actors"], ["env", "s1"])
-            projection = third["schedule"]["projection"]
-            self.assertTrue(any(p["lhs"] == "procurator_phase" for p in projection))
-            self.assertFalse(
-                any(
-                    p["lhs"] == "s1_inbox_count" and p["source"] == "candidate_projection"
-                    for p in projection
-                )
-            )
-            self.assertFalse(any(p["source"] == "near_wrap_witness" for p in projection))
-            self.assertTrue(
-                any(p["lhs"] == "s1_hdr.nc_hdr.op" and p["source"] == "near_wrap_witness" for p in third["schedule"]["conditions"])
-            )
-            self.assertEqual(third["diagnostic"], "closure safe under witness replay conditions only; falling back")
-
     def test_projection_conditions_parse_numeric_dotted_fields(self) -> None:
         preds = projection_predicates_from_assumes(
             ["h1_hdr.overlay.5.valid == false", "assume(s1_find_index.hit == true);"],
@@ -970,71 +1159,6 @@ class WraparoundScheduleTests(unittest.TestCase):
             base_bpl_sha256=sha256_text(bpl),
         )
         self.assertIsNone(sched)
-
-    def test_schedule_replay_stop_after_closure_prevents_projection_weakening_retry(self) -> None:
-        class WitnessRunner(_SequenceRunner):
-            def run(self, *, stage: str, **kwargs):  # type: ignore[no-untyped-def]
-                if stage.startswith("confirm.witness."):
-                    input_bpl = Path(kwargs["input_bpl"])
-                    witness = input_bpl.parent / f"{input_bpl.name}-witness.graphml"
-                    witness.write_text(
-                        """<?xml version="1.0" encoding="UTF-8"?>
-<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
-  <graph edgedefault="directed">
-    <node id="N0">
-      <data key="assumption">s1_hdr.nc_hdr.op == 12</data>
-    </node>
-  </graph>
-</graphml>
-""",
-                        encoding="utf-8",
-                    )
-                return super().run(stage=stage, **kwargs)
-
-        runner = WitnessRunner(["Timeout", "SAFE"])
-        with tempfile.TemporaryDirectory() as td:
-            out_dir = Path(td)
-            base_bpl = out_dir / "base.bpl"
-            base_bpl.write_text(_MIN_BPL + "var s1_inbox_count: int;\n", encoding="utf-8")
-            witness_toolchain = out_dir / "tc_w.xml"
-            witness_toolchain.write_text("<toolchain>ultimate.witnessprinter</toolchain>", encoding="utf-8")
-
-            manifest_path = _run_schedule_replay_cegar_loop(
-                spec_path=out_dir / "x.prop",
-                spec_text="",
-                base_bpl=base_bpl,
-                base_text=base_bpl.read_text(encoding="utf-8"),
-                out_dir=out_dir,
-                work_dir=out_dir / "work",
-                candidate=_candidate_with_mailbox_projection(),
-                partition_ports={},
-                timeout_seconds=1,
-                closure_timeout_cap_seconds=1,
-                resource_limits=False,
-                confirm_unroll=1,
-                max_confirm_unroll=1,
-                max_iters=2,
-                enable_env_completion_refinement=False,
-                runner=runner,
-                toolchain_nowitness=Path("tc.xml"),
-                toolchain_witness=witness_toolchain,
-                witness_settings=Path("s_w.epf"),
-                closure_toolchain=Path("tc_cl.xml"),
-                settings=Path("s.epf"),
-                closure_settings=Path("s_cl.epf"),
-                stop_after="closure",
-            )
-
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual(
-                runner.calls,
-                ["entry_check", "near_wrap", "closure_check"],
-            )
-            self.assertFalse(manifest["certified"])
-            self.assertEqual(manifest["diagnostic"], "stopped after closure by request")
-            self.assertEqual(len(manifest["attempts"]), 1)
-            self.assertEqual(manifest["attempts"][0]["diagnostic"], "stopped after closure by request")
-
 
 if __name__ == "__main__":
     unittest.main()

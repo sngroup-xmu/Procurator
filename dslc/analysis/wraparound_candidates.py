@@ -12,6 +12,7 @@ from .wraparound_bpl_index import (
     _derive_constant_assignment_literals,
     _derive_index_expr_from_bpl_definition,
     _derive_index_expr_from_meta_definition,
+    _derive_stable_expr_substitutions_from_meta_definitions,
     _extract_bpl_constant_literals,
     _extract_proc_bodies,
     _maybe_eval_index_expr_to_constant,
@@ -45,6 +46,7 @@ class WraparoundCandidate:
     reason: str
     step_op: str = "add"
     step_delta: Optional[int] = 1
+    stable_substitutions: Tuple[Tuple[str, str], ...] = ()
 
 
 _RE_VAR_DECL = re.compile(r"^var\s+(?P<name>\S+)\s*:\s*(?P<type>[^;]+);\s*$")
@@ -194,6 +196,84 @@ def _default_proj_vars(var_types: Dict[str, str]) -> List[str]:
         if name.endswith("_inbox_count") or name.endswith("_egress_count"):
             proj.append(name)
     return sorted(set(proj))
+
+
+def _bpl_writes_var(bpl_text: str, var_name: str) -> bool:
+    target = var_name.strip()
+    if not target:
+        return False
+
+    for raw in bpl_text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+
+        m_havoc = _RE_HAVOC_STMT.match(line)
+        if m_havoc:
+            if target in {v.strip() for v in m_havoc.group("vars").split(",")}:
+                return True
+            continue
+
+        m_call = _RE_CALL_ASSIGN_STMT.match(line)
+        if m_call:
+            lhs_parts = {p.strip() for p in m_call.group("lhs").split(",")}
+            if target in lhs_parts:
+                return True
+            continue
+
+        m_assign = _RE_ASSIGN_STMT.match(line)
+        if m_assign:
+            lhs_parts = {p.strip() for p in m_assign.group("lhs").split(",")}
+            if target in lhs_parts:
+                return True
+
+    return False
+
+
+def _expr_has_bpl_written_var(expr: str, *, bpl_text: str, var_types: Dict[str, str]) -> bool:
+    return any(_bpl_writes_var(bpl_text, var) for var in _vars_in_expr(expr, var_types=var_types))
+
+
+def _reg_domain_is_singleton_zero(reg: str, *, bpl_text: str) -> bool:
+    """
+    Return true when P4B slicing has collapsed a register's index domain to slot 0.
+
+    A slot-0 mirror assertion (`__wrote_index0` / `__last0_value`) does not by
+    itself justify replacing a dynamic P4-computed index with 0: the hash/index
+    expression may still denote any slot.  However, if the translated Boogie
+    model declares the register domain size as 1, then the translator has also
+    emitted access-side `idx == 0` assumptions for this sliced model.  In that
+    case using the scalar index0 mirror in the wraparound stages is the same
+    model, not a new user assumption.
+    """
+
+    names = [reg]
+    if reg.endswith("_0"):
+        names.append(reg[:-2])
+    else:
+        names.append(f"{reg}_0")
+    for name in names:
+        pat = re.compile(
+            rf"^\s*axiom\s+{re.escape(name)}\.size\s*==\s*1(?:bv\d+)?\s*;\s*$",
+            re.MULTILINE,
+        )
+        if pat.search(bpl_text):
+            return True
+    return False
+
+
+def _slot0_seed_can_collapse_dynamic_index(
+    *,
+    pump_reg: str,
+    reg: str,
+    seed_index0_bases: Set[str],
+    bpl_text: str,
+) -> bool:
+    if pump_reg not in seed_index0_bases and reg not in seed_index0_bases:
+        return False
+    return _reg_domain_is_singleton_zero(pump_reg, bpl_text=bpl_text) or _reg_domain_is_singleton_zero(
+        reg, bpl_text=bpl_text
+    )
 
 
 def _extract_dotted_var_base_and_indices(dv: Tree) -> Tuple[str, Tuple[int, ...]]:
@@ -516,6 +596,16 @@ def _infer_from_meta_updates(
 
             pump_reg = _resolve_prefixed_name(reg, node=node, var_types=var_types)
             value_var_pref = _resolve_prefixed_name(value_var, node=node, var_types=var_types)
+            stable_substitutions = tuple(
+                sorted(
+                    _derive_stable_expr_substitutions_from_meta_definitions(
+                        node=node,
+                        meta=meta,
+                        bpl_text=bpl_text,
+                        var_types=var_types,
+                    ).items()
+                )
+            )
 
             # Filter by whether the updated var (or the register itself) affects the observed property.
             #
@@ -550,26 +640,56 @@ def _infer_from_meta_updates(
 
             if isinstance(idx_const, int) and idx_const >= 0:
                 idx_value = idx_const
-            elif pump_reg in seed_index0_bases or reg in seed_index0_bases:
-                idx_value = 0
-            else:
-                if isinstance(idx_expr_raw, str) and idx_expr_raw.strip():
-                    idx_expr_pref = _prefix_expr_with_known_vars(idx_expr_raw, node=node, var_types=var_types)
-                    idx_expr_meta = _derive_index_expr_from_meta_definition(
-                        idx_expr_raw,
-                        node=node,
-                        meta=meta,
+            elif isinstance(idx_expr_raw, str) and idx_expr_raw.strip():
+                idx_expr_pref = _prefix_expr_with_known_vars(idx_expr_raw, node=node, var_types=var_types)
+                idx_expr_meta = _derive_index_expr_from_meta_definition(
+                    idx_expr_raw,
+                    node=node,
+                    meta=meta,
+                    bpl_text=bpl_text,
+                    var_types=var_types,
+                )
+                if idx_expr_meta is not None:
+                    idx_expr_pref = idx_expr_meta
+                else:
+                    idx_expr_pref = _derive_index_expr_from_bpl_definition(
+                        idx_expr_pref,
                         bpl_text=bpl_text,
                         var_types=var_types,
                     )
-                    if idx_expr_meta is not None:
-                        idx_expr_pref = idx_expr_meta
-                    else:
-                        idx_expr_pref = _derive_index_expr_from_bpl_definition(
-                            idx_expr_pref,
-                            bpl_text=bpl_text,
-                            var_types=var_types,
-                        )
+                idx_eval = _maybe_eval_index_expr_to_constant(
+                    idx_expr_pref, const_eq=global_const_eq, var_types=var_types
+                )
+                has_written_idx_var = _expr_has_bpl_written_var(
+                    idx_expr_pref, bpl_text=bpl_text, var_types=var_types
+                )
+                if idx_eval is not None and not has_written_idx_var:
+                    idx_value = idx_eval
+                elif _slot0_seed_can_collapse_dynamic_index(
+                    pump_reg=pump_reg,
+                    reg=reg,
+                    seed_index0_bases=seed_index0_bases,
+                    bpl_text=bpl_text,
+                ):
+                    idx_value = 0
+                elif idx_expr_pref.strip() != idx_expr_raw.strip() or has_written_idx_var:
+                    idx_expr = idx_expr_pref
+                    proj = sorted(set(proj + _vars_in_expr(idx_expr_pref, var_types=var_types)))
+                else:
+                    idx_expr = idx_expr_pref
+                    proj = sorted(set(proj + _vars_in_expr(idx_expr_pref, var_types=var_types)))
+            elif _slot0_seed_can_collapse_dynamic_index(
+                pump_reg=pump_reg,
+                reg=reg,
+                seed_index0_bases=seed_index0_bases,
+                bpl_text=bpl_text,
+            ):
+                idx_value = 0
+            else:
+                # Best-effort: keep index symbolic via a single var if we can.
+                idx_vars = u.get("idx_vars") or []
+                if isinstance(idx_vars, list) and len(idx_vars) == 1 and isinstance(idx_vars[0], str):
+                    idx_expr_pref = _resolve_prefixed_name(idx_vars[0], node=node, var_types=var_types)
                     idx_eval = _maybe_eval_index_expr_to_constant(
                         idx_expr_pref, const_eq=global_const_eq, var_types=var_types
                     )
@@ -577,20 +697,7 @@ def _infer_from_meta_updates(
                         idx_value = idx_eval
                     else:
                         idx_expr = idx_expr_pref
-                        proj = sorted(set(proj + _vars_in_expr(idx_expr_pref, var_types=var_types)))
-                else:
-                    # Best-effort: keep index symbolic via a single var if we can.
-                    idx_vars = u.get("idx_vars") or []
-                    if isinstance(idx_vars, list) and len(idx_vars) == 1 and isinstance(idx_vars[0], str):
-                        idx_expr_pref = _resolve_prefixed_name(idx_vars[0], node=node, var_types=var_types)
-                        idx_eval = _maybe_eval_index_expr_to_constant(
-                            idx_expr_pref, const_eq=global_const_eq, var_types=var_types
-                        )
-                        if idx_eval is not None:
-                            idx_value = idx_eval
-                        else:
-                            idx_expr = idx_expr_pref
-                            proj = sorted(set(proj + [idx_expr_pref]))
+                        proj = sorted(set(proj + [idx_expr_pref]))
 
             accel_regs = (pump_reg,)
             reason = f"meta_wraparound_update:{value_var}"
@@ -610,6 +717,7 @@ def _infer_from_meta_updates(
                     reason=reason,
                     step_op="add",
                     step_delta=step_delta,
+                    stable_substitutions=stable_substitutions,
                 )
             )
 
@@ -751,6 +859,7 @@ def infer_wraparound_candidates(
                         reason=cand.reason,
                         step_op=op,
                         step_delta=delta,
+                        stable_substitutions=cand.stable_substitutions,
                     )
                 ]
             if require_meta_step_for_global_asserts:

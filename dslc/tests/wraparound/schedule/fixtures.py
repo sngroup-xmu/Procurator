@@ -49,6 +49,58 @@ procedure mainProcedure() returns()
 """
 
 
+_BRANCH_GUARD_BPL = """\
+var procurator_phase: int;
+var procurator_step: int;
+var time_reg: [bv32]bv32;
+var flow_reg: [bv32]bv32;
+var r: [bv32]bv8;
+var r__last_index: bv32;
+var r__last_value: bv8;
+
+procedure main() returns()
+  modifies procurator_phase, procurator_step, time_reg, flow_reg, r, r__last_index, r__last_value;
+{
+  // One scheduler step: pick exactly one action.
+  // Scheduler: deterministic round-robin over the action list.
+  if (procurator_phase == 0) {
+    // env inject -> s1
+  } else if (procurator_phase == 1) {
+    // node pass -> s1
+    if (time_reg[0bv32] == 0bv32) {
+      r[0bv32] := add.bv8(r[0bv32], 1bv8);
+      r__last_index := 0bv32;
+      r__last_value := r[0bv32];
+    } else {
+      if (flow_reg[0bv32] == 7bv32) {
+        r[0bv32] := add.bv8(r[0bv32], 1bv8);
+        r__last_index := 0bv32;
+        r__last_value := r[0bv32];
+      }
+    }
+  } else {
+    assume false;
+  }
+  if (procurator_phase == 1) {
+    procurator_phase := 0;
+  } else {
+    procurator_phase := procurator_phase + 1;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_phase, procurator_step, time_reg, flow_reg, r, r__last_index, r__last_value;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+
+
 def _candidate() -> WraparoundCandidate:
     return WraparoundCandidate(
         pump_reg="r",
@@ -58,6 +110,20 @@ def _candidate() -> WraparoundCandidate:
         proj_vars=("procurator_phase",),
         cutpoint_cond="(procurator_phase == 0)",
         reason="test",
+        step_op="add",
+        step_delta=1,
+    )
+
+
+def _branch_guard_candidate() -> WraparoundCandidate:
+    return WraparoundCandidate(
+        pump_reg="r",
+        accel_regs=("r",),
+        index_value=0,
+        index_expr=None,
+        proj_vars=("procurator_phase",),
+        cutpoint_cond="(procurator_phase == 0)",
+        reason="branch_guard_test",
         step_op="add",
         step_delta=1,
     )

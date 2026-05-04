@@ -210,14 +210,11 @@ class BoogieBackend:
                     slicing_keep_vars=p4b_keep_vars,
                     fail_fast_register_asserts=fail_fast_asserts,
                     disable_slicing=not enable_slicing,
-                    # Keep P4B slicing control seeds that influence
-                    # communication behavior (forward/drop/clone/recirc) by default.
-                    #
-                    # Without these, slicing can remove e.g. `p4b_recirculate := true`,
-                    # making distributed harnesses miss real interleavings and report
-                    # false SAFE results. For single-switch local checks, callers may
-                    # explicitly disable this for performance.
-                    keep_control_seeds=keep_control_seeds,
+                    # DSLC already adds the control seeds needed for the system harness
+                    # in build_slicing_plan(). Disable P4B's own implicit control-root
+                    # expansion here so the same seed set is used by compile/verify and
+                    # local feature-register checks do not retain unrelated suffix logic.
+                    keep_control_seeds=False,
                 )
                 node_prof["p4_to_bpl_s"] = prof.elapsed_since(t_translate)
                 t_read_raw = prof.mark()
@@ -274,7 +271,7 @@ class BoogieBackend:
                             slicing_keep_vars=fallback_keep_vars,
                             fail_fast_register_asserts=fail_fast_asserts,
                             disable_slicing=False,
-                            keep_control_seeds=keep_control_seeds,
+                            keep_control_seeds=False,
                         )
                         raw_text = raw_path.read_text(encoding="utf-8", errors="replace")
                         if meta_path is not None:
