@@ -242,7 +242,7 @@ class PromelaBackend:
         lines.append("  headers pkt;\n")
         lines.append("  do\n")
         lines.append("  :: atomic {\n")
-        lines.append("      // TODO: refine packet generation (havoc-like) for SPIN\n")
+        lines.append("      // Abstract packet source used by the Promela backend.\n")
         lines.append("      pkt.ethernet.etherType = 2048;\n")
         if ingress_nodes:
             lines.append("      if\n")

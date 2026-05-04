@@ -2965,3 +2965,1649 @@ NetSMC 对“简化模型会漏掉仅在交错下出现的违例”有明确说�
   - `dslc/transform/wraparound_stages.py` and `dslc/transform/wraparound_instrument.py`: removed the global suffix-cut behavior for rewritten assertions.
   - `dslc/tests/wraparound/transform/test_wraparound_transform.py`: added coverage that confirm keeps the suffix after a gated assertion site and never emits the old stop-after marker.
   - Focused WSL tests passed: `python3 -m unittest -v dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.schedule.test_wraparound_schedule.WraparoundScheduleTests.test_schedule_replay_stop_after_near_wrap dslc.tests.wraparound.schedule.test_schedule_manifest_certification`.
+
+## 2026-05-02 PNA upstream coverage completion
+
+- **Spec/scan**: upstream p4c PNA sample set under `.tmp/procurator/upstream/p4c/testdata/p4_16_samples`
+- **Time**: 2026-05-02 12:24 Asia/Shanghai
+- **Goal/Progress**: Completed the previously missing PNA offset 60+ coverage batch after earlier batch0/batch1 scans.
+- **Result**:
+  - Command shape: `./dslc/bench/scan_p4b_coverage.py --target pna --scan-root .tmp/procurator/upstream/p4c/testdata/p4_16_samples --out-dir .tmp/procurator/p4b_coverage/upstream_p4c_pna_20260502_batch2 --offset 60 --limit 20 --timeout-seconds 30 --max-wall-seconds 480`
+  - Report: `.tmp/procurator/p4b_coverage/upstream_p4c_pna_20260502_batch2/coverage.md`
+  - Result: 11/11 translated successfully. Combined with earlier batches, all 71 discovered upstream PNA candidates have now been attempted; remaining non-OK records in earlier batches are frontend type/internal cases, not P4B backend unsupported-semantics cases.
+- **Pitfalls/Fixes**: No new implementation bug found in this batch.
+- **Smoke/regression**: This was a translation-only coverage scan; no Ultimate/GemCutter job was launched.
+
+## 2026-05-02 NetChain wraparound certificate rerun
+
+- **Spec**: `Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop`
+- **Time**: 2026-05-02 12:26-12:29 Asia/Shanghai
+- **Goal/Progress**: Reran the canonical NetChain wraparound case after the P4B/DSLC refactor and NEAR suffix repair.
+- **Result**:
+  - Command shape: `./bin/procurator verify --spec ...netchain_wraparound_bug.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound auto --wraparound-cegar-mode schedule_replay --wraparound-stage-order entry_confirm_closure --wraparound-stop-after closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --settings dslc/toolchain/ultimate/settings/gemcutter/8g/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por-allinline.epf --ultimate-xmx-gb 8 --ultimate-timeout-seconds 900`
+  - Run directory: `.tmp/procurator/verify/netchain_wraparound_bug/20260502-122637-22a3/`
+  - Manifest: `.tmp/procurator/verify/netchain_wraparound_bug/20260502-122637-22a3/wraparound/target.00.s1_sequence_reg/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 18.4s, `NEAR_WRAP=UNSAFE` in about 42.7s, `CLOSURE_CHECK=SAFE` in about 88.4s.
+- **Pitfalls/Fixes**: No new implementation bug found; total staged certificate time stayed well under the 8 minute NetChain target.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-02 Gecko interleaving regression rerun
+
+- **Spec**: `Procurator/argo/code/spec/bench/gecko_bug2_concurrency.prop`
+- **Time**: 2026-05-02 12:29-12:31 Asia/Shanghai
+- **Goal/Progress**: Reran a known interleaving bug after the P4B/DSLC refactor.
+- **Result**:
+  - Command shape: `./bin/procurator verify --spec ...gecko_bug2_concurrency.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound off --settings dslc/toolchain/ultimate/settings/gemcutter/8g/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por-allinline.epf --ultimate-xmx-gb 8 --ultimate-timeout-seconds 300 --no-witness-rerun`
+  - Run directory: `.tmp/procurator/verify/gecko_bug2_concurrency/20260502-122936-c989/`
+  - Main Ultimate result: `UNSAFE` in under 300s.
+- **Pitfalls/Fixes**:
+  - CLI exit was nonzero only because witness rerun was disabled and the counterexample classifier reported no GraphML witness. The main solver result is still the regression signal for this staged smoke.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-02 DistCache P2C wraparound certificate rerun
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop`
+- **Time**: 2026-05-02 12:32-12:35 Asia/Shanghai
+- **Goal/Progress**: Reran a DistCache wraparound representative after the P4B/DSLC refactor and NEAR suffix repair.
+- **Result**:
+  - Command shape: `./bin/procurator verify --spec ...distcache_p2c_wraparound_bug.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound auto --wraparound-cegar-mode schedule_replay --wraparound-stage-order entry_confirm_closure --wraparound-stop-after closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --settings dslc/toolchain/ultimate/settings/gemcutter/8g/ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por-allinline.epf --ultimate-xmx-gb 8 --ultimate-timeout-seconds 900`
+  - Run directory: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260502-123228-b628/`
+  - Manifest: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260502-123228-b628/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 20.9s, `NEAR_WRAP=UNSAFE` in about 65.6s, `CLOSURE_CHECK=SAFE` in about 69.5s.
+- **Pitfalls/Fixes**: No new implementation bug found in this rerun.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-02 PSA/eBPF/uBPF semantic coverage refinement
+
+- **Spec/scan**:
+  - PSA samples: `P4B-Translator/testdata/p4_16_samples/*psa*.p4`
+  - eBPF samples: `P4B-Translator/testdata/p4_16_samples/*_ebpf.p4` plus eBPF counter/checksum samples
+  - uBPF samples: `P4B-Translator/testdata/p4_16_samples/*_ubpf.p4`
+- **Time**: 2026-05-02 13:20-13:45 Asia/Shanghai
+- **Goal/Progress**: Added semantic auditing on top of architecture translation coverage so "compile OK" is not treated as enough. Fixed concrete P4B lowering holes found by the audit: PSA/eBPF counter updates, uBPF three-argument hash, digest event summaries, and several audit false negatives around counter naming, checksum extern summaries, and meter expression calls.
+- **Result**:
+  - Focused tests: `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_regressions dslc.tests.p4b.test_p4b_flowdos_hash dslc.tests.bench.test_p4b_semantic_audit dslc.tests.bench.test_scan_p4b_coverage` passed in WSL (26 tests).
+  - P4B build: `cmake --build P4B-Translator/build-host --target p4c-translator -j4` passed in WSL.
+  - PSA counter focused scan: `.tmp/procurator/p4b_coverage/psa_counter_semantic_20260502_fix2/coverage.md`, 5/5 compile OK and 5/5 semantic OK.
+  - eBPF counter focused scan: `.tmp/procurator/p4b_coverage/ebpf_counter_semantic_20260502_fix2/coverage.md`, 2/2 compile OK and 2/2 semantic OK.
+  - uBPF hash focused scan: `.tmp/procurator/p4b_coverage/ubpf_hash_semantic_20260502_fix2/coverage.md`, 1/1 compile OK and semantic OK.
+  - eBPF wide sample scan: `.tmp/procurator/p4b_coverage/ebpf_samples_semantic_20260502_fix/coverage.md`, 19/19 compile OK; semantic status had OK/SKIP only.
+  - uBPF wide sample scan: `.tmp/procurator/p4b_coverage/ubpf_samples_semantic_20260502_fix/coverage.md`, 13/13 compile OK; semantic status had OK/SKIP only.
+  - PSA wide sample scan after digest/audit refinement: `.tmp/procurator/p4b_coverage/psa_samples_semantic_20260502_digest_fix/coverage.md`, 51/51 compile OK, 47 semantic OK, 4 semantic WEAK, 0 semantic FAIL. Remaining WEAK records are expected model-boundary summaries for checksum/meter, not silent no-op lowering.
+- **Pitfalls (implementation/model issues)**:
+  - uBPF `hash(out, algo, data)` was previously treated like v1model `hash(out, algo, base, data, max)`; the old lowering returned empty for the three-argument form, leaving a `// hash` no-op.
+  - Counter audit initially looked for `__counter_` and missed the real `name__counter` state shape, incorrectly reporting stateful counters as WEAK.
+  - DirectCounter table binding (`psa_direct_counter = counter0`) is not by itself an implicit update; explicit `.count()` still has to be distinguished from owner binding.
+  - Digest `.pack(...)` had no observable P4-local event in Boogie, so the model could silently drop a control-plane event.
+  - PSA checksum and meter are still intentionally coarse: checksum externs are retained as clear/add/get summaries, and meter execute remains an uninterpreted effect unless a stronger stateful meter model is added.
+- **Fixes/regression tests**:
+  - `P4B-Translator/backends/verify/translate/impl/lowering/translate_method.cpp`: lowered three-argument `hash(out, algo, data)` to a deterministic typed Boogie function assignment.
+  - `P4B-Translator/backends/verify/translate/impl/lowering/translate_statement.cpp`: stopped emitting `// hash` when hash lowering succeeds, and added `p4b_digest := true` for `Digest.pack(...)`.
+  - `P4B-Translator/backends/verify/translate/impl/core/translate.cpp`: added the `p4b_digest` global event flag and per-run reset.
+  - `P4B-Translator/backends/verify/translate/impl/lowering/translate_program.cpp` / `translate.h`: moved Boogie zero/one literal rendering into `Translator` methods instead of relying on unified-build static helpers.
+  - `dslc/bench/p4b_semantic_audit.py`: added semantic feature checks for three-argument hash, counter state/update separation, digest event evidence, checksum extern summaries, and meter expression calls.
+  - Regression tests added/updated in `dslc/tests/p4b/test_p4b_translator_regressions.py` and `dslc/tests/bench/test_p4b_semantic_audit.py`.
+- **Smoke/regression**: Translation/audit-only scans; no Ultimate/GemCutter job was launched.
+
+## 2026-05-02 PNA/TNA semantic coverage check
+
+- **Spec/scan**:
+  - TNA repo samples under `P4B-Translator/testdata/p4_16_samples`
+  - PNA upstream p4c batch under `.tmp/procurator/upstream/p4c/testdata/p4_16_samples`
+- **Time**: 2026-05-02 13:43-13:46 Asia/Shanghai
+- **Goal/Progress**: Extended the semantic-audit scan beyond PSA/eBPF/uBPF toward PNA/TNA without launching solver jobs.
+- **Result**:
+  - TNA repo-sample scan: `.tmp/procurator/p4b_coverage/tna_samples_semantic_20260502_fix/coverage.md`; 0 discovered top-level TNA candidates in the repo-local `p4_16_samples` tree.
+  - PNA upstream semantic batch0: `.tmp/procurator/p4b_coverage/pna_upstream_semantic_20260502_fix_batch0/coverage.md`; 20 attempted, 16 compile OK with semantic OK, 4 frontend type/internal failures classified before P4B backend lowering.
+- **Pitfalls/Fixes**:
+  - Repo-local `p4_16_samples` does not currently contain top-level TNA programs; TNA coverage still needs the earlier TNA-specific dataset/upstream source rather than this tree.
+  - PNA failures in this batch remain frontend/p4c issues rather than silent P4B semantic no-ops; no new P4B lowering bug was found in this batch.
+- **Smoke/regression**: Translation/audit-only scans; no Ultimate/GemCutter job was launched.
+
+## 2026-05-02 ETC/TNA dynamic-index NEAR_WRAP repair
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`
+- **Time**: 2026-05-02 14:26-15:50 Asia/Shanghai
+- **Goal/Progress**: Revisited the ETC packet-count wraparound case after the FissLock false-SAFE repair. Distinguished three separate issues: stale fixed-slot candidate inference, stale spec path assumptions, and an overly long near-wrap unroll that caused Ultimate to time out before reporting the existing bug.
+- **Result**:
+  - Pre-fix anchor: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260502-145049-7fce/` recovered the correct hash index expression, but the old spec path still forced an unreachable update suffix and returned `NEAR_WRAP=SAFE`.
+  - Spec/path correction: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260502-145604-9a07/` changed the table action to `Ingress_set_flow_class` with `f_class == 0`, so the parser sentinel `meta.final_class == 10` is reset to the update path. With `unroll2`, `ENTRY_CHECK=UNSAFE` in about 14.6s and `NEAR_WRAP=Timeout` at about 902.3s.
+  - Shorter repro before strategy change: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260502-154420-a845/`, `ENTRY_CHECK=UNSAFE` in about 17.4s and `NEAR_WRAP=UNSAFE` in about 31.1s using `near_wrap.unroll1`.
+  - Default command after strategy change: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260502-155008-1dfa/`, even with `--wraparound-confirm-unroll 2`, the schedule tries the minimal suffix first and gets `ENTRY_CHECK=UNSAFE` in about 16.5s and `NEAR_WRAP=UNSAFE` in about 31.1s.
+  - Candidate index is now the dynamic hash slot:
+    `etc_Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8(167772161bv32, 167772162bv32, 1234bv16, 443bv16, 6bv8)`.
+- **Pitfalls (implementation/model issues)**:
+  - The stale `meta.register_index == 0` assumption was unsound as a candidate stabilizer because the P4 program overwrites `meta.register_index` via `idx_calc.get(...)` during the pass.
+  - The old spec assumed `Ingress_drop`, which leaves `meta.final_class` at the parser sentinel value `10` and blocks the packet-count update guarded by `meta.final_class == 0`.
+  - `near_wrap.unroll2` was not a stronger proof for this existential bug-finding stage; it introduced an extra suffix packet and made Ultimate spend time in branch-encoder trace refinement. The corrected one-round suffix is enough for the `255 -> 0` write.
+- **Fixes/regression tests**:
+  - `dslc/analysis/wraparound_candidates.py` / `dslc/analysis/wraparound_bpl_index.py`: dynamic RegisterAction index inference now prefers P4/BPL-derived hash expressions and does not let node assumptions override variables written by the P4 pass.
+  - `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`: removed stale `meta.register_index == 0` and stale `Ingress_drop` path assumptions; pinned the table action that resets `final_class` to 0.
+  - `dslc/transform/wraparound_stages.py` / `dslc/transform/wraparound_instrument.py`: materialize redundant dynamic-slot zero facts for registers that already have quantified zero initialization, and strengthen the near-wrap gate with `__last_index/__last_value` mirrors when present.
+  - `dslc/workflows/wraparound_cegis.py`: confirm/near-wrap unroll schedule now tries the minimal suffix before growing to the requested bound.
+  - Focused WSL tests passed: `python3 -m unittest -v dslc.tests.wraparound.cegis.core.test_wraparound_cegis_order dslc.tests.wraparound.schedule.test_wraparound_schedule`; `python3 -m unittest -v dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.p4b.test_p4b_translator_regressions`.
+- **Smoke/regression**: ETC staged solver runs were executed one at a time in WSL; no concurrent Ultimate/GemCutter jobs were launched.
+
+## 2026-05-02 wraparound NEAR smoke after minimal-unroll strategy
+
+- **Specs**:
+  - `Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop`
+  - `Procurator/argo/code/spec/bench/fisslock_notification_cnt_wraparound_bug.prop`
+- **Time**: 2026-05-02 15:52-15:59 Asia/Shanghai
+- **Goal/Progress**: Reran canonical wraparound NEAR checks after changing confirm/near-wrap exploration to try the minimal suffix before growing.
+- **Result**:
+  - NetChain run `.tmp/procurator/verify/netchain_wraparound_bug/20260502-155224-e8a8/`: `ENTRY_CHECK=UNSAFE` in about 19.8s; `NEAR_WRAP=UNSAFE` in about 55.8s using `near_wrap.unroll1`.
+  - FissLock run `.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260502-155403-c154/`: `ENTRY_CHECK=UNSAFE` in about 25.6s; `near_wrap.unroll1=SAFE` in about 35.0s; automatic growth to `near_wrap.unroll2=UNSAFE` in about 203.6s.
+- **Pitfalls/Fixes**:
+  - FissLock confirms that minimal-unroll-first must still grow after a real `SAFE`; otherwise multi-step suffix bugs would be missed. The schedule now does exactly that.
+  - NetChain confirms that shorter near-wrap bounds can still catch single-round wraparound bugs and avoid unnecessary solver work.
+- **Smoke/regression**: Runs were executed one at a time in WSL with `--wraparound-stop-after near_wrap`; no concurrent Ultimate/GemCutter jobs were launched.
+
+## 2026-05-02 DistCache closure smoke after minimal-unroll strategy
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop`
+- **Time**: 2026-05-02 15:59-16:03 Asia/Shanghai
+- **Goal/Progress**: Reran a full staged certificate representative after changing near-wrap exploration order.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260502-155911-26ee/`
+  - Manifest: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260502-155911-26ee/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 21.5s.
+  - `near_wrap.unroll1=SAFE` in about 49.0s, then automatic growth to `near_wrap.unroll2=UNSAFE` in about 67.8s.
+  - `CLOSURE_CHECK=SAFE` in about 69.5s, so the staged certificate remains intact under the new exploration policy.
+- **Pitfalls/Fixes**:
+  - Like FissLock, DistCache needs a two-round suffix; the minimal-unroll strategy must treat `SAFE` at a shorter suffix as "grow and retry" when a larger requested bound exists, not as final absence.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-02 ETC pkt_len_total near-wrap exploration
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-02 16:06-16:18 Asia/Shanghai
+- **Goal/Progress**: Tried a second ETC/TNA wraparound target (`reg_pkt_len_total`, 16-bit accumulated packet length) after the packet-count dynamic-index repair.
+- **Result**:
+  - Compile/smoke passed: `./bin/procurator compile --spec ...external_etc_noms2024_pkt_len_total_wraparound_direct.prop --out /tmp/etc_len_total.bpl --boogie-harness sequential --no-two-stage --no-reg-debug && ./bin/procurator smoke --bpl /tmp/etc_len_total.bpl --harness sequential`.
+  - First run before fixing schedule-replay path reuse: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260502-160614-8873/`; `ENTRY_CHECK=UNSAFE`, but the loop accidentally ran `near_wrap.unroll1.bpl` twice instead of growing to unroll2.
+  - After fixing path reuse: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260502-161106-9021/`; `ENTRY_CHECK=UNSAFE` in about 20.5s, `near_wrap.unroll1=SAFE` in about 46.7s, then correctly ran `near_wrap.unroll2` but hit `Timeout` at about 317.6s.
+- **Pitfalls (implementation/model issues)**:
+  - Minimal-unroll-first initially exposed a schedule-replay bug: when the loop reached the requested base unroll after trying a shorter unroll, it reused the stale `confirm_bpl` path from the shorter run. This could falsely report repeated SAFE/UNKNOWN on the wrong BPL.
+  - Current ETC `pkt_len_total` status is "verification timeout at unroll2", not "bug absent". The path is reachable, but Ultimate times out on the two-packet suffix.
+- **Fixes/regression tests**:
+  - `dslc/workflows/wraparound_support/loop_schedule.py`: near-wrap generation now binds each unroll to its own BPL/log path.
+  - `dslc/workflows/wraparound_cegis.py`, `loop_schedule.py`, and `loop_legacy.py`: unroll schedules include the configured cap and continue past short-bound UNKNOWN/TIMEOUT until the last scheduled bound.
+  - `dslc/transform/wraparound_instrument.py`: dynamic-slot zero facts are collected only from the main init prefix that dominates the fast-forward insertion point.
+  - Added tests: `test_schedule_replay_grows_to_distinct_near_wrap_bpl`, `test_schedule_replay_continues_after_short_unknown`, `test_confirm_dynamic_slot_defaults_require_dominating_init_prefix`, and cap coverage in `test_confirm_unroll_schedule_starts_from_minimal_suffix`.
+  - Focused WSL tests passed: `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.cegis.core.test_wraparound_cegis_order dslc.tests.wraparound.transform.test_wraparound_transform`; plus candidate/P4B regressions.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-02 ETC dynamic-slot projection soundness smoke
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`
+- **Time**: 2026-05-02 23:09-23:11 Asia/Shanghai
+- **Goal/Progress**: Reran the ETC packet-count dynamic-index case after changing schedule replay so incomplete dependency/index projection no longer blocks ENTRY/NEAR bug discovery, but still blocks CLOSURE/certification.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260502-230905-0936/`
+  - Manifest: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260502-230905-0936/wraparound/target.00.etc_Ingress_reg_pkt_count/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 41.0s.
+  - `NEAR_WRAP=UNSAFE` in about 37.4s using `near_wrap.unroll1`.
+  - Manifest has `certified=false`, `projection_complete=false`, and `diagnostic="stopped after near_wrap by request"`.
+  - Candidate index remains the dynamic hash slot:
+    `etc_Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8(167772161bv32, 167772162bv32, 1234bv16, 443bv16, 6bv8)`.
+- **Pitfalls (implementation/model issues)**:
+  - Dynamic-index candidates can depend on auxiliary register arrays at the same hash slot. Projecting `foo__last0_value` for such dependencies is unsound because the relevant slot is not necessarily slot 0.
+  - The dependency projection correctly reports dynamic-slot dependencies (`etc_Ingress_reg_flow_ID`, `etc_Ingress_reg_status`) and marks the projection incomplete. Therefore this run is valid bug-discovery evidence, not a wraparound closure certificate.
+- **Fixes/regression tests**:
+  - `dslc/analysis/wraparound_projection.py`: dynamic-index candidates no longer promote non-target register-array dependencies to slot-0 mirrors; such dependencies mark projection incomplete.
+  - `dslc/workflows/wraparound_support/loop_schedule.py`: incomplete projection still allows `ENTRY_CHECK` and `NEAR_WRAP`, but blocks closure/certification and falls back to direct verification.
+  - Added/updated tests: `test_dependency_projection_does_not_use_slot0_mirror_for_dynamic_index_dep` and `test_schedule_replay_incomplete_projection_still_runs_near_but_not_closure`.
+  - Focused WSL tests passed: `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.cegis.core.test_wraparound_cegis_order dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.p4b.test_p4b_translator_regressions` (79 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-02 Flowrest dynamic-slot NEAR_WRAP witness with certification fallback
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-02 23:13-23:17 Asia/Shanghai
+- **Goal/Progress**: Reran Flowrest packet-length accumulation after the dynamic-slot projection fix, using `--wraparound-stop-after closure` to confirm the workflow finds the near-wrap witness but refuses an incomplete dynamic-slot certificate.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound_direct/20260502-231338-b798/`
+  - Manifest: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound_direct/20260502-231338-b798/wraparound/target.00.flowrest_Ingress_reg_pkt_len_total/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 20.0s.
+  - `near_wrap.unroll1=SAFE` in about 52.1s, then automatic growth to `near_wrap.unroll2=UNSAFE` in about 79.3s.
+  - Manifest has `certified=false`, `projection_complete=false`, `closure=null`, and `diagnostic="near-wrap bug found but dependency projection incomplete; falling back to direct verification"`.
+  - Candidate index is the dynamic hash slot:
+    `flowrest_Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8(167772161bv32, 167772162bv32, 1234bv16, 443bv16, 6bv8)`.
+- **Pitfalls (implementation/model issues)**:
+  - Flowrest `reg_pkt_len_total[index]` update depends on same-slot auxiliary state (`reg_flow_ID[index]` and `reg_time_last_pkt[index]`). A slot-0 scalar mirror would prove the wrong fact for a dynamic hash index.
+  - The current result is a concrete near-wrap witness and fallback trigger, not a closure-certified wraparound proof. Direct verification or a future dynamic-slot projection/snapshot certificate is still needed for full certification.
+- **Fixes/regression tests**:
+  - Same dynamic-slot projection fix as the ETC smoke: dynamic array dependencies are reported in `dependency_projection_dynamic_slot_deps` and force `projection_complete=false`.
+  - `dslc/workflows/wraparound_support/loop_schedule.py` now records the incomplete projection in the attempt cfg, runs ENTRY/NEAR, and stops before CLOSURE/certification.
+  - Focused WSL regression remained green: 79 wraparound/P4B tests passed before this solver run.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-02 DistCache certified closure after dynamic-slot projection tightening
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop`
+- **Time**: 2026-05-02 23:23-23:29 Asia/Shanghai
+- **Goal/Progress**: Reran a fixed-slot closure-certified representative after tightening dynamic-index projection, to ensure the new fallback policy does not regress existing certified wraparound cases.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260502-232359-5b24/`
+  - Manifest: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260502-232359-5b24/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 20.8s.
+  - `near_wrap.unroll1=SAFE` in about 71.5s, then automatic growth to `near_wrap.unroll2=UNSAFE` in about 96.9s.
+  - `CLOSURE_CHECK=SAFE` in about 87.4s.
+  - Manifest has `certified=true`, `projection_complete=true`, and `diagnostic="certified schedule-replay wraparound bug"`.
+- **Pitfalls/Fixes**:
+  - The verifier command returns nonzero when a certified `UNSAFE` bug is found; this is expected CLI behavior for bug-finding and not a tool failure. The manifest is the authoritative evidence.
+  - The dynamic-slot fallback policy only affects candidates with incomplete dynamic-slot dependencies; fixed-slot certified cases remain eligible for closure.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest pkt_count slicing false-SAFE repair
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+- **Time**: 2026-05-03 00:01-00:05 Asia/Shanghai
+- **Goal/Progress**: Revisited the Flowrest packet-count wraparound case that previously returned `NEAR_WRAP=SAFE` under slicing. Treated the result as a possible tool imprecision rather than bug absence, then compared pruned vs no-prune Boogie and found the P4-local classification/ttl path had been sliced away.
+- **Result**:
+  - Pre-fix pitfall run: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260502-233327-42ce/` had `ENTRY_CHECK=UNSAFE`, `near_wrap.unroll1=SAFE`, and `near_wrap.unroll2=SAFE`, but the pruned Boogie was missing the internal `hdr.ipv4.ttl := 127/128/255` and `classified_flag` path. This was a slicing false negative, not evidence that the bug is absent.
+  - After fixing P4B slicing, compile check `/tmp/flowrest_pkt_count_prune_after_fix.bpl` contains `hdr.ipv4.ttl := 127bv8;`, `hdr.ipv4.ttl := 128bv8;`, `hdr.ipv4.ttl := 255bv8;`, `meta.classified_flag`, and `Ingress_update_classified_flag.apply`.
+  - Solver run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-000105-6ca8/`
+  - Manifest: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-000105-6ca8/wraparound/target.00.flowrest_Ingress_reg_pkt_count/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 25.3s.
+  - `near_wrap.unroll1=SAFE` in about 86.9s, then automatic growth to `near_wrap.unroll2=UNSAFE` in about 132.9s.
+  - Manifest has `certified=false` and `diagnostic="near-wrap bug found but dependency projection incomplete; falling back to direct verification"`.
+  - Candidate index is the dynamic hash slot:
+    `flowrest_Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8(167772161bv32, 167772162bv32, 1234bv16, 443bv16, 6bv8)`.
+- **Pitfalls (implementation/model issues)**:
+  - The P4B slicer had an optimization that, once it saw a target register-write seed, replaced the whole backward-slice root set with only target-register-write nodes. That is valid for register-only slicing, but unsound when explicit property seeds such as `hdr.ipv4.ttl` are present at the same time.
+  - The previous `NEAR_WRAP=SAFE` was caused by losing property-observed P4 writes, so the correct classification is "verification false negative due slicing", not "bug absent".
+  - Flowrest remains a dynamic-slot case: the near-wrap witness is concrete, but the dependency projection reports same-slot auxiliary register dependencies (`flowrest_Ingress_reg_flow_ID`, `flowrest_Ingress_reg_time_last_pkt`) and therefore correctly refuses closure certification for now.
+- **Fixes/regression tests**:
+  - `P4B-Translator/backends/verify/slicing/slicer.cpp`: target-register-write root narrowing now preserves nodes that define explicit user/property seeds. This keeps register-only slices narrow while preventing property-observed fields from being discarded.
+  - `dslc/tests/p4b/test_p4b_translator_slicing_selftest.py`: added `test_external_flowrest_ttl_seed_keeps_ttl_assignments` to require the Flowrest ttl/classified_flag path under `--slicing-vars=hdr.ipv4.ttl,meta.pkt_count`.
+  - P4B build passed: `cmake --build P4B-Translator/build-host --target p4c-translator -j4`.
+  - Focused WSL tests passed: `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_slicing_selftest dslc.tests.p4b.test_p4b_translator_regressions` (33 tests), and `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.cegis.core.test_wraparound_cegis_order dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.p4b.test_p4b_translator_regressions` (79 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched. Next step is to strengthen dynamic-slot fallback/certification or run direct verification on the generated witness path.
+
+## 2026-05-03 Flowrest pkt_count dynamic-slot projection expression check
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+- **Time**: 2026-05-03 00:29-00:37 Asia/Shanghai
+- **Goal/Progress**: Reran the Flowrest packet-count dynamic-slot case after adding projection expressions for same-slot auxiliary register dependencies, so the workflow can test CLOSURE without projecting dynamic dependencies through unsound slot-0 scalar mirrors.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-002940-aa05/`
+  - Manifest: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-002940-aa05/wraparound/target.00.flowrest_Ingress_reg_pkt_count/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 15.5s.
+  - `near_wrap.unroll1=SAFE` in about 64.3s, then automatic growth to `near_wrap.unroll2=UNSAFE` in about 347.4s.
+  - `CLOSURE_CHECK=UNSAFE` in about 39.9s.
+  - Manifest has `projection_complete=true` because the dynamic same-slot dependencies are represented as expressions:
+    `flowrest_Ingress_reg_flow_ID[index_expr]` and `flowrest_Ingress_reg_time_last_pkt[index_expr]`.
+  - Manifest still has `certified=false`; this is a concrete near-wrap witness plus a failed closure attempt, not a certified wraparound proof.
+- **Pitfalls (implementation/model issues)**:
+  - Expression projection fixed the earlier coarse fallback reason: the verifier no longer needs to reject the case merely because the candidate uses a dynamic hash slot.
+  - The closure counterexample shows `flowrest_Ingress_reg_time_last_pkt[index_expr]` changes during the pump round. Requiring equality preservation for this auxiliary register is too strong for Flowrest, because the P4 program updates it to the current parser timestamp on every packet.
+  - This failure should not be interpreted as "bug absent"; it means the current projection invariant is not the right inductive invariant for this program. The likely next refinement is to project/replay control predicates such as the established-flow predicate (`time_last_pkt != 0`) and same-flow predicate, or fall back to direct verification if those predicates cannot be derived soundly.
+- **Fixes/regression tests**:
+  - `dslc/analysis/wraparound_projection.py`: dynamic same-slot dependencies with matching index width are now emitted as `proj_exprs` instead of incorrectly using slot-0 mirrors.
+  - `dslc/transform/wraparound_stages.py` and workflow/manifest plumbing now snapshot and assert `proj_exprs` in closure checks.
+  - Focused WSL tests passed before this solver run: `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.schedule.test_wraparound_schedule` (56 tests), and the broader wraparound/P4B subset later passed (108 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest pkt_count cutpoint-shape projection smoke
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+- **Time**: 2026-05-03 01:29 Asia/Shanghai
+- **Goal/Progress**: Ran ENTRY-only Flowrest packet-count wraparound after changing dependency projection to extract dynamic-slot guard predicates and reject ambiguous cutpoint shapes conservatively.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-012906-19c4/`
+  - Manifest: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-012906-19c4/wraparound/target.00.flowrest_Ingress_reg_pkt_count/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 15.5s.
+  - Manifest has `projection_complete=false` before near/closure because automatic projection found both first-flow and established-flow predicates for `time_last_pkt[index]`.
+- **Pitfalls (implementation/model issues)**:
+  - `time_last_pkt[index]` is updated every packet, so equality projection is too strong.
+  - A single one-round closure over both `time_last_pkt[index] == 0` and `time_last_pkt[index] != 0` shapes would be ambiguous. The tool now marks projection incomplete and must fallback/direct-check rather than certify.
+- **Fixes/regression tests**:
+  - `dslc/analysis/wraparound_projection.py`: canonicalizes P4B `reg.read(reg, idx)` to `reg[idx]`, avoids substituting register receivers, observes dynamic targets through the register array rather than `__last0_value`, and records dynamic-slot guard predicates.
+  - `dslc/tests/wraparound/schedule/test_wraparound_projection.py`: added guard-predicate and ambiguous-shape tests.
+  - Focused WSL tests passed: `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection`, plus the schedule/transform/manifest subset.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest pkt_count near-wrap after cutpoint-shape projection
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+- **Time**: 2026-05-03 01:40-01:48 Asia/Shanghai
+- **Goal/Progress**: Reran the Flowrest packet-count near-wrap stage after the cutpoint-shape projection refinement and expression-helper split, to confirm the previous slicing false negative stays repaired while incomplete projection prevents unsound closure certification.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-014058-2a8d/`
+  - Manifest: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-014058-2a8d/wraparound/target.00.flowrest_Ingress_reg_pkt_count/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 14.5s.
+  - `near_wrap.unroll1=SAFE` in about 60.6s, then automatic growth to `near_wrap.unroll2=UNSAFE` in about 343.9s.
+  - Manifest attempt config has `projection_complete=false`, `certified=false`, and `diagnostic="stopped after near_wrap by request"`.
+  - The near-wrap witness reaches the classification-update suffix: `flowrest_hdr.ipv4.ttl=128bv8`, `flowrest_meta.pkt_count=1bv8`, and `flowrest_Ingress_reg_pkt_count__last_value=1bv8` after a `255 -> 0 -> 1` style replay suffix.
+- **Pitfalls (implementation/model issues)**:
+  - `stop-after near_wrap` leaves top-level manifest fields such as `near_wrap`/`entry` empty, but the authoritative data is in `attempts[0]`; use that nested entry when auditing partial-stage manifests.
+  - The automatic projection correctly records both `time_last_pkt[index] == 0` and `!(time_last_pkt[index] == 0)`, plus `flow_ID[index]` as a dynamic-slot expression. This means the bug witness exists, but the current one-round closure certificate is intentionally refused.
+- **Fixes/regression tests**:
+  - Split Boogie expression helpers from `dslc/analysis/wraparound_projection.py` into `dslc/analysis/wraparound_projection_exprs.py`, keeping both Python files under the 1300-line limit (`1243` and `201` lines respectively).
+  - WSL tests passed before this solver run: `python3 -m py_compile dslc/analysis/wraparound_projection.py dslc/analysis/wraparound_projection_exprs.py`, `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection` (10 tests), and `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.schedule.test_schedule_manifest_certification` (54 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 DistCache certified closure after projection helper split
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop`
+- **Time**: 2026-05-03 01:50-01:54 Asia/Shanghai
+- **Goal/Progress**: Reran a fixed-slot certified wraparound representative after the Flowrest cutpoint-shape projection changes and the `wraparound_projection_exprs.py` split.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260503-015057-c8e3/`
+  - Manifest: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260503-015057-c8e3/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 16.0s.
+  - `near_wrap.unroll1=SAFE` in about 38.7s, then automatic growth to `near_wrap.unroll2=UNSAFE` in about 47.9s.
+  - `CLOSURE_CHECK=SAFE` in about 56.6s.
+  - Manifest has `certified=true`, `projection_complete=true`, and `diagnostic="stopped after closure by request"`.
+- **Pitfalls/Fixes**:
+  - No new implementation bug found. This regression confirms that the dynamic-slot conservative fallback path did not disable existing fixed-slot closure certificates.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest pkt_len_total near-wrap witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound.prop`
+- **Time**: 2026-05-03 02:14-02:26 Asia/Shanghai
+- **Goal/Progress**: Explored a second Flowrest per-flow feature register after the packet-count witness, using the same staged near-wrap workflow and no dataset edits.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260503-021450-8aba/`
+  - Manifest: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260503-021450-8aba/wraparound/target.00.flowrest_Ingress_reg_pkt_len_total/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 14.0s.
+  - `near_wrap.unroll1=SAFE` in about 59.6s, then automatic growth to `near_wrap.unroll2=UNSAFE` in about 585.8s.
+  - Candidate target is `flowrest_Ingress_reg_pkt_len_total` with `step_delta=32768` and the dynamic hash-slot index expression for the pinned five-tuple.
+  - Witness log contains `flowrest_Ingress_reg_pkt_len_total__last_value=0bv16` and `flowrest_meta.pkt_len_total=0bv16`, confirming the wrapped zero write.
+- **Pitfalls (implementation/model issues)**:
+  - Like `pkt_count`, this is a dynamic-slot Flowrest feature path. The dependency projection records both `time_last_pkt[index] == 0` and `time_last_pkt[index] != 0`, plus `flow_ID[index]` as a dynamic-slot expression, so `projection_complete=false`.
+  - The result is a concrete near-wrap witness, not a closure-certified schedule certificate. Certifying this class soundly needs a separate shape-reachability/cutpoint-splitting proof for the established-flow phase rather than witness-derived assumptions.
+- **Fixes/regression tests**:
+  - No new code change for this single-spec experiment.
+  - Prior WSL regression remained green before this run: projection/schedule/transform/manifest subset passed (64 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched. The interrupted subagent review failed with a stream disconnect and was not used as approval evidence.
+
+## 2026-05-03 Flowrest flow_duration candidate-gating check
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 02:27 Asia/Shanghai
+- **Goal/Progress**: Tried the Flowrest 32-bit `reg_flow_duration` candidate with the same staged near-wrap entry, to distinguish "bug absent" from "tool did not verify it".
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-022715-053c/`
+  - CLI result: `STOP-AFTER near_wrap: no wraparound candidates`.
+  - P4B meta still contains the relevant register and update:
+    `reg_flow_duration_0 -> Ingress_reg_flow_duration`, `op=add`, `value_width=32`, but `delta_is_const=false`.
+- **Pitfalls (implementation/model issues)**:
+  - This is not a solver SAFE result and not evidence that the bug is absent. The pipeline did not attempt ENTRY/NEAR/CLOSURE because candidate selection currently needs a recoverable constant step delta for wraparound acceleration.
+  - The update delta flows through `meta.iat = timestamp - time_last_pkt`, so proving this case requires either a direct bounded check or stronger DSL/P4B constant propagation across the timestamp/env phase script to recover the effective delta for the selected suffix.
+- **Fixes/regression tests**:
+  - No code change in this check. Follow-up implementation should improve candidate recovery for env-fixed variable deltas instead of modifying the P4 dataset.
+- **Smoke/regression**: No Ultimate/GemCutter stage was launched because no wraparound candidate was inferred.
+
+## 2026-05-03 Flowrest flow_duration direct bounded check
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 02:28-02:44 Asia/Shanghai
+- **Goal/Progress**: Ran a direct bounded verification attempt for the Flowrest `reg_flow_duration` script after wraparound candidate inference did not pick it up, to distinguish absence from tool incompleteness.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-022846-7fe2/`
+  - BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-022846-7fe2/external_flowrest_per_flow_flow_duration_wraparound.bpl`
+  - Log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-022846-7fe2/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 900`.
+  - Result: `Timeout` after about 830s inside TraceAbstraction; no `SAFE` or `UNSAFE` conclusion.
+- **Pitfalls (implementation/model issues)**:
+  - This remains "not verified within budget", not "bug absent". The bounded script is present, but the direct BMC/proof backend spent 34 CEGAR iterations and timed out while refining the abstraction.
+  - The likely tool improvement is to recover the effective constant delta for `reg_flow_duration += meta.iat` from the DSL timestamp phase script and then reuse the near-wrap acceleration path, instead of asking the backend to rediscover the long arithmetic prefix directly.
+- **Fixes/regression tests**:
+  - No code change for this experiment.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration direct bounded check with 8GB all-inline backend
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 02:55-03:09 Asia/Shanghai
+- **Goal/Progress**: Retried the Flowrest `reg_flow_duration` bounded script with the stronger 8GB GemCutter profile (`ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout-no-por-allinline.epf`) to check whether the previous timeout was only a solver-resource/profile issue.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-025520-93be/`
+  - BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-025520-93be/external_flowrest_per_flow_flow_duration_wraparound.bpl`
+  - Log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-025520-93be/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 900 --ultimate-xmx-gb 8 --no-witness-rerun`.
+  - Result: `Timeout` after about 836s total, with TraceAbstraction around 832s and 22 CEGAR iterations. The reported timeout location is the final `assert !procurator_bad;`.
+- **Pitfalls (implementation/model issues)**:
+  - This is still not evidence that the bug is absent. The bounded witness shape is in the spec, but the backend is spending the budget refining a final accumulated assertion rather than seeing the narrow guarded register-write violation at the step where it happens.
+  - The next DSLC-side optimization should keep the original accumulated global assertion for soundness and witness classification, while adding an equivalent direct assertion near the node pass for guarded register-write mirror predicates. This belongs in the distributed harness because the guard uses DSL phase state.
+- **Fixes/regression tests**:
+  - No code change for this single-spec experiment. Follow-up implementation should add a focused harness regression to ensure guarded register-write assertions are not incorrectly pushed into P4B fail-fast.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration bounded check after DSLC guarded direct assertions
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 03:29-03:35 Asia/Shanghai
+- **Goal/Progress**: After adding a DSLC harness direct assertion for guarded register-write global assertions, reran a 300s bounded verification attempt before opening another long run.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-032939-92d4/`
+  - BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-032939-92d4/external_flowrest_per_flow_flow_duration_wraparound.bpl`
+  - Log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-032939-92d4/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 300 --ultimate-xmx-gb 8 --no-witness-rerun`.
+  - Result: `Timeout` after about 276s toolchain time, TraceAbstraction around 273s, 12 CEGAR iterations.
+  - The BPL now includes direct guarded checks at node-pass boundaries, e.g. line 1162 is `assert ((dsl_phase < 3) || !(flowrest_Ingress_reg_flow_duration__wrote_any && flowrest_Ingress_reg_flow_duration__last_value == 0bv32));`, followed by the original accumulated `procurator_bad` update.
+- **Pitfalls (implementation/model issues)**:
+  - The optimization moved the solver target away from only the final `assert !procurator_bad;`, but Ultimate still attempted early phase-guarded direct assertions at lines 946/1054/1162 plus the final assertion and timed out. This is still "not verified within budget", not "bug absent".
+  - The next refinement should render the direct check as an explicit guard branch (for example, `if (!(phase < 3)) { assert !(reg write predicate); }`) so the early safe phase checks do not become equally prominent error locations.
+- **Fixes/regression tests**:
+  - `dslc/backends/boogie/harness/flow/sequential.py`: adds a DSLC-side direct assertion for bounded sequential guarded register-write global assertions while retaining `procurator_bad`.
+  - `dslc/tests/boogie/backend/test_boogie_backend_smoke.py`: adds coverage ensuring guarded assertions are not pushed into P4B fail-fast and still get a DSLC direct check.
+  - Focused WSL regression passed before this solver run: `python3 -m py_compile dslc/backends/boogie/harness/flow/sequential.py && python3 -m unittest -v dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.boogie.harness.test_boogie_harness_sequential_reg_dbg_snapshot` (25 tests).
+  - BPL smoke passed for `.tmp/procurator/manual/flow_duration_direct_check.bpl`.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration bounded check after guarded-branch direct assertions
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 03:40-03:45 Asia/Shanghai
+- **Goal/Progress**: Changed the DSLC direct guarded assertion from `assert guard || !write_predicate` to an explicit branch `if (!guard) { assert !write_predicate; }`, then reran the same 300s bounded verification budget.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-034029-b291/`
+  - BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-034029-b291/external_flowrest_per_flow_flow_duration_wraparound.bpl`
+  - Log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-034029-b291/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 300 --ultimate-xmx-gb 8 --no-witness-rerun`.
+  - Result: `Timeout` after about 275s toolchain time, TraceAbstraction around 271s, 13 CEGAR iterations.
+  - Timeout locations are still the three unfolded direct assertion sites plus the final accumulated `assert !procurator_bad;` (lines 1140/1256/1372/1378).
+- **Pitfalls (implementation/model issues)**:
+  - The branch form is semantically cleaner but did not reduce Ultimate's number of error locations. The duplicate final `procurator_bad` assertion is now redundant for this single guarded register-write global assertion and appears to be adding another target without helping witness discovery.
+  - Next refinement should track which accumulated global assertions are exactly covered by DSLC direct checks in bounded sequential mode and avoid emitting the duplicate final error location when all active global assertions are covered. This needs a regression test because skipping the final assertion is only sound when the direct check is emitted at the same pass boundary for every active global assertion.
+- **Fixes/regression tests**:
+  - `dslc/backends/boogie/harness/flow/sequential.py`: guarded direct checks now render as `if (!guard) { assert !write_predicate; }`.
+  - `dslc/tests/boogie/backend/test_boogie_backend_smoke.py`: updated the guarded-register test to check the explicit guard branch.
+  - Focused WSL regression passed before this solver run: `python3 -m unittest -v dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_guarded_register_mirror_assert_gets_dsl_direct_check dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.boogie.harness.test_boogie_harness_sequential_reg_dbg_snapshot` (26 tests).
+  - BPL smoke passed for `.tmp/procurator/manual/flow_duration_guarded_branch.bpl`.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration bounded check after removing covered duplicate final assertion
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 03:49-03:55 Asia/Shanghai
+- **Goal/Progress**: Refined the DSLC bounded sequential harness so global assertions covered by DSLC direct guarded register-write checks are not also accumulated into a duplicate final `assert !procurator_bad;`. This was tested on the Flowrest `flow_duration` bounded script before returning to candidate/suffix recovery.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-034940-cf9a/`
+  - BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-034940-cf9a/external_flowrest_per_flow_flow_duration_wraparound.bpl`
+  - Log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-034940-cf9a/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 300 --ultimate-xmx-gb 8 --no-witness-rerun`.
+  - Result: `Timeout` after about 273s TraceAbstraction, 10 CEGAR iterations.
+  - The CFG now has 3 error locations, all direct guarded assertion sites (lines 1138/1252/1366). The duplicate final `procurator_bad` assertion is gone for this single-assertion spec.
+- **Pitfalls (implementation/model issues)**:
+  - Removing the duplicate final target reduces error locations from 4 to 3 and the largest abstraction, but still does not produce an `UNSAFE` witness within 300s. This points to the dynamic-slot/time-delta model itself rather than merely assertion placement.
+  - This remains "not verified within budget", not "bug absent". The next useful path is to recover the effective scripted suffix/candidate for `reg_flow_duration += meta.iat`, or otherwise specialize the suffix check, instead of spending another long direct run on the same unstructured BPL.
+- **Fixes/regression tests**:
+  - `dslc/backends/boogie/harness/flow/sequential.py`: direct-covered global assertions are excluded from `procurator_bad`; uncovered active global assertions still use the original accumulated path.
+  - Added a comment documenting that the DSLC guarded matcher is deliberately broader than P4B fail-fast matching because it may mention DSL scheduler/protocol state.
+  - `dslc/tests/boogie/backend/test_boogie_backend_smoke.py`: updated guarded-register tests to require the DSLC direct check and absence of duplicate final assertion, while still ensuring guarded assertions are not pushed into P4B fail-fast.
+  - Focused WSL regression passed before this solver run: `python3 -m py_compile dslc/backends/boogie/harness/flow/sequential.py && python3 -m unittest -v dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.boogie.harness.test_boogie_harness_sequential_reg_dbg_snapshot` (25 tests).
+  - BPL smoke passed for `.tmp/procurator/manual/flow_duration_direct_only.bpl`; the generated BPL has no `procurator_bad` for this single covered global assertion.
+- **Subagent review**:
+  - A narrow review of the earlier DSLC direct-check patch reported no blocking soundness issue and confirmed the responsibility split: P4B owns pure P4 write-site fail-fast; DSLC owns guarded global assertions involving DSL phase/schedule state. The review also requested clearer AGENTS.md records and an explicit comment about the broader DSLC matcher, both addressed here.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration bounded check after deterministic DSL guard pruning
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 04:05-04:10 Asia/Shanghai
+- **Goal/Progress**: Added a conservative deterministic-unroll DSL integer upper-bound pass so direct guarded checks whose guard is provably true in an early unrolled phase are omitted. For the Flowrest three-packet script this removes the first two `phase < 3`-protected direct assertions and leaves only the third packet's real violation target.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-040502-e98a/`
+  - BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-040502-e98a/external_flowrest_per_flow_flow_duration_wraparound.bpl`
+  - Log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-040502-e98a/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 300 --ultimate-xmx-gb 8 --no-witness-rerun`.
+  - Result: `Timeout` after about 275s TraceAbstraction, 16 CEGAR iterations.
+  - The generated BPL has a single error location at the third node pass (`assert !(flowrest_Ingress_reg_flow_duration__wrote_any && flowrest_Ingress_reg_flow_duration__last_value == 0bv32)`); earlier guarded checks and the duplicate final assertion are gone.
+- **Pitfalls (implementation/model issues)**:
+  - This rules out "too many assertion targets" as the primary remaining bottleneck. The solver still times out on one real target, with array/bitvector reasoning and dynamic-slot dependencies dominating.
+  - The generated/sliced model still contains unrelated Flowrest feature registers and feature-table state (`flow_iat_max`, packet-length max/min/total, etc.) even though the spec only observes `reg_flow_duration`. This suggests the next optimization should improve slicing/seed precision or dependency pruning, not spend another long direct run on the same BPL.
+  - This remains "not verified within budget", not "bug absent".
+- **Fixes/regression tests**:
+  - `dslc/backends/boogie/harness/flow/sequential.py`: added conservative DSL int upper-bound tracking for deterministic bounded unrolls; only top-level global int assignments/env increments are tracked, and unknown/nested writes drop the bound.
+  - `dslc/tests/boogie/backend/test_boogie_backend_smoke.py`: strengthened the Flowrest guarded direct-check regression to require exactly one remaining `flow_duration == 0` assertion in the three-packet script.
+  - Focused WSL regression passed before this solver run: `python3 -m py_compile dslc/backends/boogie/harness/flow/sequential.py && python3 -m unittest -v dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.boogie.harness.test_boogie_harness_sequential_reg_dbg_snapshot` (25 tests).
+  - BPL smoke passed for `.tmp/procurator/manual/flow_duration_phase_pruned.bpl`; it contains exactly one `flowrest_Ingress_reg_flow_duration__last_value == 0bv32` check.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration bounded check after DSLC/P4B control-seed ownership fix
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 04:56-05:02 Asia/Shanghai
+- **Goal/Progress**: Re-ran the Flowrest `reg_flow_duration` direct bounded verification after fixing the slicing responsibility split so DSLC, not P4B's implicit control-root expansion, owns the control seed set passed to P4B.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-045655-cdef/`
+  - BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-045655-cdef/external_flowrest_per_flow_flow_duration_wraparound.bpl`
+  - Log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-045655-cdef/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 300 --ultimate-xmx-gb 8 --no-witness-rerun` with the 8GB all-inline GemCutter profile.
+  - Result: `Timeout`; TraceAbstraction took about 273.8s with 12 CEGAR iterations.
+  - The generated raw P4B model now has `0` occurrences of unrelated Flowrest feature suffixes (`read_pkt_len*`, `read_flow_iat*`, `read_pkt_count`), and the final BPL has exactly one `flow_duration == 0` assertion target.
+- **Pitfalls (implementation/model issues)**:
+  - Earlier Flowrest `flow_duration` timing results that still retained unrelated feature suffixes were widened-model toolchain artifacts and should not be used as evidence about bug absence.
+  - This precise-model run is still not a `SAFE` result: the backend timed out on a single real target. The remaining gap is support for the variable-delta update `reg_flow_duration += meta.iat`, where `meta.iat` is fixed by the DSL timestamp phase script, not by a constant P4 update.
+- **Fixes/regression tests**:
+  - `dslc/backends/boogie/compiler.py`: DSLC still builds explicit system/control slicing seeds, but always disables P4B's own implicit control-root expansion when invoking P4B, avoiding duplicated conservative seed expansion.
+  - `dslc/tests/boogie/backend/test_boogie_backend_smoke.py`: added `test_dslc_owns_control_seeds_for_p4b_slicing`.
+  - `P4B-Translator/backends/verify/slicing/slicer_selftest.cpp` and `dslc/tests/p4b/test_p4b_translator_slicing_selftest.py`: added a Flowrest `flow_duration` target-prefix slicing regression.
+  - Focused WSL regression passed before this solver run: `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_slicing_selftest dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.boogie.harness.test_boogie_harness_sequential_reg_dbg_snapshot` (54 tests).
+  - BPL smoke passed for `.tmp/procurator/manual/flow_duration_default_after_control_fix.bpl`.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration focused direct witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 05:25-05:26 Asia/Shanghai
+- **Goal/Progress**: Productized the successful dynamic-slot experiment as an UNSAFE-only focused direct prepass: the generated BPL keeps the precise sliced Flowrest model, then builds a slot-0 under-approximation for standard P4B dynamic-index register reads/writes using the existing index0 scalar mirrors.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-052526-ce11/`
+  - Original BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-052526-ce11/external_flowrest_per_flow_flow_duration_wraparound.bpl`
+  - Focused BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-052526-ce11/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.bpl`
+  - Focused log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-052526-ce11/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.log`
+  - Marker: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-052526-ce11/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.unsafe.json`
+  - CLI result: focused prepass `UNSAFE`; original full run skipped after the focused witness.
+  - Focused Ultimate stats: CFG has 172 locations / 229 edges / 1 error location; OverallTime about 30.9s; `CounterExampleResult [Line: 1097]`.
+  - The raw P4B model still has `0` unrelated Flowrest feature suffixes and the original final BPL has exactly one `flow_duration == 0` assertion target.
+- **Pitfalls (implementation/model issues)**:
+  - This is a direct bug witness, not a wraparound closure certificate. The focused prepass constrains the dynamic hash/register slot to `0bv16`; because it is an under-approximation, `UNSAFE` is sound as existence evidence, but `SAFE/UNKNOWN/TIMEOUT` must never be reported as a conclusion for the original program.
+  - The prior exact model still timed out at 300s, so this result means "bug found through a focused under-approx witness", not "full exact proof completed".
+- **Fixes/regression tests**:
+  - `dslc/transform/focused_direct.py`: new focused direct transform for unique direct register-mirror assertions, gated on complete P4B index0 mirrors and standard dynamic-index read/write shapes.
+  - `dslc/cli/gemcutter.py`: runs the focused prepass before the full direct Ultimate run; only `UNSAFE` returns early, otherwise it falls back to the original BPL. It writes a `.focused-index0.unsafe.json` marker instead of misreporting missing GraphML.
+  - `dslc/tests/transform/test_focused_direct.py`: covers scalarization and no-op fallback.
+  - Focused WSL tests passed: `python3 -m py_compile dslc/cli/gemcutter.py dslc/transform/focused_direct.py dslc/tests/transform/test_focused_direct.py && python3 -m unittest -v dslc.tests.transform.test_focused_direct`.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 DistCache certified wraparound smoke after focused direct prepass
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop`
+- **Time**: 2026-05-03 05:28-05:31 Asia/Shanghai
+- **Goal/Progress**: Reran a known fixed-slot certified wraparound representative after adding the focused direct prepass, to ensure the new direct bug-finding optimization does not interfere with wraparound schedule-replay certification.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260503-052846-e482/`
+  - Manifest: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260503-052846-e482/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 14.5s.
+  - `near_wrap.unroll1=SAFE` in about 28.3s, then `near_wrap.unroll2=UNSAFE` in about 34.9s.
+  - `CLOSURE_CHECK=SAFE` in about 44.0s.
+  - Command stopped after closure by request; this reproduces the certified schedule-replay shape (`ENTRY UNSAFE + NEAR UNSAFE + CLOSURE SAFE`).
+- **Pitfalls/Fixes**:
+  - No new implementation issue found. This confirms the focused direct prepass is isolated from the wraparound CEGAR/schedule-replay path.
+- **Regression tests**:
+  - Before this solver run, WSL regression passed: `python3 -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.schedule.test_schedule_manifest_certification` (88 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration focused direct gate-tightening regression
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 05:33-05:34 Asia/Shanghai
+- **Goal/Progress**: Reran the Flowrest focused direct witness after tightening the transform gate so it only emits a focused BPL when the dynamic index is actually pinned at the unique index-definition call and at least one standard dynamic-index register access is scalarized.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-053325-a12c/`
+  - Focused BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-053325-a12c/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.bpl`
+  - Focused log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-053325-a12c/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.log`
+  - Marker: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-053325-a12c/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.unsafe.json`
+  - CLI result: focused prepass `UNSAFE`; original full run skipped after focused witness.
+- **Pitfalls/Fixes**:
+  - Found and fixed a conservative-gating issue during local review: a future BPL with scalarizable dynamic-index accesses but no actual index-definition call could have produced a focused BPL without the intended `assume idx == 0`. The transform now rejects that case and falls back to the original BPL.
+- **Regression tests**:
+  - `dslc/tests/transform/test_focused_direct.py`: added `test_scalarization_requires_index_pin_call`.
+  - WSL tests passed before this solver run: `python3 -m py_compile dslc/cli/gemcutter.py dslc/transform/focused_direct.py dslc/tests/transform/test_focused_direct.py && python3 -m unittest -v dslc.tests.transform.test_focused_direct`.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest focused direct soundness hardening after review
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+- **Time**: 2026-05-03 05:39-05:41 Asia/Shanghai
+- **Goal/Progress**: Addressed subagent review findings on the focused direct prepass, then reran the Flowrest witness to make sure the result does not rely on inconsistent array/mirror state or an over-broad index pin.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-053945-2e11/`
+  - Focused BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-053945-2e11/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.bpl`
+  - Focused log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-053945-2e11/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.log`
+  - Marker: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260503-053945-2e11/external_flowrest_per_flow_flow_duration_wraparound.focused-index0.unsafe.json`
+  - CLI result: focused prepass `UNSAFE`; original full run skipped after focused witness.
+  - Marker now records `target_reg=flowrest_Ingress_reg_flow_duration`, `idx_var=flowrest_meta.register_index`, `zero=0bv16`, and `assert_line=1101`.
+  - Ultimate log reports `CounterExampleResult [Line: 1101]`, matching the focused direct assertion exactly; OverallTime about 31.8s.
+- **Pitfalls (implementation/model issues)**:
+  - Review found two high-priority risks in the first focused transform:
+    - Replacing writes with mirror-only updates could create an inconsistent state if any later code observes the register array itself.
+    - Inserting one `assume idx == 0` after the index-definition call was not enough if the same index variable could be reassigned before later register accesses.
+  - These are fixed before treating the Flowrest result as a focused direct witness.
+- **Fixes/regression tests**:
+  - `dslc/transform/focused_direct.py`: focused writes now update both the real array slot (`reg[0bvW] := value`) and the index0 mirrors; the focused region stops after any reassignment to the index variable; the transform returns target metadata including assertion line.
+  - `dslc/cli/gemcutter.py`: focused early return now requires the Ultimate `CounterExampleResult [Line: N]` to match the focused assertion line; marker lookup is tied to the current BPL; added `--focused-direct {auto,off}` for reproducibility.
+  - `dslc/tests/transform/test_focused_direct.py`: added regression coverage for index reassignment stopping scalarization.
+  - WSL tests passed: `python3 -m py_compile dslc/cli/gemcutter.py dslc/transform/focused_direct.py dslc/tests/transform/test_focused_direct.py && python3 -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.boogie.backend.test_boogie_backend_smoke` (26 tests), plus schedule/certification subset earlier in the same hardening pass.
+- **Subagent review**:
+  - Review confirmed the CLI UNSAFE-only fallback avoids false SAFE and does not contaminate wraparound certification, but required the array synchronization, index-region gate, target-line validation, and an off switch; all were implemented.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest pkt_len_total focused direct witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound.prop`
+- **Time**: 2026-05-03 05:44-05:45 Asia/Shanghai
+- **Goal/Progress**: Applied the reviewed/hardened focused direct prepass to a second Flowrest per-flow feature register (`reg_pkt_len_total`) whose dynamic slot and array reasoning previously required near-wrap exploration.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260503-054434-5ca9/`
+  - Focused BPL: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260503-054434-5ca9/external_flowrest_per_flow_pkt_len_total_wraparound.focused-index0.bpl`
+  - Focused log: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260503-054434-5ca9/external_flowrest_per_flow_pkt_len_total_wraparound.focused-index0.log`
+  - Marker: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260503-054434-5ca9/external_flowrest_per_flow_pkt_len_total_wraparound.focused-index0.unsafe.json`
+  - CLI result: focused prepass `UNSAFE`; original full run skipped after focused witness.
+  - Marker records `target_reg=flowrest_Ingress_reg_pkt_len_total`, `idx_var=flowrest_meta.register_index`, `zero=0bv16`, `assert_line=983`.
+  - Ultimate log reports `CounterExampleResult [Line: 983]`, matching the focused direct assertion; OverallTime about 13.1s.
+  - The raw P4B model has `0` unrelated Flowrest feature suffix occurrences for `read_flow_duration`, `read_flow_iat`, and `read_pkt_count`, confirming the target-prefix slice stayed tight.
+- **Pitfalls/Fixes**:
+  - No new implementation issue found. This is another focused under-approx direct witness, not a closure certificate.
+- **Regression tests**:
+  - Reuses the focused direct hardening tests and the Flowrest target-prefix slicing regressions from the earlier run.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 ETC_NOMS_2024 pkt_len_total direct slot0 witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_slot0.prop`
+- **Time**: 2026-05-03 05:46-05:47 Asia/Shanghai
+- **Goal/Progress**: Ran a second external system (`ETC_NOMS_2024`) through the direct verifier on a slot-0 packet-length-total wraparound witness shape.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260503-054614-21ae/`
+  - BPL: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260503-054614-21ae/external_etc_noms2024_pkt_len_total_wraparound_slot0.bpl`
+  - Log: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260503-054614-21ae/gemcutter.log`
+  - CLI result: direct `UNSAFE`; witness rerun was disabled for this staged exploration.
+  - Ultimate stats: CFG has 158 locations / 213 edges / 5 error locations; OverallTime about 14.8s.
+  - Primary counterexample location: `CounterExampleResult [Line: 558]`.
+  - BPL line 558 is the P4B fail-fast assertion inside `etc_Ingress_reg_pkt_len_total.write` guarded by `etc_Ingress_reg_pkt_len_total__wrote_index0 && etc_Ingress_reg_pkt_len_total__last0_value == 0bv16`, so the result corresponds to an actual slot-0 zero write to the target feature register.
+- **Pitfalls (implementation/model issues)**:
+  - The ordinary witness summary reported missing GraphML because the command used `--no-witness-rerun`; this is expected for staged exploration and does not change the `UNSAFE` solver result.
+  - This is a direct slot-0 witness, not a closure-certified wraparound result.
+- **Fixes/regression tests**:
+  - No new code change for this single-spec experiment.
+  - Prior focused direct hardening and backend smoke tests were already green in the same session.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 INT FlowDoS counter_filter near-wrap witness but uncertified projection
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop`
+- **Time**: 2026-05-03 05:48-05:56 Asia/Shanghai
+- **Goal/Progress**: Explored a third external in-network system (`Montimage/inband-network-telemetry` FlowDoS) for a counter wraparound bug, first with schedule-replay near-wrap stages and then with direct fallback.
+- **Result**:
+  - Near-wrap run directory: `.tmp/procurator/verify/external_int_flowdos_counter_wraparound/20260503-054947-7c9e/`
+  - Manifest: `.tmp/procurator/verify/external_int_flowdos_counter_wraparound/20260503-054947-7c9e/wraparound/target.00.flowdos_MyIngress_counter_filter/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 13.5s.
+  - `near_wrap.unroll1=UNSAFE` in about 20.0s.
+  - Manifest has `certified=false`, `projection_complete=false`, and diagnostic `near-wrap bug found but dependency projection incomplete; falling back to direct verification`.
+  - Near-wrap witness log reports `CounterExampleResult [Line: 1367]` and OverallTime about 4.6s for the near-wrap BPL.
+  - Direct fallback run directory: `.tmp/procurator/verify/external_int_flowdos_counter_wraparound/20260503-055055-a753/`
+  - Direct result: `Timeout`; TraceAbstraction about 274.6s, 35 CEGAR iterations.
+- **Pitfalls (implementation/model issues)**:
+  - This distinguishes "bug witness found in near-wrap stage" from "certified wraparound bug": projection is incomplete because dependency extraction reports dynamic-slot dependency on `flowdos_isValid`, so closure is intentionally skipped and the manifest is not certified.
+  - Direct fallback did not prove SAFE and did not find a direct witness within 300s; this is "not verified within budget", not "bug absent".
+- **Fixes/regression tests**:
+  - No code change for this single-spec experiment.
+  - Follow-up candidate: refine dependency projection for stable parser/header-validity shape or include it explicitly in projection before attempting certification.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 ETC_NOMS_2024 pkt_count staged near-wrap timeout
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`
+- **Time**: 2026-05-03 05:57-06:08 Asia/Shanghai
+- **Goal/Progress**: Explored the ETC_NOMS_2024 packet-count feature register with the schedule-replay wraparound stages, using short staged checks rather than an unconstrained long direct run.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260503-055738-d598/`
+  - Manifest: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260503-055738-d598/wraparound/target.00.etc_Ingress_reg_pkt_count/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 14.0s; the entry log reports `CounterExampleResult [Line: 887]`.
+  - `near_wrap.unroll1=TIMEOUT`: CFG has 85 locations / 113 edges / 3 error locations, TraceAbstraction about 275.5s, timeout at line 987.
+  - `near_wrap.unroll2=TIMEOUT`: CFG has 164 locations / 220 edges / 6 error locations, TraceAbstraction about 264.2s, timeout at line 1069.
+  - The outer command reached its watchdog during the second near-wrap run; the leftover Ultimate process group was explicitly terminated and a follow-up `pgrep` check found no residual solver process.
+  - Manifest has `certified=false`, `projection_complete=false`, and diagnostic `near-wrap check did not find a bug for this schedule; falling back`.
+- **Pitfalls (implementation/model issues)**:
+  - This is not a `SAFE` result and should not be used as evidence that the bug is absent. It means the current staged encoding did not find a witness within the 300s per-stage budget.
+  - The dependency projection is incomplete: the same cutpoint contains both `etc_Ingress_reg_status[idx] == 0bv1` and its negation, and also depends on the dynamic-slot expression `etc_Ingress_reg_flow_ID[idx]`. That shape needs cutpoint splitting or stronger phase/shape projection before closure can be soundly certified.
+- **Fixes/regression tests**:
+  - No code fix was made for this single-spec experiment.
+  - Follow-up candidate: refine schedule/projection extraction for ETC's status/flow-ID shape, or fall back to a focused direct witness that is reported only as an under-approximate `UNSAFE` result.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Projection guard-alternative hardening and DistCache certified smoke
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop`
+- **Time**: 2026-05-03 06:26-06:29 Asia/Shanghai
+- **Goal/Progress**: Added a conservative foundation for future branch/cutpoint splitting: dependency projection now records cutpoint guard alternatives grouped by target write site, while the schedule-replay certification gate explicitly requires `cfg.projection_complete`. This keeps ETC/Flowrest ambiguous initialization-vs-steady branches uncertified until a real branch split is implemented.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260503-062607-428c/`
+  - Manifest: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260503-062607-428c/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 13.9s.
+  - `near_wrap.unroll1=SAFE` in about 28.6s; `near_wrap.unroll2=UNSAFE` in about 34.2s.
+  - `CLOSURE_CHECK=SAFE` in about 43.0s.
+  - Manifest remains certified for this fixed-slot case (`certified=true`, `projection_complete=true`, no closure assumptions).
+- **Pitfalls/Fixes**:
+  - The change does not make ambiguous external dynamic-slot cases certified. It only preserves grouped guard alternatives for later branch splitting and adds defense-in-depth so a SAFE closure cannot certify if `projection_complete=false`.
+  - `dslc/analysis/wraparound_projection.py`: added `cutpoint_guard_alternatives` and grouped guard tracking.
+  - `dslc/workflows/wraparound_support/loop_schedule.py`: final `certified` now explicitly requires `cfg.projection_complete`.
+- **Regression tests**:
+  - `python3 -m py_compile dslc/analysis/wraparound_projection.py dslc/workflows/wraparound_support/loop_schedule.py dslc/tests/wraparound/schedule/test_wraparound_projection.py dslc/tests/wraparound/schedule/test_wraparound_schedule.py` passed.
+  - `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_manifest_certification` passed (40 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest pkt_count near-wrap discovery after projection hardening
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+- **Time**: 2026-05-03 06:30-06:32 Asia/Shanghai
+- **Goal/Progress**: Reproduced a third Flowrest feature/counter bug shape after adding guard-alternative tracking, stopping after the near-wrap discovery stage to avoid mislabeling an incomplete projection as a closure certificate.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-063001-9837/`
+  - Manifest: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260503-063001-9837/wraparound/target.00.flowrest_Ingress_reg_pkt_count/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about 14.0s.
+  - `near_wrap.unroll1=SAFE` in about 34.4s.
+  - `near_wrap.unroll2=UNSAFE` in about 41.3s; log reports `CounterExampleResult [Line: 1207]`.
+  - The near-wrap BPL assertion at line 1207 is the gated wrapper for the functional suffix assertion. The generated BPL shows the suffix condition involving `flowrest_meta.pkt_count == 1bv8` and `flowrest_hdr.ipv4.ttl == 128bv8`.
+  - Manifest remains uncertified: `certified=false`, `projection_complete=false`, stopped after near-wrap by request.
+- **Pitfalls (implementation/model issues)**:
+  - This is a near-wrap discovery witness, not a certified wraparound bug. The dependency projection records two guard alternatives but also sees an ambiguous flat predicate pair over `flowrest_Ingress_reg_time_last_pkt[idx] == 0bv32` and its negation. Closure certification must wait for real branch/cutpoint splitting.
+  - The result is useful evidence that the theoretical bug shape exists in the transformed model; it is not a proof of replay closure.
+- **Fixes/regression tests**:
+  - No additional code change for this single-spec run; it exercises the guard-alternative notes introduced earlier in this session (`dependency_projection_cutpoint_guard_alternatives=2`).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest flow_duration guarded-direct timeout
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound_direct.prop`
+- **Time**: 2026-05-03 06:34-06:39 Asia/Shanghai
+- **Goal/Progress**: Tried the stronger guarded direct Flowrest duration spec, which excludes the trivial first-packet/no-IAT case and requires an actual zero write with `meta.is_first != 1` and `meta.iat != 0`.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-063401-3fd8/`
+  - BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-063401-3fd8/external_flowrest_per_flow_flow_duration_wraparound_direct.bpl`
+  - Log: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-063401-3fd8/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 300 --ultimate-xmx-gb 8 --no-reg-debug --no-witness-rerun`.
+  - Result: `Timeout`; TraceAbstraction about 274.9s, 16 CEGAR iterations, CFG has 189 locations / 254 edges / 1 error location, timeout at line 975.
+- **Pitfalls (implementation/model issues)**:
+  - This is not a `SAFE` result and should not be used as evidence that the guarded bug is absent.
+  - The generated BPL accumulates this guarded global assertion into `procurator_bad` and checks only the final `assert !procurator_bad`, rather than using the more focused direct register-write assertion path. A useful follow-up optimization is to extend DSLC's direct-covered guarded matcher to conjunctions such as `reg__wrote_any && reg__last_value == 0 && meta.is_first != 1 && meta.iat != 0`.
+  - The earlier focused direct witness for the simpler Flowrest `flow_duration` spec remains an under-approximate `UNSAFE` witness, but this stronger guarded spec was not verified within the 300s budget.
+- **Fixes/regression tests**:
+  - No code change for this single-spec run.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 ETC_NOMS_2024 pkt_len_total dynamic-slot direct timeout
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-03 06:40-06:45 Asia/Shanghai
+- **Goal/Progress**: Tried the dynamic-slot packet-length-total wraparound direct spec for `ETC_NOMS_2024`, to distinguish a real dynamic-index bottleneck from the already-confirmed slot-0 direct witness.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-064023-528f/`
+  - BPL: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-064023-528f/external_etc_noms2024_pkt_len_total_wraparound_direct.bpl`
+  - Log: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-064023-528f/gemcutter.log`
+  - Command used `--wraparound off --use-spec-max-steps --ultimate-timeout-seconds 300 --ultimate-xmx-gb 8 --no-reg-debug --no-witness-rerun`.
+  - Result: `Timeout`; TraceAbstraction about 272.3s, 10 CEGAR iterations, CFG has 158 locations / 213 edges / 5 error locations.
+  - Timeout/error locations included line 550 and the final accumulated assertion line 946.
+- **Pitfalls (implementation/model issues)**:
+  - This is not a `SAFE` result and should not be used as evidence that the dynamic-slot bug is absent. It means the current dynamic-index direct encoding did not find a witness within the 300s budget.
+  - The fixed slot-0 version remains quick direct `UNSAFE` evidence for the same feature register shape: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260503-054614-21ae/`, OverallTime about 14.8s.
+  - The dynamic-slot form is still a major bottleneck and should be optimized either by focused guarded direct assertions or by branch/cutpoint splitting with complete projection.
+- **Fixes/regression tests**:
+  - No code change for this single-spec run.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 ETC_NOMS_2024 pkt_len_total slot0 direct regression
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_slot0.prop`
+- **Time**: 2026-05-03 06:49-06:50 Asia/Shanghai
+- **Goal/Progress**: Re-ran the previously discovered slot-0 packet-length-total direct witness after the projection/guard-direct changes, to ensure existing external witness discovery still works.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260503-064911-9b0c/`
+  - BPL: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260503-064911-9b0c/external_etc_noms2024_pkt_len_total_wraparound_slot0.bpl`
+  - Log: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260503-064911-9b0c/gemcutter.log`
+  - CLI result: direct `UNSAFE`; witness rerun was disabled for this staged regression.
+  - Ultimate stats: CFG has 158 locations / 213 edges / 5 error locations; OverallTime about 15.9s.
+  - Primary counterexample location: `CounterExampleResult [Line: 558]`.
+- **Pitfalls (implementation/model issues)**:
+  - The CLI exits nonzero for `UNSAFE`; this is expected and does not indicate a tool failure.
+  - This is a slot-0 direct under-approximation witness, not a closure-certified wraparound result.
+- **Fixes/regression tests**:
+  - No code change for this single-spec run.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 Flowrest guarded direct optimization and focused witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound_direct.prop`
+- **Time**: 2026-05-03 06:56-07:06 Asia/Shanghai
+- **Goal/Progress**: Fixed the bounded sequential harness so conjunctive guarded register-mirror assertions are emitted as direct pass-boundary checks, then extended the focused direct prepass to accept repeated same-target assertions from bounded unrolling.
+- **Result**:
+  - First run after direct-check emission: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-065607-7799/`
+    - The generated BPL no longer accumulates this assertion into `procurator_bad`; it emits direct guarded checks at lines 815, 895, and 975.
+    - Result: `Timeout`, not `SAFE`; CFG has 193 locations / 258 edges / 3 error locations, OverallTime about 272.4s.
+  - Focused run after multi-assertion support: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-070436-1435/`
+    - Marker: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-070436-1435/external_flowrest_per_flow_flow_duration_wraparound_direct.focused-index0.unsafe.json`
+    - Focused BPL: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-070436-1435/external_flowrest_per_flow_flow_duration_wraparound_direct.focused-index0.bpl`
+    - Focused result: `UNSAFE`; `CounterExampleResult [Line: 996]`; OverallTime about 48.6s.
+    - Marker records `target_reg=flowrest_Ingress_reg_flow_duration`, `idx_var=flowrest_meta.register_index`, `zero=0bv16`, and accepted assertion lines `[836, 916, 996]`.
+- **Pitfalls (implementation/model issues)**:
+  - Direct guarded emission improves the BPL shape but does not by itself solve the stronger Flowrest dynamic-index case within 300s, because the original dynamic model still leaves heavy array/bitvector reasoning for Ultimate.
+  - The focused result is intentionally an `UNSAFE`-only slot-0 under-approximation witness. It is not a wraparound closure certificate; `SAFE`, `UNKNOWN`, or `TIMEOUT` from the focused prepass must still fall back to the original BPL.
+  - Bounded unrolling can emit the same target assertion at multiple pass boundaries. The prepass now accepts an `UNSAFE` only if the counterexample line hits one of the same-target focused assertion lines; different-target or mixed-value assertions are still rejected.
+- **Fixes/regression tests**:
+  - `dslc/backends/boogie/harness/flow/sequential.py`: recognizes both `guard || !write_check` and `!(write_check && guard...)` as bounded direct guarded checks.
+  - `dslc/transform/focused_direct.py`: accepts repeated same-target direct assertions and records all focused assertion lines.
+  - `dslc/cli/gemcutter.py`: validates focused `UNSAFE` against any accepted focused assertion line and writes all lines to the marker.
+  - `dslc/tests/boogie/backend/test_boogie_backend_smoke.py`: added a regression for conjunctive guarded direct assertions.
+  - `dslc/tests/transform/test_focused_direct.py`: added regression coverage for repeated same-target assertions.
+  - Regression executed: `python3 -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_conjunctive_guarded_register_mirror_assert_gets_dsl_direct_check` passed.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 ETC_NOMS_2024 pkt_len_total focused direct hardening
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-03 08:00-08:13 Asia/Shanghai
+- **Goal/Progress**: Hardened the focused dynamic-slot direct prepass so it only accepts slot-0 post-transform assertion locations, not the original broad `__wrote_any/__last_value` fail-fast locations. This was a staged investigation of the dynamic-index bottleneck; it was not used as proof of bug absence.
+- **Result**:
+  - Run after target assertion rewrite: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-080016-9315/`
+    - Focused result: `Timeout`; focused CFG had 146 locations / 191 edges / 7 error locations; OverallTime about 107.0s.
+  - Run after removing the unused broad target fail-fast and tightening accepted assertion lines: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-080853-43ea/`
+    - Focused result: `Timeout`; focused CFG had 144 locations / 189 edges / 6 error locations; OverallTime about 110.9s.
+  - Run with the focused prepass allowed to use the full 300s staged timeout: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-081332-6c9d/`
+    - Focused result: `Timeout`; focused CFG had 144 locations / 189 edges / 6 error locations; OverallTime about 273.2s.
+    - Original dynamic direct fallback also timed out in the same command; original CFG had 158 locations / 213 edges / 5 error locations; OverallTime about 275.4s.
+- **Pitfalls (implementation/model issues)**:
+  - The previous focused acceptance rule was too broad: it could accept a counterexample at the original dynamic `__wrote_any/__last_value` fail-fast line instead of the focused slot-0 assertion. That would blur the meaning of the focused under-approximation.
+  - All outcomes above are `TIMEOUT`, not `SAFE`; they do not show that the dynamic-slot bug is absent.
+- **Fixes/regression tests**:
+  - `dslc/transform/focused_direct.py`: target assertions are rewritten to `__wrote_index0/__last0_value`; unused broad target fail-fast blocks are removed once target writes are scalarized; accepted assertion lines are collected only from focused slot-0 checks.
+  - `dslc/cli/gemcutter.py`: focused prepass timeout now scales with `--ultimate-timeout-seconds` instead of being hardcoded at 120s.
+  - Regression executed: `python3 -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_bounded_direct_check_preserves_accumulated_fallback_for_other_asserts dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_conjunctive_guarded_register_mirror_assert_gets_dsl_direct_check` passed.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; a follow-up process check found no residual solver process.
+
+## 2026-05-03 ETC_NOMS_2024 pkt_len_total focused duplicate-check reduction
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-03 08:27-08:33 Asia/Shanghai
+- **Goal/Progress**: Removed duplicate focused global pass-boundary checks when write-site fail-fast instrumentation already gives the slot-0 target assertion, reducing error-location noise before the next optimization pass.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-082759-7b9b/`
+  - Focused BPL: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-082759-7b9b/external_etc_noms2024_pkt_len_total_wraparound_direct.focused-index0.bpl`
+  - Focused result: `Timeout`; focused CFG had 138 locations / 181 edges / 4 error locations; OverallTime about 273.4s.
+  - Accepted focused assertion lines were only the injected write-site slot-0 checks at lines 312 and 344.
+  - The focused BPL no longer had `procurator_bad := true` or a vacuous `assert !procurator_bad`.
+- **Pitfalls (implementation/model issues)**:
+  - Reducing error locations was not sufficient: the focused BPL still carried quantified `[bv11]` register initialization assumptions, unlike the quick slot-0 direct BPL. This likely keeps array/bitvector reasoning heavy for Ultimate.
+  - This remains a focused direct under-approximation. A focused timeout is only "not found within the budget"; it is not a proof.
+- **Fixes/regression tests**:
+  - No additional test beyond the focused-direct regression suite in the previous entry; the next implementation task is to generalize quantified register-init elimination from `bv32` to `bvN` and apply the optimizer to focused BPL files before Ultimate.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 ETC_NOMS_2024 pkt_len_total bvN init-elim focused witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-03 08:56-09:35 Asia/Shanghai
+- **Goal/Progress**: Generalized quantified register-initialization elimination from hardcoded `bv32` indices to `bvN` indices, then applied the same Boogie optimizer to the focused direct BPL before Ultimate. This targets the ETC `bv11` register-index bottleneck without changing the dataset P4.
+- **Result**:
+  - Initial optimized focused run: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-085633-4b35/`
+    - Optimizer reported `[OPT] forall-init elimination: 5 -> 2` on the focused BPL.
+    - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `etc_Ingress_reg_pkt_len_total`; `idx_var=etc_meta.register_index`; `zero=0bv11`; `target_value=0bv16`.
+    - Counterexample line was 344, which is in accepted focused assertion lines `{312, 344}`; OverallTime about 11.8s; focused BPL had no `forall i:bv11`.
+  - Conservative all-`reg[...]` access scan exposed two implementation-pitfall reruns:
+    - `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-090227-a374/`: focused timeout, then original direct timeout. The optimizer did not eliminate the `bv11` register-init quantifiers because unused register extern bodies still contained `reg[etc_index]`.
+    - `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-091541-8bc9/`: same timeout shape after the first unused-extern filter; static debugging showed Boogie attributes like `{:inline 1}` were being counted as procedure-body braces, so the unused procedure body was not skipped.
+  - Final fixed run: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-093410-72b7/`
+    - Optimizer reported `[OPT] forall-init elimination: 5 -> 2` on the focused BPL.
+    - Focused result: `UNSAFE`; marker kind `focused_under_approx`; counterexample line 344, accepted lines `{312, 344}`; OverallTime about 12.3s.
+    - Focused BPL had `forall i:bv11 count = 0`; the remaining two `forall bvN` occurrences are bvule helper axioms, not register-initialization quantifiers.
+- **Pitfalls (implementation/model issues)**:
+  - The first generalized implementation only scanned constant array accesses; this was too narrow for soundness because a direct `reg[dynamic]` access would have been missed. It was tightened so every real `reg[...]` access is considered, and any unbounded access preserves the quantifier.
+  - The tightened scan then became overly conservative because it counted unused register `.read/.write` extern bodies. These bodies are not invoked after focused scalarization and should not define the accessed domain for the executable focused model.
+  - The first unused-body skip mishandled Boogie attributes (`{:inline 1}`) as body braces. The brace accounting now strips attributes before tracking the actual function/procedure body.
+  - These timeout reruns were implementation diagnostics, not evidence that the bug is absent. The final result is still a focused direct under-approximation witness, not a wraparound closure certificate.
+- **Fixes/regression tests**:
+  - `dslc/transform/wraparound_common.py`: generalized quantified-init regexes and explicit-index-init regexes from `bv32` to `bvN`, while keeping backward-compatible names.
+  - `dslc/transform/wraparound_stages.py`: generalized finite-domain inference to arbitrary index widths, scans real `reg[...]` accesses conservatively, requires all real accesses to be bounded, and ignores unused register extern bodies when inferring executable accessed domains.
+  - `dslc/cli/gemcutter.py`: counts all `forall ... : bvN` in the optimizer log and runs `_optimize_bpl_for_ultimate()` on focused direct BPL files before Ultimate.
+  - `dslc/tests/wraparound/transform/test_wraparound_forall_init_elim.py`: added bv11 focused-shape coverage, dynamic-unbounded preservation tests, and a regression for unused `{:inline}` register extern bodies.
+  - Regression executed: `python3 -m py_compile dslc/transform/wraparound_common.py dslc/transform/wraparound_stages.py dslc/cli/gemcutter.py dslc/transform/focused_direct.py` and `python3 -m unittest -v dslc.tests.wraparound.transform.test_wraparound_forall_init_elim dslc.tests.transform.test_focused_direct dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_bounded_direct_check_preserves_accumulated_fallback_for_other_asserts dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_conjunctive_guarded_register_mirror_assert_gets_dsl_direct_check` passed (24 tests).
+- **Smoke/regression**: Solver runs were executed one at a time in WSL. A follow-up Windows process check found no residual `java`, `z3`, or `Ultimate` process.
+
+## 2026-05-03 ETC_NOMS_2024 pkt_len_total slot0 regression after bvN init-elim
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_slot0.prop`
+- **Time**: 2026-05-03 09:37-09:38 Asia/Shanghai
+- **Goal/Progress**: Reran the existing slot-0 direct witness after the bvN quantified-init elimination and focused-BPL optimizer changes, to ensure the old quick direct witness still works.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260503-093753-ba2b/`
+  - Main result: `UNSAFE`; counterexample line 558; OverallTime about 15.4s.
+  - Witness rerun was disabled for this smoke, so the post-run witness classifier reported `CEX-WARN missing: no *.bpl-witness.graphml`. This does not change the solver regression result.
+- **Pitfalls/Fixes**:
+  - CLI exit is nonzero for `UNSAFE`, which is expected for bug finding.
+  - No new code fix was needed; this is a regression guard for the bvN/focused changes.
+- **Regression tests**:
+  - Same focused/bvN unit suite remained green before this run: `python3 -m unittest -v dslc.tests.wraparound.transform.test_wraparound_forall_init_elim dslc.tests.transform.test_focused_direct dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_required_env_packet_vars_are_kept_without_widening_p4_slice`.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; a follow-up process check found no residual solver process.
+
+## 2026-05-03 Flowrest pkt_len_total focused direct witness after bvN init-elim
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-03 09:41-09:42 Asia/Shanghai
+- **Goal/Progress**: Re-ran a Flowrest dynamic-index packet-length accumulation bug after the bvN quantified-init elimination and focused-BPL optimization, to ensure the optimization generalizes beyond ETC.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound_direct/20260503-094102-27f8/`
+  - Optimizer reported `[OPT] forall-init elimination: 5 -> 2` on the focused BPL.
+  - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `flowrest_Ingress_reg_pkt_len_total`; `idx_var=flowrest_meta.register_index`; `zero=0bv16`; `target_value=0bv16`.
+  - Counterexample line 330, accepted focused assertion lines `{298, 330}`; OverallTime about 10.3s.
+  - Focused BPL had no remaining register-init `forall i:bv11/bv16` quantifiers.
+- **Pitfalls/Fixes**:
+  - This is a direct focused under-approximation witness, not a closure certificate. It is valid `UNSAFE` evidence for the slot-0 witness shape and does not claim proof over all dynamic hash slots.
+  - No additional code fix was needed after the bvN/focused optimizer work.
+- **Regression tests**:
+  - Targeted focused/bvN unit suite passed before the solver run.
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no residual solver process after the run.
+
+## 2026-05-03 Flowrest flow_duration guarded focused line-refresh repair
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound_direct.prop`
+- **Time**: 2026-05-03 09:41-09:51 Asia/Shanghai
+- **Goal/Progress**: Re-ran the stronger guarded Flowrest duration direct spec after bvN init elimination. The first run found a focused `UNSAFE` but rejected it because the focused assertion line numbers were computed before the post-pass deleted register-init quantifiers. Fixed the line-number refresh and reran the spec.
+- **Result**:
+  - Pitfall run: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-094146-1cae/`
+    - Optimizer reported `[OPT] forall-init elimination: 5 -> 2`.
+    - Focused solver result: `UNSAFE`, counterexample line 1001, OverallTime about 22.3s.
+    - The pre-optimization accepted lines were `{844, 924, 1004}`, so the CLI correctly rejected the result and fell back to the original BPL, which timed out. Static inspection showed final focused BPL line 1001 was exactly the slot-0 assertion; the expected lines were stale because quantifier elimination removed three lines.
+  - Final run after line refresh: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-095050-2418/`
+    - Optimizer reported `[OPT] forall-init elimination: 5 -> 2`.
+    - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `flowrest_Ingress_reg_flow_duration`; `idx_var=flowrest_meta.register_index`; `zero=0bv16`; `target_value=0bv32`.
+    - Counterexample line 1001, accepted focused assertion lines `{841, 921, 1001}`; OverallTime about 21.9s.
+    - Focused BPL had no remaining register-init `forall i:bv11/bv16` quantifiers.
+- **Pitfalls (implementation/model issues)**:
+  - Post-transform BPL optimizations can change line numbers. The focused prepass must validate counterexamples against assertion lines in the exact file passed to Ultimate, not the pre-optimized in-memory text.
+  - This case has an additional guard (`meta.is_first != 1` and `meta.iat != 0`), so the accepted line scan must remain restricted to the final focused slot-0 assertion locations; it must not accept arbitrary internal assertions.
+- **Fixes/regression tests**:
+  - `dslc/transform/focused_direct.py`: exposed `find_focused_direct_assert_lines()` to rescan focused slot-0 assertion locations in arbitrary final BPL text.
+  - `dslc/cli/gemcutter.py`: after optimizing the focused BPL, rereads the final file and refreshes accepted focused assertion lines before validating the Ultimate counterexample line.
+  - `dslc/tests/transform/test_focused_direct.py`: added `test_assert_lines_can_be_refreshed_after_bpl_post_optimization`.
+  - Regression executed: `python3 -m py_compile dslc/transform/focused_direct.py dslc/cli/gemcutter.py` and `python3 -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.wraparound.transform.test_wraparound_forall_init_elim dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_bounded_direct_check_preserves_accumulated_fallback_for_other_asserts dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_conjunctive_guarded_register_mirror_assert_gets_dsl_direct_check` passed (25 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; no residual solver process after the run.
+
+## 2026-05-03 Review-driven soundness hardening for bvN init-elim
+
+- **Specs/regressions**:
+  - `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound_direct.prop`
+  - `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop`
+- **Time**: 2026-05-03 10:07-10:13 Asia/Shanghai
+- **Goal/Progress**: Acted on subagent review findings around `bvN` quantified-init elimination. The key soundness issue was that the generic direct/focused optimizer must not infer register-index bounds from arbitrary textual `assume` statements, because such assumes may be path-local and not dominate all accesses.
+- **Result**:
+  - Targeted unit regression after the fix: `python3 -m py_compile dslc/transform/wraparound_stages.py dslc/transform/wraparound_instrument.py dslc/cli/gemcutter.py dslc/transform/focused_direct.py` and `python3 -m unittest -v dslc.tests.wraparound.transform.test_wraparound_forall_init_elim dslc.tests.transform.test_focused_direct dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_bounded_direct_check_preserves_accumulated_fallback_for_other_asserts dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_conjunctive_guarded_register_mirror_assert_gets_dsl_direct_check dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_required_env_packet_vars_are_kept_without_widening_p4_slice` passed (30 tests).
+  - ETC focused smoke after hardening: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-100754-81f9/`
+    - Optimizer reported `[OPT] forall-init elimination: 5 -> 2`.
+    - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `etc_Ingress_reg_pkt_len_total`; accepted lines `{312, 344}`; counterexample line 344; OverallTime about 12.0s.
+  - Flowrest guarded duration focused smoke after hardening: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-100841-4e1e/`
+    - Optimizer reported `[OPT] forall-init elimination: 5 -> 2`.
+    - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `flowrest_Ingress_reg_flow_duration`; accepted lines `{841, 921, 1001}`; counterexample line 1001; OverallTime about 32.1s.
+  - DistCache certified closure regression after hardening: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260503-100948-4ae4/`
+    - `ENTRY_CHECK=UNSAFE` in about 18.7s.
+    - `near_wrap.unroll1=SAFE` in about 35.3s, then `near_wrap.unroll2=UNSAFE` in about 41.0s.
+    - `CLOSURE_CHECK=SAFE` in about 53.2s.
+    - Manifest remains `certified=true`; diagnostic `stopped after closure by request`.
+- **Pitfalls (implementation/model issues)**:
+  - Review finding: using path-insensitive assumptions as global bounds could weakly initialize non-dominated register slots in direct/ENTRY/CONFIRM/focused existential stages and create spurious `UNSAFE` witnesses.
+  - Review finding: if focused BPL post-optimization fails to rescan assertion lines, keeping stale pre-optimization lines could accept a non-focused error location after line shifts.
+  - Review finding: register extern body skipping should match the exact declared procedure/function name, not a substring in the declaration header.
+- **Fixes/regression tests**:
+  - `dslc/transform/wraparound_stages.py`: `_rewrite_forall_bv32_array_inits(..., use_assume_bounds=False)` now defaults to a semantics-preserving mode that only uses constant/directly bounded access expressions; it no longer uses arbitrary `assume` bounds in direct/focused/ENTRY/CONFIRM paths.
+  - `dslc/transform/wraparound_instrument.py`: only `CLOSURE_CHECK` opts into `use_assume_bounds=True`, where dropping initialization facts over-approximates closure states and a `SAFE` proof remains conservative.
+  - `dslc/cli/gemcutter.py`: focused line refresh now fails closed. If post-optimization focused assertion lines cannot be found, an `UNSAFE` focused result falls back to the original BPL rather than using stale line numbers.
+  - `dslc/transform/wraparound_stages.py`: register extern body skipping now parses the exact declared function/procedure name.
+  - Added regressions for non-dominating path-local assume bounds, exact extern declaration-name matching, extern call indices vs formal body index, and focused line refresh after BPL post-optimization.
+- **Smoke/regression**: Solver runs were executed one at a time in WSL; follow-up process checks found no residual `java`, `z3`, or `Ultimate` process.
+
+## 2026-05-03 Flowrest focused marker line consistency smoke
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound_direct.prop`
+- **Time**: 2026-05-03 10:14-10:15 Asia/Shanghai
+- **Goal/Progress**: After focused line refresh was made fail-closed, updated the marker writer so both `assert_line` and `assert_lines` refer to final post-optimization BPL line numbers. Reran the guarded Flowrest duration case to verify the auditable marker is internally consistent.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-101452-4b96/`
+  - Optimizer reported `[OPT] forall-init elimination: 5 -> 2`.
+  - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `flowrest_Ingress_reg_flow_duration`.
+  - Marker now records `assert_line=841` and `assert_lines={841, 921, 1001}`; the counterexample line is 1001, which is one of the refreshed final-BPL focused assertion lines.
+  - OverallTime about 29.2s.
+- **Pitfalls/Fixes**:
+  - Before this minor cleanup, marker `assert_lines` used refreshed final-BPL lines but singleton `assert_line` could still contain the pre-optimization first line. This did not affect acceptance logic, but it made the JSON evidence less clean.
+  - `dslc/cli/gemcutter.py`: marker `assert_line` now uses `expected_lines[0]` when refreshed lines exist.
+- **Regression tests**:
+  - `python3 -m py_compile dslc/cli/gemcutter.py` and `python3 -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.wraparound.transform.test_wraparound_forall_init_elim` passed (27 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job at a time in WSL; follow-up process check found no residual solver process.
+
+## 2026-05-03 Focused direct workflow split and ETC slot0 smoke
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-03 11:13-11:21 Asia/Shanghai
+- **Goal/Progress**: Split the focused direct prepass out of `dslc/cli/gemcutter.py` into `dslc/workflows/focused_direct.py`, then reran the ETC focused witness after review-driven soundness fixes. This was a single-spec smoke for the CLI boundary and focused under-approx marker path; it is still a direct under-approx witness, not a wraparound closure certificate.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-111913-949c/`
+  - Optimizer reported `[OPT] forall-init elimination: 5 -> 2` on the focused BPL.
+  - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `etc_Ingress_reg_pkt_len_total`; `idx_var=etc_meta.register_index`; `zero=0bv11`; `target_value=0bv16`.
+  - Marker accepted final focused assertion lines `{312, 344}`; Ultimate counterexample line was `344`.
+  - Ultimate reported OverallTime about `14.4s`.
+- **Pitfalls (implementation/model issues)**:
+  - Subagent review caught that the CLI looked for the focused marker under `out_bpl.parent`, while the prepass writes it under `log_path.parent`; this fails when `--log` is outside the output directory.
+  - Review also triggered a stricter soundness check of the focused transform. The old focused read rewrite used `reg__last0_value`, which records the most recent slot-0 write and is not generally equal to the current array value `reg[0]`. This could make the focused under-approximation too strong and produce spurious direct witnesses.
+- **Fixes/regression tests**:
+  - `dslc/workflows/focused_direct.py`: owns focused prepass orchestration, marker validation, post-optimization assertion-line refresh, and fail-closed fallback policy.
+  - `dslc/cli/gemcutter.py`: now only wires the focused workflow and looks up focused markers in `job.log_path.parent`.
+  - `dslc/transform/focused_direct.py`: focused reads now use the exact array slot (`reg[0bvW]`) instead of `reg__last0_value`; writes still update both the array slot and mirrors.
+  - Added regressions in `dslc/tests/workflows/test_focused_direct_workflow.py`, `dslc/tests/cli/test_gemcutter_focused_marker.py`, and `dslc/tests/transform/test_focused_direct.py`.
+  - Regression executed: `python3 -m unittest -v dslc.tests.bench.test_p4b_semantic_audit dslc.tests.bench.test_scan_p4b_coverage dslc.tests.transform.test_focused_direct dslc.tests.workflows.test_focused_direct_workflow dslc.tests.cli.test_gemcutter_focused_marker dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.cegis.core.test_wraparound_cegis_order dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.transform.test_wraparound_forall_init_elim dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_bounded_direct_check_preserves_accumulated_fallback_for_other_asserts dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_conjunctive_guarded_register_mirror_assert_gets_dsl_direct_check dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_required_env_packet_vars_are_kept_without_widening_p4_slice dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_ubpf_three_arg_hash_lowers_to_deterministic_assignment dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_counter_externs_emit_stateful_updates dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_tna_registeraction_execute_rhs_is_stateful dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_external_flowrest_flow_duration_seed_prunes_sibling_feature_registers dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_external_flowrest_ttl_seed_keeps_ttl_assignments` passed (138 tests).
+- **Smoke/regression**: The P4B translator was rebuilt with `cmake --build . --target p4c-translator -j"$(nproc)"` before P4B tests. Solver runs were executed one at a time in WSL; follow-up process check found no residual `java`, `z3`, or `Ultimate` process.
+
+## 2026-05-03 Flowrest guarded focused smoke after exact slot reads
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound_direct.prop`
+- **Time**: 2026-05-03 11:21-11:23 Asia/Shanghai
+- **Goal/Progress**: Re-ran the guarded Flowrest `flow_duration` direct witness after the focused transform was hardened to read `reg[0bvW]` instead of `reg__last0_value`. This validates that the real guarded witness still exists under the exact slot-0 under-approximation.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260503-112127-9e52/`
+  - Optimizer reported `[OPT] forall-init elimination: 5 -> 2` on the focused BPL.
+  - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `flowrest_Ingress_reg_flow_duration`; `idx_var=flowrest_meta.register_index`; `zero=0bv16`; `target_value=0bv32`.
+  - Marker accepted final focused assertion lines `{841, 921, 1001}`; Ultimate counterexample line was `1001`.
+  - Ultimate reported OverallTime about `28.0s`.
+- **Pitfalls (implementation/model issues)**:
+  - This run specifically checks that the previous `__last0_value` read shortcut was not needed for the witness. The focused read is now a direct Boogie array read from the exact slot, so the under-approximation is cleaner and does not depend on last-write mirror history.
+- **Fixes/regression tests**:
+  - `dslc/transform/focused_direct.py`: focused read scalarization now emits `tmp := reg[0bvW]`.
+  - `dslc/tests/transform/test_focused_direct.py`: added `test_focused_reads_use_array_slot_not_last_write_mirror` and updated existing focused expectations.
+  - The 138-test targeted regression suite from the preceding ETC entry remained green before this solver run.
+- **Smoke/regression**: Solver runs were executed one at a time in WSL; follow-up process check found no residual `java`, `z3`, or `Ultimate` process.
+
+## 2026-05-03 P4B semantic coverage smoke and file-size split
+
+- **Scope**: P4B architecture/semantic coverage scan over `P4B-Translator/testdata/p4_16_samples` (first 20 discovered programs, no Ultimate/GemCutter solver).
+- **Time**: 2026-05-03 11:27-11:34 Asia/Shanghai
+- **Goal/Progress**: Exercised the new `--semantic-audit` scan path after translator improvements for uBPF/eBPF/PSA/TNA features. Also enforced the project file-size rule by splitting schedule replay refinement tests and moving stable projection helpers into the expression utility module.
+- **Result**:
+  - Coverage output: `.tmp/procurator/coverage-smoke/20260503-1127/coverage.{json,md}`
+  - P4B scan: 20/20 programs translated successfully, 0 compile failures.
+  - Target mix: eBPF=2, uBPF=3, v1model=13, v1model-like=2.
+  - Semantic status: `OK=17`, `SKIP=3`, `FAIL=0`; no semantic weakness/failure rows.
+  - File-size check after split: largest Python file in `dslc` is now `dslc/analysis/wraparound_projection.py` at 1294 lines; C++ verify files remain below 2500 lines (`slicer_internal.h` at 2470 lines).
+- **Pitfalls (implementation/model issues)**:
+  - `dslc/analysis/wraparound_projection.py` and `dslc/tests/wraparound/schedule/test_wraparound_schedule.py` briefly exceeded the 1300-line Python limit after dynamic-slot projection/refinement work.
+  - Windows-side `git diff` cannot hash several repo symlink/reparse-point P4 sample files (`Function not implemented`); WSL-side `git diff` shows no text diff for those paths. Do not include those platform-metadata changes in feature commits unless explicitly intended.
+- **Fixes/regression tests**:
+  - `dslc/analysis/wraparound_projection_exprs.py`: now owns stable cutpoint and packet-slot helper predicates used by projection extraction.
+  - `dslc/tests/wraparound/schedule/test_schedule_replay_refinement.py`: split witness-timeout, projection-weakening, and stop-after-closure tests out of the large schedule test file.
+  - Regression executed: `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_replay_refinement dslc.tests.wraparound.schedule.test_schedule_manifest_certification` passed (40 tests), followed by the broader 144-test targeted suite, also PASS.
+- **Smoke/regression**: No solver was run for the coverage scan; follow-up process check found no residual `java`, `z3`, or `Ultimate` process.
+
+## 2026-05-03 Schedule certification and focused marker hardening
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-03 12:00-12:04 Asia/Shanghai
+- **Goal/Progress**: Addressed review findings that could make schedule replay certificates or focused direct artifacts too permissive. Reran the ETC focused direct case as a single-spec smoke after the hardening.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260503-120012-a261/`
+  - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `etc_Ingress_reg_pkt_len_total`; `idx_var=etc_meta.register_index`; `zero=0bv11`; `target_value=0bv16`.
+  - Marker now records both `source_bpl_sha256` and `focused_bpl_sha256`; validator accepts it as `focused_under_approx`.
+  - Accepted final focused assertion lines were `{312, 344}`; Ultimate counterexample line was `344`; Ultimate OverallTime about `14.0s`.
+- **Pitfalls (implementation/model issues)**:
+  - Dependency projection failure paths (`no_global_vars`, missing deterministic scheduler, missing phase bodies) previously inherited `complete=True`, which could let an analysis failure flow into a certified schedule manifest.
+  - Syntax-only manifest certification accepted any identifier inside `array[index]` predicates; this could admit transient header/meta-derived indices such as `flow_id_reg[s1_hdr.foo]`.
+  - Subagent review caught one more certificate-soundness issue: `dependency_projection_unstable_cutpoint_guards=N` was recorded only as a note, while `complete` could still remain `True`. That meant a target-write guard with residual transient control/data state could still flow into `projection_complete=true`.
+  - Focused direct markers were freshness-checked by mtime/path shape only, lacked hashes, and short user timeouts were silently expanded to 120s.
+  - Downstream sanity checks only recognized GraphML witnesses or wraparound manifests, so focused under-approx evidence could be reported as missing even when the CLI intentionally skipped the original run.
+- **Fixes/regression tests**:
+  - `dslc/analysis/wraparound_projection.py`: analysis-failure returns now set `complete=False`; unstable cutpoint guards also force `complete=False`; manifest-facing predicate checks reject unstable array-index tokens in syntax-only mode.
+  - `dslc/analysis/wraparound_projection_exprs.py`: added array-select parsing and manifest-stability helpers, keeping the main projection file at exactly 1300 lines.
+  - `dslc/workflows/focused_direct.py`: marker validation is hash-based (`source_bpl_sha256`, `focused_bpl_sha256`) and respects explicit positive `--ultimate-timeout-seconds`.
+  - `dslc/bench/validate_counterexample.py` and `dslc/bench/run_e2e_ablations.py`: focused markers are now treated as explicit `focused_under_approx` evidence, not missing GraphML.
+  - Regression executed: targeted projection/schedule tests passed (41 tests); focused/marker/witness/e2e sanity tests passed (26 tests); broader targeted suite passed (169 tests).
+- **Smoke/regression**: Solver runs were executed one at a time in WSL; follow-up checks found no residual `java`, `z3`, or `Ultimate` process before the real spec smoke.
+
+## 2026-05-03 NetChain closure smoke after projection fail-closed review
+
+- **Spec**: `Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop`
+- **Time**: 2026-05-03 12:12-12:15 Asia/Shanghai
+- **Goal/Progress**: After subagent review required `dependency_projection_unstable_cutpoint_guards` to force `complete=false`, reran the canonical fixed-slot NetChain schedule certificate to ensure the fail-closed projection gate did not break a sound existing closure proof.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/netchain_wraparound_bug/20260503-121238-797f/`
+  - Manifest: `.tmp/procurator/verify/netchain_wraparound_bug/20260503-121238-797f/wraparound/target.00.s1_sequence_reg/wraparound.cegis.manifest.json`
+  - `ENTRY_CHECK=UNSAFE` in about `19.6s`.
+  - `NEAR_WRAP=UNSAFE` in about `33.7s` at `near_wrap.unroll1`.
+  - `CLOSURE_CHECK=SAFE` in about `85.3s`.
+  - Manifest validator: `[OK] certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+  - Recorded projection remains complete with scalar projection vars `procurator_phase,h1_inbox_count,s1_inbox_count,s2_inbox_count` and no dependency predicates/exprs.
+- **Pitfalls (implementation/model issues)**:
+  - Tightening incomplete dynamic-slot guards is intentionally conservative. It can demote dynamic-index cases with residual transient guards to near/direct/fallback instead of closure certification, but fixed-slot certificates like NetChain should remain certifiable.
+- **Fixes/regression tests**:
+  - `dslc/analysis/wraparound_projection.py`: `incomplete_cutpoint_guards` is now part of the `complete=False` condition and emits `dependency_projection_incomplete`.
+  - `dslc/tests/wraparound/schedule/test_wraparound_projection.py`: dynamic-slot projection tests now distinguish "expr captured for debugging/near-wrap" from "projection complete enough to certify".
+  - Regression executed: schedule/projection/manifest tests passed (41 tests), followed by the broader targeted suite (169 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job in WSL; follow-up process check found no residual solver process.
+
+## 2026-05-03 ETC near-wrap timeout classification and unroll budget fix
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`
+- **Time**: 2026-05-03 12:19-12:36 Asia/Shanghai
+- **Goal/Progress**: Rechecked the dynamic-index ETC packet-count wraparound path after projection certification was made fail-closed. The goal was to distinguish "bug absent" from "verification did not finish" and to keep one staged experiment inside a bounded time budget.
+- **Result**:
+  - Pre-fix run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260503-121909-1b43/`
+    - `ENTRY_CHECK=UNSAFE` in about `17.7s`.
+    - `near_wrap.unroll1=Timeout` after about `298.2s`.
+    - Old strategy still launched `near_wrap.unroll2`, which pushed the outer command to its 600s timeout.
+  - Post-fix run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260503-123206-e346/`
+    - `ENTRY_CHECK=UNSAFE` in about `17.1s`.
+    - `near_wrap.unroll1=Timeout` after about `195.3s` with `--ultimate-timeout-seconds 180`.
+    - No `near_wrap.unroll2.log` was generated; the manifest records fallback instead of continuing to spend budget.
+  - Classification: this is **not** a SAFE/nonexistent-bug result. The entry cutpoint is reachable, but the current near-wrap proof/search does not finish within the stage budget for this dynamic-index/incomplete-projection case.
+- **Pitfalls (implementation/model issues)**:
+  - `projection_complete=false` is expected here: dependency projection records dynamic-slot exprs, contradictory status predicates, and `dependency_projection_unstable_cutpoint_guards=1`, so closure certification must be refused.
+  - The old minimal-unroll growth policy treated short `Timeout/UNKNOWN` like a reason to keep increasing unroll. That violates the staged-experiment discipline: only a concrete `SAFE` at a shorter suffix should justify trying a larger suffix.
+- **Fixes/regression tests**:
+  - `dslc/workflows/wraparound_support/loop_schedule.py`: near-wrap exploration now grows only after `SAFE`; `Timeout/UNKNOWN/ERROR` stops the candidate and falls back.
+  - `dslc/tests/wraparound/schedule/test_wraparound_schedule.py`: updated the regression to `test_schedule_replay_stops_after_short_unknown` and retained the `SAFE -> grow -> UNSAFE` case.
+  - Regression executed: focused schedule tests passed (4 tests), schedule/projection/manifest/refinement tests passed (44 tests), focused/witness sanity tests passed (25 tests).
+- **Smoke/regression**: Runs were executed one at a time in WSL; follow-up process checks found no residual solver process.
+
+## 2026-05-03 Flowrest pkt_len_total focused direct witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-03 12:36-12:37 Asia/Shanghai
+- **Goal/Progress**: Confirmed that a Flowrest 16-bit accumulated-length wraparound witness still reports cleanly through the focused under-approximation artifact path after marker hash and downstream sanity changes.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound_direct/20260503-123636-2cc2/`
+  - Focused result: `UNSAFE`; marker kind `focused_under_approx`; target `flowrest_Ingress_reg_pkt_len_total`; `idx_var=flowrest_meta.register_index`; `zero=0bv16`; `target_value=0bv16`.
+  - Marker records `source_bpl_sha256=463b0290506b942e48d4718b21d56a7e430d84bc42e87a54f0ac1d9c3416cdf5` and `focused_bpl_sha256=76aadeae100a4f4ce00f6dc065cabd1d34d98b924f656e720b564acbdfa38c0f`.
+  - Accepted final focused assertion lines were `{298, 330}`; Ultimate counterexample line was `330`; OverallTime about `11.8s`.
+  - Validator: `[OK] focused_under_approx`.
+- **Pitfalls/Fixes**:
+  - This is a direct under-approximation witness, not a closure certificate. It is sound as an UNSAFE bug witness because it fixes slot 0 and validates that Ultimate hit the transformed focused assertion line in the exact focused BPL.
+- **Regression tests**:
+  - The focused marker/witness tests from the preceding entry remained green (25 tests).
+- **Smoke/regression**: Single Ultimate/GemCutter job in WSL; no concurrent solver jobs were launched.
+
+## 2026-05-03 upstream p4c base sync and verify-backend repair
+
+- **Spec/scan**:
+  - Upstream base: `p4lang/p4c` snapshot `dd688c9bd4cf43eafd9b8cd405d428801d23231c`, `Version.txt=1.2.5.12`.
+  - Focused translator regressions over P4B platform/features: TNA include discovery, NetChain slicing, FlowDoS parser/hash, Flowrest/ETC RegisterAction metadata, PSA/eBPF/uBPF/PNA regressions, P4TV assert/assume, Boogie out-param compatibility.
+- **Time**: 2026-05-03 23:41 Asia/Shanghai
+- **Goal/Progress**: Followed the upstream-sync direction: keep Procurator-owned `backends/verify` logic, but move the surrounding P4C frontend/backends/includes toward the latest upstream base and repair verify translation/analysis against the newer frontend IR shape.
+- **Result**:
+  - P4B build passed in WSL: `cmake --build P4B-Translator/build-verify-sync --target p4c-translator -j8`.
+  - Focused P4B regression suite passed in WSL: `python3 -m unittest -v dslc.tests.p4b.test_p4b_tofino_cpp_defines dslc.tests.p4b.test_p4b_translator_slicing_selftest dslc.tests.p4b.test_p4b_translator_regressions dslc.tests.p4b.test_p4b_translator_p4tv_assert_assume dslc.tests.p4b.test_p4b_translator_boogie_out_params` (46 tests, about 116s).
+  - Netchain slicing selftest passed: `p4c-translator ... --slicing-vars=sequence_reg[0] --slicing-selftest=netchain_seq .../netchain_16.p4`.
+  - FlowDoS hash/index selftest passed: `p4c-translator ... --slicing-vars=counter_filter --slicing-selftest=flowdos_hash_index_dependency .../external_int_flowdos/switch-flow.p4`.
+- **Pitfalls (implementation/model issues)**:
+  - Latest p4c frontend lifts action parameters into control-local temporaries and no-argument actions. The old index-definition metadata therefore reported proxy/local dependencies such as `MyIngress_srcIp` instead of the true header/data dependency, which weakens wraparound projection/certificate reasoning.
+  - JSON IR slicing collected register/index metadata without statement pruning. Letting that metadata prune register domains is unsound because the JSON path still emits the full unpruned program.
+  - TNA programs including `<tna.p4>` need the upstream Tofino include path and target define from the P4B invocation layer, not dataset edits.
+  - FlowDoS parser states produced by the newer frontend include copied states such as `parse_udp_0` and `parse_int_over_tcp_0`; the verify backend previously emitted `goto` targets with those names but fallback labels such as `parse_udp__p4b_1`, leaving dangling labels in Boogie.
+- **Fixes/regression tests**:
+  - `P4B-Translator/backends/verify/analysis/index_defs.cpp`: added action-name aliases and action-local deterministic assignment expansion so structured index definitions expose real header/meta dependencies while avoiding unsound parser/control branch substitution.
+  - `P4B-Translator/backends/verify/bpl_verify/pipeline.cpp` and `P4B-Translator/backends/verify/translate/impl/lowering/translate_program.cpp`: disable register-domain pruning for JSON IR slicing paths.
+  - `dslc/backends/boogie/node/p4b.py`: auto-adds the Tofino include path/define for `<tna.p4>` and supports `P4B_TOFINO_INCLUDE_PATH`.
+  - `P4B-Translator/backends/verify/translate/impl/lowering/translate_program.cpp`: parser label normalization now recognizes numeric-suffixed copied parser states, preventing goto/label mismatches.
+  - `dslc/tests/p4b/*`: updated and added regressions for TNA include handling, FlowDoS parser compatibility, dynamic hash dependencies, JSON IR register domains, PSA/eBPF/uBPF/PNA extern lowering, P4TV assert/assume, and current upstream action-local out-param lowering.
+- **Smoke/regression**: Translation/build/unit-test only; no Ultimate/GemCutter job was launched in this checkpoint.
+
+## 2026-05-03 PSA/eBPF/uBPF/PNA/TNA semantic coverage after upstream sync
+
+- **Spec/scan**:
+  - PSA: `P4B-Translator/testdata/p4_16_samples` with `--target psa`.
+  - eBPF: `P4B-Translator/testdata/p4_16_samples` with `--target ebpf`.
+  - uBPF: `P4B-Translator/testdata/p4_16_samples` with `--target ubpf`.
+  - PNA: upstream p4c samples under `.tmp/procurator/upstream/p4c/testdata/p4_16_samples` with `--target pna`.
+  - TNA: repo dataset plus P4B samples with `--target tna`.
+- **Time**: 2026-05-03 23:58 Asia/Shanghai
+- **Goal/Progress**: Verified that the upstream-sync translator does more than parse current architecture programs: it emits semantic evidence for stateful/architecture features instead of silently dropping them.
+- **Result**:
+  - PSA full scan: `.tmp/procurator/p4b_coverage/psa_semantic_20260503_sync_full_after_checksum/coverage.md`; 157/157 compile OK, 157/157 semantic OK.
+  - eBPF scan: `.tmp/procurator/p4b_coverage/ebpf_semantic_20260503_sync/coverage.md`; 30/30 compile OK, semantic status OK/SKIP only.
+  - uBPF scan: `.tmp/procurator/p4b_coverage/ubpf_semantic_20260503_sync/coverage.md`; 14/14 compile OK, semantic status OK/SKIP only.
+  - PNA upstream batches: `.tmp/procurator/p4b_coverage/pna_upstream_semantic_20260503_sync_batch{0,1,2}/coverage.md`; 71/71 compile OK, 71/71 semantic OK.
+  - TNA dataset scan: `.tmp/procurator/p4b_coverage/tna_semantic_20260503_sync/coverage.md`; 13/13 compile OK, 13/13 semantic OK.
+  - Focused P4B regression suite passed in WSL after the checksum refinement: 47 tests in about 99s.
+- **Pitfalls (implementation/model issues)**:
+  - PSA checksum samples initially remained `WEAK`: v1model `verify_checksum`/`update_checksum` could still be emitted as comment-only effects, which is too weak for platform semantic coverage and for later dependency/projection extraction.
+  - PSA `InternetChecksum.clear/add/get` is a different extern-summary path from v1model `verify_checksum`/`update_checksum`; using a PSA parser-checksum sample to test the v1model event path was the wrong regression anchor.
+- **Fixes/regression tests**:
+  - `P4B-Translator/backends/verify/translate/impl/core/translate.cpp`: added global checksum event flags `p4b_checksum_verified`, `p4b_checksum_updated`, and `p4b_checksum_error`, reset at `mainProcedure` entry.
+  - `P4B-Translator/backends/verify/translate/impl/lowering/translate_statement.cpp`: v1model `verify_checksum` now records a verification event and nondeterministic checksum error flag; `update_checksum` records an update event and conservatively havoc-updates the target checksum field under the call condition.
+  - `dslc/bench/p4b_semantic_audit.py`: treats the checksum event model as semantic OK while keeping pure extern `clear/add/get` summaries auditable.
+  - `dslc/tests/p4b/test_p4b_translator_regressions.py`: added a v1model checksum regression using `checksum1-bmv2.p4`.
+  - `dslc/tests/bench/test_p4b_semantic_audit.py`: added audit coverage for the checksum event summary.
+  - Focused regressions passed: `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_regressions dslc.tests.bench.test_p4b_semantic_audit`.
+- **Smoke/regression**: Translation/audit/unit-test only; no Ultimate/GemCutter job was launched in this checkpoint.
+
+## 2026-05-04 NetChain header-stack upstream-sync repair and certificate rerun
+
+- **Spec**: `Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop`
+- **Time**: 2026-05-04 01:45-02:17 Asia/Shanghai
+- **Goal/Progress**: After the latest-p4c base sync, NetChain no longer reached ENTRY because the verify translator emitted uses of `hdr.overlay.*` header-stack fields without declaring them. Repaired the verify-backend compatibility layer and reran NetChain in staged order: compile/smoke, ENTRY, NEAR, then full closure.
+- **Result**:
+  - P4B build passed in WSL: `cmake --build P4B-Translator/build-verify-sync --target p4c-translator -j4`, followed by copying the binary into `P4B-Translator/build-host/{backends/verify/,}`.
+  - Header-stack regression passed: `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_netchain_sliced_header_stack_declarations ...test_netchain_pop_front_header_stack_slicing ...test_netchain_seq_seed_slicing`.
+  - NetChain compile/smoke passed: `./bin/procurator compile --spec ...netchain_wraparound_bug.prop --out /tmp/netchain_wrap_compile.bpl --boogie-harness sequential --no-two-stage && ./bin/procurator smoke --bpl /tmp/netchain_wrap_compile.bpl --harness sequential`.
+  - Staged ENTRY run: `.tmp/procurator/verify/netchain_wraparound_bug/20260504-015238-6593/`, `ENTRY_CHECK=UNSAFE` in about 50.9s.
+  - Staged NEAR run: `.tmp/procurator/verify/netchain_wraparound_bug/20260504-015433-d275/`, `ENTRY_CHECK=UNSAFE` in about 21.3s and `NEAR_WRAP=UNSAFE` in about 90.2s.
+  - Full certificate run: `.tmp/procurator/verify/netchain_wraparound_bug/20260504-021029-e969/`, manifest `.tmp/procurator/verify/netchain_wraparound_bug/20260504-021029-e969/wraparound/target.00.s1_sequence_reg/wraparound.cegis.manifest.json`; `ENTRY_CHECK=UNSAFE` in about 37.5s, `NEAR_WRAP=UNSAFE` in about 67.8s, `CLOSURE_CHECK=SAFE` in about 286.0s, total about 391s (<8min). CLI printed `[CEX] certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+- **Pitfalls (implementation/model issues)**:
+  - This was not a SAFE/nonexistent-bug outcome. The old failure was a P4B translation completeness bug caused by newer p4c retaining header-stack element types as `Type_Name` instead of already-resolved `Type_Header`; `P4VerifyCompat::asHeaderStackType()` therefore rejected the stack before translator lowering could call `resolveHeaderType()`.
+  - The first post-closure CLI run produced a misleading `[CEX-WARN] not certified` even though the manifest was certified. The validator re-parsed Ultimate logs differently from the wraparound runner: closure logs contained a target `Registering result SAFE ... (0 of 1 remaining)` followed by a late generic Timeout line after early shutdown.
+  - One process-check command was misquoted across PowerShell/WSL and accidentally invoked `java`, `z3`, and `cmake` help paths. The corrected check uses `ps -eo pid,comm,args` and PowerShell-side filtering.
+- **Fixes/regression tests**:
+  - `P4B-Translator/backends/verify/verify_compat.h`: accepts `IR::Type_Array` as a header-stack candidate and leaves element-type resolution to translator/typeMap call sites, restoring `hdr.overlay` declarations under the latest frontend IR.
+  - `dslc/tests/p4b/translator/test_header_stack.py`: added `test_netchain_sliced_header_stack_declarations`, asserting the sliced NetChain BPL declares `hdr.overlay`, `.last`, all 10 stack elements, their validity bits, and `swip` fields.
+  - `dslc/bench/validate_counterexample.py`: schedule-replay manifest validation now uses the same wraparound-stage result evidence policy as the runner and requires matching log evidence plus recorded stage result, avoiding false warning on early-stop closure logs.
+  - `dslc/tests/toolchain/test_validate_counterexample.py`: added a regression for wraparound manifests whose logs contain a matching `Registering result ... (0 of 1 remaining)` plus a later generic Timeout line.
+  - `dslc/tests/p4b/translator/test_no_slicing_control_seeds_flag.py`: moved the translator wrapper flag tests into the new translator subpackage. `dslc/tests/p4b` now has 8 root files and the largest Python test file there is `test_p4b_translator_slicing_selftest.py` at 1292 lines, satisfying the file-size/directory organization rule.
+  - Focused WSL regression passed: P4B platform/wraparound targeted suite, 136 tests in about 102s; toolchain validator tests, 10 tests; py_compile for the changed validator; real NetChain manifest validator now returns certified.
+  - Post-split focused WSL regression passed: `python3 -m unittest -v dslc.tests.p4b.translator.test_header_stack dslc.tests.p4b.translator.test_no_slicing_control_seeds_flag ...test_netchain_pop_front_header_stack_slicing ...test_netchain_seq_seed_slicing` (5 tests), followed by validator/schedule/projection/header-stack focused suite (54 tests).
+- **Smoke/regression**: Solver jobs were run one at a time in WSL. Follow-up process check found no residual Ultimate/java/z3/p4c-translator/cmake build jobs beyond unrelated IDE/background services.
+
+## 2026-05-04 DistCache P2C leafload wraparound certificate rerun
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_p2c_wraparound_bug.prop`
+- **Time**: 2026-05-04 02:39-02:49 Asia/Shanghai
+- **Goal/Progress**: Re-ran the known DistCache P2C leafload wraparound bug after the upstream-p4c/header-stack repair, using the staged schedule-replay pipeline. The run followed the required order: compile/smoke, ENTRY, NEAR, then full CLOSURE only after ENTRY and NEAR had concrete signal.
+- **Result**:
+  - Compile/smoke passed: `./bin/procurator compile --spec ...distcache_p2c_wraparound_bug.prop --out /tmp/distcache_p2c_wrap_compile.bpl --boogie-harness sequential --no-two-stage`, followed by `./bin/procurator smoke --bpl /tmp/distcache_p2c_wrap_compile.bpl --harness sequential`.
+  - ENTRY-only run: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260504-024024-2a9d/`, `ENTRY_CHECK=UNSAFE` in about `20.7s`.
+  - NEAR-only run: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260504-024101-32b5/`, `ENTRY_CHECK=UNSAFE` in about `16.9s`; `near_wrap.unroll1=SAFE` in about `46.3s`; `near_wrap.unroll2=UNSAFE` in about `60.8s`.
+  - Full certificate run: `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260504-024507-6588/`, manifest `.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260504-024507-6588/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/wraparound.cegis.manifest.json`; `ENTRY_CHECK=UNSAFE` in about `24.4s`, `near_wrap.unroll1=SAFE` in about `45.9s`, `near_wrap.unroll2=UNSAFE` in about `63.0s`, and `CLOSURE_CHECK=SAFE` in about `69.1s`.
+  - CLI printed `[CEX] certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`; exit code was `1`, as expected for a certified bug.
+- **Pitfalls (implementation/model issues)**:
+  - This was not a false SAFE or nonexistent-bug outcome. `near_wrap.unroll1=SAFE` only meant the one-round suffix was too short; the schedule-replay policy correctly grew after a concrete SAFE and found `UNSAFE` at unroll2.
+  - A quick manifest-inspection helper command was misquoted once across PowerShell/WSL, but no generated artifact or solver run was affected.
+- **Fixes/regression tests**:
+  - No code change was needed for this spec. The existing fixed-index projection was complete: scheduler phase, `clientTrack_inbox_count`, `io_inbox_count`, and `dsl_pump_mode`; target register `clientTrack_partitionswitchIngress_leafload_reg[2]`; `step_delta=+1`.
+- **Smoke/regression**: Solver jobs were run one at a time in WSL. The compile/smoke stage passed before ENTRY/NEAR/CLOSURE, and the full run produced a certified wraparound manifest.
+
+## 2026-05-04 DistCache P2C spineload wraparound certificate rerun
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_p2c_spineload_wraparound_bug.prop`
+- **Time**: 2026-05-04 02:49-02:59 Asia/Shanghai
+- **Goal/Progress**: Re-ran the symmetric DistCache P2C spineload wraparound bug using staged schedule replay. This case exercises a longer functional suffix: overflow the spine-load counter, bump the leaf-load counter, then issue the P2C query.
+- **Result**:
+  - Compile/smoke passed: `./bin/procurator compile --spec ...distcache_p2c_spineload_wraparound_bug.prop --out /tmp/distcache_p2c_spineload_wrap_compile.bpl --boogie-harness sequential --no-two-stage`, followed by `./bin/procurator smoke --bpl /tmp/distcache_p2c_spineload_wrap_compile.bpl --harness sequential`.
+  - ENTRY-only run: `.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260504-024918-d399/`, `ENTRY_CHECK=UNSAFE` in about `18.0s`.
+  - NEAR-only run: `.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260504-024954-84ba/`, `ENTRY_CHECK=UNSAFE` in about `20.7s`; `near_wrap.unroll1=SAFE` in about `50.1s`; `near_wrap.unroll2=SAFE` in about `71.5s`; `near_wrap.unroll3=UNSAFE` in about `120.5s`.
+  - Full certificate run: `.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260504-025447-532a/`, manifest `.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260504-025447-532a/wraparound/target.00.clientTrack_partitionswitchIngress_spineload_reg/wraparound.cegis.manifest.json`; `ENTRY_CHECK=UNSAFE` in about `25.1s`, `near_wrap.unroll1=SAFE` in about `39.1s`, `near_wrap.unroll2=SAFE` in about `53.8s`, `near_wrap.unroll3=UNSAFE` in about `91.2s`, and `CLOSURE_CHECK=SAFE` in about `58.0s`.
+  - CLI printed `[CEX] certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`; exit code was `1`, as expected for a certified bug.
+- **Pitfalls (implementation/model issues)**:
+  - The early NEAR `SAFE` results are not evidence that the bug is absent; they only show that shorter suffixes are insufficient for this three-step functional script. The scheduler correctly grows only after concrete SAFE and reaches `UNSAFE` at unroll3.
+- **Fixes/regression tests**:
+  - No code change was needed for this spec. Projection was complete with scheduler phase, `clientTrack_inbox_count`, `io_inbox_count`, `dsl_pump_mode`, and `dsl_suffix_sent`; target register `clientTrack_partitionswitchIngress_spineload_reg[3]`; `step_delta=+1`.
+- **Smoke/regression**: Solver jobs were run one at a time in WSL. The compile/smoke stage passed before ENTRY/NEAR/CLOSURE, and the full run produced a certified wraparound manifest.
+
+## 2026-05-04 FissLock notification counter wraparound repair and certificate rerun
+
+- **Spec**: `Procurator/argo/code/spec/bench/fisslock_notification_cnt_wraparound_bug.prop`
+- **Time**: 2026-05-04 03:00-03:22 Asia/Shanghai
+- **Goal/Progress**: Re-ran the known TNA/FissLock notification-counter wraparound bug and fixed the blocking implementation issue exposed by ENTRY. The staged workflow was compile/smoke, ENTRY, P4B repair/regression, ENTRY rerun, NEAR, then full CLOSURE.
+- **Result**:
+  - Initial compile/smoke passed, but initial ENTRY run `.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260504-030002-b4ae/` returned `Ultimate could not prove your program: Toolchain returned no result` after about `11.3s`.
+  - Root-cause log showed Boogie type errors for undeclared register size constants, e.g. `sw_IngressPipe_lock_free_mode_array.size`, `sw_IngressPipe_CounterTable_2_notification_cnt_2.size`, and `sw_IngressPipe_LockOperation_1_lock_agent_array_1.size`.
+  - After the P4B fix, compile/smoke passed again: `./bin/procurator compile --spec ...fisslock_notification_cnt_wraparound_bug.prop --out /tmp/fisslock_notification_cnt_wrap_compile2.bpl --boogie-harness sequential --no-two-stage`, followed by `./bin/procurator smoke --bpl /tmp/fisslock_notification_cnt_wrap_compile2.bpl --harness sequential`.
+  - ENTRY rerun: `.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260504-031133-d187/`, `ENTRY_CHECK=UNSAFE` in about `26.6s`.
+  - NEAR run: `.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260504-031341-299d/`, `ENTRY_CHECK=UNSAFE` in about `25.4s`; `near_wrap.unroll1=SAFE` in about `30.7s`; `near_wrap.unroll2=UNSAFE` in about `138.6s`.
+  - Full certificate run: `.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260504-031724-994f/`, manifest `.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260504-031724-994f/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/wraparound.cegis.manifest.json`; `ENTRY_CHECK=UNSAFE` in about `19.1s`, `near_wrap.unroll1=SAFE` in about `29.4s`, `near_wrap.unroll2=UNSAFE` in about `144.8s`, and `CLOSURE_CHECK=SAFE` in about `81.7s`.
+  - CLI printed `[CEX] certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`; exit code was `1`, as expected for a certified bug.
+- **Pitfalls (implementation/model issues)**:
+  - The initial ENTRY result was not SAFE and not evidence of bug absence. It was a P4B sliced-output well-formedness bug: slicing retained register-size axioms for non-target but still live registers while filtering out their `const X.size` declarations.
+  - The direct no-slicing translator output already emitted `const X.size` and `axiom X.size == ...` together. The failure was specific to sliced declaration filtering in `Translator::shouldKeepVar`.
+  - A few manual inspection commands were misquoted across PowerShell/WSL and produced shell/help noise only; no solver result or artifact was affected. The reliable process check remains PowerShell-side filtering over `wsl.exe -- ps -eo pid,comm,args`.
+- **Fixes/regression tests**:
+  - `P4B-Translator/backends/verify/translate/impl/core/translate.cpp`: `shouldKeepVar()` now keeps `X.size` whenever the base register is kept, has register-domain metadata, or has non-constant index metadata. This keeps register-size `const` declarations closed with their axioms under slicing.
+  - Rebuilt P4B in WSL with `cmake --build P4B-Translator/build-verify-sync --target p4c-translator -j4` and copied the binary into `P4B-Translator/build-host/{backends/verify/,}`.
+  - `dslc/tests/p4b/test_p4b_translator_regressions.py`: added `test_fisslock_sliced_register_size_consts_are_declared`, checking that all sliced FissLock `axiom X.size == ...` entries have matching `const X.size` declarations and covering the previously missing `IngressPipe_CounterTable_2_notification_cnt_2.size`.
+  - Focused regression executed: `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_fisslock_sliced_register_size_consts_are_declared dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_tna_registeraction_execute_rhs_is_stateful dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_tofino_constructor_style_local_instantiation_translates` passed.
+- **Smoke/regression**: Solver jobs were run one at a time in WSL. After the fix, compile/smoke, ENTRY, NEAR, and CLOSURE all completed and produced a certified wraparound manifest.
+
+## 2026-05-04 ETC pkt_count dynamic-slot near-wrap classification rerun
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`
+- **Time**: 2026-05-04 03:24-03:28 Asia/Shanghai
+- **Goal/Progress**: Rechecked the ETC dynamic-slot packet-count wraparound candidate after the NEAR growth-policy fix and the P4B register-size declaration repair. The purpose was to distinguish bug absence from tool incompleteness.
+- **Result**:
+  - Run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260504-032430-a2fd/`
+  - `ENTRY_CHECK=UNSAFE` in about `16.1s`.
+  - `near_wrap.unroll1=Timeout` after about `192.3s` with `--ultimate-timeout-seconds 180`.
+  - No later NEAR unroll was launched; the current strategy grows only after a concrete `SAFE`, not after `Timeout/UNKNOWN/ERROR`.
+- **Pitfalls (implementation/model issues)**:
+  - This is not a SAFE result and not evidence that the modeled bug is absent. It means the entry cutpoint is reachable, but the current dynamic-slot NEAR query did not finish inside the stage budget.
+  - The manifest remains a fallback/incomplete evidence artifact, not a closure certificate.
+- **Fixes/regression tests**:
+  - No new code change was needed in this run. It validates the existing stop-after-timeout policy added in `dslc/workflows/wraparound_support/loop_schedule.py`.
+- **Smoke/regression**: Solver jobs were run one at a time in WSL. The run stayed stage-bounded and did not continue expanding NEAR after timeout.
+
+## 2026-05-04 ETC and Flowrest pkt_len_total focused direct witnesses
+
+- **Spec**:
+  - `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-04 03:28-03:30 Asia/Shanghai
+- **Goal/Progress**: Re-ran two external ML/per-flow accumulated-length wraparound witnesses after the P4B register-size fix and focused-marker hardening. These are direct focused under-approximation witnesses, not closure certificates.
+- **Result**:
+  - ETC run directory: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260504-032839-b608/`
+    - Focused result: `UNSAFE`; marker `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260504-032839-b608/external_etc_noms2024_pkt_len_total_wraparound_direct.focused-index0.unsafe.json`
+    - Target `etc_Ingress_reg_pkt_len_total`, index var `etc_meta.register_index`, slot `0bv11`, target value `0bv16`.
+    - Marker hashes: `source_bpl_sha256=7c51f6aea4f9db39aecd6fe692258e3eeeeaa31172a0d88df233ba2e8213d353`, `focused_bpl_sha256=e9b830c2993b5005f9c012444b3531abfa86c1f277528543729b6ca1408393b4`.
+    - Accepted focused assertion lines `{325, 357}`; result line `RESULT: UNSAFE`.
+  - Flowrest run directory: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound_direct/20260504-032923-2e36/`
+    - Focused result: `UNSAFE`; marker `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound_direct/20260504-032923-2e36/external_flowrest_per_flow_pkt_len_total_wraparound_direct.focused-index0.unsafe.json`
+    - Target `flowrest_Ingress_reg_pkt_len_total`, index var `flowrest_meta.register_index`, slot `0bv16`, target value `0bv16`.
+    - Marker hashes: `source_bpl_sha256=695b318f320bd26e58cc1064f7c0cf53bcbfe07db5d568d1d960c49b1ad9fc4e`, `focused_bpl_sha256=b5099dba3c099d0a958c665d80871ed0e28391fbdc5fd620b74407ad00b50f68`.
+    - Accepted focused assertion lines `{317, 349}`; result line `RESULT: UNSAFE`.
+- **Pitfalls/Fixes**:
+  - These artifacts are sound direct UNSAFE witnesses because the focused BPL fixes a concrete slot and the marker binds the source/focused BPL hashes and accepted assertion lines. They are not wraparound closure certificates and should not be counted as CLOSURE-proven acceleration results.
+- **Smoke/regression**: Solver jobs were run one at a time in WSL. No residual Ultimate/java/z3 process was found after the runs.
+
+## 2026-05-04 Flowrest flow-duration and accumulated-length direct witnesses
+
+- **Spec**:
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound_direct.prop`
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound_slot0.prop`
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound_slot0.prop`
+- **Time**: 2026-05-04 03:34-03:48 Asia/Shanghai
+- **Goal/Progress**: Explored additional Flowrest per-flow feature wraparound witnesses after the known toolchain repairs. These were direct/focused witness searches, not closure certificates.
+- **Result**:
+  - Flow-duration direct run: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_direct/20260504-033425-4227/`; main log recorded `UNSAFE` with `OverallTime≈77.7s`, and the witness rerun also reached `UNSAFE` (`OverallTime≈75.1s`). The validator reported the DSL global assertion hit.
+  - Flow-duration slot-0 run: `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound_slot0/20260504-034250-aa14/`; main log recorded `UNSAFE` with `OverallTime≈86.8s`, and the witness rerun also reached `UNSAFE` (`OverallTime≈81.8s`).
+  - Accumulated-length slot-0 run: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound_slot0/20260504-034655-e037/`; main log recorded an `UNSAFE` result at the register-write assertion with `OverallTime≈25.8s`, and the witness rerun also reached the focused assertion (`OverallTime≈22.6s`).
+- **Pitfalls/Fixes**:
+  - These are concrete direct/focused `UNSAFE` witnesses, not schedule-replay closure certificates. They should be counted as bug-finding evidence, not as proof that the wraparound acceleration certificate closes.
+  - The accumulated-length slot-0 log also contains an `UNKNOWN` for the unrelated original/global assertion location after the register-write assertion is hit; the accepted evidence is the register-write `UNSAFE` marker tied to the focused assertion line.
+- **Smoke/regression**: Solver jobs were run one at a time in WSL; no concurrent Ultimate/GemCutter run was launched.
+
+## 2026-05-04 Flowrest pkt_count dynamic-slot classification and direct timeout
+
+- **Spec**:
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound_direct.prop`
+- **Time**: 2026-05-04 03:37-04:39 Asia/Shanghai
+- **Goal/Progress**: Investigated the 8-bit Flowrest packet-count feature counter. The expected bug shape is a long-lived flow whose per-flow packet counter wraps to zero. The purpose was to distinguish confirmed witnesses, incomplete certification, and solver incompleteness.
+- **Result**:
+  - Schedule-replay run: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260504-033736-22fe/`.
+    - `ENTRY_CHECK=UNSAFE` in about `17.0s`.
+    - `near_wrap.unroll1` had a concrete internal `SAFE` for the short suffix but the final stage result was timeout/unknown; the policy then grew only because a concrete shorter-suffix `SAFE` had been observed.
+    - `near_wrap.unroll2=UNSAFE` in about `66.3s`.
+    - The manifest is **not certified**: `projection_complete=false`, with dynamic slot expressions `flowrest_Ingress_reg_flow_ID[flowrest_meta.register_index]` and `flowrest_Ingress_reg_time_last_pkt[flowrest_meta.register_index]`, plus unstable cutpoint guards.
+  - Direct unbounded run: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound_direct/20260504-041503-079c/`; focused direct prepass timed out at about `256.5s`, and the original direct run timed out at about `257.3s`.
+  - Direct bounded benchmark run with `--use-spec-max-steps`: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound_direct/20260504-042415-5f14/`; focused and original direct checks timed out, with the original log showing `OverallTime≈434.4s`.
+- **Pitfalls (implementation/model issues)**:
+  - This is not a `SAFE`/bug-absent result. The schedule-replay path proves ENTRY reachability and finds a near-wrap suffix, but refuses certification because the current dependency projection cannot yet soundly stabilize the dynamic per-flow key and target-write guards.
+  - Direct/BMC for the 256-step path is too heavy in the current encoding, even when a debug max-step bound is explicitly enabled. The correct product behavior remains: `max_steps` is optional and ignored unless requested as a benchmark/debug knob.
+- **Fixes/regression tests**:
+  - Added `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound_direct.prop` as a benchmark/debug direct witness spec. It keeps `max_steps=260` only as an optional bound under `--use-spec-max-steps`.
+  - Follow-up code work is needed in projection/index normalization before this can become a certified wraparound artifact.
+- **Smoke/regression**: Compile/smoke passed before direct verification. Solver jobs were run one at a time in WSL.
+
+## 2026-05-04 Flow INT counter dynamic-slot exploration
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop`
+- **Time**: 2026-05-04 03:49-04:00 Asia/Shanghai
+- **Goal/Progress**: Rechecked the external INT counter candidate after dynamic-slot projection stopped treating header-validity maps as register arrays.
+- **Result**:
+  - Near-wrap run: `.tmp/procurator/verify/external_int_flowdos_counter_wraparound/20260504-035335-1b08/`; projection became complete for the current candidate (`procurator_phase`, `flowdos_inbox_count`), `ENTRY_CHECK=UNSAFE` in about `14.5s`, and `NEAR_WRAP=UNSAFE` in about `17.6s`. The run stopped after near-wrap by request, so it is not certified.
+  - Full closure run: `.tmp/procurator/verify/external_int_flowdos_counter_wraparound/20260504-035441-66c1/`; `ENTRY_CHECK=UNSAFE` in about `16.2s`, `NEAR_WRAP=UNSAFE` in about `17.5s`, but `CLOSURE_CHECK=UNSAFE` in about `23.9s`. The blocked second schedule's ENTRY was `SAFE`, and fallback direct checking timed out after about `320.9s`.
+  - Classification: not certified. This is not a `SAFE`/bug-absent conclusion; it is a closure failure or modeling/projection mismatch that still needs counterexample inspection.
+- **Pitfalls (implementation/model issues)**:
+  - The prior false dynamic-slot note `dependency_projection_dynamic_slot_index_mismatch=flowdos_isValid` was an analysis artifact: `isValid:[Ref]bool` is not a P4B stateful register map and should not drive dynamic-slot projection.
+  - A complete projection in the syntactic extractor does not by itself certify the candidate; the closure stage must still prove the net effect and projection preservation.
+- **Fixes/regression tests**:
+  - `dslc/analysis/wraparound_projection_exprs.py`: dynamic-slot dependency extraction now only treats arrays with P4B register mirrors as stateful register arrays.
+  - `dslc/analysis/wraparound_projection.py`: non-stable target-write guards are now fail-closed for certification, and dynamic guard specialization only rewrites P4B stateful register arrays.
+  - `dslc/tests/wraparound/schedule/test_wraparound_projection.py`: added/strengthened tests so header-validity maps do not cause fake dynamic-slot mismatches but still make the projection incomplete if they guard target writes and cannot be stabilized.
+  - Focused schedule/projection/manifest/refinement regression passed: `47` tests.
+- **Smoke/regression**: Solver jobs were run one at a time in WSL. No residual Ultimate/java/z3 process was expected after the staged runs.
+
+## 2026-05-04 Flow INT guarded-reset candidate gating
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop`
+- **Time**: 2026-05-04 07:55-07:56 Asia/Shanghai
+- **Goal/Progress**: Rechecked the INT counter after fixing P4B monotonic update extraction so a guarded reset after an increment is no longer exported as a simple affine wraparound pump.
+- **Result**:
+  - Integrated schedule-replay entry-only run stopped before ENTRY because there were no wraparound candidates: `[WRAP] STOP-AFTER entry: no wraparound candidates`.
+  - Wall time was about `4.97s`.
+- **Pitfalls/Fixes**:
+  - Previous exploration could pick `counter_filter.write(counter_pos, counter_val + 1)` while missing the later guarded `counter_filter.write(counter_pos, 0)`, which is not a replay-acceleration-compatible affine step.
+  - `P4B-Translator/backends/verify/analysis/monotonic.cpp` now counts register writes over the whole body before emitting an affine update, so registers with reset/write-multiple behavior do not become simple wraparound targets.
+- **Smoke/regression**:
+  - `python3 -m unittest -v dslc.tests.p4b.test_p4b_flowdos_hash` passed (`3` tests).
+  - The no-candidate integrated run was executed in WSL with no concurrent Ultimate/GemCutter job.
+
+## 2026-05-04 Flowrest pkt_count branch-sensitive schedule certificate
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+- **Time**: 2026-05-04 07:57-08:07 Asia/Shanghai
+- **Goal/Progress**: Fixed the prior Flowrest packet-count near-wrap path where `ENTRY_CHECK` and `NEAR_WRAP` succeeded but certification fell back because init/steady target-write guards were flattened into mutually exclusive projection predicates.
+- **Result**:
+  - Near-only staged run: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260504-080354-8ef5/`.
+    - `ENTRY_CHECK=UNSAFE` in about `13.8s`.
+    - `near_wrap.unroll1` produced a concrete short-suffix `SAFE` result before timeout text; policy continued to unroll 2.
+    - `near_wrap.unroll2=UNSAFE` in about `56.4s`.
+    - Manifest had `projection_complete=true` with the selected steady branch predicates:
+      - `!(flowrest_Ingress_reg_time_last_pkt[idx_hash(...)] == 0bv32)`
+      - `!(flow_id_hash(...) != flowrest_Ingress_reg_flow_ID[idx_hash(...)])`
+  - Full schedule-replay run: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260504-080655-3a88/`.
+    - `ENTRY_CHECK=UNSAFE` in about `16.7s`.
+    - `NEAR_WRAP=UNSAFE` at unroll 2 in about `57.7s`.
+    - `CLOSURE_CHECK=SAFE` in about `107.3s`.
+    - Overall wall time was about `270.1s`; final manifest is certified with diagnostic `certified schedule-replay wraparound bug`.
+    - Manifest validator passed: `python3 -m dslc.bench.validate_counterexample --wraparound-manifest .../wraparound.cegis.manifest.json` reported `certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+- **Pitfalls/Fixes**:
+  - Over-constraining ENTRY with the selected steady-branch guard made `ENTRY_CHECK=SAFE`; this was wrong because ENTRY is only the initialized model/non-empty cutpoint gate, while the steady branch is a replay-closure condition reached after a prefix. The final implementation keeps ENTRY and NEAR on the base cutpoint and uses the selected branch guard for CLOSURE plus certified projection predicates.
+  - Manifest validation previously rejected dynamic-index certificates where the top-level candidate has `index_value=None` but the compact schedule serializes `index_value=0`; validation now recomputes candidate identity from the top-level candidate metadata and schedule identity from the serialized projection.
+  - Syntax-only stable predicate validation now accepts deterministic P4B function calls with constant arguments in register-slot indices and equality predicates.
+- **Smoke/regression**:
+  - `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_manifest_certification dslc.tests.wraparound.schedule.test_schedule_replay_refinement dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.p4b.test_p4b_flowdos_hash` passed (`65` tests).
+  - Solver stages were run one at a time in WSL.
+
+## 2026-05-04 Flowrest branch-sensitive schedule certificate soundness erratum
+
+- **Spec**:
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound.prop`
+- **Time**: 2026-05-04 08:50-09:25 Asia/Shanghai
+- **Goal/Progress**: Re-reviewed the branch-sensitive schedule certificate after subagent review. The previous `pkt_count` certificate combined base-cutpoint ENTRY/NEAR evidence with a selected steady-branch CLOSURE proof; that is not a sound unconditional certificate because the existence stages and closure lemma can refer to different branch states.
+- **Result**:
+  - `external_flowrest_per_flow_pkt_count_wraparound`: entry-only rerun after the soundness fix: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260504-085057-576c/`.
+    - `ENTRY_CHECK=SAFE` in about `14.0s` once the selected steady-branch predicates were required at the same effective cutpoint as CLOSURE.
+    - The earlier `20260504-080655-3a88` manifest must be treated as diagnostic only, not as a certified wraparound proof.
+  - `external_flowrest_per_flow_pkt_len_total_wraparound`: near-wrap staged run after P4B candidate extraction fix: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260504-092244-1b61/`.
+    - P4B now emits `flowrest_Ingress_reg_pkt_len_total` as a candidate with `step_delta=32768`.
+    - `ENTRY_CHECK=SAFE` in about `14.3s` under the selected steady-branch effective cutpoint, so schedule-replay correctly falls back instead of certifying.
+  - Direct bounded validation for `external_flowrest_per_flow_pkt_len_total_wraparound`: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260504-092517-a507/`.
+    - Direct GemCutter check returned `UNSAFE`; witness rerun returned `UNSAFE`; validator reported `dsl_assert: witness hits DSL global assert`.
+    - This distinguishes bug existence from acceleration-certification failure: the Flowrest `pkt_len_total` bug exists and is reproducible by direct checking, while the current schedule certificate needs a reachability-prefix/steady-cutpoint entry stage before it can certify this pattern.
+- **Pitfalls/Fixes**:
+  - Pitfall: Requiring steady-branch predicates only in CLOSURE is insufficient; ENTRY/NEAR/CLOSURE must be tied to the same effective cutpoint, or an explicit branch-reachability/branch-conditioned NEAR stage must be added.
+  - Fix: `dslc/workflows/wraparound_support/loop_schedule.py` now builds the schedule identity, ENTRY, NEAR, and CLOSURE from the same effective cutpoint when a branch projection is selected.
+  - Fix: `dslc/workflows/wraparound_cegis.py` and `dslc/bench/validate_counterexample.py` now compute/validate schedule candidate identity using the attempt's effective cutpoint while preserving top-level dynamic-index metadata (`index_value=None`, `index_expr=...`).
+  - P4B improvement: `P4B-Translator/backends/verify/analysis/monotonic.cpp` now accepts init-or-accumulate `RegisterAction` summaries (e.g., Flowrest `pkt_len_total`) while still rejecting guarded reset-after-increment patterns (e.g., Flow INT counter).
+- **Smoke/regression**:
+  - `cmake --build . --target p4c-translator -j4` completed in WSL after about `579s` (with existing clock-skew warnings from the synced P4C tree).
+  - `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_manifest_certification dslc.tests.wraparound.schedule.test_schedule_replay_refinement dslc.tests.toolchain.test_validate_counterexample` passed (`44` tests).
+  - `python3 -m unittest -v dslc.tests.p4b.test_p4b_flowdos_hash.TestP4BFlowDoSHash.test_flowdos_counter_reset_not_reported_as_simple_wraparound_update dslc.tests.p4b.test_p4b_flowdos_hash.TestP4BFlowDoSHash.test_flowrest_pkt_len_total_register_action_exports_steady_affine_update` passed (`2` tests).
+  - Solver jobs were run one at a time in WSL; no `SAFE` result here is treated as bug absence.
+
+## 2026-05-04 Flowrest flow_duration and ETC pkt_count staged exploration
+
+- **Spec**:
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_flow_duration_wraparound.prop`
+  - `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`
+- **Time**: 2026-05-04 09:30-09:57 Asia/Shanghai
+- **Goal/Progress**: Continued staged bug exploration after the Flowrest branch-certificate soundness fix. The intent was to distinguish direct bug existence, candidate-extraction gaps, projection incompleteness, and real proof failures.
+- **Result**:
+  - `external_flowrest_per_flow_flow_duration_wraparound`: schedule-replay near-wrap run stopped with `no wraparound candidates` in about `6s`; direct GemCutter run `.tmp/procurator/verify/external_flowrest_per_flow_flow_duration_wraparound/20260504-093029-10f4/` timed out at `300s`.
+    - Classification: not bug absence. Current P4B monotonic extraction does not yet export non-constant timestamp-difference deltas such as `global_tstamp - last_pkt`, and direct solving is too slow for this case at the 300s stage budget.
+  - `external_etc_noms2024_pkt_count_wraparound`: near-only run `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260504-093555-f2e3/`.
+    - `ENTRY_CHECK=UNSAFE` in about `16.4s`.
+    - `NEAR_WRAP=UNSAFE` in about `70.6s`.
+    - Stopped after near-wrap by request; not certified.
+  - `external_etc_noms2024_pkt_count_wraparound`: full schedule-replay attempt `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260504-093757-b345/`.
+    - `ENTRY_CHECK=UNSAFE` in about `16.8s`.
+    - `NEAR_WRAP=UNSAFE` in about `48.1s`.
+    - The manifest correctly refuses closure because `projection_complete=false`: `etc_meta.register_index` remains a dynamic pre-loop global, and branch predicates include an unstable/mutually exclusive `etc_Ingress_reg_status[etc_meta.register_index]` pair.
+    - The CLI then fell back to direct checking; the outer shell timed out while direct fallback was still running. The residual Ultimate/java/z3/procurator processes for this run were killed by run id `20260504-093757-b345`.
+- **Pitfalls/Fixes**:
+  - Pitfall: A full `verify --wraparound auto` can enter direct fallback after a non-certified near-wrap path; for large external programs this may exceed the intended staged budget. Future deep closure/fallback runs should use explicit stop-after stages or a tighter direct fallback budget.
+  - Pitfall: ETC is not `SAFE`; the tool has a concrete near-wrap suffix but lacks a complete projection. This is a projection/index-stabilization problem, not a proof of bug absence.
+  - Follow-up implementation target: derive stable TNA hash/index definitions for `etc_meta.register_index` from P4B deterministic definitions and avoid certifying mutually exclusive status-guard predicates unless a single reachable branch cutpoint is proved.
+- **Smoke/regression**:
+  - No new code changes were made for this ETC/flow-duration exploration beyond the P4B/register-action and schedule soundness fixes recorded above.
+  - Process check after killing the timed-out ETC fallback showed no remaining Ultimate/java/z3/procurator process except an unrelated interactive bash rcfile.
+
+## 2026-05-04 ETC pkt_count prefix-entry wraparound certification
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`
+- **Time**: 2026-05-04 12:39-12:52 Asia/Shanghai
+- **Goal/Progress**: Fixed the known ETC `NEAR_WRAP=SAFE` misclassification for the steady-branch wraparound pattern. The selected cutpoint is not reachable at initialization because the first packet initializes `reg_status`/`reg_flow_ID`; the solver must first reach the steady branch with a finite prefix, then place the near-wrap fast-forward at that same effective cutpoint.
+- **Result**:
+  - Near-only staged run: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260504-123948-d3ac/`.
+    - Initial `ENTRY_CHECK=SAFE` in about `26.7s`, which is expected for the steady-branch cutpoint and is no longer treated as bug absence.
+    - `entry_check.prefix.unroll1=UNSAFE` in about `61.7s`, reaching the steady cutpoint after one deterministic scheduler round (`2` effective steps).
+    - `near_wrap.focused=UNSAFE` in about `138.6s`; stopped after near-wrap by request.
+  - Full closure run: `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260504-124417-97a1/`.
+    - `ENTRY_CHECK=SAFE` in about `19.6s`.
+    - `entry_check.prefix.unroll1=UNSAFE` in about `55.7s`.
+    - `near_wrap.focused=UNSAFE` in about `153.6s`.
+    - `CLOSURE_CHECK=SAFE` in about `135.2s`.
+    - Overall staged wall time was about `375s`; the manifest is certified and the run stays within the 10-minute target.
+    - Manifest validator passed: `python3 -m dslc.bench.validate_counterexample --wraparound-manifest .tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260504-124417-97a1/wraparound/target.00.etc_Ingress_reg_pkt_count/wraparound.cegis.manifest.json` reported `certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+- **Pitfalls/Fixes**:
+  - Pitfall: The earlier `NEAR_WRAP=SAFE` was caused by fast-forwarding before the finite prefix had reached the selected steady branch. This was a toolchain modeling/staging error, not evidence that the theoretical ETC wraparound bug is absent.
+  - Fix: schedule replay now supports prefix-entry checks for selected branch cutpoints and inserts the confirm/near fast-forward at a `WRAPAROUND_CONFIRM_PREFIX_CUTPOINT` after the prefix. It also avoids reasserting initialization defaults after that prefix cutpoint.
+  - Fix: prefix-entry near-wrap now has a focused under-approx stage. It strips the original wrapped assertion and asks only for the target mirror state (`__wrote_any`, selected index, wrapped value) after the prefix cutpoint. Only `UNSAFE` is accepted; `SAFE`, `UNKNOWN`, timeout, or missing mirror structure falls back to the ordinary near-wrap/direct path and is not used as a proof of absence.
+  - Soundness note: focused near is only an existential suffix witness. Certification still requires the separate closure proof, with complete dependency projection and no witness-only closure assumptions.
+- **Smoke/regression**:
+  - `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_schedule` passed (`26` tests).
+  - `python3 -m unittest -v dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_manifest_certification dslc.tests.wraparound.schedule.test_schedule_replay_refinement dslc.tests.toolchain.test_validate_counterexample` passed (`76` tests).
+  - Solver stages were run one at a time in WSL; no bounded/staged `SAFE` result is treated as bug absence unless the corresponding proof obligation justifies that conclusion.
+
+## 2026-05-04 Flowrest pkt_count prefix-entry recertification
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+- **Time**: 2026-05-04 13:05-13:12 Asia/Shanghai
+- **Goal/Progress**: Re-ran the Flowrest packet-count case after the prefix-entry/focused-near fix. This revisits the earlier erratum where the old certificate mixed base-cutpoint existence evidence with a selected steady-branch closure proof.
+- **Result**:
+  - Full closure run: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260504-130505-6ff7/`.
+    - Initial `ENTRY_CHECK=SAFE` in about `30.1s`, as expected for the steady-branch effective cutpoint.
+    - `entry_check.prefix.unroll1=UNSAFE` in about `59.9s`, reaching the steady branch after one deterministic scheduler round (`3` effective steps).
+    - `near_wrap.focused=UNSAFE` in about `128.9s`.
+    - `CLOSURE_CHECK=SAFE` in about `174.8s`.
+    - Overall staged wall time was about `407s`; the manifest is certified and remains within the 10-minute target.
+    - Manifest validator passed: `python3 -m dslc.bench.validate_counterexample --wraparound-manifest .tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260504-130505-6ff7/wraparound/target.00.flowrest_Ingress_reg_pkt_count/wraparound.cegis.manifest.json` reported `certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+- **Pitfalls/Fixes**:
+  - The previous `20260504-080655-3a88` Flowrest `pkt_count` manifest remains diagnostic only because it used mismatched cutpoints. The new `20260504-130505-6ff7` run is the replacement sound certificate: ENTRY, NEAR, and CLOSURE all use the selected steady-branch effective cutpoint, with finite-prefix reachability evidence.
+  - Subagent review found no blocking soundness issue in the focused-near path. It did flag that focused `UNSAFE` overwrote the generic `confirm_bpl`/`confirm_log` artifact fields; the implementation now also stores optional `source_confirm_bpl` / `source_confirm_log` fields to preserve the ordinary near-wrap source artifact for auditability.
+- **Smoke/regression**:
+  - `python3 -m py_compile dslc/workflows/wraparound_cegis.py dslc/workflows/wraparound_support/loop_schedule.py dslc/workflows/wraparound_support/prefix_cutpoint.py dslc/tests/wraparound/schedule/test_schedule_prefix_cutpoint.py` passed.
+  - `python3 -m unittest -v dslc.tests.wraparound.schedule.test_schedule_prefix_cutpoint dslc.tests.wraparound.schedule.test_wraparound_schedule` passed (`26` tests).
+  - Full wraparound regression: `python3 -m unittest -v dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_prefix_cutpoint dslc.tests.wraparound.schedule.test_schedule_manifest_certification dslc.tests.wraparound.schedule.test_schedule_replay_refinement dslc.tests.toolchain.test_validate_counterexample` passed (`76` tests).
+  - Solver stages were run one at a time in WSL.
+
+## 2026-05-04 NetChain schedule-replay projection regression check
+
+- **Spec**: `Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop`
+- **Time**: 2026-05-04 13:15-13:19 Asia/Shanghai
+- **Goal/Progress**: Ran the historical NetChain wraparound anchor after the prefix-entry/focused-near changes to check that the old non-prefix existence path still works and to identify remaining projection gaps.
+- **Result**:
+  - Near-only staged run: `.tmp/procurator/verify/netchain_wraparound_bug/20260504-131509-c824/`.
+    - `ENTRY_CHECK=UNSAFE` in about `21.5s`.
+    - `near_wrap=UNSAFE` in about `54.0s`.
+    - Stopped after near-wrap by request.
+  - Closure staged run: `.tmp/procurator/verify/netchain_wraparound_bug/20260504-131642-7ce9/`.
+    - `ENTRY_CHECK=UNSAFE` in about `19.9s`.
+    - `near_wrap=UNSAFE` in about `58.0s`.
+    - Closure was not run because dependency projection was incomplete; validator correctly reported `not certified`.
+    - Manifest diagnostic: `near-wrap bug found but dependency projection incomplete; falling back to direct verification`.
+- **Pitfalls/Fixes**:
+  - This is not a proof of bug absence. The tool still finds ENTRY and NEAR witnesses; certification is blocked by projection extraction.
+  - The projection probe showed stale/unstable guard noise from `s1/s2_isValid[*.nc_hdr]` and `bugt(seq, seq+1)`-style guards. One sound improvement was made: constant boolean disjuncts such as `(100bv16 == 100bv16) || unknown_guard(...)` are now folded to `true`, which removes a spurious target-write guard. The remaining NetChain guard on `s2` depends on the cross-node sequence value and should not be blindly dropped; it needs a real cross-node data-flow/projection predicate or a more precise P4B dependency summary.
+- **Smoke/regression**:
+  - `python3 -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection` passed after the constant boolean folding change.
+  - Files stayed within the line limits after moving the boolean helper to `dslc/analysis/wraparound_projection_bool.py`.
+
+## 2026-05-04 Flowrest pkt_len_total prefix-entry certification
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound.prop`
+- **Time**: 2026-05-04 13:26-13:31 Asia/Shanghai
+- **Goal/Progress**: Revisited the Flowrest packet-length-total wraparound case after prefix-entry/focused-near support. Previously this case had a direct witness but schedule certification stopped at steady-branch `ENTRY_CHECK=SAFE`.
+- **Result**:
+  - Full closure run: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260504-132619-0775/`.
+    - Initial `ENTRY_CHECK=SAFE` in about `16.9s`.
+    - `entry_check.prefix.unroll1=UNSAFE` in about `55.0s`.
+    - `near_wrap.focused=UNSAFE` in about `120.6s`.
+    - `CLOSURE_CHECK=SAFE` in about `93.8s`.
+    - Overall staged wall time was about `299s`; the manifest is certified.
+    - Manifest validator passed: `python3 -m dslc.bench.validate_counterexample --wraparound-manifest .tmp/procurator/verify/external_flowrest_per_flow_pkt_len_total_wraparound/20260504-132619-0775/wraparound/target.00.flowrest_Ingress_reg_pkt_len_total/wraparound.cegis.manifest.json` reported `certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+- **Pitfalls/Fixes**:
+  - This confirms the earlier direct-only result was a certification-staging limitation, not a missing bug. The finite prefix now reaches the steady branch before fast-forwarding the target counter.
+  - The same source-artifact audit fix applies: focused near keeps `confirm_bpl/log` on the focused witness program and records `source_confirm_bpl/log` for the ordinary near-wrap source.
+- **Smoke/regression**:
+  - Flowrest `pkt_count`, Flowrest `pkt_len_total`, and ETC `pkt_count` now all have prefix-entry schedule certificates under the 10-minute target.
+
+## 2026-05-04 ETC pkt_len_total staged non-certification
+
+- **Spec**:
+  - `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_slot0.prop`
+  - `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_direct.prop`
+- **Time**: 2026-05-04 13:32-13:42 Asia/Shanghai
+- **Goal/Progress**: Checked whether the prefix-entry/focused-near path also certifies ETC packet-length-total wraparound.
+- **Result**:
+  - Slot-0 spec run: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260504-133220-ed5e/`.
+    - `ENTRY_CHECK=UNSAFE` in about `18.9s`.
+    - `near_wrap` returned `SAFE` for unroll 1/2/3 (`38.7s`, `48.2s`, `43.0s` respectively).
+    - Not certified; diagnostic: `near-wrap check did not find a bug for this schedule; falling back`.
+  - Direct-style spec run: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_direct/20260504-133623-215e/`.
+    - Initial `ENTRY_CHECK=SAFE` in about `19.5s`.
+    - `entry_check.prefix.unroll1` timed out after about `314.3s`.
+    - Not certified; diagnostic: `entry unknown/timeout; falling back`.
+- **Pitfalls/Fixes**:
+  - Slot-0 `SAFE` is not a bug-absence result. The generated near-wrap fast-forward writes `reg_pkt_len_total[idx_calc(...)] := 32768bv16`, but the slot-0 assertion checks `__wrote_index0 && __last0_value == 0`; the model currently does not prove or assume `idx_calc(...) == 0bv11`. This is a missing index/slot constraint in the tool/modeling path, not a semantic proof that the length-total bug is absent.
+  - Direct-style ETC length-total avoids the slot-0 mirror issue but still times out in prefix-entry reachability. This needs prefix-entry optimization and/or stronger P4B metadata for the steady branch, not a dataset workaround.
+- **Smoke/regression**:
+  - Solver jobs were staged one at a time in WSL. No `SAFE`/`TIMEOUT` in this entry is treated as bug absence.
+
+## 2026-05-04 ETC pkt_len_total slot0 certification after projection/index fix
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_len_total_wraparound_slot0.prop`
+- **Time**: 2026-05-04 13:59-14:20 Asia/Shanghai
+- **Goal/Progress**: Revisited the earlier ETC packet-length-total slot0 non-certification and fixed the tool-side mismatch between P4B's sliced singleton register domain and wraparound's dynamic-index fast-forward/projection reasoning.
+- **Result**:
+  - Diagnostic near-only run after the index fix: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260504-135926-7d27/`.
+    - `ENTRY_CHECK=UNSAFE` in about `24.5s`.
+    - `near_wrap.unroll1=SAFE` in about `38.2s`; this is expected because one logical scheduler step only injects the env packet.
+    - `near_wrap.unroll2=UNSAFE` in about `39.5s`, showing the previous all-`SAFE` result was a modeling/tool issue, not bug absence.
+  - Full closure run before the companion-state projection fix: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260504-140150-cd58/`.
+    - `ENTRY_CHECK=UNSAFE` and `near_wrap.unroll2=UNSAFE`, but the manifest remained uncertified because the dependency projection was still incomplete.
+  - Certified run after the projection fix: `.tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260504-141705-0098/`.
+    - Initial `ENTRY_CHECK=SAFE` in about `18.9s`, because the selected steady-branch cutpoint is not reachable at initialization.
+    - `entry_check.prefix.unroll1=UNSAFE` in about `44.2s`, reaching the steady branch after one deterministic scheduler round (`2` effective steps).
+    - `near_wrap.focused=UNSAFE` in about `50.1s`.
+    - `CLOSURE_CHECK=SAFE` in about `18.9s`.
+    - Manifest validator passed: `python3 -m dslc.bench.validate_counterexample --wraparound-manifest .tmp/procurator/verify/external_etc_noms2024_pkt_len_total_wraparound_slot0/20260504-141705-0098/wraparound/target.00.etc_Ingress_reg_pkt_len_total/wraparound.cegis.manifest.json` reported `certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+- **Pitfalls/Fixes**:
+  - Pitfall: The slot0 assertion observes `__wrote_index0/__last0_value`, while P4B's meta update originally reported a dynamic `idx_calc(...)` expression. The old wraparound fast-forward wrote `reg[idx_calc(...)]`, so the near stage could miss the index0 mirror even though P4B slicing had already collapsed the target register domain to slot 0.
+  - Fix: candidate inference now collapses a dynamic index to `index_value=0` only when the global assertion observes the index0 mirror and the translated Boogie model has `axiom <reg>.size == 1`. This reuses P4B's sliced singleton-domain model; it does not assume `idx_calc(...) == 0` in an unsliced or unproven model.
+  - Pitfall: constant-slot candidates did not apply the same stable env/control-plane substitutions used by dynamic-index candidates. As a result, the projection saw table action parameters such as `Ingress_set_flow_class.f_class == 0` as unstable guard state.
+  - Fix: cutpoint projection now recovers node-entry constants for constant-slot candidates too, applies stable constants before dynamic-slot specialization, and specializes companion register guards to the candidate slot (`reg_status[0]`, `reg_flow_ID[0]`). The certified projection snapshots scheduler/mailbox state, `reg_status`/`reg_flow_ID` slot0 mirrors, and the two steady-branch predicates:
+    - `!(etc_Ingress_reg_status[0bv11] == 0bv1)`
+    - `!((etc_Ingress_flow_id_calc.get$bv32$bv32$bv16$bv16$bv8(167772161bv32, 167772162bv32, 1234bv16, 443bv16, 6bv8)) != etc_Ingress_reg_flow_ID[0bv11])`
+  - Soundness note: the earlier all-`SAFE` near result is now classified as a tool limitation. The final certified run proves reachability of the selected steady cutpoint by prefix ENTRY, finds a focused NEAR witness from the same cutpoint, and discharges the replay closure with a complete dependency projection.
+- **Smoke/regression**:
+  - `python3 -m unittest -v dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_prefix_cutpoint dslc.tests.wraparound.schedule.test_schedule_manifest_certification dslc.tests.wraparound.schedule.test_schedule_replay_refinement dslc.tests.toolchain.test_validate_counterexample` passed (`79` tests).
+  - `python3 -m py_compile dslc/analysis/wraparound_bpl_index.py dslc/analysis/wraparound_candidates.py dslc/analysis/wraparound_projection.py dslc/analysis/wraparound_projection_exprs.py dslc/analysis/wraparound_projection_cutpoint.py` passed.
+  - File-size check: `dslc/analysis/wraparound_bpl_index.py` is back at `1300` lines after removing one blank line; no Python file touched in this step exceeds the current `1300`-line limit.
+  - Old-certificate smoke: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_len_total_wraparound.prop` was rerun after the projection/index fix, run id `20260504-142343-e1fd`. It remained certified: `entry_check.prefix.unroll1=UNSAFE` in about `61.2s`, `near_wrap.focused=UNSAFE` in about `129.6s`, and `CLOSURE_CHECK=SAFE` in about `92.2s`; manifest validator passed.
+
+## 2026-05-04 effective-code cleanup regression smoke
+
+- **Spec**: `Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop`
+- **Time**: 2026-05-04 18:05-18:08 Asia/Shanghai
+- **Goal/Progress**: After effective-code cleanup and P4B/DSL comment hygiene, ran a no-solver end-to-end compile/smoke check for the main DSL -> P4B -> Boogie harness path.
+- **Result**:
+  - Command: `./bin/procurator compile --spec Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop --out /tmp/netchain_wraparound_bug.cleanup.bpl --boogie-harness sequential --no-two-stage --no-reg-debug && ./bin/procurator smoke --bpl /tmp/netchain_wraparound_bug.cleanup.bpl --harness sequential`
+  - Passed in about `9.5s`.
+  - Output: `[OK] bpl: /tmp/netchain_wraparound_bug.cleanup.bpl` and `[SMOKE-OK] /tmp/netchain_wraparound_bug.cleanup.bpl looks structurally OK for harness=sequential.`
+- **Pitfalls/Fixes**:
+  - No Ultimate/GemCutter solving was run in this smoke; this is a structural regression check, not a proof or bug-finding result.
+  - During unit regression, Flow INT `counter_filter` metadata exposed an over-pruning issue in P4B monotonic candidate extraction: guarded reset paths caused the affine `+1` candidate to be dropped. Fixed by treating P4B metadata as candidate extraction only; certification remains with schedule/projection/closure.
+- **Smoke/regression**:
+  - `cmake --build . --target p4c-translator -j16` passed in WSL.
+  - `P4B-Translator/build-host/p4c-translator ... --slicing-selftest=netchain_seq ...` passed.
+  - `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_slicing_selftest dslc.tests.p4b.test_p4b_translator_regressions dslc.tests.p4b.test_p4b_flowdos_hash dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_manifest_certification dslc.tests.wraparound.schedule.test_schedule_replay_refinement dslc.tests.toolchain.test_validate_counterexample` passed (`119` tests).
