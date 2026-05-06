@@ -46,6 +46,7 @@ public:
 	void addSucc(cstring name);
 	int getModifiesSize();
 	cstring getName();
+	cstring bodyText();
 	cstring toString();
 	cstring lastStatement();
 };

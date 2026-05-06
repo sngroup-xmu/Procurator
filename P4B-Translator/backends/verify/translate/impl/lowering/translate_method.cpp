@@ -1,5 +1,7 @@
 #include "translate.h"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <functional>
 #include <sstream>
@@ -24,6 +26,62 @@ static std::string sanitizeHashSignaturePart(const std::string& raw) {
         out.insert(out.begin(), '_');
     }
     return out;
+}
+
+static std::string lowerAscii(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return s;
+}
+
+static bool hashAlgorithmIsIdentity(const cstring& algorithm) {
+    std::string alg = lowerAscii(algorithm.c_str());
+    return alg == "identity" || alg.find("identity") != std::string::npos;
+}
+
+static std::string hashAlgorithmModelName(const cstring& algorithm) {
+    if (hashAlgorithmIsIdentity(algorithm)) {
+        return "identity";
+    }
+    std::string alg = lowerAscii(algorithm.c_str());
+    if (alg.find("crc32") != std::string::npos) {
+        return "crc32_uf";
+    }
+    if (alg.find("crc16") != std::string::npos) {
+        return "crc16_uf";
+    }
+    if (alg.find("toeplitz") != std::string::npos) {
+        return "toeplitz_uf";
+    }
+    if (alg.find("csum16") != std::string::npos || alg.find("ones_complement16") != std::string::npos) {
+        return "checksum16_uf";
+    }
+    return algorithm == "" ? "unknown_uf" : sanitizeHashSignaturePart(algorithm.c_str()) + "_uf";
+}
+
+static std::string hashAlgorithmMangleName(const cstring& algorithm) {
+    std::string alg = algorithm.c_str();
+    std::string sanitized = sanitizeHashSignaturePart(alg);
+    const std::vector<std::string> prefixes = {
+        "HashAlgorithm_",
+        "HashAlgorithm_t_",
+        "PSA_HashAlgorithm_t_",
+        "PNA_HashAlgorithm_t_",
+    };
+    for (const auto& prefix : prefixes) {
+        if (sanitized.rfind(prefix, 0) == 0 && sanitized.size() > prefix.size()) {
+            return sanitized.substr(prefix.size());
+        }
+    }
+    return sanitized;
+}
+
+static int bvTypeWidth(const cstring& bvType) {
+    if (!bvType.startsWith("bv")) {
+        return -1;
+    }
+    return atoi(bvType.c_str() + 2);
 }
 
 cstring Translator::translate(const IR::MethodCallExpression *methodCallExpression){
@@ -85,7 +143,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             if (it != registerActions.end()) {
                 const RegisterActionInfo &info = it->second;
                 const IR::Expression* idxExpr = nullptr;
-                cstring idx = "0";
+                cstring idx = renderBoogieZeroLiteral(info.indexType);
                 if (!info.direct && !methodCallExpression->arguments->empty()) {
                     idxExpr = (*methodCallExpression->arguments)[0]->expression;
                     idx = translate((*methodCallExpression->arguments)[0]);
@@ -217,6 +275,49 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 };
                 std::vector<cstring> renderedArgs;
                 std::vector<cstring> renderedArgTypes;
+                std::vector<int> renderedArgWidths;
+                cstring algorithm = "";
+                cstring algorithmName = "";
+                auto algIt = hashExternAlgorithms.find(base);
+                if (algIt != hashExternAlgorithms.end()) {
+                    algorithm = algIt->second;
+                }
+                auto algNameIt = hashExternAlgorithmNames.find(base);
+                if (algNameIt != hashExternAlgorithmNames.end()) {
+                    algorithmName = algNameIt->second;
+                }
+                cstring algorithmForModel = algorithmName != "" ? algorithmName : algorithm;
+                auto markHashModel = [&](const std::string& model, const std::string& precision) {
+                    if (currentProcedure != nullptr) {
+                        cstring algText = algorithmForModel == "" ? cstring("unknown") : algorithmForModel;
+                        currentProcedure->addStatement(
+                            getIndent()+"// p4b_hash_model: extern base="+base+
+                            " algorithm="+algText+
+                            " model="+cstring(model.c_str())+
+                            " precision="+cstring(precision.c_str())+"\n");
+                    }
+                };
+                auto identityExpr = [&]() -> cstring {
+                    const int retWidth = bvTypeWidth(retType);
+                    if (retWidth <= 0 || renderedArgs.empty()) {
+                        return "";
+                    }
+                    cstring combined = "";
+                    int combinedWidth = 0;
+                    for (size_t i = 0; i < renderedArgs.size(); ++i) {
+                        int width = renderedArgWidths.size() > i ? renderedArgWidths[i] : -1;
+                        if (width <= 0) {
+                            return "";
+                        }
+                        if (combined == "") {
+                            combined = renderedArgs[i];
+                        } else {
+                            combined += "++" + renderedArgs[i];
+                        }
+                        combinedWidth += width;
+                    }
+                    return coerceBitvectorExprWidth(combined, combinedWidth, retWidth);
+                };
                 std::function<bool(const IR::Expression*)> renderHashData =
                     [&](const IR::Expression* expr) -> bool {
                         if (expr == nullptr) {
@@ -259,16 +360,29 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                         }
                         renderedArgs.push_back(rendered);
                         renderedArgTypes.push_back(argType);
+                        renderedArgWidths.push_back(bvTypeWidth(argType));
                         return true;
                     };
 
                 for (auto arg : *methodCallExpression->arguments) {
                     if (!renderHashData(arg->expression)) {
+                        markHashModel("havoc_fallback", "weak");
                         return unsupportedHashData();
                     }
                 }
 
+                if (hashAlgorithmIsIdentity(algorithmForModel) &&
+                    methodCallExpression->arguments->size() == 1) {
+                    cstring exact = identityExpr();
+                    if (exact != "") {
+                        markHashModel("identity", "precise");
+                        return exact;
+                    }
+                }
+
                 std::string mangledMethod = method.c_str();
+                mangledMethod += "$alg_";
+                mangledMethod += hashAlgorithmMangleName(algorithmForModel);
                 for (const auto& argType : renderedArgTypes) {
                     mangledMethod += "$";
                     mangledMethod += sanitizeHashSignaturePart(argType.c_str());
@@ -284,6 +398,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 }
                 decl += ") returns(" + retType + ");\n";
                 addFunction(hashMethod, decl);
+                markHashModel(hashAlgorithmModelName(algorithmForModel), "deterministic_uninterpreted");
 
                 res += hashMethod+"(";
                 for (size_t i = 0; i < renderedArgs.size(); ++i) {
@@ -423,6 +538,9 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         cstring typeName = translate((*methodCallExpression->arguments)[0]->expression->type);
 
         cstring algorithm = translate((*methodCallExpression->arguments)[1]);
+        cstring algorithmForModel = (*methodCallExpression->arguments)[1]->expression != nullptr
+            ? (*methodCallExpression->arguments)[1]->expression->toString()
+            : algorithm;
 
         if (typeDefs.find(typeName) != typeDefs.end()) {
             typeName = "bv" + toString(typeDefs[typeName]);
@@ -451,6 +569,37 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
 
         std::vector<cstring> renderedArgs;
         std::vector<cstring> renderedArgTypes;
+        std::vector<int> renderedArgWidths;
+        auto markV1HashModel = [&](const std::string& model, const std::string& precision) {
+            if (currentProcedure != nullptr) {
+                cstring algText = algorithmForModel == "" ? cstring("unknown") : algorithmForModel;
+                currentProcedure->addStatement(
+                    getIndent()+"// p4b_hash_model: builtin algorithm="+algText+
+                    " model="+cstring(model.c_str())+
+                    " precision="+cstring(precision.c_str())+"\n");
+            }
+        };
+        auto identityExpr = [&](size_t beginArg, size_t endArg) -> cstring {
+            const int retWidth = bvTypeWidth(typeName);
+            if (retWidth <= 0 || beginArg >= endArg || endArg > renderedArgs.size()) {
+                return "";
+            }
+            cstring combined = "";
+            int combinedWidth = 0;
+            for (size_t i = beginArg; i < endArg; ++i) {
+                int width = renderedArgWidths.size() > i ? renderedArgWidths[i] : -1;
+                if (width <= 0) {
+                    return "";
+                }
+                if (combined == "") {
+                    combined = renderedArgs[i];
+                } else {
+                    combined += "++" + renderedArgs[i];
+                }
+                combinedWidth += width;
+            }
+            return coerceBitvectorExprWidth(combined, combinedWidth, retWidth);
+        };
         auto bvWidth = [](const cstring& bvType) -> int {
             if (!bvType.startsWith("bv")) {
                 return -1;
@@ -479,7 +628,8 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 return rendered;
             }
             if (srcWidth > dstWidth) {
-                return rendered+"["+std::to_string(dstWidth)+":0]";
+                cstring base = rendered.find("++") != nullptr ? "(" + rendered + ")" : rendered;
+                return base+"["+std::to_string(dstWidth)+":0]";
             }
             return "0bv"+std::to_string(dstWidth - srcWidth)+"++"+rendered;
         };
@@ -508,6 +658,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             }
             renderedArgs.push_back(rendered);
             renderedArgTypes.push_back(argType);
+            renderedArgWidths.push_back(bvWidth(argType));
             return true;
         };
         std::function<bool(const IR::Expression*)> renderHashData =
@@ -537,12 +688,48 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         if (methodCallExpression->arguments->size() == 3) {
             const auto *dataExpr = (*methodCallExpression->arguments)[2]->expression;
             if (!renderHashData(dataExpr)) {
+                markV1HashModel("havoc_fallback", "weak");
                 res += "havoc "+arg0+";\n";
+            } else if (hashAlgorithmIsIdentity(algorithmForModel)) {
+                cstring exact = identityExpr(0, renderedArgs.size());
+                if (exact != "") {
+                    markV1HashModel("identity", "precise");
+                    res += arg0 + " := " + exact + ";\n";
+                } else {
+                    markV1HashModel("identity_uf", "deterministic_uninterpreted");
+                    std::string mangledMethod = "hash";
+                    if (algorithmForModel != "") {
+                        mangledMethod += "_";
+                        mangledMethod += hashAlgorithmMangleName(algorithmForModel);
+                    }
+                    for (const auto& argType : renderedArgTypes) {
+                        mangledMethod += "$";
+                        mangledMethod += sanitizeHashSignaturePart(argType.c_str());
+                    }
+                    cstring hashMethod = cstring(mangledMethod);
+                    cstring decl = "function " + hashMethod + "(";
+                    for (size_t i = 0; i < renderedArgTypes.size(); ++i) {
+                        if (i != 0) {
+                            decl += ", ";
+                        }
+                        decl += "arg"+toString(static_cast<int>(i))+":"+renderedArgTypes[i];
+                    }
+                    decl += ") returns(" + typeName + ");\n";
+                    addFunction(hashMethod, decl);
+                    res += arg0 + " := " + hashMethod + "(";
+                    for (size_t i = 0; i < renderedArgs.size(); ++i) {
+                        if (i != 0) {
+                            res += ", ";
+                        }
+                        res += renderedArgs[i];
+                    }
+                    res += ");\n";
+                }
             } else {
                 std::string mangledMethod = "hash";
-                if (algorithm != "") {
+                if (algorithmForModel != "") {
                     mangledMethod += "_";
-                    mangledMethod += sanitizeHashSignaturePart(algorithm.c_str());
+                    mangledMethod += hashAlgorithmMangleName(algorithmForModel);
                 }
                 for (const auto& argType : renderedArgTypes) {
                     mangledMethod += "$";
@@ -558,6 +745,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 }
                 decl += ") returns(" + typeName + ");\n";
                 addFunction(hashMethod, decl);
+                markV1HashModel(hashAlgorithmModelName(algorithmForModel), "deterministic_uninterpreted");
 
                 res += arg0 + " := " + hashMethod + "(";
                 for (size_t i = 0; i < renderedArgs.size(); ++i) {
@@ -586,6 +774,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         cstring rangeTo;
         if (!renderHashArg(arg2Expr, typeName) || !renderHashData(arg3Expr) ||
             !renderHashArg(arg4Expr, typeName)) {
+            markV1HashModel("havoc_fallback", "weak");
             res += "havoc "+arg0+";\n";
         } else {
             if (renderedArgs.size() >= 2) {
@@ -593,9 +782,9 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 rangeTo = renderedArgs.back();
             }
             std::string mangledMethod = "hash";
-            if (algorithm != "") {
+            if (algorithmForModel != "") {
                 mangledMethod += "_";
-                mangledMethod += sanitizeHashSignaturePart(algorithm.c_str());
+                mangledMethod += hashAlgorithmMangleName(algorithmForModel);
             }
             for (const auto& argType : renderedArgTypes) {
                 mangledMethod += "$";
@@ -611,6 +800,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             }
             decl += ") returns(" + typeName + ");\n";
             addFunction(hashMethod, decl);
+            markV1HashModel(hashAlgorithmModelName(algorithmForModel), "deterministic_uninterpreted");
 
             res += arg0 + " := " + hashMethod + "(";
             for (size_t i = 0; i < renderedArgs.size(); ++i) {
@@ -732,7 +922,14 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             break;
         }
     }
-    cstring retType = inferBoogieType(methodCallExpression->type, "");
+    cstring retType = "";
+    if (methodCallExpression->typeArguments != nullptr &&
+        methodCallExpression->typeArguments->size() > 0) {
+        retType = inferBoogieType((*methodCallExpression->typeArguments)[0], "");
+    }
+    if (retType == "") {
+        retType = inferBoogieType(methodCallExpression->type, "");
+    }
     if (retType != "" && functions.find(method) == functions.end()
         && procedures.find(method) == procedures.end()) {
         cstring decl = "function " + method + "(";

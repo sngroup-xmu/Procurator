@@ -85,6 +85,36 @@ SliceResult Slicer::run(const SliceOptions& opts) {
             }
         }
     };
+    auto addRegActionRegisterDependency = [&](const IR::Declaration_Instance* inst,
+                                             cstring actionName,
+                                             UsesDefs& ud) {
+        if (!inst || !inst->arguments || inst->arguments->size() == 0) {
+            return;
+        }
+        auto arg0 = (*inst->arguments)[0];
+        if (!arg0 || !arg0->expression) {
+            return;
+        }
+
+        collectExprKeys(arg0->expression, ud.uses, typeMap);
+        collectExprKeys(arg0->expression, ud.defs, typeMap);
+
+        VarKey regKey;
+        if (buildVarKey(arg0->expression, regKey) && !regKey.base.empty()) {
+            addRegActionRegAlias(inst, actionName, cstring(varKeyToString(regKey)));
+
+            if (auto pe = arg0->expression->to<IR::PathExpression>()) {
+                cstring resolved = resolvePathName(pe, refMap);
+                if (resolved != nullptr && resolved != "" && resolved != cstring(regKey.base)) {
+                    VarKey resolvedKey = regKey;
+                    resolvedKey.base = resolved.c_str();
+                    addVarKey(ud.uses, resolvedKey);
+                    addVarKey(ud.defs, resolvedKey);
+                    addRegActionRegAlias(inst, actionName, cstring(varKeyToString(resolvedKey)));
+                }
+            }
+        }
+    };
     for (const auto& kv : collector.regActions) {
         const IR::Declaration_Instance* inst = kv.second;
         const IR::Function* applyFunc = findRegisterActionApply(inst);
@@ -92,21 +122,10 @@ SliceResult Slicer::run(const SliceOptions& opts) {
             continue;
 	        }
 	        UsesDefs ud;
-	        collectStmtUsesDefs(applyFunc->body, ud, typeMap, nullptr, refMap);
+        collectStmtUsesDefs(applyFunc->body, ud, typeMap, nullptr, refMap);
         // RegisterAction.apply bodies do not explicitly mention the underlying register object.
         // Conservatively model each RegisterAction instance as reading+writing its register argument.
-        if (inst && inst->arguments && inst->arguments->size() > 0) {
-            if (auto arg0 = (*inst->arguments)[0]) {
-                if (arg0->expression) {
-                    collectExprKeys(arg0->expression, ud.uses, typeMap);
-                    collectExprKeys(arg0->expression, ud.defs, typeMap);
-                    VarKey regKey;
-                    if (buildVarKey(arg0->expression, regKey) && !regKey.base.empty()) {
-                        addRegActionRegAlias(inst, kv.first, cstring(varKeyToString(regKey)));
-                    }
-                }
-            }
-        }
+        addRegActionRegisterDependency(inst, kv.first, ud);
         regActionUsesDefs.emplace(kv.first, std::move(ud));
         std::unordered_set<int> ids;
         collectStmtIds(applyFunc->body, ids);
@@ -695,7 +714,11 @@ def_done:
             std::cerr << "[slicer] use/def sets filled\n";
         }
 
-    // Reaching definitions dataflow (two-pass to model cross-pass deps).
+    // Reaching definitions for DDG construction.  The older implementation
+    // materialized full in/out definition sets for every CFG node; large
+    // generated pipelines such as NeuralP4 make that quadratic in both memory
+    // traffic and set comparisons.  We only need the DDG edges, so walk each
+    // variable's definitions forward until the next same-variable definition.
     auto buildAllDefs = [](const std::unordered_map<int, NodeInfo>& nodes) {
         std::map<VarKey, std::set<std::pair<int, VarKey>>, VarKeyLess> defs;
         for (const auto& kv : nodes) {
@@ -706,51 +729,61 @@ def_done:
         return defs;
     };
 
-    auto computeReaching =
+    auto walkReachingDefs =
         [&](const std::unordered_map<int, NodeInfo>& nodes,
-            const std::map<VarKey, std::set<std::pair<int, VarKey>>, VarKeyLess>& allDefs,
-            std::unordered_map<int, std::set<std::pair<int, VarKey>>>& in,
-            std::unordered_map<int, std::set<std::pair<int, VarKey>>>& out) {
-            bool changed = true;
-            while (changed) {
-                changed = false;
-                for (const auto& kv : nodes) {
-                    int id = kv.first;
-                    const auto& node = kv.second;
-                    std::set<std::pair<int, VarKey>> inSet;
-                    for (int pred : node.preds) {
-                        auto it = out.find(pred);
-                        if (it != out.end()) {
-                            inSet.insert(it->second.begin(), it->second.end());
+            const std::function<void(int, int, const VarKey&)>& addEdge) {
+            std::map<VarKey, std::vector<int>, VarKeyLess> defsByVar;
+            std::map<VarKey, bool, VarKeyLess> hasUse;
+            for (const auto& kv : nodes) {
+                for (const auto& def : kv.second.defs) {
+                    defsByVar[def].push_back(kv.first);
+                }
+                for (const auto& use : kv.second.uses) {
+                    hasUse[use] = true;
+                }
+            }
+
+            for (const auto& kv : defsByVar) {
+                const VarKey& var = kv.first;
+                if (!hasUse[var]) {
+                    continue;
+                }
+                for (int defId : kv.second) {
+                    auto defIt = nodes.find(defId);
+                    if (defIt == nodes.end()) {
+                        continue;
+                    }
+                    std::deque<int> todo;
+                    std::unordered_set<int> seen;
+                    for (int succ : defIt->second.succs) {
+                        todo.push_back(succ);
+                    }
+                    while (!todo.empty()) {
+                        int cur = todo.front();
+                        todo.pop_front();
+                        if (!seen.insert(cur).second) {
+                            continue;
                         }
-                    }
-                    std::set<std::pair<int, VarKey>> outSet = inSet;
-                    for (const auto& d : node.defs) {
-                        auto defIt = allDefs.find(d);
-                        if (defIt != allDefs.end()) {
-                            for (const auto& def : defIt->second) {
-                                outSet.erase(def);
-                            }
+                        auto curIt = nodes.find(cur);
+                        if (curIt == nodes.end()) {
+                            continue;
                         }
-                    }
-                    for (const auto& d : node.defs) {
-                        outSet.insert({id, d});
-                    }
-                    if (in[id] != inSet || out[id] != outSet) {
-                        in[id] = inSet;
-                        out[id] = outSet;
-                        changed = true;
+                        const NodeInfo& curNode = curIt->second;
+                        if (curNode.uses.count(var)) {
+                            addEdge(cur, defId, var);
+                        }
+                        if (curNode.defs.count(var)) {
+                            continue;
+                        }
+                        for (int succ : curNode.succs) {
+                            todo.push_back(succ);
+                        }
                     }
                 }
             }
         };
 
-    std::unordered_map<int, std::set<std::pair<int, VarKey>>> in1, out1, in2, out2;
     auto allDefs1 = buildAllDefs(cfg.nodes);
-    computeReaching(cfg.nodes, allDefs1, in1, out1);
-    if (opts.debug) {
-        std::cerr << "[slicer] reaching definitions done (pass 1)\n";
-    }
 
     std::unordered_map<int, NodeInfo> nodes2 = cfg.nodes;
     if (result.hasRecirculation) {
@@ -764,11 +797,6 @@ def_done:
         }
         if (opts.debug) {
             std::cerr << "[slicer] recirc edges done\n";
-        }
-        auto allDefs2 = buildAllDefs(nodes2);
-        computeReaching(nodes2, allDefs2, in2, out2);
-        if (opts.debug) {
-            std::cerr << "[slicer] reaching definitions done (pass 2)\n";
         }
     }
 
@@ -803,45 +831,45 @@ def_done:
     };
 
     // Build data edges (add cross-pass edges only for CROSSOK variables).
-    std::unordered_map<int, std::vector<int>> dataPreds;
+    std::unordered_map<int, std::unordered_set<int>> dataPredSets;
+    auto addDataPred = [&](int useId, int defId, const VarKey&) {
+        dataPredSets[useId].insert(defId);
+    };
+    walkReachingDefs(cfg.nodes, addDataPred);
+    if (opts.debug) {
+        std::cerr << "[slicer] reaching definitions done (pass 1)\n";
+    }
     for (const auto& kv : cfg.nodes) {
         int id = kv.first;
         const auto& node = kv.second;
         for (const auto& use : node.uses) {
-            auto it1 = in1.find(id);
-            if (it1 != in1.end()) {
-                for (const auto& def : it1->second) {
-                    if (def.second == use) {
-                        dataPreds[id].push_back(def.first);
-                    }
-                }
+            if (!isStatefulKey(use)) {
+                continue;
             }
-            if (isStatefulKey(use)) {
-                auto defIt = allDefs1.find(use);
-                if (defIt != allDefs1.end()) {
-                    for (const auto& def : defIt->second) {
-                        dataPreds[id].push_back(def.first);
-                    }
-                }
+            auto defIt = allDefs1.find(use);
+            if (defIt == allDefs1.end()) {
+                continue;
             }
-            if (result.hasRecirculation) {
-                auto it2 = in2.find(id);
-                if (it2 != in2.end()) {
-                    for (const auto& def : it2->second) {
-                        if (!(def.second == use)) {
-                            continue;
-                        }
-                        bool inFirst = false;
-                        if (it1 != in1.end()) {
-                            inFirst = it1->second.count(def) > 0;
-                        }
-                        if (!inFirst && crossOk(use)) {
-                            dataPreds[id].push_back(def.first);
-                        }
-                    }
-                }
+            for (const auto& def : defIt->second) {
+                dataPredSets[id].insert(def.first);
             }
         }
+    }
+    if (result.hasRecirculation) {
+        walkReachingDefs(nodes2, [&](int useId, int defId, const VarKey& var) {
+            if (!crossOk(var)) {
+                return;
+            }
+            dataPredSets[useId].insert(defId);
+        });
+        if (opts.debug) {
+            std::cerr << "[slicer] reaching definitions done (pass 2)\n";
+        }
+    }
+
+    std::unordered_map<int, std::vector<int>> dataPreds;
+    for (const auto& kv : dataPredSets) {
+        dataPreds[kv.first].insert(dataPreds[kv.first].end(), kv.second.begin(), kv.second.end());
     }
     if (opts.debug) {
         std::cerr << "[slicer] data edges done\n";
@@ -1481,14 +1509,7 @@ def_done:
 	                }
 	                UsesDefs ud;
 	                collectStmtUsesDefs(applyFunc->body, ud, typeMap, nullptr, refMap);
-                if (inst && inst->arguments && inst->arguments->size() > 0) {
-                    if (auto arg0 = (*inst->arguments)[0]) {
-                        if (arg0->expression) {
-                            collectExprKeys(arg0->expression, ud.uses, typeMap);
-                            collectExprKeys(arg0->expression, ud.defs, typeMap);
-                        }
-                    }
-                }
+                addRegActionRegisterDependency(inst, kv.first, ud);
                 nextRegActionUsesDefs.emplace(kv.first, std::move(ud));
             }
 
@@ -1511,8 +1532,6 @@ def_done:
     std::unordered_set<std::string> forcedKeepNames;
     // Collect kept variables from kept statements and seeds.
     const IR::P4Program* slicedForVars = applySlice(program, keepStmtIds, refMap, nullptr, true);
-    AllVarCollector varCollector(typeMap);
-    slicedForVars->apply(varCollector);
 
     ActionTableCollector slicedCollector;
     slicedForVars->apply(slicedCollector);
@@ -1527,14 +1546,7 @@ def_done:
 	        }
 	        UsesDefs ud;
 	        collectStmtUsesDefs(applyFunc->body, ud, typeMap, nullptr, refMap);
-        if (inst && inst->arguments && inst->arguments->size() > 0) {
-            if (auto arg0 = (*inst->arguments)[0]) {
-                if (arg0->expression) {
-                    collectExprKeys(arg0->expression, ud.uses, typeMap);
-                    collectExprKeys(arg0->expression, ud.defs, typeMap);
-                }
-            }
-        }
+        addRegActionRegisterDependency(inst, kv.first, ud);
         slicedRegActionUsesDefs.emplace(kv.first, std::move(ud));
     }
 	    for (const auto& kv : slicedCollector.actions) {
@@ -1542,6 +1554,8 @@ def_done:
 	        collectStmtUsesDefs(kv.second->body, ud, typeMap, &slicedRegActionUsesDefs, refMap);
 	        slicedActionUsesDefs.emplace(kv.first, std::move(ud));
 	    }
+    KeepVarCollector varCollector(result.keepStatementIds, typeMap, &slicedRegActionUsesDefs, refMap);
+    slicedForVars->apply(varCollector);
     for (const auto& kv : slicedCollector.tables) {
         const IR::P4Table* table = kv.second;
         UsesDefs ud;
@@ -1731,14 +1745,27 @@ def_done:
             }
         }
     }
+    auto addKeepVarName = [&](const std::string& name) {
+        result.keepVarNames.insert(cstring(name));
+        size_t dot = name.find('.');
+        if (dot == std::string::npos || dot < 2) {
+            return;
+        }
+        std::string base = name.substr(0, dot);
+        if (base.size() <= 2 || base.rfind("_0") != base.size() - 2) {
+            return;
+        }
+        std::string alias = base.substr(0, base.size() - 2) + name.substr(dot);
+        result.keepVarNames.insert(cstring(alias));
+    };
     for (const auto& v : varCollector.vars) {
-        result.keepVarNames.insert(cstring(varKeyToString(v)));
+        addKeepVarName(varKeyToString(v));
     }
     for (const auto& v : parserVars) {
-        result.keepVarNames.insert(cstring(varKeyToString(v)));
+        addKeepVarName(varKeyToString(v));
     }
     for (const auto& name : forcedKeepNames) {
-        result.keepVarNames.insert(cstring(name));
+        addKeepVarName(name);
     }
     // For registers, also keep the sanitized control-plane alias used by the Boogie translator.
     // This allows system-level tools (e.g., dslc) to seed slicing using Boogie-level names.

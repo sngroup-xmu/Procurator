@@ -62,6 +62,9 @@ void Translator::translate(const IR::Node *node){
     else if (auto typeEnum = node->to<IR::Type_Enum>()) {
         translate(typeEnum);
     }
+    else if (auto typeSerEnum = node->to<IR::Type_SerEnum>()) {
+        translate(typeSerEnum);
+    }
     else if (auto typeParser = node->to<IR::Type_Parser>()) {
         translate(typeParser);
     }
@@ -555,6 +558,57 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
                 return "";
             }
         }
+        if (member->member == "add") {
+            std::string externName = getExternBaseName(member->expr);
+            cstring baseExpr = translate(member->expr);
+            const bool looksLikeChecksum =
+                (externName == "Checksum") || (externName.find("Checksum") != std::string::npos) ||
+                (baseExpr.find("checksum") != nullptr) || (baseExpr.find("Checksum") != nullptr);
+            if (looksLikeChecksum) {
+                std::vector<cstring> renderedArgs;
+                std::vector<cstring> renderedArgTypes;
+                if (methodCallStatement->methodCall->arguments != nullptr) {
+                    for (auto arg : *methodCallStatement->methodCall->arguments) {
+                        cstring rendered = translate(arg);
+                        if (rendered == "") {
+                            continue;
+                        }
+                        renderedArgs.push_back(rendered);
+                        cstring argType = inferBoogieType(arg->expression->type, rendered);
+                        if (argType == "") {
+                            argType = "Ref";
+                        }
+                        renderedArgTypes.push_back(argType);
+                    }
+                }
+                cstring declName = baseExpr+"."+member->member.toString();
+                if (procedures.find(declName) == procedures.end()) {
+                    BoogieProcedure extProc = BoogieProcedure(declName);
+                    cstring decl = "procedure "+declName+"(";
+                    for (size_t i = 0; i < renderedArgTypes.size(); ++i) {
+                        if (i != 0) {
+                            decl += ", ";
+                        }
+                        decl += "arg"+toString(static_cast<int>(i))+":"+renderedArgTypes[i];
+                    }
+                    decl += ");\n";
+                    extProc.addDeclaration(decl);
+                    addProcedure(extProc);
+                }
+                cstring stmt = getIndent()+"call "+declName+"(";
+                for (size_t i = 0; i < renderedArgs.size(); ++i) {
+                    if (i != 0) {
+                        stmt += ", ";
+                    }
+                    stmt += renderedArgs[i];
+                }
+                stmt += ");\n";
+                currentProcedure->addStatement(stmt);
+                currentProcedure->addSucc(declName);
+                addPred(declName, currentProcedure->getName());
+                return "";
+            }
+        }
         if (member->member == "emit") {
             std::string externName = getExternBaseName(member->expr);
             // Tofino/TNA externs sometimes lose precise type info across compiler
@@ -571,6 +625,11 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
             const bool looksLikeResubmit =
                 (externName == "Resubmit") || (externName.find("Resubmit") != std::string::npos) ||
                 (externName.empty() && baseExpr.find("resubmit") != nullptr);
+            const bool looksLikePacketOut =
+                (externName == "packet_out") || (externName == "PacketOut") ||
+                (externName.find("packet_out") != std::string::npos) ||
+                (externName.find("PacketOut") != std::string::npos) ||
+                (!looksLikeMirror && !looksLikeResubmit && baseExpr.find("pkt") != nullptr);
 
             if (looksLikeMirror) {
                 // If the frontend produced a list/struct literal (e.g., `{...}`) for the mirror
@@ -609,6 +668,51 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
             if (looksLikeResubmit) {
                 currentProcedure->addStatement(getIndent()+"p4b_recirculate := true;\n");
                 currentProcedure->addModifiedGlobalVariables("p4b_recirculate");
+                return "";
+            }
+            if (looksLikePacketOut) {
+                std::vector<cstring> renderedArgs;
+                std::vector<cstring> renderedArgTypes;
+                if (methodCallStatement->methodCall->arguments != nullptr) {
+                    for (auto arg : *methodCallStatement->methodCall->arguments) {
+                        cstring rendered = translate(arg);
+                        if (rendered == "") {
+                            continue;
+                        }
+                        renderedArgs.push_back(rendered);
+                        cstring argType = inferBoogieType(arg->expression->type, rendered);
+                        if (argType == "" || argType == "headers") {
+                            argType = "Ref";
+                        }
+                        renderedArgTypes.push_back(argType);
+                    }
+                }
+
+                cstring declName = baseExpr+"."+member->member.toString();
+                if (procedures.find(declName) == procedures.end()) {
+                    BoogieProcedure emitProc = BoogieProcedure(declName);
+                    cstring decl = "procedure "+declName+"(";
+                    for (size_t i = 0; i < renderedArgTypes.size(); ++i) {
+                        if (i != 0) {
+                            decl += ", ";
+                        }
+                        decl += "arg"+toString(static_cast<int>(i))+":"+renderedArgTypes[i];
+                    }
+                    decl += ");\n";
+                    emitProc.addDeclaration(decl);
+                    addProcedure(emitProc);
+                }
+                cstring stmt = getIndent()+"call "+declName+"(";
+                for (size_t i = 0; i < renderedArgs.size(); ++i) {
+                    if (i != 0) {
+                        stmt += ", ";
+                    }
+                    stmt += renderedArgs[i];
+                }
+                stmt += ");\n";
+                currentProcedure->addStatement(stmt);
+                currentProcedure->addSucc(declName);
+                addPred(declName, currentProcedure->getName());
                 return "";
             }
         }
@@ -734,11 +838,20 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
         return "";
     }
     else if(expr.find(".count") != nullptr || expr.find(".increment") != nullptr || expr.find(".add") != nullptr){
-        cstring expr2 = translate(methodCallStatement->methodCall);
-        if(expr2.find(".count(") != nullptr || expr2.find(".increment(") != nullptr ||
-           expr2.find(".add(") != nullptr){
-            currentProcedure->addStatement(getIndent()+"call "+expr2+";\n");
-            return "";
+        bool isCounterExternCall = false;
+        if (auto member = methodCallStatement->methodCall->method->to<IR::Member>()) {
+            if (member->member == "count" || member->member == "increment" || member->member == "add") {
+                cstring base = translate(member->expr);
+                isCounterExternCall = counterExterns.find(base) != counterExterns.end();
+            }
+        }
+        if (isCounterExternCall) {
+            cstring expr2 = translate(methodCallStatement->methodCall);
+            if(expr2.find(".count(") != nullptr || expr2.find(".increment(") != nullptr ||
+               expr2.find(".add(") != nullptr){
+                currentProcedure->addStatement(getIndent()+"call "+expr2+";\n");
+                return "";
+            }
         }
     }
     else if(expr.find(".write") != nullptr){

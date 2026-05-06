@@ -80,16 +80,45 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
         return translate(expr) + bvType;
     };
 
+    auto bitWidthOf = [&](const IR::Expression* expr) -> int {
+        if (expr == nullptr || expr->type == nullptr) {
+            return -1;
+        }
+        if (auto tb = expr->type->to<IR::Type_Bits>()) {
+            return tb->size;
+        }
+        if (auto tn = expr->type->to<IR::Type_Name>()) {
+            cstring name = translate(tn);
+            auto it = typeDefs.find(name);
+            if (it != typeDefs.end()) {
+                return it->second;
+            }
+        }
+        cstring rendered = translate(expr);
+        int inferred = getSize(rendered);
+        return inferred > 0 ? inferred : -1;
+    };
+
+    auto renderShiftAmount = [&](const IR::Expression* expr, const cstring& bvType) -> cstring {
+        cstring rendered = renderInfIntWithBvType(expr, bvType);
+        const int dstWidth = bvWidth(bvType);
+        if (expr == nullptr || expr->type == nullptr || dstWidth <= 0 ||
+            expr->type->to<IR::Type_InfInt>() != nullptr) {
+            return rendered;
+        }
+        return coerceBitvectorExprWidth(rendered, bitWidthOf(expr), dstWidth);
+    };
+
     if (opBinary->is<IR::Shl>()) {
         addFunction("shl", "bvshl", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
-        cstring right = renderInfIntWithBvType(opBinary->right, returnType);
+        cstring right = renderShiftAmount(opBinary->right, returnType);
         return "shl."+returnType+"("+left+", "+right+")";
     }
     else if (opBinary->is<IR::Shr>()) {
         addFunction("shr", "bvlshr", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
-        cstring right = renderInfIntWithBvType(opBinary->right, returnType);
+        cstring right = renderShiftAmount(opBinary->right, returnType);
         return "shr."+returnType+"("+left+", "+right+")";
     }
     else if (opBinary->is<IR::Mul>()) {

@@ -38,9 +38,14 @@ int main(int argc, char *const argv[]) {
     if (options.process(argc, argv) != nullptr) {
         if (options.loadIRFromJson == false) {
             options.setInputFile();
+            P4Verify::normalizeVerifyFrontendOptions(options, argv[0]);
         }
     }
     if (::errorCount() > 0) {
+        return 1;
+    }
+    if (options.outputBplFile == nullptr && !options.slicingSelftest) {
+        ::error("missing required -o <outfile> for Boogie translation output");
         return 1;
     }
 

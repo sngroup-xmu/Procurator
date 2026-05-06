@@ -46,6 +46,9 @@ cstring Translator::translate(const IR::Expression *expression){
     else if (auto opUnary = expression->to<IR::Operation_Unary>()){
         return translate(opUnary);
     }
+    else if (auto typeNameExpression = expression->to<IR::TypeNameExpression>()){
+        return translate(typeNameExpression->typeName);
+    }
     else if (expression->is<IR::DefaultExpression>()){
         return "default";
     }
@@ -73,6 +76,17 @@ cstring Translator::translate(const IR::Member *member){
             currentProcedure->addStatement(getIndent()+"call "+tableName+".apply();\n");
             currentProcedure->addSucc(tableName+".apply");
             return tableName+".hit";
+        }
+    }
+
+    if (member->expr != nullptr && member->expr->is<IR::TypeNameExpression>()) {
+        cstring enumName = translate(member->expr);
+        auto typeIt = enumLiteralValues.find(enumName);
+        if (typeIt != enumLiteralValues.end()) {
+            auto memberIt = typeIt->second.find(member->member.name);
+            if (memberIt != typeIt->second.end()) {
+                return memberIt->second;
+            }
         }
     }
 
@@ -158,8 +172,9 @@ cstring Translator::translate(const IR::PathExpression *pathExpression){
             addGlobalVariables(name);
         }
     }
-    if (inParser && name.find(".") == nullptr
-        && emittedVarDecls.find(name) == emittedVarDecls.end()) {
+    if (inParser && name.find(".") == nullptr && pathExpression->type != nullptr &&
+        !pathExpression->type->is<IR::Type_Method>() &&
+        emittedVarDecls.find(name) == emittedVarDecls.end()) {
         const IR::Type *type = pathExpression->type;
         if (type == nullptr || type->is<IR::Type_Unknown>() || type->is<IR::Type_InfInt>()) {
             auto it = declVarTypes.find(name);
@@ -237,6 +252,12 @@ cstring Translator::translate(const IR::Declaration_Variable *declVar){
     cstring res = "";
     cstring varName = translate(declVar->name);
     declVarTypes[varName] = declVar->type;
+    bool isNamedHeaderOrStruct = false;
+    if (auto typeName = declVar->type->to<IR::Type_Name>()) {
+        cstring typeId = translate(typeName->path);
+        isNamedHeaderOrStruct =
+            headers.find(typeId) != headers.end() || structs.find(typeId) != structs.end();
+    }
     auto boogieType = [&](const IR::Type* type) -> cstring {
         if (type == nullptr) {
             return "";
@@ -276,10 +297,16 @@ cstring Translator::translate(const IR::Declaration_Variable *declVar){
         !declVar->type->is<IR::Type_Extern>() && !declVar->type->is<IR::Type_Parser>() &&
         !declVar->type->is<IR::Type_Control>() && !declVar->type->is<IR::Type_Package>() &&
         declVar->type->to<IR::Type_Header>() == nullptr &&
-        declVar->type->to<IR::Type_Struct>() == nullptr) {
+        declVar->type->to<IR::Type_Struct>() == nullptr &&
+        !isNamedHeaderOrStruct) {
         cstring localType = boogieType(declVar->type);
         if (localType != "") {
             if (isGlobalVariable(varName)) {
+                if (options.slicingEnabled && !options.slicingKeepVars.empty() &&
+                    !shouldKeepVar(varName.c_str())) {
+                    recordLocalWidth(declVar->type);
+                    return res;
+                }
                 currentProcedure->addModifiedGlobalVariables(varName);
                 currentProcedure->addStatement(BoogieStatement(getIndent()+"havoc "+varName+";\n"));
                 recordLocalWidth(declVar->type);
@@ -341,6 +368,9 @@ cstring Translator::translate(const IR::Declaration_Variable *declVar){
         if(headers.find(translate(typeName)) != headers.end()){
             translate(headers[translate(typeName)], varName);
         }
+        else if(structs.find(translate(typeName)) != structs.end()){
+            translate(structs[translate(typeName)], varName);
+        }
         else {
             cstring name = translate(typeName);
             addDeclaration("var "+varName+":"+declType+";\n");
@@ -379,6 +409,61 @@ cstring Translator::translate(const IR::Declaration_Variable *declVar){
 
 cstring Translator::translate(const IR::SelectExpression *selectExpression, cstring parserName, cstring stateName, cstring localDeclArg){
     cstring res = "";
+    auto renderSelectKeyCondition = [&](const IR::Expression* expr,
+                                        const IR::Expression* keyset) -> cstring {
+        if (expr == nullptr || keyset == nullptr) {
+            return "";
+        }
+        if (keyset->is<IR::Dots>()) {
+            return "true";
+        }
+        if (auto mask = keyset->to<IR::Mask>()) {
+            cstring functionName = translate(mask);
+            if (functionName == "") {
+                return "";
+            }
+            return functionName+"("+translate(expr)+", "+translate(mask->right)+") == "
+                +functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
+        }
+        cstring rhs = translate(keyset);
+        if (rhs == "") {
+            return "";
+        }
+        return translate(expr)+" == "+rhs;
+    };
+    auto renderSelectCaseCondition = [&](const IR::SelectCase* selectCase) -> cstring {
+        if (selectCase == nullptr || selectCase->keyset == nullptr) {
+            return "";
+        }
+        if (selectCase->keyset->is<IR::DefaultExpression>()) {
+            return "true";
+        }
+
+        const int sz = selectExpression->select->components.size();
+        cstring condition = "";
+        for (int cnt2 = 0; cnt2 < sz; cnt2++) {
+            const IR::Expression* expr = selectExpression->select->components.at(cnt2);
+            const IR::Expression* key = selectCase->keyset;
+            if (auto listExpression = selectCase->keyset->to<IR::ListExpression>()) {
+                if (cnt2 >= static_cast<int>(listExpression->components.size())) {
+                    return "";
+                }
+                key = listExpression->components.at(cnt2);
+            }
+            cstring part = renderSelectKeyCondition(expr, key);
+            if (part == "") {
+                return "";
+            }
+            if (cnt2 > 0) {
+                condition += " && ";
+            }
+            condition += part;
+        }
+        if (condition == "") {
+            return "true";
+        }
+        return condition;
+    };
     // goto Statement
     if(options.gotoOrIf){
 
@@ -427,42 +512,9 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
                 res += getIndent()+"\n"+gotoLabel+":\n";
                 res += getIndent()+"assume (";
 
-                cstring condition = "";
-
-                int sz = selectExpression->select->components.size();
-                int cnt2 = 0;
-                for(auto expr:selectExpression->select->components){
-                    if(auto constant = selectCase->keyset->to<IR::Constant>()){
-                        condition += translate(expr);
-                        condition += " == ";
-                        std::stringstream ss;
-                        ss << constant->value;
-                        condition += ss.str()+translate(constant->type);
-                    }
-                    else if(auto boolLiteral = selectCase->keyset->to<IR::BoolLiteral>()){
-                        condition += translate(expr);
-                        condition += " == ";
-                        condition += translate(boolLiteral);
-                    }
-                    else if(auto mask = selectCase->keyset->to<IR::Mask>()){
-                        cstring functionName = translate(mask);
-                        condition += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
-                        condition += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
-                    }
-                    else if(auto listExpression = selectCase->keyset->to<IR::ListExpression>()){
-                        if(auto mask = listExpression->components.at(cnt2)->to<IR::Mask>()){
-                            cstring functionName = translate(mask);
-                            condition += functionName+"("+translate(expr)+", "+translate(mask->right)+") == ";
-                            condition += functionName+"("+translate(mask->left)+", "+translate(mask->right)+")";
-                        }
-                        else{
-                            condition += translate(expr)+" == ";
-                            condition += translate(listExpression->components.at(cnt2));
-                        }
-                    }
-                    cnt2++;
-                    if(cnt2 < sz)
-                        condition += " && ";
+                cstring condition = renderSelectCaseCondition(selectCase);
+                if (condition == "") {
+                    condition = "false";
                 }
                 if(defaultCondition.size()>0)
                     defaultCondition += "&&";
@@ -511,144 +563,10 @@ cstring Translator::translate(const IR::SelectExpression *selectExpression, cstr
             }
             else{
                 if(options.addValidityAssertion) isIfStatement = true;
-                cstring condition = "";
                 cstring nextState = translate(selectCase->state);
-                int sz = selectExpression->select->components.size();
-                int cnt2 = 0;
-                for(auto expr:selectExpression->select->components){
-                    if(auto constant = selectCase->keyset->to<IR::Constant>()){
-                        if(options.ultimateAutomizer && options.bitBlasting 
-                            && expr->type->to<IR::Type_Bits>()){
-                            auto typeBits = expr->type->to<IR::Type_Bits>();
-                            int size = typeBits->size;
-                            cstring left = translate(expr);
-                            cstring right = integerBitBlasting((int)constant->value, size);
-                            for(int i = 0; i < size; i++){
-                                condition += connect(left, i) + " == " + connect(right, i);
-                                if(i < size-1) condition += " && ";
-                            }
-                        }
-                        else if(options.ultimateAutomizer && constant->type->to<IR::Type_Bits>()){
-                            condition += translate(expr);
-                            condition += " == ";
-                            std::stringstream ss;
-                            ss << constant->value;
-                            condition += ss.str();
-                        }
-                        else{
-                            condition += translate(expr);
-                            condition += " == ";
-                            std::stringstream ss;
-                            ss << constant->value;
-                            condition += ss.str()+translate(constant->type);
-                        }
-                    }
-                    else if(auto boolLiteral = selectCase->keyset->to<IR::BoolLiteral>()){
-                        condition += translate(expr);
-                        condition += " == ";
-                        condition += translate(boolLiteral);
-                    }
-                    else if(auto mask = selectCase->keyset->to<IR::Mask>()){
-                        cstring functionName = translate(mask);
-                        cstring maskLeft = translate(mask->left);
-                        cstring maskRight = translate(mask->right);
-                        int maskLeftNum = -1, maskRightNum = -1;
-                        if(maskLeft.size() <= 9 && maskRight.size() <= 9){
-                            if(isNumber(maskLeft)){
-                                maskLeftNum = atoi(std::string(maskLeft.c_str()).c_str());
-                            }
-                            if(isNumber(maskRight)){
-                                maskRightNum = atoi(std::string(maskRight.c_str()).c_str());
-                            }
-
-                            if(maskRightNum == 0){
-                                condition += "true";
-                            }
-                            else{
-                                bool flag = false;
-                                for(int i = 1; i <= 2147483647; i=(i<<1)+1){
-                                    if(maskRightNum == i){
-                                        flag = true;
-                                        break;
-                                    }
-                                    if(i == 2147483647) break;
-                                }                                
-                                if(flag){
-                                    condition += translate(expr)+"%"+maskRight+" == ";
-                                }
-                                else{
-                                    condition += functionName+"("+translate(expr)+", "+maskRight+") == ";
-                                }
-
-                                if(maskLeftNum != -1 && maskRightNum != -1){
-                                    condition += toString(maskLeftNum & maskRightNum);
-                                }
-                                else if(maskRightNum == 0){
-                                    condition += functionName+"("+maskLeft+", "+maskRight+")";
-                                }
-                            }
-
-                        }
-                        else{
-                            condition += functionName+"("+translate(expr)+", "+maskRight+") == ";
-                            condition += functionName+"("+maskLeft+", "+maskRight+")";
-                        }
-                    }
-                    else if(auto listExpression = selectCase->keyset->to<IR::ListExpression>()){
-                        if(auto mask = listExpression->components.at(cnt2)->to<IR::Mask>()){
-                            cstring functionName = translate(mask);
-                            cstring maskLeft = translate(mask->left);
-                            cstring maskRight = translate(mask->right);
-                            int maskLeftNum = -1, maskRightNum = -1;
-                            if(maskLeft.size() <= 9 && maskRight.size() <= 9){
-                                if(isNumber(maskLeft)){
-                                    maskLeftNum = atoi(std::string(maskLeft.c_str()).c_str());
-                                }
-                                if(isNumber(maskRight)){
-                                    maskRightNum = atoi(std::string(maskRight.c_str()).c_str());
-                                }
-
-                                if(maskRightNum == 0){
-                                    condition += "true";
-                                }
-                                else{
-                                    bool flag = false;
-                                    for(int i = 1; i <= 2147483647; i=(i<<1)+1){
-                                        if(maskRightNum == i){
-                                            flag = true;
-                                            break;
-                                        }
-                                        if(i == 2147483647) break;
-                                    }                                
-                                    if(flag){
-                                        condition += translate(expr)+"%"+maskRight+" == ";
-                                    }
-                                    else{
-                                        condition += functionName+"("+translate(expr)+", "+maskRight+") == ";
-                                    }
-
-                                    if(maskLeftNum != -1 && maskRightNum != -1){
-                                        condition += toString(maskLeftNum & maskRightNum);
-                                    }
-                                    else if(maskRightNum == 0){
-                                        condition += functionName+"("+maskLeft+", "+maskRight+")";
-                                    }
-                                }
-
-                            }
-                            else{
-                                condition += functionName+"("+translate(expr)+", "+maskRight+") == ";
-                                condition += functionName+"("+maskLeft+", "+maskRight+")";
-                            }
-                        }
-                        else{
-                            condition += translate(expr)+" == ";
-                            condition += translate(listExpression->components.at(cnt2));
-                        }
-                    }
-                    cnt2++;
-                    if(cnt2 < sz)
-                        condition += " && ";
+                cstring condition = renderSelectCaseCondition(selectCase);
+                if (condition == "") {
+                    condition = "false";
                 }
                 if(cnt == 0)
                     currentProcedure->addStatement(getIndent() + "if(" + condition + "){\n");
@@ -722,6 +640,23 @@ cstring Translator::translate(const IR::ConstructorCallExpression *constructorCa
 }
 
 cstring Translator::translate(const IR::Cast *cast){
+    if (cast->destType != nullptr && cast->destType->is<IR::Type_Boolean>()) {
+        cstring expr = translate(cast->expr);
+        if (expr == "") {
+            return "";
+        }
+        int srcSize = -1;
+        if (cast->expr != nullptr && cast->expr->type != nullptr) {
+            srcSize = getTypeBitwidth(cast->expr->type);
+        }
+        if (srcSize <= 0) {
+            int inferred = getSize(expr);
+            if (inferred > 0) {
+                srcSize = inferred;
+            }
+        }
+        return renderBitvectorToBool(expr, srcSize);
+    }
     if (cast->destType->to<IR::Type_Bits>() || cast->destType->to<IR::Type_Name>()){
         int dstSize = -1, srcSize = -1;
         if(auto destType = cast->destType->to<IR::Type_Bits>()){
@@ -736,6 +671,10 @@ cstring Translator::translate(const IR::Cast *cast){
         }
 
         cstring expr = translate(cast->expr);
+
+        if (cast->expr->type != nullptr && cast->expr->type->is<IR::Type_Boolean>()) {
+            return renderBoolToBitvector(expr, dstSize);
+        }
 
         if(auto srcType = cast->expr->type->to<IR::Type_Bits>()){
             updateMaxBitvectorSize(srcType);

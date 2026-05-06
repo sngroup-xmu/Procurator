@@ -16,6 +16,7 @@ struct LoadedProgram {
 };
 
 bool loadFrontendProgram(P4VerifyOptions& options, LoadedProgram* loaded);
+void normalizeVerifyFrontendOptions(P4VerifyOptions& options, const char* argv0);
 
 }  // namespace P4Verify
 

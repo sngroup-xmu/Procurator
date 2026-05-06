@@ -20,6 +20,12 @@ cstring Translator::translate(const IR::Type *type){
     else if (auto typeTypedef = type->to<IR::Type_Typedef>()){
         return translate(typeTypedef);
     }
+    else if (auto typeSerEnum = type->to<IR::Type_SerEnum>()){
+        return typeSerEnum->name.name;
+    }
+    else if (auto typeEnum = type->to<IR::Type_Enum>()){
+        return typeEnum->name.name;
+    }
     return "";
 }
 
@@ -87,4 +93,30 @@ cstring Translator::translate(const IR::Type_Typedef *typeTypedef){
     else
         addDeclaration("type "+name+" = "+translate(typeTypedef->type)+";\n");
     return "";
+}
+
+void Translator::translate(const IR::Type_SerEnum *typeSerEnum) {
+    cstring name = translate(typeSerEnum->name);
+    cstring underlying = translate(typeSerEnum->type);
+    if (underlying == "") {
+        underlying = "int";
+    }
+    if (auto typeBits = typeSerEnum->type->to<IR::Type_Bits>()) {
+        typeDefs[name] = typeBits->size;
+    }
+    for (auto member : typeSerEnum->members) {
+        if (member == nullptr || member->value == nullptr) {
+            continue;
+        }
+        enumLiteralValues[name][translate(member->getName())] = translate(member->value);
+    }
+    if (emittedTypeDecls.find(name) != emittedTypeDecls.end()) {
+        return;
+    }
+    if (options.ultimateAutomizer && typeDefs.find(name) != typeDefs.end()) {
+        addDeclaration("type "+name+" = int;\n");
+    } else {
+        addDeclaration("type "+name+" = "+underlying+";\n");
+    }
+    emittedTypeDecls.insert(name);
 }

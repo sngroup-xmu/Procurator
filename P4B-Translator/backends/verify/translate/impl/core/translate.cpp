@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <cctype>
 #include <limits>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -28,6 +30,249 @@ static bool isHeaderStackElementChild(const std::string& name) {
         pos = dot + 1;
     }
     return false;
+}
+
+static std::string trimString(const std::string& s) {
+    size_t begin = 0;
+    while (begin < s.size() && std::isspace(static_cast<unsigned char>(s[begin]))) {
+        begin++;
+    }
+    size_t end = s.size();
+    while (end > begin && std::isspace(static_cast<unsigned char>(s[end - 1]))) {
+        end--;
+    }
+    return s.substr(begin, end - begin);
+}
+
+static void collectCallTargetsFromText(const std::string& text, std::set<cstring>* out) {
+    size_t pos = 0;
+    while ((pos = text.find("call", pos)) != std::string::npos) {
+        const bool leftBoundary =
+            pos == 0 || !(std::isalnum(static_cast<unsigned char>(text[pos - 1])) ||
+                          text[pos - 1] == '_' || text[pos - 1] == '.');
+        const size_t afterCall = pos + 4;
+        const bool rightBoundary =
+            afterCall >= text.size() || std::isspace(static_cast<unsigned char>(text[afterCall]));
+        if (!leftBoundary || !rightBoundary) {
+            pos = afterCall;
+            continue;
+        }
+
+        size_t start = afterCall;
+        while (start < text.size() && std::isspace(static_cast<unsigned char>(text[start]))) {
+            start++;
+        }
+        size_t paren = text.find('(', start);
+        size_t semi = text.find(';', start);
+        if (paren == std::string::npos || (semi != std::string::npos && semi < paren)) {
+            pos = start;
+            continue;
+        }
+
+        std::string prefix = text.substr(start, paren - start);
+        size_t assign = prefix.rfind(":=");
+        if (assign != std::string::npos) {
+            prefix = prefix.substr(assign + 2);
+        }
+        std::string target = trimString(prefix);
+        if (!target.empty()) {
+            out->insert(cstring(target.c_str()));
+        }
+        pos = paren + 1;
+    }
+}
+
+static bool containsBoogieInvocation(const std::string& text, const std::string& name) {
+    if (name.empty()) {
+        return false;
+    }
+    size_t pos = 0;
+    while ((pos = text.find(name, pos)) != std::string::npos) {
+        const bool leftBoundary =
+            pos == 0 || !(std::isalnum(static_cast<unsigned char>(text[pos - 1])) ||
+                          text[pos - 1] == '_' || text[pos - 1] == '.');
+        const size_t afterName = pos + name.size();
+        const bool rightBoundary =
+            afterName < text.size() && text[afterName] == '(';
+        if (leftBoundary && rightBoundary) {
+            return true;
+        }
+        pos = afterName;
+    }
+    return false;
+}
+
+static bool isBoogieIdentStart(char c) {
+    return std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '$';
+}
+
+static bool isBoogieIdentChar(char c) {
+    return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '.' || c == '$';
+}
+
+static void collectKnownVarReferences(const std::string& text,
+                                      const std::map<cstring, cstring>& varTypes,
+                                      std::set<cstring>* out) {
+    bool inLineComment = false;
+    for (size_t i = 0; i < text.size();) {
+        if (inLineComment) {
+            if (text[i] == '\n') {
+                inLineComment = false;
+            }
+            ++i;
+            continue;
+        }
+        if (text[i] == '/' && i + 1 < text.size() && text[i + 1] == '/') {
+            inLineComment = true;
+            i += 2;
+            continue;
+        }
+        if (!isBoogieIdentStart(text[i])) {
+            ++i;
+            continue;
+        }
+        size_t start = i;
+        ++i;
+        while (i < text.size() && isBoogieIdentChar(text[i])) {
+            ++i;
+        }
+        std::string token = text.substr(start, i - start);
+        auto it = varTypes.find(cstring(token));
+        if (it != varTypes.end()) {
+            out->insert(it->first);
+        }
+    }
+}
+
+static void maybeAddKnownVar(const std::string& raw,
+                             const std::map<cstring, cstring>& varTypes,
+                             std::set<cstring>* out) {
+    std::string name = trimString(raw);
+    size_t bracket = name.find('[');
+    if (bracket != std::string::npos) {
+        name = trimString(name.substr(0, bracket));
+    }
+    if (name.empty()) {
+        return;
+    }
+    for (char c : name) {
+        if (!isBoogieIdentChar(c)) {
+            return;
+        }
+    }
+    auto it = varTypes.find(cstring(name));
+    if (it != varTypes.end()) {
+        out->insert(it->first);
+    }
+}
+
+static void collectKnownVarModifications(const std::string& text,
+                                         const std::map<cstring, cstring>& varTypes,
+                                         std::set<cstring>* out) {
+    size_t lineStart = 0;
+    while (lineStart < text.size()) {
+        size_t lineEnd = text.find('\n', lineStart);
+        if (lineEnd == std::string::npos) {
+            lineEnd = text.size();
+        }
+        std::string line = text.substr(lineStart, lineEnd - lineStart);
+        size_t comment = line.find("//");
+        if (comment != std::string::npos) {
+            line = line.substr(0, comment);
+        }
+        size_t assign = line.find(":=");
+        if (assign != std::string::npos) {
+            maybeAddKnownVar(line.substr(0, assign), varTypes, out);
+        }
+        size_t pos = 0;
+        while ((pos = line.find("havoc", pos)) != std::string::npos) {
+            const bool leftBoundary =
+                pos == 0 || !(std::isalnum(static_cast<unsigned char>(line[pos - 1])) ||
+                              line[pos - 1] == '_' || line[pos - 1] == '.');
+            const size_t after = pos + 5;
+            const bool rightBoundary =
+                after >= line.size() || std::isspace(static_cast<unsigned char>(line[after]));
+            if (!leftBoundary || !rightBoundary) {
+                pos = after;
+                continue;
+            }
+            size_t nameStart = after;
+            while (nameStart < line.size() &&
+                   std::isspace(static_cast<unsigned char>(line[nameStart]))) {
+                nameStart++;
+            }
+            size_t nameEnd = nameStart;
+            while (nameEnd < line.size() && isBoogieIdentChar(line[nameEnd])) {
+                nameEnd++;
+            }
+            maybeAddKnownVar(line.substr(nameStart, nameEnd - nameStart), varTypes, out);
+            pos = nameEnd;
+        }
+        lineStart = lineEnd + 1;
+    }
+}
+
+static std::set<cstring> collectProcedureCallees(
+    std::map<cstring, BoogieProcedure>& procedures,
+    const cstring& procedureName) {
+    std::set<cstring> targets;
+    auto it = procedures.find(procedureName);
+    if (it == procedures.end()) {
+        return targets;
+    }
+
+    for (cstring succ : it->second.succ) {
+        targets.insert(succ);
+    }
+    std::string body = it->second.bodyText().c_str();
+    collectCallTargetsFromText(body, &targets);
+    for (const auto& kv : procedures) {
+        if (kv.first == procedureName) {
+            continue;
+        }
+        if (containsBoogieInvocation(body, kv.first.c_str())) {
+            targets.insert(kv.first);
+        }
+    }
+    return targets;
+}
+
+static std::set<cstring> collectReachableProcedures(
+    std::map<cstring, BoogieProcedure>& procedures,
+    const cstring& mainProcedureName) {
+    std::set<cstring> reachable;
+    std::queue<cstring> work;
+
+    auto seed = [&](const cstring& name) {
+        if (procedures.find(name) != procedures.end() && reachable.insert(name).second) {
+            work.push(name);
+        }
+    };
+
+    seed("ULTIMATE.start");
+    seed(mainProcedureName);
+
+    while (!work.empty()) {
+        cstring cur = work.front();
+        work.pop();
+        auto it = procedures.find(cur);
+        if (it == procedures.end()) {
+            continue;
+        }
+
+        std::set<cstring> targets = collectProcedureCallees(procedures, cur);
+
+        for (cstring target : targets) {
+            auto procIt = procedures.find(target);
+            if (procIt == procedures.end()) {
+                continue;
+            }
+            if (reachable.insert(target).second) {
+                work.push(target);
+            }
+        }
+    }
+    return reachable;
 }
 
 Translator::Translator(std::ostream &out, P4VerifyOptions &options,
@@ -352,6 +597,9 @@ bool Translator::shouldKeepVar(const std::string& name) const {
     if (name.rfind("__ra_", 0) == 0 || name.find("__unused") != std::string::npos) {
         return true;
     }
+    if (name.rfind("p4b_", 0) == 0) {
+        return true;
+    }
     if (name.find("ucast_egress_port") != std::string::npos ||
         name.find("egress_port") != std::string::npos) {
         return true;
@@ -622,6 +870,19 @@ void Translator::recordHashExtern(const IR::Declaration_Instance* instance, cstr
     }
     if (retType != "") {
         hashExternReturnTypes[name] = retType;
+    }
+    if (instance->arguments != nullptr && !instance->arguments->empty()) {
+        const IR::Expression* algorithmExpr = (*instance->arguments)[0]->expression;
+        cstring algorithm = translate(algorithmExpr);
+        if (algorithm != "") {
+            hashExternAlgorithms[name] = algorithm;
+        }
+        if (algorithmExpr != nullptr) {
+            cstring text = algorithmExpr->toString();
+            if (text != "") {
+                hashExternAlgorithmNames[name] = text;
+            }
+        }
     }
 }
 
@@ -1081,6 +1342,9 @@ cstring Translator::inferBoogieType(const IR::Type *type, cstring exprText){
     cstring ret = "";
     if (type != nullptr) {
         ret = translate(type);
+        if (typeDefs.find(ret) != typeDefs.end()) {
+            ret = "bv" + toString(typeDefs[ret]);
+        }
         if (ret == "") {
             if (type->to<IR::Type_Header>() != nullptr) {
                 ret = "Ref";
@@ -1631,22 +1895,59 @@ void Translator::writeToFile(){
     addProcedure(mainProcedure);
     if(options.whileLoop)
         addProcedure(havocProcedure);
+    std::set<cstring> reachableProcedures;
+    if (options.slicingEnabled && !options.slicingKeepVars.empty()) {
+        reachableProcedures = collectReachableProcedures(procedures, mainProcedure.getName());
+    } else {
+        for (const auto& kv : procedures) {
+            reachableProcedures.insert(kv.first);
+        }
+    }
+
     std::queue<BoogieProcedure*> queue;
+    std::map<cstring, std::set<cstring>> callGraph;
+    std::map<cstring, std::set<cstring>> reverseCallGraph;
+    for (const auto& kv : procedures) {
+        if (reachableProcedures.count(kv.first) == 0) {
+            continue;
+        }
+        callGraph[kv.first] = collectProcedureCallees(procedures, kv.first);
+        for (cstring callee : callGraph[kv.first]) {
+            if (reachableProcedures.count(callee) == 0) {
+                continue;
+            }
+            reverseCallGraph[callee].insert(kv.first);
+        }
+    }
     for (std::map<cstring, BoogieProcedure>::iterator iter=procedures.begin();
         iter!=procedures.end(); iter++){
         for (std::set<cstring>::iterator iter2=iter->second.modifies.begin();
             iter2!=iter->second.modifies.end();){
-            if(!isGlobalVariable(*iter2))
+            if(!isGlobalVariable(*iter2) ||
+               (options.slicingEnabled && !options.slicingKeepVars.empty() &&
+                !shouldKeepVar(std::string(iter2->c_str()))))
                 iter->second.modifies.erase(iter2++);
             else
                 ++iter2;
         }
-        queue.push(&iter->second);
+        if (reachableProcedures.count(iter->first) > 0) {
+            std::set<cstring> modifiedGlobals;
+            collectKnownVarModifications(iter->second.bodyText().c_str(), varTypes, &modifiedGlobals);
+            for (const auto& v : modifiedGlobals) {
+                if (isGlobalVariable(v)) {
+                    iter->second.addModifiedGlobalVariables(v);
+                }
+            }
+            queue.push(&iter->second);
+        }
     }
     while(!queue.empty()){
         BoogieProcedure* procedure = queue.front();
         int szBefore = procedure->getModifiesSize();
-        for(cstring succ:procedure->succ){
+        for(cstring succ:callGraph[procedure->getName()]){
+            if (reachableProcedures.count(succ) == 0) {
+                continue;
+            }
             for (std::set<cstring>::iterator iter=procedures[succ].modifies.begin();
                 iter!=procedures[succ].modifies.end(); iter++){
                 procedure->addModifiedGlobalVariables(*iter);
@@ -1654,30 +1955,55 @@ void Translator::writeToFile(){
         }
         int szAfter = procedure->getModifiesSize();
         if(szBefore!=szAfter){
-            for(cstring predProc:pred[procedure->getName()]){
+            for(cstring predProc:reverseCallGraph[procedure->getName()]){
+                if (reachableProcedures.count(predProc) == 0) {
+                    continue;
+                }
                 queue.push(&procedures[predProc]);
             }
         }
         queue.pop();
     }
 
+    auto emitMissingVarDecl = [&](const cstring& var) {
+        if (emittedVarDecls.count(var)) {
+            return;
+        }
+        auto it = varTypes.find(var);
+        if (it == varTypes.end()) {
+            return;
+        }
+        std::string decl = "var ";
+        decl += var.c_str();
+        decl += ":";
+        decl += it->second.c_str();
+        decl += ";\n";
+        declaration += decl.c_str();
+        emittedVarDecls.insert(var);
+    };
+
+    // Slicing filters global declarations using IR-level keep variables, but
+    // retained lowered Boogie statements may still use compiler-introduced
+    // temporaries. Keep exactly the known globals referenced by reachable code.
+    std::set<cstring> referencedGlobals;
+    collectKnownVarReferences(declaration.c_str(), varTypes, &referencedGlobals);
+    for (auto& kv : procedures) {
+        if (reachableProcedures.count(kv.first) == 0) {
+            continue;
+        }
+        collectKnownVarReferences(kv.second.bodyText().c_str(), varTypes, &referencedGlobals);
+    }
+    for (const auto& var : referencedGlobals) {
+        emitMissingVarDecl(var);
+    }
+
     // Ensure all variables in modifies clauses are declared, even if slicing filtered them out.
     for (auto& kv : procedures) {
+        if (reachableProcedures.count(kv.first) == 0) {
+            continue;
+        }
         for (const auto& mod : kv.second.modifies) {
-            if (emittedVarDecls.count(mod)) {
-                continue;
-            }
-            auto it = varTypes.find(mod);
-            if (it == varTypes.end()) {
-                continue;
-            }
-            std::string decl = "var ";
-            decl += mod.c_str();
-            decl += ":";
-            decl += it->second.c_str();
-            decl += ";\n";
-            declaration += decl.c_str();
-            emittedVarDecls.insert(mod);
+            emitMissingVarDecl(mod);
         }
     }
 
@@ -1685,7 +2011,7 @@ void Translator::writeToFile(){
     out << declaration;
     std::map<cstring, BoogieProcedure>::iterator iter;
     for (iter=procedures.begin(); iter!=procedures.end(); iter++){
-        if(iter->first != deparser){
+        if(iter->first != deparser && reachableProcedures.count(iter->first) > 0){
             out << iter->second.toString();
         }
     }

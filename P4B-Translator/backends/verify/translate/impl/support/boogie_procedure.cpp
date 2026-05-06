@@ -150,3 +150,14 @@ cstring BoogieProcedure::toString(){
 cstring BoogieProcedure::getName(){
 	return name;
 }
+
+cstring BoogieProcedure::bodyText(){
+	cstring res = body;
+	for(BoogieStatement statement:variableDeclaration){
+		res += statement.toString();
+	}
+	for(BoogieStatement statement:statements){
+		res += statement.toString();
+	}
+	return res;
+}

@@ -76,6 +76,33 @@ cstring Translator::renderBoogieOneLiteral(const cstring& typeName) {
     return "1";
 }
 
+cstring Translator::renderBoolToBitvector(const cstring& expr, int width) {
+    cstring retType = "bv" + toString(width);
+    cstring funcName = "__p4b_bool_to_" + retType;
+    cstring func = "function {:inline true} " + funcName + "(x:bool) returns(" + retType + ")"
+                   "{ if x then 1" + retType + " else 0" + retType + " }\n";
+    addFunction(funcName, func);
+    return funcName + "(" + expr + ")";
+}
+
+cstring Translator::renderBitvectorToBool(const cstring& expr, int width) {
+    if (width <= 0) {
+        return expr;
+    }
+    return "(" + expr + " != 0bv" + toString(width) + ")";
+}
+
+cstring Translator::coerceBitvectorExprWidth(const cstring& expr, int srcWidth, int dstWidth) {
+    if (srcWidth <= 0 || dstWidth <= 0 || srcWidth == dstWidth) {
+        return expr;
+    }
+    if (dstWidth < srcWidth) {
+        cstring base = expr.find("++") != nullptr ? "(" + expr + ")" : expr;
+        return base + "[" + toString(dstWidth) + ":0]";
+    }
+    return "0bv" + toString(dstWidth - srcWidth) + "++" + expr;
+}
+
 void Translator::translate(const IR::P4Program *program){
     analyzeProgram(program);
     const bool debugObjects = std::getenv("P4VERIFY_DEBUG_TRANSLATE_OBJECTS") != nullptr;
@@ -103,7 +130,22 @@ void Translator::translate(const IR::Type_Extern *typeExtern){
 }
 
 void Translator::translate(const IR::Type_Enum *typeEnum){
-    (void)typeEnum;
+    if (typeEnum == nullptr) {
+        return;
+    }
+    cstring name = translate(typeEnum->name);
+    int ordinal = 0;
+    for (auto member : typeEnum->members) {
+        if (member != nullptr) {
+            enumLiteralValues[name][translate(member->getName())] = cstring(std::to_string(ordinal));
+        }
+        ordinal++;
+    }
+    if (emittedTypeDecls.find(name) != emittedTypeDecls.end()) {
+        return;
+    }
+    addDeclaration("type "+name+" = int;\n");
+    emittedTypeDecls.insert(name);
 }
 
 void Translator::translate(const IR::Declaration_Instance *instance, cstring instanceName){
@@ -203,6 +245,8 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         incIndent();
         count.addStatement(getIndent()+"call "+name+".add(index, "+oneValue+");\n");
         decIndent();
+        count.addSucc(name+".add");
+        addPred(name+".add", name+".count");
         count.addModifiedGlobalVariables(name+"__counter");
         count.addModifiedGlobalVariables(name+"__last_index");
         count.addModifiedGlobalVariables(name+"__last_value");
@@ -216,6 +260,8 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         incIndent();
         increment.addStatement(getIndent()+"call "+name+".add(index, "+oneValue+");\n");
         decIndent();
+        increment.addSucc(name+".add");
+        addPred(name+".add", name+".increment");
         increment.addModifiedGlobalVariables(name+"__counter");
         increment.addModifiedGlobalVariables(name+"__last_index");
         increment.addModifiedGlobalVariables(name+"__last_value");
@@ -362,7 +408,9 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addPred(name, mainProcedure.getName());
     }
 
-    if(typeName=="register" || typeName=="Register"){
+    std::string typeNameStr = typeName.c_str();
+    const bool isDirectRegister = (typeNameStr == "DirectRegister");
+    if(typeName=="register" || typeName=="Register" || isDirectRegister){
         if (emittedVarDecls.find(name) != emittedVarDecls.end()) {
             return;
         }
@@ -378,9 +426,13 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         };
         regDebug("begin");
 
-        // size
+        // DirectRegister is a table-entry-attached register in TNA.  The current
+        // direct-register action lowering executes it at a synthetic singleton
+        // slot, so model the state object as a one-element register array.
         big_int registerSize = 0;
-        if (instance->arguments == nullptr || instance->arguments->empty() ||
+        if (isDirectRegister) {
+            registerSize = 1;
+        } else if (instance->arguments == nullptr || instance->arguments->empty() ||
             !constantValueFromExpr((*instance->arguments)[0]->expression, &registerSize)) {
             std::cerr << "[p4verify] unsupported register size expression for "
                       << name << ": " << instance << std::endl;
@@ -571,7 +623,6 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         regDebug("write proc");
     }
 
-    std::string typeNameStr = typeName.c_str();
     if (typeNameStr.find("RegisterAction") != std::string::npos ||
         typeNameStr.find("DirectRegisterAction") != std::string::npos) {
         const bool isDirect = (typeNameStr.find("DirectRegisterAction") != std::string::npos);
@@ -636,11 +687,19 @@ void Translator::translate(const IR::Type_Struct *typeStruct){
         }
     }
     else if(structName=="metadata"){
+        if (emittedTypeDecls.find(structName) == emittedTypeDecls.end()) {
+            addDeclaration("type "+structName+";\n");
+            emittedTypeDecls.insert(structName);
+        }
         for(const IR::StructField* field:typeStruct->fields){
             translate(field, "meta");
         }
     }
     else if(structName=="standard_metadata_t"){
+        if (emittedTypeDecls.find(structName) == emittedTypeDecls.end()) {
+            addDeclaration("type "+structName+";\n");
+            emittedTypeDecls.insert(structName);
+        }
         for(const IR::StructField* field:typeStruct->fields){
             translate(field, "standard_metadata");
         }
@@ -666,10 +725,24 @@ void Translator::translate(const IR::Type_Struct *typeStruct){
 }
 
 void Translator::translate(const IR::Type_Struct *typeStruct, cstring arg){
+    if (typeStruct->name.toString() != "headers" && emittedVarDecls.find(arg) == emittedVarDecls.end()) {
+        cstring structName = typeStruct->name.toString();
+        ensureStructLayout(typeStruct);
+        auto widthIt = structBitwidths.find(structName);
+        if (widthIt != structBitwidths.end()) {
+            addDeclaration("var "+arg+":bv"+toString(widthIt->second)+";\n");
+            updateVariableSize(arg, widthIt->second);
+        } else {
+            addDeclaration("var "+arg+":"+structName+";\n");
+        }
+        addGlobalVariables(arg);
+        emittedVarDecls.insert(arg);
+    }
     if(typeStruct->name.toString()=="headers"){
         if(emittedVarDecls.find(arg) == emittedVarDecls.end()){
             addDeclaration("var "+arg+":Ref;\n");
             addGlobalVariables(arg);
+            emittedVarDecls.insert(arg);
         }
     }
     for(const IR::StructField* field:typeStruct->fields){
@@ -805,11 +878,16 @@ void Translator::translate(const IR::StructField *field, cstring arg){
 }
 
 void Translator::translate(const IR::Type_Header *typeHeader){
-    (void)typeHeader;
+    cstring headerName = typeHeader->name.toString();
+    if (emittedTypeDecls.find(headerName) == emittedTypeDecls.end()) {
+        addDeclaration("type "+headerName+";\n");
+        emittedTypeDecls.insert(headerName);
+    }
 }
 
 void Translator::translate(const IR::Type_Header *typeHeader, cstring arg){
     if(emittedVarDecls.find(arg) != emittedVarDecls.end()) return;
+    translate(typeHeader);
     addDeclaration("\n// Header "+typeHeader->name.toString()+"\n");
     addDeclaration("var "+arg+":Ref;\n");
     addGlobalVariables(arg);
@@ -1253,11 +1331,6 @@ void Translator::translate(const IR::P4Control *p4Control){
     control.setImplemented();
     addProcedure(control);
 
-    std::vector<cstring> declarations;
-    for(auto declaration:*p4Control->getDeclarations()){
-        if(declaration->to<IR::Declaration_Instance>())
-            declarations.push_back(translate(declaration->getName()));
-    }
     currentProcedure = &procedures[controlName];
 
     for (auto controlLocal : p4Control->controlLocals) {
@@ -1265,10 +1338,17 @@ void Translator::translate(const IR::P4Control *p4Control){
         if (declVar == nullptr || declVar->type == nullptr) {
             continue;
         }
+        bool isNamedHeaderOrStruct = false;
+        if (auto typeName = declVar->type->to<IR::Type_Name>()) {
+            cstring typeId = translate(typeName->path);
+            isNamedHeaderOrStruct =
+                headers.find(typeId) != headers.end() || structs.find(typeId) != structs.end();
+        }
         if (declVar->type->is<IR::Type_Extern>() || declVar->type->is<IR::Type_Parser>() ||
             declVar->type->is<IR::Type_Control>() || declVar->type->is<IR::Type_Package>() ||
             declVar->type->to<IR::Type_Header>() != nullptr ||
-            declVar->type->to<IR::Type_Struct>() != nullptr) {
+            declVar->type->to<IR::Type_Struct>() != nullptr ||
+            isNamedHeaderOrStruct) {
             continue;
         }
         cstring varName = translate(declVar->name);
@@ -1318,29 +1398,7 @@ void Translator::translate(const IR::P4Control *p4Control){
                       << controlLocal << std::endl;
         }
         if(auto instance = controlLocal->to<IR::Declaration_Instance>()){
-            cstring instanceName = translate(instance->getName());
-            cstring renamedInstance = "";
-            for(cstring declaration:declarations){
-                if(!declaration.startsWith(instanceName)) {
-                    continue;
-                }
-                size_t base = instanceName.size();
-                if(declaration.size() <= base + 1 || declaration.c_str()[base] != '_') {
-                    continue;
-                }
-                if(declaration.size()>renamedInstance.size()){
-                    size_t idx = base + 1;
-                    bool digit = true;
-                    for(size_t i = idx; i < declaration.size(); i++){
-                        if(!(declaration.c_str()[i] >= '0' && declaration.c_str()[i] <= '9')){
-                            digit = false;
-                        }   
-                    }
-                    if(digit)
-                        renamedInstance = declaration;
-                }
-            }
-            translate(instance, renamedInstance);
+            translate(instance);
         }
         else{
             // can be declared as global variables

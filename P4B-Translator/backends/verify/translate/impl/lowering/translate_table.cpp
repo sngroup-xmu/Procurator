@@ -470,6 +470,18 @@ void Translator::translate(const IR::P4Table *p4Table){
                 }
                 // no table rules
                 else if(bMV2CmdsAnalyzer== nullptr || !bMV2CmdsAnalyzer->hasTableAddCmds(name)){
+                    // P4 table semantics: a lookup miss always returns hit=false,
+                    // even when the default action is executed.
+                    //
+                    // In this branch there are no concrete table_add rules from
+                    // control-plane commands, so any execution is a miss path.
+                    // Keep `.hit` deterministic to avoid spurious branches in
+                    // callers that use `table.apply().hit`.
+                    if(options.gotoOrIf){
+                        table.addStatement(getIndent()+name+".hit := false;\n");
+                        table.addModifiedGlobalVariables(name+".hit");
+                    }
+
                     bool handledDefault = false;
                     TableSetDefault* defaultCmd = nullptr;
                     if(bMV2CmdsAnalyzer != nullptr){

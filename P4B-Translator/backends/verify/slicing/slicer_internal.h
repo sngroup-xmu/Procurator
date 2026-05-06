@@ -948,8 +948,13 @@ static void collectStmtUsesDefs(const IR::Statement* stmt,
                 if (auto member = mce->method->to<IR::Member>()) {
                     if (auto base = member->expr->to<IR::PathExpression>()) {
                         cstring baseName = resolvePathName(base, refMap);
+                        VarKey execKey;
+                        execKey.base = baseName.c_str();
+                        execKey.segs.push_back(methodName);
                         auto it = regActionUsesDefs->find(baseName);
                         if (it != regActionUsesDefs->end()) {
+                            addVarKey(out.uses, execKey);
+                            addVarKey(out.defs, execKey);
                             mergeSets(out.uses, it->second.uses);
                             mergeSets(out.defs, it->second.defs);
                             collectRegActionCallArgs(mce->arguments, out.uses, out.defs, typeMap);
@@ -1646,24 +1651,41 @@ class KeepVarCollector : public Inspector {
     const std::unordered_set<int>& keepStmtIds;
     std::set<VarKey, VarKeyLess> vars;
     P4::TypeMap* typeMap;
+    const std::unordered_map<cstring, UsesDefs>* regActionUsesDefs;
+    P4::ReferenceMap* refMap;
 
-    KeepVarCollector(const std::unordered_set<int>& ids, P4::TypeMap* typeMap)
-        : keepStmtIds(ids), typeMap(typeMap) {}
+    KeepVarCollector(const std::unordered_set<int>& ids,
+                     P4::TypeMap* typeMap,
+                     const std::unordered_map<cstring, UsesDefs>* regActionUsesDefs = nullptr,
+                     P4::ReferenceMap* refMap = nullptr)
+        : keepStmtIds(ids),
+          typeMap(typeMap),
+          regActionUsesDefs(regActionUsesDefs),
+          refMap(refMap) {}
 
     bool preorder(const IR::Statement* stmt) override {
         if (!stmt) {
             return false;
         }
+        const bool isStructural = stmt->is<IR::BlockStatement>() ||
+                                  stmt->is<IR::IfStatement>() ||
+                                  stmt->is<IR::SwitchStatement>();
         if (!keepStmtIds.count(stmt->id)) {
-            return false;
+            return isStructural;
+        }
+        if (stmt->is<IR::BlockStatement>()) {
+            return true;
         }
         UsesDefs ud;
-        collectStmtUsesDefs(stmt, ud, typeMap);
+        collectStmtUsesDefs(stmt, ud, typeMap, regActionUsesDefs, refMap);
         for (const auto& v : ud.uses) {
             addVarKey(vars, v);
         }
         for (const auto& v : ud.defs) {
             addVarKey(vars, v);
+        }
+        if (isStructural) {
+            return true;
         }
         return false;
     }

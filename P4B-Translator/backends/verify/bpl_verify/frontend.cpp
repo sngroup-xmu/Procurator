@@ -51,6 +51,11 @@ bool readTextFile(const std::string& path, std::string* out) {
     return true;
 }
 
+bool fileExists(const std::string& path) {
+    struct stat st {};
+    return stat(path.c_str(), &st) == 0;
+}
+
 std::string dirnameOf(const std::string& path) {
     const auto slash = path.find_last_of("/\\");
     if (slash == std::string::npos) {
@@ -72,6 +77,15 @@ std::string joinPath(const std::string& dir, const std::string& name) {
         return name;
     }
     return dir + "/" + name;
+}
+
+std::string normalizeSlashes(std::string path) {
+    for (char& ch : path) {
+        if (ch == '\\') {
+            ch = '/';
+        }
+    }
+    return path;
 }
 
 bool ensureDir(const std::string& path) {
@@ -623,6 +637,30 @@ bool parseQuotedIncludeLine(const std::string& line,
     return true;
 }
 
+bool parseAngledIncludeLine(const std::string& line, std::string* includeName) {
+    size_t i = 0;
+    while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) {
+        i++;
+    }
+    if (i >= line.size() || line[i] != '#') {
+        return false;
+    }
+    const size_t includePos = line.find("include", i + 1);
+    if (includePos == std::string::npos) {
+        return false;
+    }
+    const size_t first = line.find('<', includePos + 7);
+    if (first == std::string::npos) {
+        return false;
+    }
+    const size_t second = line.find('>', first + 1);
+    if (second == std::string::npos) {
+        return false;
+    }
+    *includeName = line.substr(first + 1, second - first - 1);
+    return true;
+}
+
 bool sanitizeP4TvTree(const std::string& inputPath,
                       const std::string& outRoot,
                       std::map<std::string, std::string>* rewritten,
@@ -706,13 +744,85 @@ bool verifyFrontendRewriteInClosure(const std::string& inputPath, std::map<std::
     return false;
 }
 
+bool pathNeedsFrontendRewrite(const std::string& path) {
+    return path.find_first_of(" \t\r\n") != std::string::npos;
+}
+
+bool sourceClosureIncludesTna(const std::string& inputPath, std::map<std::string, bool>* seen) {
+    if (seen->find(inputPath) != seen->end()) {
+        return false;
+    }
+    (*seen)[inputPath] = true;
+    std::string content;
+    if (!readTextFile(inputPath, &content)) {
+        return false;
+    }
+    const std::string inputDir = dirnameOf(inputPath);
+    std::stringstream in(content);
+    std::string line;
+    while (std::getline(in, line)) {
+        std::string angled;
+        if (parseAngledIncludeLine(line, &angled) && angled == "tna.p4") {
+            return true;
+        }
+        std::string prefix;
+        std::string includeName;
+        std::string suffix;
+        if (!parseQuotedIncludeLine(line, &prefix, &includeName, &suffix)) {
+            continue;
+        }
+        if (sourceClosureIncludesTna(joinPath(inputDir, includeName), seen)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string findTofinoP4Include(const char* argv0) {
+    std::vector<std::string> candidates;
+    if (argv0 != nullptr) {
+        const std::string exeDir = dirnameOf(normalizeSlashes(argv0));
+        candidates.push_back(joinPath(exeDir, "../backends/tofino/bf-p4c/p4include"));
+        candidates.push_back(joinPath(exeDir, "../../backends/tofino/bf-p4c/p4include"));
+    }
+    candidates.push_back("P4B-Translator/backends/tofino/bf-p4c/p4include");
+    candidates.push_back("backends/tofino/bf-p4c/p4include");
+    candidates.push_back("../backends/tofino/bf-p4c/p4include");
+    for (const auto& candidate : candidates) {
+        if (fileExists(joinPath(candidate, "tna.p4"))) {
+            return candidate;
+        }
+    }
+    return "";
+}
+
+void normalizeVerifyFrontendOptionsImpl(P4VerifyOptions& options, const char* argv0) {
+    if (options.loadIRFromJson || !P4VerifyCompat::hasPath(options.file)) {
+        return;
+    }
+    const std::string inputPath = P4VerifyCompat::pathToString(options.file);
+    std::map<std::string, bool> seen;
+    if (!sourceClosureIncludesTna(inputPath, &seen)) {
+        return;
+    }
+    if (options.preprocessor_options.string().find("__TARGET_TOFINO__") == std::string::npos) {
+        options.preprocessor_options += " -D__TARGET_TOFINO__=1";
+    }
+    const std::string tofinoInclude = findTofinoP4Include(argv0);
+    if (!tofinoInclude.empty() &&
+        options.preprocessor_options.string().find(tofinoInclude) == std::string::npos) {
+        options.preprocessor_options += " -I" + tofinoInclude;
+    }
+}
+
 void rewriteVerifyFrontendInput(P4VerifyOptions& options) {
     if (!P4VerifyCompat::hasPath(options.file)) {
         return;
     }
     const std::string inputPath = P4VerifyCompat::pathToString(options.file);
+    const bool pathNeedsRewrite = pathNeedsFrontendRewrite(inputPath);
     std::map<std::string, bool> seen;
-    if (!verifyFrontendRewriteInClosure(inputPath, &seen)) {
+    if (!pathNeedsRewrite && !verifyFrontendRewriteInClosure(inputPath, &seen)) {
         return;
     }
     std::string root = makeSanitizerRoot();
@@ -725,7 +835,7 @@ void rewriteVerifyFrontendInput(P4VerifyOptions& options) {
     if (!sanitizeP4TvTree(inputPath, root, &rewritten, &rewrittenTop, &changedAny)) {
         return;
     }
-    if (changedAny) {
+    if (changedAny || pathNeedsRewrite) {
         options.file = rewrittenTop;
     }
 }
@@ -820,6 +930,10 @@ const IR::P4Program* normalizeJsonForSlicing(const IR::P4Program* program,
 }
 
 }  // namespace
+
+void normalizeVerifyFrontendOptions(P4VerifyOptions& options, const char* argv0) {
+    normalizeVerifyFrontendOptionsImpl(options, argv0);
+}
 
 bool loadFrontendProgram(P4VerifyOptions& options, LoadedProgram* loaded) {
     const bool debugJson = std::getenv("P4VERIFY_DEBUG_JSON_FRONTEND") != nullptr;

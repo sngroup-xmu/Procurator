@@ -4,6 +4,9 @@
 #include "backends/verify/slicing/collectors/register_decl.h"
 #include "frontends/common/resolveReferences/referenceMap.h"
 
+#include <string>
+#include <unordered_map>
+
 namespace P4Verify {
 
 using namespace slicing_internal;
@@ -114,9 +117,53 @@ class SliceRegisterUseCollector : public Inspector {
 
     std::unordered_set<std::string> used;
 
-    bool preorder(const IR::PathExpression* pe) override {
-        if (!pe || !pe->path) {
+    bool preorder(const IR::Declaration_Instance* inst) override {
+        if (!inst || !inst->type || !inst->arguments || inst->arguments->empty()) {
+            return true;
+        }
+        std::string typeName = inst->type->toString().c_str();
+        if (typeName.find("RegisterAction") == std::string::npos &&
+            typeName.find("DirectRegisterAction") == std::string::npos) {
+            return true;
+        }
+        auto arg0 = (*inst->arguments)[0];
+        if (!arg0 || !arg0->expression) {
             return false;
+        }
+        std::string reg = resolvePathName(arg0->expression->to<IR::PathExpression>());
+        if (!reg.empty()) {
+            std::string resolved = resolveRegisterName(reg);
+            if (!resolved.empty()) {
+                registerActionToReg[inst->name.name.c_str()] = resolved;
+            }
+        }
+        // Do not visit constructor arguments as ordinary uses. A RegisterAction
+        // keeps its target register live only when a retained statement actually
+        // references the action instance (e.g., execute/apply on a kept path).
+        return false;
+    }
+
+    bool preorder(const IR::PathExpression* pe) override {
+        std::string name = resolvePathName(pe);
+        if (name.empty()) {
+            return false;
+        }
+        markRegisterName(name);
+        auto raIt = registerActionToReg.find(name);
+        if (raIt != registerActionToReg.end()) {
+            used.insert(raIt->second);
+        }
+        return false;
+    }
+
+ private:
+    const std::set<std::string>& declRegs;
+    P4::ReferenceMap* refMap;
+    std::unordered_map<std::string, std::string> registerActionToReg;
+
+    std::string resolvePathName(const IR::PathExpression* pe) const {
+        if (!pe || !pe->path) {
+            return "";
         }
         std::string name;
         if (refMap) {
@@ -127,27 +174,32 @@ class SliceRegisterUseCollector : public Inspector {
         if (name.empty()) {
             name = pe->path->name.toString().c_str();
         }
+        return name;
+    }
+
+    std::string resolveRegisterName(const std::string& name) const {
         if (declRegs.count(name) > 0) {
-            used.insert(name);
-            return false;
+            return name;
         }
         std::string withSuffix = name + "_0";
         if (declRegs.count(withSuffix) > 0) {
-            used.insert(withSuffix);
-            return false;
+            return withSuffix;
         }
         if (name.size() > 2 && name.rfind("_0") == name.size() - 2) {
             std::string trimmed = name.substr(0, name.size() - 2);
             if (declRegs.count(trimmed) > 0) {
-                used.insert(trimmed);
+                return trimmed;
             }
         }
-        return false;
+        return "";
     }
 
- private:
-    const std::set<std::string>& declRegs;
-    P4::ReferenceMap* refMap;
+    void markRegisterName(const std::string& name) {
+        std::string reg = resolveRegisterName(name);
+        if (!reg.empty()) {
+            used.insert(reg);
+        }
+    }
 };
 
 const IR::P4Program* applySlice(const IR::P4Program* program,

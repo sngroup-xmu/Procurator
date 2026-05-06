@@ -49,8 +49,9 @@ private:
 	// Workaround: some p4c pipelines drop out/inout directions on actions even when the
 	// source uses them, but the action body still assigns to those parameters.
 	std::unordered_map<cstring, std::vector<IR::Direction>> actionParamDirections;
-    std::map<cstring, int> typeDefs;
-    std::map<cstring, std::map<cstring, cstring>> procParamStructTypes;
+	std::map<cstring, int> typeDefs;
+	std::map<cstring, std::map<cstring, cstring>> enumLiteralValues;
+	std::map<cstring, std::map<cstring, cstring>> procParamStructTypes;
 
 	std::vector<const IR::Declaration_Instance*> instances;
 	std::set<cstring> stacks;
@@ -72,6 +73,8 @@ private:
 	// pure function of its data tuple; do not generalize this to arbitrary
 	// extern .get methods.
 	std::map<cstring, cstring> hashExternReturnTypes;
+	std::map<cstring, cstring> hashExternAlgorithms;
+	std::map<cstring, cstring> hashExternAlgorithmNames;
 	struct RandomExternInfo {
 		cstring retType;
 		cstring lo;
@@ -108,9 +111,12 @@ private:
 	int maxBitvectorSize;
 	std::map<cstring, int> sizes; // 0 means bool
 		cstring inferBoogieType(const IR::Type *type, cstring exprText);
-		cstring renderBoogieZeroLiteral(const cstring& typeName);
-		cstring renderBoogieOneLiteral(const cstring& typeName);
-		cstring getOrCreateUnusedVar(cstring typeName);
+	cstring renderBoogieZeroLiteral(const cstring& typeName);
+	cstring renderBoogieOneLiteral(const cstring& typeName);
+	cstring renderBoolToBitvector(const cstring& expr, int width);
+	cstring renderBitvectorToBool(const cstring& expr, int width);
+	cstring coerceBitvectorExprWidth(const cstring& expr, int srcWidth, int dstWidth);
+	cstring getOrCreateUnusedVar(cstring typeName);
 	cstring getOrCreateNamedVar(const std::string& name, cstring typeName);
 	cstring getOrCreateFreshVar(const std::string& prefix, cstring typeName);
 	int getTypeBitwidth(const IR::Type *type);
@@ -272,6 +278,7 @@ public:
 	void translate(const IR::Type_Error *typeError);
 	void translate(const IR::Type_Extern *typeExtern);
 	void translate(const IR::Type_Enum *typeEnum);
+	void translate(const IR::Type_SerEnum *typeSerEnum);
 	void translate(const IR::Declaration_Instance *instance, cstring instanceName="");
 
 	void translate(const IR::Type_Struct *typeStruct);

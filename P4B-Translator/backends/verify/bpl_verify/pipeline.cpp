@@ -85,6 +85,34 @@ std::unordered_set<cstring> normalizeKeepVarNames(const std::vector<cstring>& na
     return out;
 }
 
+std::unordered_set<cstring> tableNamesFromKeepVars(const std::unordered_set<cstring>& keepVars) {
+    std::unordered_set<cstring> out;
+    const std::string actionRunSuffix = ".action_run";
+    const std::string actionPrefix = ".action.";
+    for (const auto& keep : keepVars) {
+        if (keep == nullptr || keep == "") {
+            continue;
+        }
+        std::string s = keep.c_str();
+        auto actionRun = s.find(actionRunSuffix);
+        if (actionRun != std::string::npos && actionRun + actionRunSuffix.size() == s.size()) {
+            std::string table = s.substr(0, actionRun);
+            if (!table.empty()) {
+                out.insert(cstring(table.c_str()));
+            }
+            continue;
+        }
+        auto action = s.find(actionPrefix);
+        if (action != std::string::npos) {
+            std::string table = s.substr(0, action);
+            if (!table.empty()) {
+                out.insert(cstring(table.c_str()));
+            }
+        }
+    }
+    return out;
+}
+
 int runSlicingPipeline(const IR::P4Program** program,
                        P4::ReferenceMap* refMap,
                        P4::TypeMap* typeMap,
@@ -110,6 +138,7 @@ int runSlicingPipeline(const IR::P4Program** program,
     Slicer slicer(*program, refMap, typeMap);
     auto sres = slicer.run(sopts);
     auto extraKeepVars = normalizeKeepVarNames(options.slicingKeepVarNames);
+    auto extraKeepTables = tableNamesFromKeepVars(extraKeepVars);
 
     if (doSlicing) {
         if (!options.loadIRFromJson) {
@@ -133,6 +162,9 @@ int runSlicingPipeline(const IR::P4Program** program,
                 options.slicingFilterTables = true;
                 options.slicingKeepTables.clear();
                 for (const auto& t : sres.keepTables) {
+                    options.slicingKeepTables.insert(normalizeTableNameForBoogie(t));
+                }
+                for (const auto& t : extraKeepTables) {
                     options.slicingKeepTables.insert(normalizeTableNameForBoogie(t));
                 }
             }
