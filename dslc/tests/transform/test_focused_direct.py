@@ -385,6 +385,211 @@ procedure {:inline 1} s_Ingress()
         self.assertNotIn("assert !procurator_bad;", res.text)
         self.assertEqual(len(res.assert_lines), 2)
 
+    def test_action_guarded_assert_uses_guarded_writer_site_only(self) -> None:
+        bpl = """\
+var s_reg:[bv16]bv8;
+var s_reg__last_index:bv16;
+var s_reg__last_value:bv8;
+var s_reg__wrote_any:bool;
+var s_reg__wrote_index0:bool;
+var s_reg__last0_value:bv8;
+var s_meta.register_index:bv16;
+var s_tmp:bv8;
+var s_pkt_bin2.action_run:int;
+const s_pkt_bin2.action.SwitchIngress_Update_bin2:int;
+const s_pkt_bin2.action.SwitchIngress_Init0_bin2:int;
+
+procedure {:inline 1} s_get_register_index()
+  modifies s_meta.register_index;
+{
+  s_meta.register_index := s_idx_calc.get$bv32();
+}
+
+procedure {:inline 1} s_SwitchIngress_Init0_bin2()
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value,
+           s_meta.register_index;
+{
+  assume s_meta.register_index == 0bv16;
+  s_reg[0bv16] := 0bv8;
+  s_reg__last_index := 0bv16;
+  s_reg__last_value := 0bv8;
+  s_reg__wrote_any := true;
+  s_reg__wrote_index0 := true;
+  s_reg__last0_value := 0bv8;
+}
+
+procedure {:inline 1} s_SwitchIngress_Update_bin2()
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value,
+           s_meta.register_index, s_tmp;
+{
+  call s_get_register_index();
+  s_tmp := s_reg.read(s_reg, s_meta.register_index);
+  call s_reg.write(s_meta.register_index, add.bv8(s_tmp, 1bv8));
+}
+
+function {:inline true}s_reg.read(r:[bv16]bv8, i:bv16) returns (bv8) { r[i] }
+procedure {:inline 1} s_reg.write(i:bv16, v:bv8)
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value;
+{
+  s_reg[i] := v;
+  s_reg__last_index := i;
+  s_reg__last_value := v;
+  s_reg__wrote_any := true;
+  if (i == 0bv16) { s_reg__wrote_index0 := true; s_reg__last0_value := v; }
+}
+
+procedure {:inline 1} s_pkt_bin2.apply()
+  modifies s_pkt_bin2.action_run, s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value,
+           s_meta.register_index, s_tmp;
+{
+  goto s_action_update, s_action_init0;
+
+  s_action_update:
+  assume s_pkt_bin2.action_run == s_pkt_bin2.action.SwitchIngress_Update_bin2;
+  call s_SwitchIngress_Update_bin2();
+  goto s_exit;
+
+  s_action_init0:
+  assume s_pkt_bin2.action_run == s_pkt_bin2.action.SwitchIngress_Init0_bin2;
+  call s_SwitchIngress_Init0_bin2();
+  goto s_exit;
+
+  s_exit:
+}
+
+procedure mainProcedure()
+  modifies s_pkt_bin2.action_run, s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value,
+           s_meta.register_index, s_tmp;
+{
+  call s_pkt_bin2.apply();
+  if (s_pkt_bin2.action_run == s_pkt_bin2.action.SwitchIngress_Update_bin2) {
+    assert !((s_reg__wrote_any && (s_reg__last_value == 0bv8)));
+  }
+}
+"""
+
+        res = focus_dynamic_index0_register_assert(bpl)
+
+        self.assertTrue(res.changed)
+        self.assertNotIn("assert !((s_reg__wrote_index0 && (s_reg__last0_value == 0bv8)));", res.text)
+        self.assertEqual(len(res.assert_lines), 1)
+        assert_line = res.assert_lines[0]
+        text_lines = res.text.splitlines()
+        self.assertIn("assert false;", text_lines[assert_line - 1])
+        self.assertIn(
+            "s_reg[0bv16] := add.bv8(s_tmp, 1bv8);",
+            "\n".join(text_lines[max(0, assert_line - 8) : assert_line + 2]),
+        )
+        init0_body = res.text.split("procedure {:inline 1} s_SwitchIngress_Init0_bin2()", 1)[1].split(
+            "procedure {:inline 1} s_SwitchIngress_Update_bin2()", 1
+        )[0]
+        self.assertNotIn("assert false;", init0_body)
+
+    def test_packed_register_slice_assert_is_scalarized(self) -> None:
+        bpl = """\
+var s_reg:[bv15]bv64;
+var s_reg__last_index:bv15;
+var s_reg__last_value:bv64;
+var s_reg__wrote_any:bool;
+var s_reg__wrote_index0:bool;
+var s_reg__last0_value:bv64;
+var s_meta.pool_index:bv15;
+var s_tmp:bv64;
+
+procedure {:inline 1} s_get_pool_index()
+  modifies s_meta.pool_index;
+{
+  s_meta.pool_index := s_idx_calc.get$bv32();
+}
+
+function {:inline true}s_reg.read(r:[bv15]bv64, i:bv15) returns (bv64) { r[i] }
+procedure {:inline 1} s_reg.write(i:bv15, v:bv64)
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value;
+{
+  s_reg[i] := v;
+  s_reg__last_index := i;
+  s_reg__last_value := v;
+  s_reg__wrote_any := true;
+  if (i == 0bv15) { s_reg__wrote_index0 := true; s_reg__last0_value := v; }
+}
+
+procedure {:inline 1} s_UpdatePacked()
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value,
+           s_meta.pool_index, s_tmp;
+{
+  call s_get_pool_index();
+  s_tmp := s_reg.read(s_reg, s_meta.pool_index);
+  call s_reg.write(s_meta.pool_index, add.bv32(s_tmp[64:32], 1bv32)++s_tmp[32:0]);
+  assert !((s_reg__wrote_any && (s_reg__last_value[64:32] == 0bv32)));
+}
+"""
+
+        res = focus_dynamic_index0_register_assert(bpl)
+
+        self.assertTrue(res.changed)
+        self.assertEqual(res.target_reg, "s_reg")
+        self.assertEqual(res.idx_var, "s_meta.pool_index")
+        self.assertEqual(res.target_value, "0bv32")
+        self.assertEqual(res.target_slice, (64, 32))
+        self.assertIn("s_tmp := s_reg[0bv15];", res.text)
+        self.assertIn("s_reg[0bv15] := add.bv32(s_tmp[64:32], 1bv32)++s_tmp[32:0];", res.text)
+        self.assertIn("assert !((s_reg__wrote_index0 && (s_reg__last0_value[64:32] == 0bv32)));", res.text)
+        refreshed = find_focused_direct_assert_lines(res.text, "s_reg", "0bv32", (64, 32))
+        self.assertEqual(refreshed, res.assert_lines)
+
+    def test_ambiguous_index_definition_still_constrains_target_accesses(self) -> None:
+        bpl = """\
+var s_reg:[bv15]bv64;
+var s_reg__last_index:bv15;
+var s_reg__last_value:bv64;
+var s_reg__wrote_any:bool;
+var s_reg__wrote_index0:bool;
+var s_reg__last0_value:bv64;
+var s_meta.pool_index:bv15;
+var s_tmp:bv64;
+
+procedure {:inline 1} s_udp_path()
+  modifies s_meta.pool_index;
+{
+  s_meta.pool_index := 1bv15;
+}
+
+procedure {:inline 1} s_rdma_path()
+  modifies s_meta.pool_index;
+{
+  s_meta.pool_index := 2bv15;
+}
+
+function {:inline true}s_reg.read(r:[bv15]bv64, i:bv15) returns (bv64) { r[i] }
+procedure {:inline 1} s_reg.write(i:bv15, v:bv64)
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value;
+{
+  s_reg[i] := v;
+  s_reg__last_index := i;
+  s_reg__last_value := v;
+  s_reg__wrote_any := true;
+  if (i == 0bv15) { s_reg__wrote_index0 := true; s_reg__last0_value := v; }
+}
+
+procedure {:inline 1} s_UpdatePacked()
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value,
+           s_meta.pool_index, s_tmp;
+{
+  call s_udp_path();
+  call s_rdma_path();
+  s_tmp := s_reg.read(s_reg, s_meta.pool_index);
+  call s_reg.write(s_meta.pool_index, s_tmp);
+  assert !((s_reg__wrote_any && (s_reg__last_value[64:32] == 0bv32)));
+}
+"""
+
+        res = focus_dynamic_index0_register_assert(bpl)
+
+        self.assertTrue(res.changed)
+        self.assertIn("assume s_meta.pool_index == 0bv15;", res.text)
+        self.assertIn("s_tmp := s_reg[0bv15];", res.text)
+        self.assertIn("s_reg[0bv15] := s_tmp;", res.text)
+
     def test_old_broad_fail_fast_is_not_an_accepted_focused_line(self) -> None:
         bpl = """\
 var s_reg:[bv16]bv32;
@@ -546,6 +751,158 @@ procedure {:inline 1} s_Ingress()
         self.assertIn("s_tmp := s_reg[0bv16];", res.text)
         self.assertIn("s_reg[0bv16] := s_tmp;", res.text)
         self.assertNotIn("call s_reg.write(s_meta.register_index, s_tmp);", res.text)
+
+    def test_generic_call_helper_pins_hash_based_index(self) -> None:
+        bpl = """\
+var flowdos_reg:[bv32]bv8;
+var flowdos_reg__last_index:bv32;
+var flowdos_reg__last_value:bv8;
+var flowdos_reg__wrote_any:bool;
+var flowdos_reg__wrote_index0:bool;
+var flowdos_reg__last0_value:bv8;
+var flowdos_counter_pos:bv32;
+var flowdos_counter_val:bv8;
+var flowdos_src:bv32;
+
+procedure {:inline 1} flowdos_compute_hash()
+  modifies flowdos_counter_pos, flowdos_src;
+{
+  flowdos_src := 167772161bv32;
+  flowdos_counter_pos := flowdos_hash__crc16$bv32$bv32$bv32(0bv32, flowdos_src, 4096bv32);
+}
+
+function {:inline true}flowdos_reg.read(r:[bv32]bv8, i:bv32) returns (bv8) { r[i] }
+procedure {:inline 1} flowdos_reg.write(i:bv32, v:bv8)
+  modifies flowdos_reg, flowdos_reg__last_index, flowdos_reg__last_value, flowdos_reg__wrote_any, flowdos_reg__wrote_index0, flowdos_reg__last0_value;
+{
+  flowdos_reg[i] := v;
+  flowdos_reg__last_index := i;
+  flowdos_reg__last_value := v;
+  flowdos_reg__wrote_any := true;
+  if (i == 0bv32) { flowdos_reg__wrote_index0 := true; flowdos_reg__last0_value := v; }
+}
+
+procedure {:inline 1} flowdos_ingress()
+  modifies flowdos_reg, flowdos_reg__last_index, flowdos_reg__last_value, flowdos_reg__wrote_any, flowdos_reg__wrote_index0, flowdos_reg__last0_value,
+           flowdos_counter_pos, flowdos_counter_val, flowdos_src;
+{
+  call flowdos_compute_hash();
+  flowdos_counter_val := flowdos_reg.read(flowdos_reg, flowdos_counter_pos);
+  call flowdos_reg.write(flowdos_counter_pos, flowdos_counter_val);
+  assert !((flowdos_reg__wrote_any && (flowdos_reg__last_value == 0bv8)));
+}
+"""
+
+        res = focus_dynamic_index0_register_assert(bpl)
+
+        self.assertTrue(res.changed)
+        self.assertEqual(res.idx_var, "flowdos_counter_pos")
+        self.assertEqual(res.zero, "0bv32")
+        self.assertIn("assume flowdos_counter_pos == 0bv32;", res.text)
+        self.assertIn("flowdos_counter_val := flowdos_reg[0bv32];", res.text)
+        self.assertIn("flowdos_reg[0bv32] := flowdos_counter_val;", res.text)
+        self.assertNotIn("call flowdos_reg.write(flowdos_counter_pos, flowdos_counter_val);", res.text)
+
+    def test_write_with_expression_value_is_scalarized(self) -> None:
+        bpl = """\
+var s_reg:[bv16]bv32;
+var s_reg__last_index:bv16;
+var s_reg__last_value:bv32;
+var s_reg__wrote_any:bool;
+var s_reg__wrote_index0:bool;
+var s_reg__last0_value:bv32;
+var s_meta.register_index:bv16;
+var s_tmp:bv32;
+
+procedure {:inline 1} s_get_register_index()
+  modifies s_meta.register_index;
+{
+  s_meta.register_index := s_idx_calc.get$bv32();
+}
+
+function {:inline true}s_reg.read(r:[bv16]bv32, i:bv16) returns (bv32) { r[i] }
+procedure {:inline 1} s_reg.write(i:bv16, v:bv32)
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value;
+{
+  s_reg[i] := v;
+  s_reg__last_index := i;
+  s_reg__last_value := v;
+  s_reg__wrote_any := true;
+  if (i == 0bv16) { s_reg__wrote_index0 := true; s_reg__last0_value := v; }
+}
+
+procedure {:inline 1} s_Ingress()
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value,
+           s_meta.register_index, s_tmp;
+{
+  call s_get_register_index();
+  s_tmp := s_reg.read(s_reg, s_meta.register_index);
+  call s_reg.write(s_meta.register_index, add.bv32(s_tmp, 1bv32));
+  assert !((s_reg__wrote_any && (s_reg__last_value == 0bv32)));
+}
+"""
+
+        res = focus_dynamic_index0_register_assert(bpl)
+
+        self.assertTrue(res.changed)
+        self.assertIn("s_reg[0bv16] := add.bv32(s_tmp, 1bv32);", res.text)
+        self.assertNotIn("call s_reg.write(s_meta.register_index, add.bv32(s_tmp, 1bv32));", res.text)
+
+    def test_target_fail_fast_not_duplicated_for_same_target_value_write(self) -> None:
+        bpl = """\
+var s_reg:[bv16]bv32;
+var s_reg__last_index:bv16;
+var s_reg__last_value:bv32;
+var s_reg__wrote_any:bool;
+var s_reg__wrote_index0:bool;
+var s_reg__last0_value:bv32;
+var s_meta.register_index:bv16;
+var s_tmp:bv32;
+
+procedure {:inline 1} s_get_register_index()
+  modifies s_meta.register_index;
+{
+  s_meta.register_index := s_idx_calc.get$bv32();
+}
+
+function {:inline true}s_reg.read(r:[bv16]bv32, i:bv16) returns (bv32) { r[i] }
+procedure {:inline 1} s_reg.write(i:bv16, v:bv32)
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value;
+{
+  s_reg[i] := v;
+  s_reg__last_index := i;
+  s_reg__last_value := v;
+  s_reg__wrote_any := true;
+  if (s_reg__wrote_any && s_reg__last_value == 0bv32) {
+    assert false;
+    assume false;
+  }
+  if (i == 0bv16) { s_reg__wrote_index0 := true; s_reg__last0_value := v; }
+}
+
+procedure {:inline 1} s_Ingress()
+  modifies s_reg, s_reg__last_index, s_reg__last_value, s_reg__wrote_any, s_reg__wrote_index0, s_reg__last0_value,
+           s_meta.register_index, s_tmp;
+{
+  call s_get_register_index();
+  s_tmp := s_reg.read(s_reg, s_meta.register_index);
+  call s_reg.write(s_meta.register_index, add.bv32(s_tmp, 1bv32));
+  if (s_tmp == 0bv32) {
+    call s_reg.write(s_meta.register_index, 0bv32);
+  }
+}
+"""
+
+        res = focus_dynamic_index0_register_assert(bpl)
+        self.assertTrue(res.changed)
+        # Only one injected focused fail-fast check is needed (for the non-target
+        # write); target-value writes should not duplicate it.
+        self.assertEqual(
+            res.text.count(
+                "if (s_reg__wrote_index0 && s_reg__last0_value == 0bv32) {"
+            ),
+            1,
+        )
 
 
 if __name__ == "__main__":

@@ -36,6 +36,8 @@ class SlicingPlan:
 
     # Per-node seeds passed to P4B (`--slicing-vars=...`).
     slicing_vars: Dict[str, List[str]]
+    # Boogie-level observation symbols passed to P4B as `--slicing-keep-vars`.
+    slicing_keep_vars: Dict[str, List[str]]
     # Packet vars referenced in DSL/spec (for patching missing Boogie decls in raw .bpl).
     required_packet_vars: Dict[str, List[str]]
     # Packet vars that must stay in the per-pass havoc list (env pruning force-keep).
@@ -113,6 +115,15 @@ def build_slicing_plan(
                 if idx_suffix:
                     seeds[node].add(with_suffix + idx_suffix)
 
+    def add_keep_var(keep_vars: Dict[str, Set[str]], node: str, name: str) -> None:
+        if node not in keep_vars:
+            return
+        if name in dsl_locals and "." not in name and "[" not in name:
+            return
+        for rewritten in _rewrite_seed_names(name):
+            if rewritten:
+                keep_vars[node].add(rewritten)
+
     def is_other_node_ref(current_node: str, name: str) -> bool:
         for other in spec.imports.keys():
             if other != current_node and name.startswith(f"{other}_"):
@@ -120,6 +131,7 @@ def build_slicing_plan(
         return False
 
     seeds: Dict[str, Set[str]] = {a: set() for a in spec.imports.keys()}
+    keep_vars: Dict[str, Set[str]] = {a: set() for a in spec.imports.keys()}
     required_packet: Dict[str, Set[str]] = {a: set() for a in spec.imports.keys()}
 
     def note_required_packet(node: str, name: str) -> None:
@@ -133,6 +145,7 @@ def build_slicing_plan(
         node: str,
         exprs: Iterable[Tree],
         include_as_seed: bool,
+        include_keep_var: bool = False,
     ) -> None:
         for expr in exprs:
             for v in collect_dotted_vars(expr):
@@ -145,6 +158,9 @@ def build_slicing_plan(
                 note_required_packet(node, raw)
                 if include_as_seed:
                     add_seed(seeds, node, raw)
+                    add_keep_var(keep_vars, node, raw)
+                elif include_keep_var:
+                    add_keep_var(keep_vars, node, raw)
 
     def scan_statements(*, node: str, stmts: Iterable[Tree]) -> None:
         for stmt in stmts:
@@ -169,8 +185,14 @@ def build_slicing_plan(
                     raw = v
                 note_required_packet(node, raw)
                 add_seed(seeds, node, raw)
+                add_keep_var(keep_vars, node, raw)
 
-    def scan_required_only_stmts(*, node: str, stmts: Iterable[Tree]) -> None:
+    def scan_required_only_stmts(
+        *,
+        node: str,
+        stmts: Iterable[Tree],
+        include_keep_var: bool = False,
+    ) -> None:
         for stmt in stmts:
             for v in collect_dotted_vars(stmt):
                 if v.startswith(f"{node}_"):
@@ -180,15 +202,17 @@ def build_slicing_plan(
                 else:
                     raw = v
                 note_required_packet(node, raw)
+                if include_keep_var:
+                    add_keep_var(keep_vars, node, raw)
 
     # Node-local: seeds from assertions + DSL statements; assumptions are NOT slice criteria.
     for node, nd in spec.nodes.items():
         scan_exprs(node=node, exprs=nd.assert_exprs, include_as_seed=True)
         scan_statements(node=node, stmts=nd.statements)
         # Assumptions may still reference packet vars; keep them as required decls only.
-        scan_exprs(node=node, exprs=nd.assume_exprs, include_as_seed=False)
+        scan_exprs(node=node, exprs=nd.assume_exprs, include_as_seed=False, include_keep_var=True)
         # Env blocks are packet generation constraints; never slice on them, but keep decls.
-        scan_required_only_stmts(node=node, stmts=nd.env_statements)
+        scan_required_only_stmts(node=node, stmts=nd.env_statements, include_keep_var=True)
 
     # Global asserts: map to node prefixes if present, otherwise conservatively apply to all nodes.
     for expr in spec.global_decl.assert_exprs:
@@ -200,12 +224,14 @@ def build_slicing_plan(
                     raw = v[len(node) + 1 :]
                     note_required_packet(node, raw)
                     add_seed(seeds, node, raw)
+                    add_keep_var(keep_vars, node, raw)
                     matched = True
                     break
             if not matched:
                 for node in spec.imports.keys():
                     note_required_packet(node, v)
                     add_seed(seeds, node, v)
+                    add_keep_var(keep_vars, node, v)
 
     # Global assumes: required decls only.
     for expr in spec.global_decl.assume_exprs:
@@ -216,11 +242,13 @@ def build_slicing_plan(
                 if v.startswith(f"{node}_"):
                     raw = v[len(node) + 1 :]
                     note_required_packet(node, raw)
+                    add_keep_var(keep_vars, node, raw)
                     matched = True
                     break
             if not matched:
                 for node in spec.imports.keys():
                     note_required_packet(node, v)
+                    add_keep_var(keep_vars, node, v)
 
     # Host scope: treat as constraints/seeds for the connected node.
     for host, hd in spec.hosts.items():
@@ -229,8 +257,8 @@ def build_slicing_plan(
             continue
         scan_exprs(node=target, exprs=hd.assert_exprs, include_as_seed=True)
         scan_statements(node=target, stmts=hd.statements)
-        scan_exprs(node=target, exprs=hd.assume_exprs, include_as_seed=False)
-        scan_required_only_stmts(node=target, stmts=hd.env_statements)
+        scan_exprs(node=target, exprs=hd.assume_exprs, include_as_seed=False, include_keep_var=True)
+        scan_required_only_stmts(node=target, stmts=hd.env_statements, include_keep_var=True)
 
     if enable_slicing:
         # System-level communication seeds:
@@ -274,8 +302,10 @@ def build_slicing_plan(
         forced_packet_inputs[node] = sorted(v for v in vars_ if is_packet_var(v) and not is_skipped_input_var(v))
 
     required_packet_vars: Dict[str, List[str]] = {k: sorted(v) for k, v in required_packet.items()}
+    slicing_keep_vars: Dict[str, List[str]] = {k: sorted(v) for k, v in keep_vars.items()}
     return SlicingPlan(
         slicing_vars=slicing_vars if enable_slicing else {},
+        slicing_keep_vars=slicing_keep_vars if enable_slicing else {},
         required_packet_vars=required_packet_vars,
         forced_packet_inputs=forced_packet_inputs,
     )

@@ -50,6 +50,12 @@ class BoogieHarnessDslMixin:
                 if mapped is not None:
                     return mapped
             return name
+        if t == "bit_slice" and len(ch) == 3:
+            base = self._expr_to_boogie(ch[0], current_node=current_node, prefer_reg_dbg=prefer_reg_dbg)
+            return f"{base}[{ch[1]}:{ch[2]}]"
+        if t == "bit_slice" and len(ch) == 2:
+            base = self._expr_to_boogie(ch[0], current_node=current_node, prefer_reg_dbg=prefer_reg_dbg)
+            return f"{base}{ch[1]}"
 
         op_map = {
             "add": "+",
@@ -87,6 +93,24 @@ class BoogieHarnessDslMixin:
                 lhs_render = self._expr_to_boogie(lhs, current_node, prefer_reg_dbg=prefer_reg_dbg)
                 rhs_render = self._expr_to_boogie(rhs, current_node, prefer_reg_dbg=prefer_reg_dbg)
                 if t in {"eq", "neq", "less", "less_eq", "greater", "greater_eq"}:
+                    if (
+                        isinstance(ul, Tree)
+                        and str(ul.data) == "bit_slice"
+                        and isinstance(ur, Tree)
+                        and str(ur.data) == "number"
+                    ):
+                        w = self._slice_width_bits(ul)
+                        if w is not None:
+                            rhs_render = f"{ur.children[0]}bv{w}"
+                    if (
+                        isinstance(ur, Tree)
+                        and str(ur.data) == "bit_slice"
+                        and isinstance(ul, Tree)
+                        and str(ul.data) == "number"
+                    ):
+                        w = self._slice_width_bits(ur)
+                        if w is not None:
+                            lhs_render = f"{ul.children[0]}bv{w}"
                     if (
                         isinstance(ul, Tree)
                         and str(ul.data) == "dotted_var"
@@ -380,6 +404,85 @@ class BoogieHarnessDslMixin:
                 return
 
         for stmt in nd.statements:
+            if isinstance(stmt, Tree):
+                visit(stmt)
+
+        return out
+
+    def _collect_env_modified_boogie_vars(self, owner: str) -> set[str]:
+        """
+        Collect Boogie globals that may be assigned by an env block.
+
+        Env blocks are emitted in EnvThread or host-send scheduler steps, not inside
+        the P4 procedure they are preparing.  Their LHS variables therefore need to
+        appear in the surrounding harness procedure's `modifies` clause.  This is
+        especially important when a host script intentionally drives P4 table-action
+        selectors or action parameters such as `sw_table.action_run`.
+        """
+
+        if owner in self._spec.hosts:
+            env_statements = self._spec.hosts[owner].env_statements
+            local_dsl_vars = self._dsl_host_vars.get(owner, {})
+        else:
+            env_statements = self._spec.nodes.get(owner, NodeDecl(name=owner)).env_statements
+            local_dsl_vars = self._dsl_node_vars.get(owner, {})
+
+        out: set[str] = set()
+
+        def declared_boogie_global(name: str) -> bool:
+            base = name.split("[", 1)[0] if "[" in name else name
+            for alias in self._spec.imports.keys():
+                prefix = f"{alias}_"
+                if not base.startswith(prefix):
+                    continue
+                return base[len(prefix) :] in self._node_declared_vars.get(alias, set())
+            for host in self._spec.hosts.keys():
+                prefix = f"{host}_"
+                if not base.startswith(prefix):
+                    continue
+                return base[len(prefix) :] in self._host_declared_vars.get(host, set())
+            return base.startswith("dsl_") or "_dsl_" in base
+
+        def add_lhs(lhs_tree: Tree) -> None:
+            lhs_name = self._dotted_var_to_str(lhs_tree)
+            if _dsl_is_simple_local_name(lhs_name) and lhs_name in local_dsl_vars:
+                out.add(f"{owner}_dsl_{lhs_name}")
+                return
+            if _dsl_is_simple_local_name(lhs_name) and lhs_name in self._dsl_global_vars:
+                out.add(f"dsl_{lhs_name}")
+                return
+
+            lhs = self._dotted_var_to_boogie(lhs_tree, current_node=owner)
+            base = lhs.split("[", 1)[0] if "[" in lhs else lhs
+            if declared_boogie_global(base):
+                out.add(base)
+
+        def visit(stmt: Tree) -> None:
+            st = str(stmt.data)
+            if st == "var_decl":
+                return
+            if st == "assignment":
+                lhs_tree = stmt.children[0]
+                if isinstance(lhs_tree, Tree):
+                    add_lhs(lhs_tree)
+                return
+            if st == "if_statement":
+                for child in stmt.children[1:]:
+                    if not isinstance(child, Tree):
+                        continue
+                    if str(child.data) == "else_block":
+                        for nested in child.children:
+                            if isinstance(nested, Tree):
+                                visit(nested)
+                    else:
+                        visit(child)
+                return
+            if st == "env_block":
+                for child in stmt.children:
+                    if isinstance(child, Tree):
+                        visit(child)
+
+        for stmt in env_statements:
             if isinstance(stmt, Tree):
                 visit(stmt)
 
@@ -859,7 +962,30 @@ class BoogieHarnessDslMixin:
             return self._infer_expr_width_bits(expr.children[0])
         if t == "dotted_var":
             return self._infer_bv_width(expr)
+        if t == "bit_slice":
+            return self._slice_width_bits(expr)
         return None
+
+    @staticmethod
+    def _slice_width_bits(expr: Tree) -> Optional[int]:
+        if not isinstance(expr, Tree) or str(expr.data) != "bit_slice":
+            return None
+        try:
+            if len(expr.children) == 3:
+                hi = int(str(expr.children[1]))
+                lo = int(str(expr.children[2]))
+            elif len(expr.children) == 2:
+                bounds = str(expr.children[1]).strip("[]")
+                hi_s, lo_s = bounds.split(":", 1)
+                hi = int(hi_s)
+                lo = int(lo_s)
+            else:
+                return None
+        except Exception:
+            return None
+        if hi <= lo:
+            return None
+        return hi - lo
 
 
 __all__ = ['BoogieHarnessEmitter']

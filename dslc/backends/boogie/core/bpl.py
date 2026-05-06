@@ -26,6 +26,14 @@ _BPL_CONST_DECL_RE = re.compile(
     r"^\s*const(?:\s+unique)?\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$",
     re.MULTILINE,
 )
+_BPL_FUNC_DECL_RE = re.compile(r"^\s*function\b[^;]*;\s*$", re.MULTILINE)
+_BPL_PROC_DECL_RE = re.compile(
+    r"^\s*procedure(?:\s*\{:[^}]+\}\s*)*\s+[A-Za-z0-9_\.\$]+\s*\([^)]*\)"
+    r"(?:\s*returns\s*\([^)]*\))?\s*",
+    re.MULTILINE,
+)
+_BPL_TYPED_BINDING_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_\.\$]*\s*:\s*([A-Za-z_][A-Za-z0-9_\.\$]*)")
+_BPL_RETURNS_RE = re.compile(r"\breturns\s*\(([^)]*)\)")
 _BPL_TYPE_TOKEN_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_\.\$]*\b")
 _BPL_BV_TYPE_RE = re.compile(r"^bv\d+$")
 
@@ -50,10 +58,26 @@ def find_missing_type_decls(raw_bpl: str) -> List[str]:
     declared = {m.group(1) for m in _BPL_TYPE_DECL_RE.finditer(raw_bpl)}
     used: set[str] = set()
 
+    def add_return_types(ret: str) -> None:
+        if ":" in ret:
+            used.update(_BPL_TYPED_BINDING_RE.findall(ret))
+        else:
+            used.update(_BPL_TYPE_TOKEN_RE.findall(ret))
+
     for m in _BPL_VAR_DECL_RE.finditer(raw_bpl):
         used.update(_BPL_TYPE_TOKEN_RE.findall(m.group(2)))
     for m in _BPL_CONST_DECL_RE.finditer(raw_bpl):
         used.update(_BPL_TYPE_TOKEN_RE.findall(m.group(2)))
+    for m in _BPL_FUNC_DECL_RE.finditer(raw_bpl):
+        decl = m.group(0)
+        used.update(_BPL_TYPED_BINDING_RE.findall(decl))
+        for ret in _BPL_RETURNS_RE.findall(decl):
+            add_return_types(ret)
+    for m in _BPL_PROC_DECL_RE.finditer(raw_bpl):
+        decl = m.group(0)
+        used.update(_BPL_TYPED_BINDING_RE.findall(decl))
+        for ret in _BPL_RETURNS_RE.findall(decl):
+            add_return_types(ret)
 
     missing = sorted(t for t in used if (t not in declared) and (not _is_builtin_type_ident(t)))
     return missing
@@ -83,7 +107,7 @@ def collect_input_vars_and_egress_type(
     Extract:
       (a) a conservative list of input packet/metadata vars to havoc each pass,
       (b) the type of standard_metadata.egress_port for forwarding decisions,
-      (c) declared variables (raw names, for consistency checks).
+      (c) declared value symbols (raw names, for consistency checks and DSL refs).
     """
     input_vars: List[str] = []
     egress_type: str = ""
@@ -115,6 +139,16 @@ def collect_input_vars_and_egress_type(
                 continue
             input_vars.append(name)
 
+    const_decl_re = re.compile(
+        r"^\s*const(?:\s+unique)?\s+([A-Za-z0-9_\.\$]+)\s*:\s*([^;]+);\s*$",
+        re.MULTILINE,
+    )
+    for m in const_decl_re.finditer(raw_bpl):
+        # Constants are not packet inputs and should never be copied/havoced, but
+        # DSL env/assert expressions may legitimately refer to table action enum
+        # values such as `Ingress_tbl.action.Ingress_act`.
+        declared_vars.add(m.group(1))
+
     seen = set()
     dedup: List[str] = []
     for v in input_vars:
@@ -145,7 +179,9 @@ def filter_input_vars_by_usage(
 
 
 _P4_VAR_REF_RE = re.compile(
-    r"\b(?:hdr|hdr_eg|meta|standard_metadata|[A-Za-z0-9_]+_md)\.[A-Za-z0-9_\.\$]+\b"
+    r"(?<![A-Za-z0-9_\.\$])"
+    r"(?:hdr|hdr_eg|meta|standard_metadata|[A-Za-z0-9_]+_md)\.[A-Za-z0-9_\.\$]+"
+    r"(?![A-Za-z0-9_\.\$])"
 )
 
 def find_missing_var_decls(

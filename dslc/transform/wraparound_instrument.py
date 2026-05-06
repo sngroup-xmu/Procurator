@@ -300,6 +300,7 @@ def instrument_bpl_text(
     closure_unroll_steps: Optional[int] = None,
     entry_check_insertion: str = "pre_loop",
     confirm_insertion_marker: Optional[str] = None,
+    closure_insertion_marker: Optional[str] = None,
 ) -> str:
     lines = bpl_text.splitlines(keepends=True)
     no_nl_lines = [ln.rstrip("\n") for ln in lines]
@@ -398,7 +399,7 @@ def instrument_bpl_text(
         # it is trying to validate).
         steps = period if closure_unroll_steps is None else max(period, int(closure_unroll_steps))
 
-        unrolled = unroll_mainprocedure_loop_text(bpl_text=bpl_text, steps=steps)
+        unrolled = bpl_text if closure_insertion_marker is not None else unroll_mainprocedure_loop_text(bpl_text=bpl_text, steps=steps)
         lines = unrolled.splitlines(keepends=True)
         no_nl_lines = [ln.rstrip("\n") for ln in lines]
         var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])
@@ -407,7 +408,8 @@ def instrument_bpl_text(
         _strip_other_asserts_for_pump(lines)
         _strip_debug_snapshot_for_pump(lines)
         _strip_step_increments(lines)
-        _inline_deterministic_round_into_mainprocedure(lines, period=period, steps=steps)
+        if closure_insertion_marker is None:
+            _inline_deterministic_round_into_mainprocedure(lines, period=period, steps=steps)
         unrolled = "".join(lines)
         no_nl_lines = [ln.rstrip("\n") for ln in lines]
         var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])
@@ -463,21 +465,33 @@ def instrument_bpl_text(
 
         insert_locals_at = body_open_idx + 1
 
-        # Find the unrolled-step marker (where the old while-loop was).
-        marker = f"{_CLOSURE_UNROLL_MARKER_PREFIX} {steps} steps (wraparound)"
-        marker_idx = None
-        for i in range(body_open_idx, body_close_idx + 1):
-            if marker in no_nl_lines[i]:
-                marker_idx = i
-                break
-        if marker_idx is None:
-            # Fall back to any unroll marker (should not happen).
+        if closure_insertion_marker is not None:
+            marker = str(closure_insertion_marker).strip()
+            if not marker:
+                raise WraparoundTransformError("empty closure insertion marker")
+            marker_idx = None
             for i in range(body_open_idx, body_close_idx + 1):
-                if _CLOSURE_UNROLL_MARKER_PREFIX in no_nl_lines[i]:
+                if marker in no_nl_lines[i]:
+                    marker_idx = i + 1
+                    break
+            if marker_idx is None:
+                raise WraparoundTransformError(f"closure insertion marker not found: {marker}")
+        else:
+            # Find the unrolled-step marker (where the old while-loop was).
+            marker = f"{_CLOSURE_UNROLL_MARKER_PREFIX} {steps} steps (wraparound)"
+            marker_idx = None
+            for i in range(body_open_idx, body_close_idx + 1):
+                if marker in no_nl_lines[i]:
                     marker_idx = i
                     break
-        if marker_idx is None:
-            raise WraparoundTransformError("failed to locate UNROLLED marker in mainProcedure for closure_check")
+            if marker_idx is None:
+                # Fall back to any unroll marker (should not happen).
+                for i in range(body_open_idx, body_close_idx + 1):
+                    if _CLOSURE_UNROLL_MARKER_PREFIX in no_nl_lines[i]:
+                        marker_idx = i
+                        break
+            if marker_idx is None:
+                raise WraparoundTransformError("failed to locate UNROLLED marker in mainProcedure for closure_check")
 
         # Perform insertions from bottom to top to keep indices stable.
         lines[body_close_idx:body_close_idx] = _emit_closure_asserts(cfg).splitlines(keepends=True)
@@ -485,13 +499,13 @@ def instrument_bpl_text(
 
         local_decl_lines = _emit_closure_local_decls(var_types, cfg).splitlines(keepends=True)
         lines[insert_locals_at:insert_locals_at] = local_decl_lines
-        _ensure_bvule_helper_decl(lines, cfg.pump_target.elem_width)
         if extra_assumes:
             # Constrain closure to the synthesized existence profile (conditional certificate).
             indent = re.match(r"^(\s*)", local_decl_lines[0]).group(1) if local_decl_lines else "  "  # type: ignore[union-attr]
             insert_at = insert_locals_at + len(local_decl_lines)
             lines[insert_at:insert_at] = _emit_extra_assumes(extra_assumes, indent=indent)
             _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
+        _ensure_bvule_helper_decl(lines, cfg.pump_target.elem_width)
         # Performance: eliminate heavy quantified register initializations when safe.
         _rewrite_forall_bv32_array_inits(lines, use_assume_bounds=True)
         _drop_remaining_forall_array_inits_for_closure(lines)

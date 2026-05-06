@@ -57,6 +57,28 @@ def _has(pattern: str, text: str, flags: int = 0) -> bool:
     return re.search(pattern, text, flags) is not None
 
 
+def _hash_model_precisions(bpl: str, *, kind: Optional[str] = None) -> set[str]:
+    pattern = r"//\s*p4b_hash_model:\s*(?P<body>[^\n]*)"
+    precisions: set[str] = set()
+    for match in re.finditer(pattern, bpl):
+        body = match.group("body")
+        if kind is not None and kind not in body:
+            continue
+        precision_match = re.search(r"\bprecision=([A-Za-z0-9_]+)", body)
+        if precision_match:
+            precisions.add(precision_match.group(1))
+    return precisions
+
+
+def _hash_model_details(bpl: str, *, kind: Optional[str] = None) -> tuple[str, ...]:
+    out: list[str] = []
+    for match in re.finditer(r"//\s*p4b_hash_model:\s*(?P<body>[^\n]*)", bpl):
+        body = match.group("body").strip()
+        if kind is None or kind in body:
+            out.append(body)
+    return tuple(out[:8])
+
+
 def _call_arities(src: str, name: str) -> list[int]:
     arities: list[int] = []
     for match in re.finditer(rf"\b{re.escape(name)}\s*(?:<[^;{{}}()]*>)?\s*\(", src):
@@ -195,10 +217,24 @@ def _check_register_action(bpl: str, *, slicing_mode: bool) -> SemanticCheck:
 
 
 def _check_v1model_hash(bpl: str, *, slicing_mode: bool) -> SemanticCheck:
+    precisions = _hash_model_precisions(bpl, kind="builtin")
     has_function = _has(r"\bfunction\s+hash[_$A-Za-z0-9.]*\(", bpl)
     has_range = _has(r"assume\s*\(\s*buge\.bv\d+\(.*?bule\.bv\d+\(", bpl, re.S)
+    if "weak" in precisions:
+        return SemanticCheck(
+            "v1model_hash",
+            CHECK_WEAK,
+            "hash uses havoc fallback for unsupported data shape",
+            _hash_model_details(bpl, kind="builtin"),
+        )
+    if "deterministic_uninterpreted" in precisions:
+        detail = "hash is deterministic and range-constrained but algorithm is uninterpreted"
+        if has_range or has_function:
+            return SemanticCheck("v1model_hash", CHECK_WEAK, detail, _hash_model_details(bpl, kind="builtin"))
+    if "precise" in precisions:
+        return SemanticCheck("v1model_hash", CHECK_OK, "hash algorithm is modeled precisely", _hash_model_details(bpl, kind="builtin"))
     if has_function and has_range:
-        return SemanticCheck("v1model_hash", CHECK_OK, "hash is deterministic for a fixed tuple and range-constrained")
+        return SemanticCheck("v1model_hash", CHECK_WEAK, "hash is deterministic and range-constrained but algorithm precision is unmarked")
     if slicing_mode and not (has_function or "// hash" in bpl):
         return SemanticCheck("v1model_hash", CHECK_PRUNED, "hash call appears pruned from sliced BPL")
     if "// hash" in bpl:
@@ -207,10 +243,22 @@ def _check_v1model_hash(bpl: str, *, slicing_mode: bool) -> SemanticCheck:
 
 
 def _check_hash_builtin_3arg(bpl: str, *, slicing_mode: bool) -> SemanticCheck:
+    precisions = _hash_model_precisions(bpl, kind="builtin")
     has_function = _has(r"\bfunction\s+hash[_$A-Za-z0-9.]*\(", bpl)
     has_assign = _has(r":=\s*hash[_$A-Za-z0-9.]*\(", bpl)
+    if "weak" in precisions:
+        return SemanticCheck("hash_builtin_3arg", CHECK_WEAK, "three-argument hash uses havoc fallback", _hash_model_details(bpl, kind="builtin"))
+    if "deterministic_uninterpreted" in precisions:
+        return SemanticCheck(
+            "hash_builtin_3arg",
+            CHECK_WEAK,
+            "three-argument hash lowers to a deterministic uninterpreted function",
+            _hash_model_details(bpl, kind="builtin"),
+        )
+    if "precise" in precisions:
+        return SemanticCheck("hash_builtin_3arg", CHECK_OK, "three-argument hash algorithm is modeled precisely", _hash_model_details(bpl, kind="builtin"))
     if has_function and has_assign:
-        return SemanticCheck("hash_builtin_3arg", CHECK_OK, "three-argument hash lowers to a deterministic function assignment")
+        return SemanticCheck("hash_builtin_3arg", CHECK_WEAK, "three-argument hash lowers to an unmarked deterministic function assignment")
     if slicing_mode and not (has_function or "// hash" in bpl):
         return SemanticCheck("hash_builtin_3arg", CHECK_PRUNED, "three-argument hash appears pruned from sliced BPL")
     if "// hash" in bpl:
@@ -219,10 +267,22 @@ def _check_hash_builtin_3arg(bpl: str, *, slicing_mode: bool) -> SemanticCheck:
 
 
 def _check_hash_extern(bpl: str, *, slicing_mode: bool) -> SemanticCheck:
+    precisions = _hash_model_precisions(bpl, kind="extern")
     has_function = _has(r"\bfunction\s+[A-Za-z0-9_.]+\.(?:get|get_hash)[A-Za-z0-9_$]*\(", bpl)
     has_havoc_fallback = "__hash_get_" in bpl and _has(r"havoc\s+__hash_get_", bpl)
+    if "deterministic_uninterpreted" in precisions:
+        return SemanticCheck(
+            "hash_extern",
+            CHECK_WEAK,
+            "Hash.get/get_hash lowers to a deterministic uninterpreted function",
+            _hash_model_details(bpl, kind="extern"),
+        )
+    if "weak" in precisions:
+        return SemanticCheck("hash_extern", CHECK_WEAK, "Hash extern uses havoc fallback for unsupported data shape", _hash_model_details(bpl, kind="extern"))
+    if "precise" in precisions:
+        return SemanticCheck("hash_extern", CHECK_OK, "Hash.get/get_hash algorithm is modeled precisely", _hash_model_details(bpl, kind="extern"))
     if has_function:
-        return SemanticCheck("hash_extern", CHECK_OK, "Hash.get/get_hash lowers to an uninterpreted function of typed data")
+        return SemanticCheck("hash_extern", CHECK_WEAK, "Hash.get/get_hash lowers to an unmarked uninterpreted function of typed data")
     if slicing_mode and not has_havoc_fallback:
         return SemanticCheck("hash_extern", CHECK_PRUNED, "Hash extern appears pruned from sliced BPL")
     if has_havoc_fallback:

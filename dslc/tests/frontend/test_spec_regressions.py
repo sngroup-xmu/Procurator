@@ -1,6 +1,10 @@
 import unittest
 from pathlib import Path
 
+from dslc.speclang.emit import DSLExprPrinter
+from dslc.speclang.parse import parse_tree
+from dslc.speclang.semantics import SemanticAnalyzer, SemanticError
+
 
 class TestSpecRegressions(unittest.TestCase):
     def test_p4xos_majority_quorum_spec_avoids_else_if_and_parses(self) -> None:
@@ -71,6 +75,54 @@ class TestSpecRegressions(unittest.TestCase):
         self.assertIn("pump_mode", text)
         self.assertIn("leaf_hdr_eg.frequency_hdr.frequency != 0", text)
         self.assertNotIn("leaf_hdr.op_hdr.optype != 36", text)
+
+    def test_bit_slice_expression_parses_and_round_trips(self) -> None:
+        """
+        Regression: packed TNA register structs are translated as bvN scalars.
+        Specs must be able to talk about a field slice without treating it as
+        an array index.
+        """
+
+        text = """
+import sw from "dummy.p4";
+topology { }
+node sw { external_input = true; }
+global {
+  assert {
+    !(sw_Ingress_value00_values__wrote_any
+      && sw_Ingress_value00_values__last_value[64:32] == 0);
+  };
+}
+"""
+        tree = parse_tree(text)
+        slices = list(tree.find_data("bit_slice"))
+        self.assertEqual(len(slices), 1)
+        self.assertEqual(DSLExprPrinter().expr_to_str(slices[0]), "sw_Ingress_value00_values__last_value[64:32]")
+
+    def test_bit_slice_expression_rejects_empty_range(self) -> None:
+        text = """
+import sw from "dummy.p4";
+topology { }
+node sw { external_input = true; }
+global {
+  assert { sw_reg__last_value[31:32] == 0; };
+}
+"""
+        tree = parse_tree(text)
+        with self.assertRaises(SemanticError):
+            SemanticAnalyzer().analyze(tree)
+
+    def test_single_bit_slice_expression_is_valid(self) -> None:
+        text = """
+import sw from "dummy.p4";
+topology { }
+node sw { external_input = true; }
+global {
+  assert { sw_ig_dprsr_md.drop_ctl[0:0] == 1; };
+}
+"""
+        tree = parse_tree(text)
+        SemanticAnalyzer().analyze(tree)
 
 
 if __name__ == "__main__":

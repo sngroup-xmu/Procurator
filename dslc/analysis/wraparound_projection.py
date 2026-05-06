@@ -46,6 +46,7 @@ _RE_PROC = re.compile(
 )
 _RE_MODIFIES = re.compile(r"^\s*modifies\s+(?P<vars>[^;]+)\s*;\s*$")
 _RE_WRITE_CALL = re.compile(r"^(?P<reg>[A-Za-z_][A-Za-z0-9_.]*)\.write$")
+_RE_BRACKET_INDEX = re.compile(r"\[([^\[\]]+)\]")
 @dataclass(frozen=True)
 class DependencyProjectionResult:
     proj_vars: Tuple[str, ...]
@@ -201,7 +202,12 @@ def extract_dependency_projection(
         stable_consts=cutpoint_consts,
     )
     ambiguous_cutpoint_predicates = _ambiguous_predicate_pairs(cutpoint_predicates)
-    predicate_exprs = _unique([*predicate_exprs, *cutpoint_predicates])
+    cutpoint_predicates_for_projection = [
+        pred
+        for pred in cutpoint_predicates
+        if not _predicate_mentions_target_slots(pred, candidate=candidate)
+    ]
+    predicate_exprs = _unique([*predicate_exprs, *cutpoint_predicates_for_projection])
     extra_stable_vars = _stable_register_slot_projection_vars(
         live_deps=live_deps,
         var_types=var_types,
@@ -986,6 +992,7 @@ def _cutpoint_predicates_for_target_guards(
     stable_consts: Dict[str, str],
 ) -> Tuple[List[str], int]:
     wanted = set(live_deps).difference(default_state).difference(excluded)
+    target_arrays = {v for v in target_vars if "[" in str(var_types.get(v, ""))}
     out: List[str] = []
     seen: Set[str] = set()
     incomplete = 0
@@ -1016,6 +1023,7 @@ def _cutpoint_predicates_for_target_guards(
                 var_types=var_types,
                 default_state=default_state,
                 excluded=excluded,
+                target_arrays=target_arrays,
                 stable_indices=(_candidate_projection_index_expr(candidate, var_types=var_types),),
             ):
                 incomplete += 1
@@ -1048,6 +1056,7 @@ def _cutpoint_guard_alternatives_for_target_guards(
     """
 
     wanted = set(live_deps).difference(default_state).difference(excluded)
+    target_arrays = {v for v in target_vars if "[" in str(var_types.get(v, ""))}
     out: List[Tuple[str, ...]] = []
     seen_groups: Set[Tuple[str, ...]] = set()
     for target in target_vars:
@@ -1080,6 +1089,7 @@ def _cutpoint_guard_alternatives_for_target_guards(
                     var_types=var_types,
                     default_state=default_state,
                     excluded=excluded,
+                    target_arrays=target_arrays,
                     stable_indices=(_candidate_projection_index_expr(candidate, var_types=var_types),),
                 ):
                     continue
@@ -1173,12 +1183,13 @@ def _specialize_dynamic_slot_guard(
     predicate over `time_reg[candidate.index_expr]`, instead of carrying packet
     scratch variables from the parser path used to compute `meta.register_index`.
     """
+    target_excluded = set(excluded).difference(set(_unique([candidate.pump_reg, *candidate.accel_regs])))
     return _specialize_dynamic_slot_guard_expr(
         expr,
         index_expr=_candidate_projection_index_expr(candidate, var_types=var_types),
         pump_reg=candidate.pump_reg,
         live_deps=live_deps,
-        excluded=excluded,
+        excluded=target_excluded,
         var_types=var_types,
         stable_substitutions=getattr(candidate, "stable_substitutions", ()) or (),
         stable_consts=stable_consts,
@@ -1196,31 +1207,69 @@ def _candidate_projection_index_expr(candidate: WraparoundCandidate, *, var_type
     return f"{int(candidate.index_value)}bv{width}"
 
 
+def _predicate_mentions_target_slots(expr: str, *, candidate: WraparoundCandidate) -> bool:
+    """
+    Predicates over the accelerated target slot are cutpoint/branch conditions,
+    not replay-shape invariants.
+
+    A closure step intentionally updates `pump_reg[index]` by `step_delta`, so
+    requiring target-slot predicates to stay equal across the step can reject a
+    valid replay schedule.  We still keep these predicates in
+    `cutpoint_predicates` / branch alternatives; this helper only filters what is
+    copied into `proj_predicates` (the closure equality projection).
+    """
+
+    target_arrays = set(_unique([candidate.pump_reg, *candidate.accel_regs]))
+    if not target_arrays:
+        return False
+    for sel in _array_selects_in_expr(_normalize_expr(str(expr))):
+        if sel.array in target_arrays:
+            return True
+    return False
+
+
 def _is_cutpoint_shape_predicate(
     expr: str,
     *,
     var_types: Dict[str, str],
     default_state: Set[str],
     excluded: Set[str],
+    target_arrays: Set[str],
     stable_indices: Iterable[str] = (),
 ) -> bool:
+    normalized_expr = _normalize_expr(expr)
     stable_index_set = {_normalize_expr(v) for v in stable_indices if str(v).strip()}
+    manifest_stable_arrays = _manifest_array_selects_are_stable(normalized_expr, ignored=("true", "false", "old"))
+    allowed_array_selects: Set[str] = set()
     array_index_tokens: Set[str] = set()
-    for sel in _array_selects_in_expr(expr):
-        if _normalize_expr(sel.index) not in stable_index_set:
+    for sel in _array_selects_in_expr(normalized_expr):
+        if sel.array in excluded and sel.array not in target_arrays:
+            return False
+        if stable_index_set and _normalize_expr(sel.index) not in stable_index_set:
             continue
+        allowed_array_selects.add(sel.array)
         array_index_tokens.update(_RE_IDENT.findall(sel.index))
+    for m in _RE_BRACKET_INDEX.finditer(normalized_expr):
+        array_index_tokens.update(_RE_IDENT.findall(m.group(1)))
     state_vars = {tok for tok in _RE_IDENT.findall(expr) if tok in var_types}
     if not state_vars:
         return False
     for v in state_vars:
-        if v in excluded:
+        if v in excluded and v not in target_arrays:
             return False
         if v in array_index_tokens:
             continue
         typ = var_types.get(v, "")
         if "[" in typ or "]" in typ:
-            continue
+            if v in target_arrays:
+                if not stable_index_set or v in allowed_array_selects:
+                    continue
+                return False
+            if manifest_stable_arrays and v in allowed_array_selects:
+                continue
+            if _is_stateful_register_array(v, var_types):
+                continue
+            return False
         if v in default_state:
             continue
         if _is_stable_cutpoint_var(v):

@@ -82,6 +82,65 @@ global {}
         self.assertNotIn("p4b_clone_i2i", seeds_without)
         self.assertIn("hdr.h.a", seeds_without)
 
+    def test_global_assert_observed_table_action_kept_for_p4b_output(self) -> None:
+        spec_text = r'''
+import sw from "dummy.p4";
+
+topology {}
+
+node sw {}
+
+global {
+  assert {
+    sw_Ingress_tbl.action_run == sw_Ingress_tbl.action.Ingress_act
+    ;
+  };
+}
+'''
+        spec = parse_model(spec_text)
+        plan = build_slicing_plan(spec, enable_slicing=True)
+
+        seeds = set(plan.slicing_vars.get("sw", []))
+        keep = set(plan.slicing_keep_vars.get("sw", []))
+
+        self.assertIn("Ingress_tbl.action_run", seeds)
+        self.assertIn("Ingress_tbl.action.Ingress_act", seeds)
+        self.assertIn("Ingress_tbl.action_run", keep)
+        self.assertIn("Ingress_tbl.action.Ingress_act", keep)
+
+    def test_host_env_assume_table_action_is_keep_only(self) -> None:
+        spec_text = r'''
+import sw from "dummy.p4";
+
+topology {}
+
+host io {
+  connect sw;
+  env {
+    if (phase == 0) {
+      assume {
+        sw_Ingress_tbl.action_run == sw_Ingress_tbl.action.Ingress_act;
+      };
+    }
+  }
+}
+
+global {
+  int phase = 0;
+  assert { true; };
+}
+'''
+        spec = parse_model(spec_text)
+        plan = build_slicing_plan(spec, enable_slicing=True, keep_control_seeds=False)
+
+        seeds = set(plan.slicing_vars.get("sw", []))
+        keep = set(plan.slicing_keep_vars.get("sw", []))
+
+        self.assertNotIn("Ingress_tbl.action_run", seeds)
+        self.assertNotIn("Ingress_tbl.action.Ingress_act", seeds)
+        self.assertIn("Ingress_tbl.action_run", keep)
+        self.assertIn("Ingress_tbl.action.Ingress_act", keep)
+
 
 if __name__ == "__main__":
     unittest.main()

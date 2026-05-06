@@ -429,6 +429,9 @@ def _validate_schedule_replay_manifest_with_artifacts(data: dict, *, manifest_pa
             continue
         expected_proj_vars = list(cfg.get("proj_vars") or [])
         expected_proj_predicates = list(cfg.get("proj_predicates") or [])
+        expected_proj_predicate_sources = list(cfg.get("proj_predicate_sources") or [])
+        if not expected_proj_predicate_sources:
+            expected_proj_predicate_sources = ["dependency_projection"] * len(expected_proj_predicates)
         expected_proj_exprs = list(cfg.get("proj_exprs") or [])
         if list(cfg.get("proj_vars") or []) != expected_proj_vars:
             continue
@@ -461,6 +464,7 @@ def _validate_schedule_replay_manifest_with_artifacts(data: dict, *, manifest_pa
         expected_schedule = cfg_schedule.with_projection_vars(
             expected_proj_vars,
             proj_predicates=expected_proj_predicates,
+            proj_predicate_sources=expected_proj_predicate_sources,
             proj_exprs=expected_proj_exprs,
             conditions=(),
             source="dependency_projection",

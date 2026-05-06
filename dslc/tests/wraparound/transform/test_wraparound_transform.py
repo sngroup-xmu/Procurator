@@ -539,6 +539,87 @@ procedure mainProcedure() returns()
         self.assertIn("suffix := suffix + 1;", out)
         self.assertIn("call __wraparound_assert(!(reg__wrote_index0 && reg__last0_value == 0bv8));", out)
 
+    def test_prefix_confirm_does_not_cut_suffix_after_gated_fail_fast_assert(self) -> None:
+        # Same bug shape as above, but through the schedule-replay near-wrap
+        # path: the confirm fast-forward is inserted after a finite prefix
+        # marker and assertions are gated by __wraparound_confirm_active.
+        src = """
+var procurator_step: int;
+var procurator_phase: int;
+var reg:[bv32]bv8;
+var reg__last0_value: bv8;
+var reg__wrote_any: bool;
+var reg__wrote_index0: bool;
+var reg__last_index: bv32;
+var reg__last_value: bv8;
+var suffix: int;
+
+procedure {:inline 1} reg.write(index:bv32, value:bv8)
+  modifies reg, reg__last0_value, reg__wrote_any,
+           reg__wrote_index0, reg__last_index, reg__last_value, suffix;
+{
+  reg[index] := value;
+  reg__last_index := index;
+  reg__last_value := value;
+  reg__wrote_any := true;
+  if (reg__wrote_any && reg__last_value == 0bv8) {
+    assert false;
+    assume false;
+  }
+  if (index == 0bv32) {
+    reg__wrote_index0 := true;
+    reg__last0_value := value;
+  }
+  suffix := suffix + 1;
+}
+
+procedure main() returns()
+  modifies procurator_phase, reg, reg__last0_value, reg__wrote_any,
+           reg__wrote_index0, reg__last_index, reg__last_value, suffix;
+{
+  call reg.write(0bv32, 0bv8);
+  assert !(reg__wrote_index0 && reg__last0_value == 0bv8);
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, procurator_phase, reg, reg__last0_value,
+           reg__wrote_any, reg__wrote_index0, reg__last_index,
+           reg__last_value, suffix;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  call main();
+  procurator_step := procurator_step + 1;
+  // WRAPAROUND_CONFIRM_PREFIX_CUTPOINT after 1 steps
+  call main();
+  procurator_step := procurator_step + 1;
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CONFIRM,
+            pump_reg="reg",
+            accel_regs=["reg"],
+            index_value=0,
+            index_expr=None,
+            proj_vars=["procurator_phase"],
+            cutpoint_cond=None,
+            step_op="add",
+            step_delta=1,
+            confirm_insertion_marker="// WRAPAROUND_CONFIRM_PREFIX_CUTPOINT after 1 steps",
+        )
+        self.assertIn("var __wraparound_confirm_active: bool;", out)
+        self.assertIn("__wraparound_confirm_active := true;", out)
+        self.assertIn("call __wraparound_assert(false);", out)
+        self.assertIn("assume true; // removed after wraparound-gated assert", out)
+        self.assertNotIn("assume false;", out)
+        self.assertIn("suffix := suffix + 1;", out)
+        self.assertIn("if ((__wraparound_confirm_active && (", out)
+        self.assertLess(
+            out.index("WRAPAROUND_CONFIRM_PREFIX_CUTPOINT after 1 steps"),
+            out.index("wraparound confirm fast-forward"),
+        )
+
     def test_confirm_preserves_non_fail_fast_assume_false_after_rewritten_assert(self) -> None:
         src = """
 var procurator_step: int;
@@ -946,6 +1027,54 @@ procedure mainProcedure() returns()
         # Assertion wrappers (for CEGIS refinement / stable Ultimate targets).
         self.assertIn("procedure {:inline 1} __wraparound_assert", out)
         self.assertIn("procedure {:inline 1} __wraparound_closure_assert_all", out)
+
+    def test_closure_extra_assumes_follow_all_local_decls(self) -> None:
+        src = """
+var procurator_step: int;
+var procurator_phase: int;
+var idx: bv32;
+var stable: bv8;
+var inbox_count: int;
+var r:[bv32]bv8;
+
+procedure main() returns()
+  modifies procurator_phase, r;
+{
+  if (procurator_phase == 0) {
+    r[idx] := add.bv8(r[idx], 1bv8);
+  }
+  if (procurator_phase == 0) {
+    procurator_phase := 0;
+  } else {
+    procurator_phase := procurator_phase + 1;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_step, procurator_phase, idx, stable, inbox_count, r;
+{
+  inbox_count := 0;
+  procurator_step := 0;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        out = instrument_bpl_text(
+            bpl_text=src,
+            stage=WraparoundStage.CLOSURE_CHECK,
+            pump_reg="r",
+            accel_regs=["r"],
+            index_expr="idx",
+            proj_vars=["procurator_phase", "inbox_count"],
+            extra_assumes=["stable == 7bv8"],
+        )
+
+        self.assertLess(out.index("var wrap_closure_seq0: bv8;"), out.index("var wrap_closure_snap_procurator_phase: int;"))
+        self.assertLess(out.index("var wrap_closure_snap_inbox_count: int;"), out.index("assume(stable == 7bv8);"))
+        self.assertLess(out.index("assume(stable == 7bv8);"), out.index("inbox_count := 0;"))
 
     def test_closure_check_snapshots_projection_exprs(self) -> None:
         src = """

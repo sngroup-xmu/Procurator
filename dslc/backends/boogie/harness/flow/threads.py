@@ -512,6 +512,7 @@ class BoogieHarnessThreadsMixin:
         }
         modifies_set.update(f"{host}_{v}" for v in host_vars)
         modifies_set.update(f"{target}_{v}" for v in copy_vars)
+        modifies_set.update(self._collect_env_modified_boogie_vars(host))
         if self._two_slot_inbox_enabled(k) and target in self._spec.imports:
             for v in self._inbox_on_wire_vars(target):
                 modifies_set.add(self._inbox_slot_var(target, 0, v))

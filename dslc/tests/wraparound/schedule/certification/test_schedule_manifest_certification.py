@@ -83,6 +83,27 @@ class WraparoundScheduleManifestTests(unittest.TestCase):
         self.assertFalse(_manifest_certified_unsafe_data(manifest))
         manifest["attempts"][0]["cfg"]["closure_assumes"] = []
         self.assertTrue(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["cfg"]["env_shape_assumes"] = ["s1_hdr.nc_hdr.op == 12bv8"]
+        self.assertFalse(_manifest_certified_unsafe_data(manifest))
+        manifest["candidate"] = {
+            "stable_substitutions": [["s1_hdr.nc_hdr.op", "12bv8"]],
+            "index_value": 0,
+            "index_expr": None,
+        }
+        self.assertTrue(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["cfg"]["env_shape_assumes"] = "s1_hdr.nc_hdr.op == 12bv8"
+        self.assertFalse(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["cfg"]["env_shape_assumes"] = []
+        manifest["candidate"] = None
+        self.assertTrue(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["cfg"]["notes"] = ["dependency_projection_dynamic_slot_index_mismatch=flow_id_reg"]
+        self.assertFalse(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["cfg"]["notes"] = ["dynamic_index_preloop_globals=idx"]
+        self.assertFalse(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["cfg"]["notes"] = ["dependency_projection_unstable_cutpoint_guards=1"]
+        self.assertTrue(_manifest_certified_unsafe_data(manifest))
+        manifest["attempts"][0]["cfg"]["notes"] = []
+        self.assertTrue(_manifest_certified_unsafe_data(manifest))
         del manifest["attempts"][0]["cfg"]["closure_assumes"]
         self.assertFalse(_manifest_certified_unsafe_data(manifest))
         manifest["attempts"][0]["cfg"]["closure_assumes"] = []

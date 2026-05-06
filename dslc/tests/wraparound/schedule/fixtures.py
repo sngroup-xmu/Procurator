@@ -195,6 +195,7 @@ def _schedule_cfg(*, proj_predicates: tuple[str, ...] = ()) -> dict:
         "proj_vars": ["procurator_phase"],
         "proj_predicates": list(proj_predicates),
         "projection_complete": True,
+        "env_shape_assumes": [],
         "closure_assumes": [],
     }
 

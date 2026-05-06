@@ -59,6 +59,7 @@ class ActorSchedule:
         proj_vars: Sequence[str],
         *,
         proj_predicates: Sequence[str] = (),
+        proj_predicate_sources: Sequence[str] = (),
         proj_exprs: Sequence[str] = (),
         conditions: Sequence[ProjectionPredicate] = (),
         source: str = "candidate_projection",
@@ -67,16 +68,22 @@ class ActorSchedule:
             ProjectionPredicate(lhs=v, rhs="entry_snapshot", kind=_projection_kind(v), source=source)
             for v in proj_vars
         )
-        projection_preds = tuple(
-            ProjectionPredicate(
-                lhs=f"predicate:{i}",
-                rhs=str(expr).strip(),
-                kind="predicate",
-                source=source,
+        predicate_sources = list(proj_predicate_sources or ())
+        projection_pred_list = []
+        for i, expr in enumerate(proj_predicates):
+            text = str(expr).strip()
+            if not text:
+                continue
+            pred_source = str(predicate_sources[i]) if i < len(predicate_sources) else source
+            projection_pred_list.append(
+                ProjectionPredicate(
+                    lhs=f"predicate:{i}",
+                    rhs=text,
+                    kind="predicate",
+                    source=pred_source,
+                )
             )
-            for i, expr in enumerate(proj_predicates)
-            if str(expr).strip()
-        )
+        projection_preds = tuple(projection_pred_list)
         projection_exprs = tuple(
             ProjectionPredicate(
                 lhs=f"expr:{i}",
@@ -146,6 +153,45 @@ _RE_ACTION_COMMENT = re.compile(
 
 def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
+
+
+def dependency_projection_has_hard_certification_gap(
+    *,
+    notes: Sequence[str],
+    unresolved_calls: Sequence[str] = (),
+) -> bool:
+    """
+    Return true when projection notes expose a non-certifiable gap.
+
+    A pure SAFE closure proof can discharge soft, transient cutpoint guard
+    noise.  Missing scheduler structure, unresolved calls, and dynamic slot
+    mismatches mean the replay state itself is not known, so they must block
+    certification even if a producer accidentally sets projection_complete.
+    """
+
+    if unresolved_calls:
+        return True
+    hard_exact = {
+        "no_global_vars",
+        "missing_deterministic_scheduler",
+        "missing_phase_bodies",
+    }
+    hard_prefixes = (
+        "dependency_projection_unresolved_calls=",
+        "dependency_projection_dynamic_slot_deps=",
+        "dependency_projection_dynamic_slot_index_mismatch=",
+        "dynamic_index_preloop_globals=",
+        "dynamic_index_unresolved_values=",
+    )
+    for raw in notes or ():
+        note = str(raw)
+        if note in hard_exact:
+            return True
+        if note.startswith(hard_prefixes):
+            return True
+        if note != "dependency_projection_incomplete" and "incomplete" in note:
+            return True
+    return False
 
 
 def _stable_hash(payload: object) -> str:

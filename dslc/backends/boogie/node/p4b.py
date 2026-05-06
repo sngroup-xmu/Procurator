@@ -232,10 +232,9 @@ def _detect_missing_read_write_decls(bpl_path: Path) -> List[str]:
     except Exception:
         return []
 
-    bases: set[str] = set()
-    bases.update(m.group("base") for m in _RE_READ_CALL.finditer(text))
-    bases.update(m.group("base") for m in _RE_WRITE_CALL.finditer(text))
-    if not bases:
+    read_bases = {m.group("base") for m in _RE_READ_CALL.finditer(text)}
+    write_bases = {m.group("base") for m in _RE_WRITE_CALL.finditer(text)}
+    if not read_bases and not write_bases:
         return []
 
     declared_vars = {m.group("name") for m in _RE_VAR_DECL.finditer(text)}
@@ -243,8 +242,13 @@ def _detect_missing_read_write_decls(bpl_path: Path) -> List[str]:
     declared_writes = {m.group("name") for m in _RE_PROC_DECL.finditer(text)}
 
     missing: List[str] = []
-    for b in sorted(bases):
-        # Most `.read` calls are on arrays; require both the array var and its helper decls.
-        if b not in declared_vars or b not in declared_reads or b not in declared_writes:
+    for b in sorted(read_bases | write_bases):
+        if b not in declared_vars:
+            missing.append(b)
+            continue
+        if b in read_bases and b not in declared_reads:
+            missing.append(b)
+            continue
+        if b in write_bases and b not in declared_writes:
             missing.append(b)
     return missing

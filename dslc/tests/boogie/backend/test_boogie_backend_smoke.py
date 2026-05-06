@@ -200,6 +200,80 @@ global {{
             r"(?s)procedure s1Thread\(\) returns\(\).*?s1_mb0_hdr\.ipv4\.dstAddr := s1_mb1_hdr\.ipv4\.dstAddr;",
         )
 
+    def test_host_env_target_table_assignments_are_in_modifies(self) -> None:
+        bpl_text = """\
+type Ref;
+var standard_metadata.egress_port:bv9;
+var hdr.ipv4:Ref;
+var hdr.ipv4.dstAddr:bv32;
+var isValid:[Ref]bool;
+type tbl.action;
+const unique tbl.action.set: tbl.action;
+var tbl.action_run: tbl.action;
+var tbl.set.arg:bv8;
+
+procedure mainProcedure() returns()
+{
+}
+"""
+        spec_tmpl = """
+import sw from "{raw}";
+topology {{ }}
+node sw {{ }}
+host io {{
+  connect sw;
+  env {{
+    sw_tbl.action_run = sw_tbl.action.set;
+    sw_tbl.set.arg = 7;
+    hdr.ipv4.dstAddr = 1;
+  }}
+}}
+global {{
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  host_eager = true;
+  max_steps = 1;
+  assert {{ true; }};
+}}
+"""
+
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            raw_bpl = td_path / "prog.bpl"
+            raw_bpl.write_text(bpl_text, encoding="utf-8")
+            spec = spec_tmpl.format(raw=raw_bpl.as_posix())
+
+            for harness in ("concurrent", "sequential"):
+                out_bpl = td_path / f"out-{harness}.bpl"
+                outp = compile_spec_text(
+                    spec_text=spec,
+                    backend="boogie",
+                    out=out_bpl,
+                    boogie_harness=harness,
+                    pipeline_two_stage=False,
+                    honor_spec_max_steps=True,
+                    emit_reg_debug=False,
+                )
+                text = outp.artifacts["bpl"].read_text(encoding="utf-8", errors="replace")
+
+                if harness == "concurrent":
+                    self.assertRegex(
+                        text,
+                        r"(?s)procedure ioThread\(\) returns\(\)\s*modifies\b.*\bsw_tbl\.action_run\b",
+                    )
+                    self.assertRegex(
+                        text,
+                        r"(?s)procedure ioThread\(\) returns\(\)\s*modifies\b.*\bsw_tbl\.set\.arg\b",
+                    )
+                self.assertRegex(
+                    text,
+                    r"(?s)procedure (?:ULTIMATE\.start|mainProcedure)\(\) returns\(\)\s*modifies\b.*\bsw_tbl\.action_run\b",
+                )
+                self.assertRegex(
+                    text,
+                    r"(?s)procedure (?:ULTIMATE\.start|mainProcedure)\(\) returns\(\)\s*modifies\b.*\bsw_tbl\.set\.arg\b",
+                )
+
     def test_no_reg_debug_omits_register_snapshot_vars(self) -> None:
         # Regression: `--no-reg-debug` should eliminate per-pass register snapshot globals
         # (`reg__dbg0`, `reg__last_*__dbg`, ...) and must not leave them in modifies clauses.

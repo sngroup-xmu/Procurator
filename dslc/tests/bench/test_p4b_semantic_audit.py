@@ -152,8 +152,24 @@ class TestP4BSemanticAudit(unittest.TestCase):
         function hash_crc32$bv32$bv32$bv32(arg0:bv32, arg1:bv32, arg2:bv32) returns(bv32);
         procedure {:inline 1} C()
         {
+            // p4b_hash_model: builtin algorithm=HashAlgorithm.crc32 model=crc32_uf precision=deterministic_uninterpreted
             meta.idx := hash_crc32$bv32$bv32$bv32(0bv32, hdr.ipv4.srcAddr, 16bv32);
             assume(buge.bv32(meta.idx, 0bv32) && bule.bv32(meta.idx, 15bv32));
+        }
+        """
+
+        out = audit_text(src, bpl)
+
+        self.assertEqual(out["semantic_status"], CHECK_WEAK)
+        self.assertIn("uninterpreted", out["semantic_failures"][0])
+
+    def test_identity_hash_model_is_precise(self) -> None:
+        src = "control C() { apply { hash(meta.idx, HashAlgorithm.identity, { hdr.a, hdr.b }); } }"
+        bpl = """
+        procedure {:inline 1} C()
+        {
+            // p4b_hash_model: builtin algorithm=HashAlgorithm.identity model=identity precision=precise
+            meta.idx := (hdr.a++hdr.b)[16:0];
         }
         """
 
@@ -167,13 +183,14 @@ class TestP4BSemanticAudit(unittest.TestCase):
         function hash__lookup3$bv16$bv16(arg0:bv16, arg1:bv16) returns(bv32);
         procedure {:inline 1} C()
         {
+            // p4b_hash_model: builtin algorithm=HashAlgorithm.lookup3 model=HashAlgorithm_lookup3_uf precision=deterministic_uninterpreted
             meta.output := hash__lookup3$bv16$bv16(hdr.sa, hdr.da);
         }
         """
 
         out = audit_text(src, bpl)
 
-        self.assertEqual(out["semantic_status"], CHECK_OK)
+        self.assertEqual(out["semantic_status"], CHECK_WEAK)
         self.assertIn("hash_builtin_3arg", out["semantic_features"])
 
     def test_three_arg_hash_comment_only_is_failure(self) -> None:
@@ -204,6 +221,62 @@ class TestP4BSemanticAudit(unittest.TestCase):
         out = audit_text(src, bpl)
 
         self.assertEqual(out["semantic_status"], CHECK_WEAK)
+
+    def test_hash_extern_crc_uf_is_weak(self) -> None:
+        src = "control C() { Hash<bit<16>>(HashAlgorithm_t.CRC16) h; apply { x = h.get({a}); } }"
+        bpl = """
+        function C_h.get$bv16(arg0:bv16) returns(bv16);
+        procedure {:inline 1} C()
+        {
+            // p4b_hash_model: extern base=C_h algorithm=HashAlgorithm_t.CRC16 model=crc16_uf precision=deterministic_uninterpreted
+            x := C_h.get$bv16(a);
+        }
+        """
+
+        out = audit_text(src, bpl)
+
+        self.assertEqual(out["semantic_status"], CHECK_WEAK)
+
+    def test_hash_extern_identity_precise_is_ok(self) -> None:
+        src = "control C() { Hash<bit<16>>(HashAlgorithm_t.IDENTITY) h; apply { x = h.get({a}); } }"
+        bpl = """
+        procedure {:inline 1} C()
+        {
+            // p4b_hash_model: extern base=C_h algorithm=HashAlgorithm_t.IDENTITY model=identity precision=precise
+            x := a[16:0];
+        }
+        """
+
+        out = audit_text(src, bpl)
+
+        self.assertEqual(out["semantic_status"], CHECK_OK)
+
+    def test_mixed_hash_precision_is_weak(self) -> None:
+        src = """
+        control C() {
+            Hash<bit<16>>(HashAlgorithm_t.IDENTITY) identity_hash;
+            Hash<bit<16>>(HashAlgorithm_t.CRC16) crc_hash;
+            apply {
+                x = identity_hash.get({a});
+                y = crc_hash.get({b});
+            }
+        }
+        """
+        bpl = """
+        function C_crc_hash.get$bv16(arg0:bv16) returns(bv16);
+        procedure {:inline 1} C()
+        {
+            // p4b_hash_model: extern base=C_identity_hash algorithm=HashAlgorithm_t.IDENTITY model=identity precision=precise
+            x := a[16:0];
+            // p4b_hash_model: extern base=C_crc_hash algorithm=HashAlgorithm_t.CRC16 model=crc16_uf precision=deterministic_uninterpreted
+            y := C_crc_hash.get$bv16(b);
+        }
+        """
+
+        out = audit_text(src, bpl)
+
+        self.assertEqual(out["semantic_status"], CHECK_WEAK)
+        self.assertIn("uninterpreted", out["semantic_failures"][0])
 
     def test_slicing_can_mark_irrelevant_feature_pruned(self) -> None:
         src = "control C() { Random<bit<16>>(0, 10) r; apply { x = r.read(); } }"

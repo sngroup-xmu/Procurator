@@ -76,6 +76,21 @@ def _result_line_is_unsafe(result_line: Optional[str]) -> bool:
     return ("result: unsafe" in s) or ("proved your program to be incorrect" in s)
 
 
+def _result_line_is_timeout_or_unknown(result_line: Optional[str]) -> bool:
+    if not result_line:
+        return False
+    s = result_line.lower()
+    # Ultimate timeout/unknown outcomes must not be reported as success because
+    # that can be misinterpreted as "safe" by wrappers that only check rc.
+    if "timeout" in s:
+        return True
+    if "unknown" in s:
+        return True
+    if "could not prove your program" in s:
+        return True
+    return False
+
+
 def _optimize_bpl_for_ultimate(bpl_path: Path) -> None:
     """
     Best-effort Boogie post-pass before invoking Ultimate.
@@ -280,8 +295,13 @@ def _run_one(
         if _result_line_is_safe(result_line):
             print(f"[LOG] {job.log_path}")
             return 0
+        if _result_line_is_timeout_or_unknown(result_line):
+            print(f"[LOG] {job.log_path}")
+            # Keep timeout/unknown as non-success to avoid accidental SAFE-style
+            # interpretation by automation scripts.
+            return 2
         print(f"[LOG] {job.log_path}")
-        return res.returncode
+        return res.returncode if res.returncode != 0 else 2
 
     print("[RESULT] No RESULT line found; check log.")
     print(f"[LOG] {job.log_path}")

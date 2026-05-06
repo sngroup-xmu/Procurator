@@ -52,12 +52,14 @@ class BoogieHarnessStartMixin:
         for a in node_aliases:
             start_modifies.update(self._node_mainprocedure_modifies.get(a, set()))
             start_modifies.update(f"{a}_{v}" for v in self._node_input_vars.get(a, []))
+            start_modifies.update(self._collect_env_modified_boogie_vars(a))
             # Per-pass DSL statements may modify additional globals (including cross-node
             # instrumentation). Since fork behaves like a call wrt modifies checks, ULTIMATE.start
             # must include them as well.
             start_modifies.update(self._collect_dsl_modified_boogie_vars(a))
         for h in host_aliases:
             start_modifies.update(f"{h}_{v}" for v in self._host_input_vars.get(h, []))
+            start_modifies.update(self._collect_env_modified_boogie_vars(h))
         for l in self._spec.links:
             if not self._is_sink_node(l.dst):
                 # forwarding updates inbox counters
@@ -195,8 +197,10 @@ class BoogieHarnessStartMixin:
         for a in node_aliases:
             mods.update(self._node_mainprocedure_modifies.get(a, set()))
             mods.update(f"{a}_{v}" for v in self._node_input_vars.get(a, []))
+            mods.update(self._collect_env_modified_boogie_vars(a))
         for h in host_aliases:
             mods.update(f"{h}_{v}" for v in self._host_input_vars.get(h, []))
+            mods.update(self._collect_env_modified_boogie_vars(h))
 
         for l in self._spec.links:
             if not self._is_sink_node(l.dst):

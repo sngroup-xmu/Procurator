@@ -39,6 +39,7 @@ _BOOGIE_KEYWORDS = {
     "returns",
     "return",
     "requires",
+    "then",
     "true",
     "type",
     "unique",
@@ -166,4 +167,3 @@ def ultimate_rewrite_bvbuiltin_attrs(bpl: str) -> str:
     attributes.
     """
     return _ULTIMATE_BVB_BUILTIN_ATTR_RE.sub("{:builtin", bpl)
-

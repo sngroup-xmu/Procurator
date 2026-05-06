@@ -90,11 +90,14 @@ GRAMMAR = r"""
          | term "*" factor                   -> mul
          | term "/" factor                   -> div
 
-    ?factor: INT                             -> number
-           | "true"                          -> true
-           | "false"                         -> false
-           | dotted_var                      -> var
-           | "(" expression ")"
+    ?factor: primary
+           | primary BITSLICE                -> bit_slice
+
+    ?primary: INT                            -> number
+            | "true"                         -> true
+            | "false"                        -> false
+            | dotted_var                     -> var
+            | "(" expression ")"
 
     // Allow numeric path segments like hdr.overlay.0.swip (Boogie emits stacks as .0/.1/...)
     // IMPORTANT: Keep dot-numeric segments (INTSEG) distinct from bracket indices (INT),
@@ -127,6 +130,7 @@ GRAMMAR = r"""
 
     ALL: "ALL"
     INTSEG: /[0-9]+/
+    BITSLICE.2: /\[[0-9]+:[0-9]+\]/
 
     COMMENT: /\/\/[^\n]*/
     %ignore COMMENT

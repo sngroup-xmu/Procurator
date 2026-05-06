@@ -170,7 +170,7 @@ class BoogieBackend:
             meta_path: Optional[Path] = None
             fail_fast_asserts: List[str] = []
             fail_fast_pairs: List[tuple[str, int]] = []
-            p4b_keep_vars: List[str] = []
+            p4b_keep_vars: List[str] = list(slicing_plan.slicing_keep_vars.get(alias, []))
             if src_path.endswith(".bpl"):
                 t_load_raw = prof.mark()
                 raw_text = Path(src_path).read_text(encoding="utf-8", errors="replace")

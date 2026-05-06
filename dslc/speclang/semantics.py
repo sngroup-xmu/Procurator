@@ -256,6 +256,22 @@ class SemanticAnalyzer:
         if t == "dotted_var":
             vname = self._dotted_var_to_str(expr_node)
             return self._get_variable_type(vname)
+        if t == "bit_slice":
+            if len(expr_node.children) >= 2:
+                try:
+                    bounds = str(expr_node.children[1]).strip("[]")
+                    hi_s, lo_s = bounds.split(":", 1)
+                    hi = int(hi_s)
+                    lo = int(lo_s)
+                    if hi < lo:
+                        self.errors.append(
+                            f"Type Error: invalid bit slice [{hi}:{lo}] in scope '{self.current_scope}'"
+                        )
+                except ValueError:
+                    self.errors.append(
+                        f"Type Error: invalid bit slice bounds in scope '{self.current_scope}'"
+                    )
+            return None
         if t in {"add", "sub", "mul", "div"}:
             lt = self._get_expression_type(expr_node.children[0])
             rt = self._get_expression_type(expr_node.children[1])
@@ -263,6 +279,9 @@ class SemanticAnalyzer:
                 return "int"
             return None
         if t in {"less", "less_eq", "greater", "greater_eq", "eq", "neq", "and_op", "or_op", "not_op"}:
+            for child in expr_node.children:
+                if isinstance(child, Tree):
+                    self._get_expression_type(child)
             return "bool"
         return None
 

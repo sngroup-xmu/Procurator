@@ -4,7 +4,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from dslc.backends.boogie.core.bpl import find_missing_type_decls
 from dslc.backends.boogie.node.p4b import _maybe_tofino_cpp_defines
+from dslc.backends.boogie.node.p4b import _detect_missing_read_write_decls
 
 
 class TestP4BTranslatorRegressions(unittest.TestCase):
@@ -59,8 +61,7 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
         write_bases = set(
             m.group("base") for m in re.finditer(r"\bcall\s+(?P<base>[A-Za-z_][A-Za-z0-9_]*)\.write\(", text)
         )
-        bases = sorted(read_bases | write_bases)
-        self.assertTrue(bases, "expected at least one register read/write in ATP output")
+        self.assertTrue(read_bases or write_bases, "expected at least one register read/write in ATP output")
 
         decl_vars = set(
             m.group("name") for m in re.finditer(r"^\s*var\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*:", text, re.M)
@@ -74,7 +75,14 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
             for m in re.finditer(r"^\s*procedure\b\s+.*\b(?P<name>[A-Za-z_][A-Za-z0-9_]*)\.write\b", text, re.M)
         )
 
-        missing = [b for b in bases if b not in decl_vars or b not in decl_reads or b not in decl_writes]
+        missing = []
+        for b in sorted(read_bases | write_bases):
+            if b not in decl_vars:
+                missing.append(b)
+            elif b in read_bases and b not in decl_reads:
+                missing.append(b)
+            elif b in write_bases and b not in decl_writes:
+                missing.append(b)
         self.assertEqual(missing, [], f"missing register decls for bases: {missing}")
 
     def test_p4db_damper_table_set_default_not_lost_under_slicing(self) -> None:
@@ -148,6 +156,44 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
         self.assertRegex(text, r"axiom register_data_record(?:_\d+)?\.size == 140500bv32;")
         self.assertNotRegex(text, r"axiom register_data_record(?:_\d+)?\.size == 1bv32;")
 
+    def test_gecko_json_register_actions_and_packet_emit_are_well_declared(self) -> None:
+        """Regression: JSON-IR RegisterAction and packet_out.emit names must be declaration-safe."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4json = repo_root / "Procurator" / "argo" / "code" / "dataset" / "gecko" / "timer_a.json"
+        entries = repo_root / "Procurator" / "argo" / "code" / "dataset" / "gecko" / "control" / "a.txt"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4json.exists() or not entries.exists() or not p4include.is_dir():
+            self.skipTest("missing Gecko JSON dataset, control-plane commands, or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "gecko_timer_a.bpl"
+            cmd = [
+                str(p4b_bin),
+                "-I",
+                str(p4include),
+                "--goto",
+                "--fromJSON",
+                str(p4json),
+                "--bmv2cmds",
+                str(entries),
+                "--slicing-vars=hdr.albion.operation",
+                "-o",
+                str(out_bpl),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertEqual(_detect_missing_read_write_decls(out_bpl), [])
+        self.assertEqual(find_missing_type_decls(text), [])
+        self.assertNotRegex(text, r"(?m)^function\b.*\bpkt\.emit\b")
+        self.assertRegex(text, r"(?m)^procedure\b.*\bpkt\.emit\b")
+
     def test_flowdos_parser_local_temps_are_declared_and_modified(self) -> None:
         """Regression: parser-local temps introduced by copied states need globals/modifies."""
 
@@ -192,6 +238,44 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
         self.assertIn("int_parser_hop_data_len", mods)
         self.assertIn("int_parser_hop_data_len_0", mods)
 
+    def test_flowdos_no_table_rules_keep_hit_false_on_apply(self) -> None:
+        """Regression: table.apply().hit must be deterministic false on miss/default path."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "external_int_flowdos" / "switch-flow.p4"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing FlowDoS dataset or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "flowdos.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "--goto",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        m = re.search(
+            r"(?s)procedure\s+\{:\s*inline\s+1\}\s+[A-Za-z0-9_$.]*ipv4_block\.apply\(\)\s+modifies\s+[^;]+;\s*\{(?P<body>.*?)\n\}",
+            text,
+        )
+        self.assertIsNotNone(m, "FlowDoS ipv4_block.apply must exist")
+        body = m.group("body") if m else ""
+        self.assertRegex(body, r"[A-Za-z0-9_$.]*ipv4_block\.hit := false;")
+        self.assertNotRegex(body, r"[A-Za-z0-9_$.]*ipv4_block\.hit := true;")
+
     def test_ubpf_three_arg_hash_lowers_to_deterministic_assignment(self) -> None:
         """Regression: uBPF hash(out, algo, data) must not be emitted as a no-op."""
 
@@ -225,9 +309,49 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
             subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             text = out_bpl.read_text(encoding="utf-8", errors="replace")
 
-        self.assertRegex(text, r"function\s+hash__lookup3\$bv16\$bv8")
-        self.assertIn("meta.output := hash__lookup3$bv16$bv8(headers.test.sa, headers.test.da);", text)
+        self.assertRegex(text, r"function\s+hash_lookup3\$bv16\$bv8")
+        self.assertIn("meta.output := hash_lookup3$bv16$bv8(headers.test.sa, headers.test.da);", text)
         self.assertNotIn("// hash", text)
+
+    def test_psa_identity_hash_extern_lowers_to_precise_slice(self) -> None:
+        """Regression: identity Hash.get_hash must not use the CRC/UF hash abstraction."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        sample_dir = repo_root / "P4B-Translator" / "testdata" / "p4_16_samples"
+        p4 = sample_dir / "psa-hash-04.p4"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing PSA hash sample or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "psa_hash_04.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "-I",
+                str(sample_dir),
+                "--goto",
+                "--no-slicing",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("p4b_hash_model: extern", text)
+        self.assertIn("model=identity precision=precise", text)
+        self.assertIn("model=crc16_uf precision=deterministic_uninterpreted", text)
+        self.assertRegex(text, r"b\.data1 := .*hdr\.ipv4\.protocol")
+        self.assertNotRegex(text, r"b\.data1 := .*h1(?:_\d+)?\.get_hash")
+        self.assertRegex(text, r"b\.data0 := .*get_hash.*\(")
 
     def test_counter_externs_emit_stateful_updates(self) -> None:
         """Regression: PSA and eBPF counters must not survive as comment-only effects."""
@@ -570,6 +694,123 @@ PNA_NIC(P(), Pre(), Main(), D()) main;
         self.assertIn("procedure {:inline 1} pipe()", text)
         self.assertIn("call IngressParser();", text)
         self.assertIn("call EmptyEgress();", text)
+
+    def test_neuralp4_sliced_modifies_do_not_redeclare_pruned_temps(self) -> None:
+        """Regression: slicing must not reintroduce pruned ANN temporaries via modifies."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4 = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "dataset"
+            / "external_neuralp4_noms25"
+            / "NeuralP4"
+            / "p4-vm"
+            / "netml-iot-16x32x2-q4-4"
+            / "code"
+            / "ANN.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing NeuralP4 dataset or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "ann_sliced.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "--goto",
+                "--slicing-vars=MyIngress_reg_n_received_stimuli[0],"
+                "MyIngress_reg_received_stimuli[0],MyIngress_reg_run_id[0],hdr.ann.valid",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("procedure {:inline 1} MyIngress()", text)
+        self.assertRegex(text, r"(?m)^var\s+MyIngress_reg_run_id\b")
+        self.assertNotRegex(text, r"(?m)^var\s+res_\d+")
+        self.assertNotRegex(text, r"(?m)^var\s+operand_[abc]\d*_\d+")
+        self.assertNotRegex(text, r"(?m)^\s*havoc\s+res_\d+;")
+        self.assertNotRegex(text, r"(?m)^\s*havoc\s+operand_[abc]\d*_\d+;")
+        for m in re.finditer(r"(?m)^procedure[^\n]*\n\s+modifies\s+(?P<mods>[^;]+);", text):
+            mods = m.group("mods")
+            self.assertNotRegex(mods, r"\bres_\d+")
+            self.assertNotRegex(mods, r"\boperand_[abc]\d*_\d+")
+        main_match = re.search(
+            r"(?m)^procedure\s+mainProcedure\(\)\n\s+modifies\s+(?P<mods>[^;]+);",
+            text,
+        )
+        self.assertIsNotNone(main_match)
+        self.assertIn("p4b_checksum_error", main_match.group("mods"))
+        self.assertIn("p4b_clone_i2e", main_match.group("mods"))
+
+    def test_neuralp4_argmax_slice_keeps_used_temporaries_declared(self) -> None:
+        """Regression: retained NeuralP4 arithmetic statements need temp decls."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4 = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "dataset"
+            / "external_neuralp4_noms25"
+            / "NeuralP4"
+            / "p4-vm"
+            / "netml-iot-16x32x2-q4-4"
+            / "code"
+            / "ANN.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing NeuralP4 dataset or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "ann_argmax_sliced.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "--goto",
+                "--slicing-vars=MyIngress_reg_neuron_max_value[0],"
+                "MyIngress_reg_neuron_1_data[0],hdr.ann.valid,"
+                "hdr.ann.data_1,hdr.ann.data_2,hdr.ann.neuron_id",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        for name in ("res_1_47", "operand_a_1_47", "operand_b1_2"):
+            self.assertRegex(text, rf"(?m)^var\s+{name}\s*:")
+            self.assertRegex(text, rf"(?m)\b{name}\b")
+        my_ingress = re.search(
+            r"(?m)^procedure\s+\{:inline 1\}\s+MyIngress\(\)\n\s+modifies\s+(?P<mods>[^;]+);",
+            text,
+        )
+        self.assertIsNotNone(my_ingress)
+        mods = my_ingress.group("mods")
+        for name in ("res_1_47", "operand_a_1_47", "operand_b1_2"):
+            self.assertIn(name, mods)
 
 
 if __name__ == "__main__":

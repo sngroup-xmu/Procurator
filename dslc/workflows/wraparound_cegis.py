@@ -11,10 +11,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Protocol, Sequence, Tuple
 
 from dslc.analysis.wraparound_candidates import WraparoundCandidate, infer_wraparound_candidates
-from dslc.analysis.wraparound_projection import (
-    extract_dependency_projection,
-    is_stable_projection_predicate_text,
-)
+from dslc.analysis.wraparound_projection import extract_dependency_projection
 from dslc.compiler import compile_spec_file
 from dslc.speclang.parse import parse_model
 from dslc.transform.wraparound import WraparoundStage, instrument_bpl_text
@@ -46,6 +43,9 @@ from dslc.workflows.wraparound_support.distcache import (
     _infer_distcache_hash_caps,
     _infer_distcache_partition_eports,
     _is_distcache_like,
+)
+from dslc.workflows.wraparound_support.certification.manifest import (
+    manifest_certified_unsafe_data as _manifest_certified_unsafe_data,
 )
 from dslc.workflows.wraparound_support.refinement import (
     _find_latest_graphml_witness_since,
@@ -151,7 +151,9 @@ class CegisAttemptConfig:
     step_op: str
     step_delta: int
     proj_predicates: Tuple[str, ...] = ()
+    proj_predicate_sources: Tuple[str, ...] = ()
     proj_exprs: Tuple[str, ...] = ()
+    env_shape_assumes: Tuple[str, ...] = ()
     projection_complete: bool = True
     # CEGIS-synthesized constraints used for *CLOSURE only* (Boogie expressions).
     #
@@ -211,201 +213,6 @@ class CegisManifest:
     blockers: List[dict] = field(default_factory=list)
     certified: bool = False
     diagnostic: str = ""
-
-
-def _stage_result_is(res: object, what: str) -> bool:
-    if not isinstance(res, dict):
-        return False
-    s = str(res.get("result_line") or "").lower()
-    if what == "unsafe":
-        return ("result: unsafe" in s) or ("proved your program to be incorrect" in s)
-    if what == "safe":
-        return ("result: safe" in s) or ("proved your program to be correct" in s)
-    return what.lower() in s
-
-
-def _is_empty_sequence(value: object) -> bool:
-    return isinstance(value, (list, tuple)) and len(value) == 0
-
-
-def _manifest_certified_unsafe_data(data: dict) -> bool:
-    attempts = data.get("attempts") or []
-    if not isinstance(attempts, list):
-        return False
-
-    mode = str(data.get("cegar_mode") or WraparoundCegarMode.LEGACY_CLOSURE_ASSUMES.value)
-    if mode == WraparoundCegarMode.SCHEDULE_REPLAY.value:
-        base_hash = str(data.get("base_bpl_sha256") or "")
-        if not base_hash:
-            return False
-        manifest_cand = data.get("candidate")
-        manifest_index_value = manifest_cand.get("index_value") if isinstance(manifest_cand, dict) else None
-        manifest_index_expr = manifest_cand.get("index_expr") if isinstance(manifest_cand, dict) else None
-        for a in attempts:
-            if not isinstance(a, dict):
-                continue
-            sched = a.get("schedule")
-            if not isinstance(sched, dict):
-                continue
-            schedule_id = str(sched.get("schedule_id") or "")
-            if not schedule_id:
-                return False
-            if str(sched.get("base_bpl_sha256") or "") != base_hash:
-                continue
-            actors = sched.get("actors")
-            if not isinstance(actors, (list, tuple)) or not actors:
-                continue
-            if "phases" in sched or "reactions" in sched:
-                continue
-            # Witness-derived replay/profile conditions are diagnostic assumptions,
-            # not closure-proved projection invariants. A schedule result that needs
-            # them must fall back to direct GemCutter instead of being certified.
-            if not _is_empty_sequence(sched.get("conditions")):
-                continue
-            cfg_raw = a.get("cfg")
-            if not isinstance(cfg_raw, dict):
-                continue
-            cfg = cfg_raw
-            if not _is_empty_sequence(cfg.get("closure_assumes")):
-                continue
-            if cfg.get("projection_complete") is not True:
-                continue
-            cfg_proj = cfg.get("proj_vars") if isinstance(cfg, dict) else None
-            if not isinstance(cfg_proj, (list, tuple)):
-                continue
-            cfg_pred = cfg.get("proj_predicates") if isinstance(cfg, dict) else None
-            if cfg_pred is None:
-                cfg_pred = []
-            if not isinstance(cfg_pred, (list, tuple)):
-                continue
-            if any(not is_stable_projection_predicate_text(str(expr)) for expr in cfg_pred):
-                continue
-            cfg_expr = cfg.get("proj_exprs") if isinstance(cfg, dict) else None
-            if cfg_expr is None:
-                cfg_expr = []
-            if not isinstance(cfg_expr, (list, tuple)):
-                continue
-            sched_target_regs = sched.get("target_regs") or []
-            if not isinstance(sched_target_regs, (list, tuple)) or not sched_target_regs:
-                continue
-            sched_proj = sched.get("projection") or []
-            if not isinstance(sched_proj, (list, tuple)):
-                continue
-            expected_len = len(cfg_proj) + len(cfg_pred) + len(cfg_expr)
-            if len(sched_proj) != expected_len:
-                continue
-            try:
-                sched_index_value = int(sched.get("index_value"))
-                sched_step_delta = int(sched.get("step_delta"))
-                cfg_index_value = int(cfg.get("index_value"))
-                cfg_step_delta = int(cfg.get("step_delta"))
-                cfg_accel_regs = cfg.get("accel_regs") or []
-                if not isinstance(cfg_accel_regs, (list, tuple)):
-                    continue
-                expected_target_regs = []
-                for reg in [str(cfg.get("pump_reg") or ""), *[str(v) for v in cfg_accel_regs]]:
-                    if reg and reg not in expected_target_regs:
-                        expected_target_regs.append(reg)
-                if [str(v) for v in sched_target_regs] != expected_target_regs:
-                    continue
-                if sched_index_value != cfg_index_value or sched_step_delta != cfg_step_delta:
-                    continue
-                expected_candidate_id = compute_wraparound_candidate_id(
-                    pump_reg=str(cfg.get("pump_reg") or ""),
-                    accel_regs=[str(v) for v in cfg_accel_regs],
-                    index_value=manifest_index_value if isinstance(manifest_cand, dict) else cfg.get("index_value"),
-                    index_expr=manifest_index_expr if isinstance(manifest_cand, dict) else cfg.get("index_expr"),
-                    cutpoint_cond=cfg.get("cutpoint_cond"),
-                    step_op=str(cfg.get("step_op") or ""),
-                    step_delta=cfg_step_delta,
-                )
-                if str(sched.get("candidate_id") or "") != expected_candidate_id:
-                    continue
-                recomputed_schedule_id = compute_actor_schedule_id(
-                    candidate_id=expected_candidate_id,
-                    target_regs=[str(v) for v in sched_target_regs],
-                    index_value=sched_index_value,
-                    step_delta=sched_step_delta,
-                    actors=[str(v) for v in actors],
-                    projection=list(sched_proj),
-                    base_bpl_sha256=base_hash,
-                )
-            except (TypeError, ValueError):
-                continue
-            if recomputed_schedule_id != schedule_id:
-                continue
-            projection_ok = True
-            for pred, cfg_lhs in zip(sched_proj[: len(cfg_proj)], cfg_proj):
-                if not isinstance(pred, dict):
-                    projection_ok = False
-                    break
-                if str(pred.get("source") or "") != "dependency_projection":
-                    projection_ok = False
-                    break
-                if str(pred.get("lhs") or "") != str(cfg_lhs):
-                    projection_ok = False
-                    break
-                if str(pred.get("rhs") or "") != "entry_snapshot":
-                    projection_ok = False
-                    break
-            if projection_ok:
-                pred_start = len(cfg_proj)
-                expr_start = pred_start + len(cfg_pred)
-                for i, (pred, cfg_pred_expr) in enumerate(zip(sched_proj[pred_start:expr_start], cfg_pred)):
-                    if not isinstance(pred, dict):
-                        projection_ok = False
-                        break
-                    if str(pred.get("source") or "") != "dependency_projection":
-                        projection_ok = False
-                        break
-                    if str(pred.get("kind") or "") != "predicate":
-                        projection_ok = False
-                        break
-                    if str(pred.get("lhs") or "") != f"predicate:{i}":
-                        projection_ok = False
-                        break
-                    if str(pred.get("rhs") or "") != str(cfg_pred_expr):
-                        projection_ok = False
-                        break
-            if projection_ok:
-                expr_start = len(cfg_proj) + len(cfg_pred)
-                for i, (pred, cfg_proj_expr) in enumerate(zip(sched_proj[expr_start:], cfg_expr)):
-                    if not isinstance(pred, dict):
-                        projection_ok = False
-                        break
-                    if str(pred.get("source") or "") != "dependency_projection":
-                        projection_ok = False
-                        break
-                    if str(pred.get("kind") or "") != "expr":
-                        projection_ok = False
-                        break
-                    if str(pred.get("lhs") or "") != f"expr:{i}":
-                        projection_ok = False
-                        break
-                    if str(pred.get("rhs") or "") != str(cfg_proj_expr):
-                        projection_ok = False
-                        break
-            if not projection_ok:
-                continue
-            if (
-                a.get("certified") is True
-                and _stage_result_is(a.get("entry"), "unsafe")
-                and _stage_result_is(a.get("near_wrap"), "unsafe")
-                and _stage_result_is(a.get("closure"), "safe")
-            ):
-                return True
-        return False
-
-    for a in attempts:
-        if not isinstance(a, dict):
-            continue
-        if (
-            _stage_result_is(a.get("entry"), "unsafe")
-            and _stage_result_is(a.get("confirm"), "unsafe")
-            and _stage_result_is(a.get("closure"), "safe")
-        ):
-            return True
-    return False
 
 
 def _write_manifest(

@@ -349,7 +349,7 @@ class WraparoundScheduleTests(unittest.TestCase):
             self.assertEqual(manifest["diagnostic"], "entry unreachable or blocked; falling back")
             self.assertFalse(manifest["certified"])
 
-    def test_schedule_replay_incomplete_projection_still_runs_near_but_not_closure(self) -> None:
+    def test_schedule_replay_hard_incomplete_projection_still_runs_near_but_not_closure(self) -> None:
         bpl = """\
 var procurator_phase: int;
 var procurator_step: int;
@@ -451,8 +451,99 @@ procedure mainProcedure() returns()
             self.assertFalse(_manifest_certified_unsafe_data(manifest))
             self.assertEqual(
                 manifest["diagnostic"],
-                "near-wrap bug found but dependency projection incomplete; falling back to direct verification",
+                "near-wrap bug found but hard dependency projection gap remains; falling back to direct verification",
             )
+
+    def test_schedule_replay_soft_cutpoint_guard_noise_can_certify_after_closure(self) -> None:
+        bpl = """\
+type Ref;
+var procurator_phase: int;
+var procurator_step: int;
+var s1_inbox_count: int;
+var isValid: [Ref]bool;
+var s1_hdr.nc_hdr: Ref;
+var r: [bv32]bv8;
+var r__last0_value: bv8;
+
+procedure main() returns()
+  modifies procurator_phase, procurator_step, s1_inbox_count, isValid, s1_hdr.nc_hdr, r, r__last0_value;
+{
+  // One scheduler step: pick exactly one action.
+  // Scheduler: deterministic round-robin over the action list.
+  if (procurator_phase == 0) {
+    // env inject -> s1
+    s1_inbox_count := 1;
+  } else if (procurator_phase == 1) {
+    // node pass -> s1
+    if (s1_inbox_count > 0) {
+      s1_inbox_count := s1_inbox_count - 1;
+      if (isValid[s1_hdr.nc_hdr]) {
+        r[0bv32] := add.bv8(r[0bv32], 1bv8);
+        r__last0_value := r[0bv32];
+      }
+    }
+  } else {
+    assume false;
+  }
+  if (procurator_phase == 1) {
+    procurator_phase := 0;
+  } else {
+    procurator_phase := procurator_phase + 1;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_phase, procurator_step, s1_inbox_count, isValid, s1_hdr.nc_hdr, r, r__last0_value;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  s1_inbox_count := 0;
+  r__last0_value := 0bv8;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+        runner = _SequenceRunner(["SAFE"])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(bpl, encoding="utf-8")
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=bpl,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=_candidate_with_mailbox_projection(),
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(runner.calls, ["entry_check", "near_wrap", "closure_check"])
+            attempt = manifest["attempts"][0]
+            self.assertTrue(attempt["cfg"]["projection_complete"])
+            self.assertIn("dependency_projection_unstable_cutpoint_guards=1", attempt["cfg"]["notes"])
+            self.assertTrue(attempt["certified"])
+            self.assertTrue(manifest["certified"])
+            self.assertTrue(_manifest_certified_unsafe_data(manifest))
 
     def test_schedule_replay_never_certifies_incomplete_projection_even_if_closure_runs(self) -> None:
         # Defensive regression for future branch-splitting changes: certification

@@ -23,6 +23,8 @@ class DSLExprPrinter:
                 return "true"
             if expr_type == "false":
                 return "false"
+            if expr_type == "bit_slice" and len(ch) == 2:
+                return f"{self.expr_to_str(ch[0])}{ch[1]}"
 
             if expr_type in {"add", "sub", "mul", "div", "less", "less_eq", "greater", "greater_eq", "eq", "neq"}:
                 op_map = {

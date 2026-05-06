@@ -636,6 +636,80 @@ procedure mainProcedure() returns()
         self.assertNotIn("flow_id_reg[idx]", dep.proj_exprs)
         self.assertNotIn("meta.flow_ID", ",".join(dep.proj_predicates))
 
+    def test_dependency_projection_accepts_target_guard_function_predicate(self) -> None:
+        bpl = """\
+var procurator_phase: int;
+var s1_inbox_count: int;
+var idx: bv16;
+var counter_filter: [bv16]bv8;
+var counter_filter__last_index: bv16;
+var counter_filter__last_value: bv8;
+
+procedure main() returns()
+  modifies procurator_phase, s1_inbox_count, counter_filter, counter_filter__last_index, counter_filter__last_value;
+{
+  // One scheduler step: pick exactly one action.
+  // Scheduler: deterministic round-robin over the action list.
+  if (procurator_phase == 0) {
+    // env inject -> s1
+    s1_inbox_count := 1;
+  } else if (procurator_phase == 1) {
+    // node pass -> s1
+    if (s1_inbox_count > 0) {
+      s1_inbox_count := s1_inbox_count - 1;
+      counter_filter[idx] := add.bv8(counter_filter[idx], 1bv8);
+      counter_filter__last_index := idx;
+      counter_filter__last_value := counter_filter[idx];
+      if (buge.bv8(counter_filter[idx], 128bv8)) {
+        counter_filter[idx] := 0bv8;
+        counter_filter__last_index := idx;
+        counter_filter__last_value := 0bv8;
+      }
+    }
+  } else {
+    assume false;
+  }
+  if (procurator_phase == 1) {
+    procurator_phase := 0;
+  } else {
+    procurator_phase := procurator_phase + 1;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_phase, s1_inbox_count, idx, counter_filter, counter_filter__last_index, counter_filter__last_value;
+{
+  s1_inbox_count := 0;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+  }
+}
+"""
+        dep = extract_dependency_projection(
+            bpl_text=bpl,
+            candidate=WraparoundCandidate(
+                pump_reg="counter_filter",
+                accel_regs=("counter_filter",),
+                index_value=None,
+                index_expr="5bv16",
+                proj_vars=("procurator_phase",),
+                cutpoint_cond="(procurator_phase == 0)",
+                reason="test",
+                step_op="add",
+                step_delta=1,
+            ),
+        )
+        pred_text = ",".join(dep.cutpoint_predicates)
+        self.assertIn("counter_filter[5bv16]", pred_text)
+        self.assertIn("128bv8", pred_text)
+        self.assertIn("buge.bv8", pred_text)
+        self.assertTrue(all("dependency_projection_unstable_cutpoint_guards=" not in n for n in dep.notes), dep.notes)
+        # Target-slot guard predicates are cutpoint branch metadata, not closure
+        # equality projection invariants.  They must stay in cutpoint predicates
+        # but not be copied into proj_predicates.
+        self.assertEqual(dep.proj_predicates, ())
+
     def test_dependency_projection_marks_ambiguous_dynamic_slot_shape_incomplete(self) -> None:
         bpl = """\
 var procurator_phase: int;
