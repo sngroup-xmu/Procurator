@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+ http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "lib/json.h"
 #include "JsonObjects.h"
-#include "helpers.h"
 
-namespace BMV2 {
+#include "helpers.h"
+#include "lib/json.h"
+
+namespace P4::BMV2 {
 
 const int JSON_MAJOR_VERSION = 2;
 const int JSON_MINOR_VERSION = 23;
@@ -26,48 +27,46 @@ const int JSON_MINOR_VERSION = 23;
 JsonObjects::JsonObjects() {
     toplevel = new Util::JsonObject();
     meta = new Util::JsonObject();
-    header_types = insert_array_field(toplevel, "header_types");
-    headers = insert_array_field(toplevel, "headers");
-    header_stacks = insert_array_field(toplevel, "header_stacks");
-    header_union_types = insert_array_field(toplevel, "header_union_types");
-    header_unions = insert_array_field(toplevel, "header_unions");
-    header_union_stacks = insert_array_field(toplevel, "header_union_stacks");
-    field_lists = insert_array_field(toplevel, "field_lists");
-    errors = insert_array_field(toplevel, "errors");
-    enums = insert_array_field(toplevel, "enums");
-    parsers = insert_array_field(toplevel, "parsers");
-    parse_vsets = insert_array_field(toplevel, "parse_vsets");
-    deparsers = insert_array_field(toplevel, "deparsers");
-    meter_arrays = insert_array_field(toplevel, "meter_arrays");
-    counters = insert_array_field(toplevel, "counter_arrays");
-    register_arrays = insert_array_field(toplevel, "register_arrays");
-    calculations = insert_array_field(toplevel, "calculations");
-    learn_lists = insert_array_field(toplevel, "learn_lists");
-    actions = insert_array_field(toplevel, "actions");
-    pipelines = insert_array_field(toplevel, "pipelines");
-    checksums = insert_array_field(toplevel, "checksums");
-    force_arith = insert_array_field(toplevel, "force_arith");
-    externs = insert_array_field(toplevel, "extern_instances");
-    field_aliases = insert_array_field(toplevel, "field_aliases");
+    header_types = insert_array_field(toplevel, "header_types"_cs);
+    headers = insert_array_field(toplevel, "headers"_cs);
+    header_stacks = insert_array_field(toplevel, "header_stacks"_cs);
+    header_union_types = insert_array_field(toplevel, "header_union_types"_cs);
+    header_unions = insert_array_field(toplevel, "header_unions"_cs);
+    header_union_stacks = insert_array_field(toplevel, "header_union_stacks"_cs);
+    field_lists = insert_array_field(toplevel, "field_lists"_cs);
+    errors = insert_array_field(toplevel, "errors"_cs);
+    enums = insert_array_field(toplevel, "enums"_cs);
+    parsers = insert_array_field(toplevel, "parsers"_cs);
+    parse_vsets = insert_array_field(toplevel, "parse_vsets"_cs);
+    deparsers = insert_array_field(toplevel, "deparsers"_cs);
+    meter_arrays = insert_array_field(toplevel, "meter_arrays"_cs);
+    counters = insert_array_field(toplevel, "counter_arrays"_cs);
+    register_arrays = insert_array_field(toplevel, "register_arrays"_cs);
+    calculations = insert_array_field(toplevel, "calculations"_cs);
+    learn_lists = insert_array_field(toplevel, "learn_lists"_cs);
+    actions = insert_array_field(toplevel, "actions"_cs);
+    pipelines = insert_array_field(toplevel, "pipelines"_cs);
+    checksums = insert_array_field(toplevel, "checksums"_cs);
+    force_arith = insert_array_field(toplevel, "force_arith"_cs);
+    externs = insert_array_field(toplevel, "extern_instances"_cs);
+    field_aliases = insert_array_field(toplevel, "field_aliases"_cs);
 }
 
-Util::JsonArray*
-JsonObjects::get_field_list_contents(unsigned id) const {
+Util::JsonArray *JsonObjects::get_field_list_contents(unsigned id) const {
     for (auto e : *field_lists) {
         auto obj = e->to<Util::JsonObject>();
-        auto val = obj->get("id")->to<Util::JsonValue>();
+        auto val = obj->getAs<Util::JsonValue>("id");
         if (val != nullptr && val->isNumber() && val->getInt() == static_cast<int>(id)) {
-            return obj->get("elements")->to<Util::JsonArray>();
+            return obj->getAs<Util::JsonArray>("elements");
         }
     }
     return nullptr;
 }
 
-Util::JsonObject*
-JsonObjects::find_object_by_name(Util::JsonArray* array, const cstring& name) {
+Util::JsonObject *JsonObjects::find_object_by_name(Util::JsonArray *array, const cstring &name) {
     for (auto e : *array) {
         auto obj = e->to<Util::JsonObject>();
-        auto val = obj->get("name")->to<Util::JsonValue>();
+        auto val = obj->getAs<Util::JsonValue>("name");
         if (val != nullptr && val->isString() && val->getString() == name) {
             return obj;
         }
@@ -75,108 +74,89 @@ JsonObjects::find_object_by_name(Util::JsonArray* array, const cstring& name) {
     return nullptr;
 }
 
-/// Insert a json array to a parent object under key 'name'.
-Util::JsonArray*
-JsonObjects::insert_array_field(Util::JsonObject* parent, cstring name) {
+Util::JsonArray *JsonObjects::insert_array_field(Util::JsonObject *parent, cstring name) {
     auto result = new Util::JsonArray();
     parent->emplace(name, result);
     return result;
 }
 
-/// Append a json array to a parent json array.
-Util::JsonArray*
-JsonObjects::append_array(Util::JsonArray* parent) {
+Util::JsonArray *JsonObjects::append_array(Util::JsonArray *parent) {
     auto result = new Util::JsonArray();
     parent->append(result);
     return result;
 }
 
-/// Insert a json array named 'parameters' in a parent json object.
-Util::JsonArray*
-JsonObjects::create_parameters(Util::JsonObject* object) {
-    return insert_array_field(object, "parameters");
+Util::JsonArray *JsonObjects::create_parameters(Util::JsonObject *object) {
+    return insert_array_field(object, "parameters"_cs);
 }
 
-void
-JsonObjects::add_program_info(const cstring& name) {
-    toplevel->emplace("program", name);
-}
+void JsonObjects::add_program_info(const cstring &name) { toplevel->emplace("program", name); }
 
-void
-JsonObjects::add_meta_info() {
+void JsonObjects::add_meta_info() {
     static constexpr int version_major = JSON_MAJOR_VERSION;
     static constexpr int version_minor = JSON_MINOR_VERSION;
-    auto version = insert_array_field(meta, "version");
+    auto version = insert_array_field(meta, "version"_cs);
     version->append(version_major);
     version->append(version_minor);
     meta->emplace("compiler", "https://github.com/p4lang/p4c");
     toplevel->emplace("__meta__", meta);
 }
-
-/**
- * Create a header type in json.
- * @param name header name
- * @param type header type
- * @param max_length  maximum length for a header with varbit fields;
- *                    if 0 header does not contain varbit fields
- * @param fields a JsonArray for the fields in the header
- */
-unsigned
-JsonObjects::add_header_type(const cstring& name, Util::JsonArray*& fields, unsigned max_length) {
-    std::string sname(name, name.size());
+/// Create a header type in json.
+/// @param name header name
+/// @param type header type
+/// @param max_length  maximum length for a header with varbit fields;
+/// if 0 header does not contain varbit fields
+/// @param fields a JsonArray for the fields in the header
+unsigned JsonObjects::add_header_type(const cstring &name, Util::JsonArray *&fields,
+                                      unsigned max_length) {
+    std::string sname = name.string();
     auto header_type_id_it = header_type_id.find(sname);
     if (header_type_id_it != header_type_id.end()) {
         return header_type_id_it->second;
     }
     auto header_type = new Util::JsonObject();
-    unsigned id = BMV2::nextId("header_types");
+    unsigned id = BMV2::nextId("header_types"_cs);
     header_type_id[sname] = id;
     header_type->emplace("name", name);
     header_type->emplace("id", id);
     if (fields != nullptr) {
-        header_type->emplace("fields", fields);
+        header_type->emplace("fields"_cs, fields);
     } else {
         auto temp = new Util::JsonArray();
-        header_type->emplace("fields", temp);
+        header_type->emplace("fields"_cs, temp);
     }
-    if (max_length > 0)
-        header_type->emplace("max_length", max_length);
+    if (max_length > 0) header_type->emplace("max_length", max_length);
     header_types->append(header_type);
     return id;
 }
 
-unsigned
-JsonObjects::add_union_type(const cstring& name, Util::JsonArray*& fields) {
-    std::string sname(name, name.size());
+unsigned JsonObjects::add_union_type(const cstring &name, Util::JsonArray *&fields) {
+    std::string sname = name.string();
     auto it = union_type_id.find(sname);
-    if (it != union_type_id.end())
-        return it->second;
+    if (it != union_type_id.end()) return it->second;
     auto union_type = new Util::JsonObject();
-    unsigned id = BMV2::nextId("header_union_types");
+    unsigned id = BMV2::nextId("header_union_types"_cs);
     union_type_id[sname] = id;
     union_type->emplace("name", name);
     union_type->emplace("id", id);
     if (fields != nullptr) {
-        union_type->emplace("headers", fields);
+        union_type->emplace("headers"_cs, fields);
     } else {
         auto temp = new Util::JsonArray();
-        union_type->emplace("headers", temp);
+        union_type->emplace("headers"_cs, temp);
     }
     header_union_types->append(union_type);
     return id;
 }
 
-
-/// Create a header type with empty field list.
-unsigned
-JsonObjects::add_header_type(const cstring& name) {
-    std::string sname(name, name.size());
+unsigned JsonObjects::add_header_type(const cstring &name) {
+    std::string sname = name.string();
     auto header_type_id_it = header_type_id.find(sname);
     if (header_type_id_it != header_type_id.end()) {
         return header_type_id_it->second;
     }
     auto header_type = new Util::JsonObject();
-    unsigned id = BMV2::nextId("header_types");
+    unsigned id = BMV2::nextId("header_types"_cs);
     header_type_id[sname] = id;
     header_type->emplace("name", name);
     header_type->emplace("id", id);
@@ -186,22 +166,17 @@ JsonObjects::add_header_type(const cstring& name) {
     return id;
 }
 
-/// Create a set of fields to an existing header type.
-/// The header type is decribed by the name.
-void
-JsonObjects::add_header_field(const cstring& name, Util::JsonArray*& field) {
+void JsonObjects::add_header_field(const cstring &name, Util::JsonArray *&field) {
     CHECK_NULL(field);
-    Util::JsonObject* headerType = find_object_by_name(header_types, name);
-    Util::JsonArray* fields = headerType->get("fields")->to<Util::JsonArray>();
+    Util::JsonObject *headerType = find_object_by_name(header_types, name);
+    Util::JsonArray *fields = headerType->getAs<Util::JsonArray>("fields");
     BUG_CHECK(fields != nullptr, "header '%1%' not found", name);
     fields->append(field);
 }
 
-/// Create a header instance in json.
-unsigned
-JsonObjects::add_header(const cstring& type, const cstring& name) {
+unsigned JsonObjects::add_header(const cstring &type, const cstring &name) {
     auto header = new Util::JsonObject();
-    unsigned id = BMV2::nextId("headers");
+    unsigned id = BMV2::nextId("headers"_cs);
     LOG1("add header id " << id);
     header->emplace("name", name);
     header->emplace("id", id);
@@ -212,11 +187,10 @@ JsonObjects::add_header(const cstring& type, const cstring& name) {
     return id;
 }
 
-/// Create a header_union instance in json.
-unsigned
-JsonObjects::add_union(const cstring& type, Util::JsonArray*& headers, const cstring& name) {
+unsigned JsonObjects::add_union(const cstring &type, Util::JsonArray *&headers,
+                                const cstring &name) {
     auto u = new Util::JsonObject();
-    unsigned id = BMV2::nextId("header_unions");
+    unsigned id = BMV2::nextId("header_unions"_cs);
     LOG3("add header_union id " << id);
     u->emplace("name", name);
     u->emplace("id", id);
@@ -227,11 +201,10 @@ JsonObjects::add_union(const cstring& type, Util::JsonArray*& headers, const cst
     return id;
 }
 
-unsigned
-JsonObjects::add_metadata(const cstring& type, const cstring& name) {
+unsigned JsonObjects::add_metadata(const cstring &type, const cstring &name) {
     auto header = new Util::JsonObject();
-    unsigned id = BMV2::nextId("headers");
-    LOG1("add metadata header id " << id);
+    unsigned id = BMV2::nextId("headers"_cs);
+    LOG3("add metadata header id " << id);
     header->emplace("name", name);
     header->emplace("id", id);
     header->emplace("header_type", type);
@@ -241,11 +214,10 @@ JsonObjects::add_metadata(const cstring& type, const cstring& name) {
     return id;
 }
 
-void
-JsonObjects::add_header_stack(const cstring& type, const cstring& name,
-                              const unsigned size, const std::vector<unsigned>& ids) {
+void JsonObjects::add_header_stack(const cstring &type, const cstring &name, const unsigned size,
+                                   const std::vector<unsigned> &ids) {
     auto stack = new Util::JsonObject();
-    unsigned id = BMV2::nextId("stack");
+    unsigned id = BMV2::nextId("stack"_cs);
     stack->emplace("name", name);
     stack->emplace("id", id);
     stack->emplace("header_type", type);
@@ -258,11 +230,10 @@ JsonObjects::add_header_stack(const cstring& type, const cstring& name,
     header_stacks->append(stack);
 }
 
-void
-JsonObjects::add_header_union_stack(const cstring& type, const cstring& name,
-                                    const unsigned size, const std::vector<unsigned>& ids) {
+void JsonObjects::add_header_union_stack(const cstring &type, const cstring &name,
+                                         const unsigned size, const std::vector<unsigned> &ids) {
     auto stack = new Util::JsonObject();
-    unsigned id = BMV2::nextId("union_stack");
+    unsigned id = BMV2::nextId("union_stack"_cs);
     stack->emplace("name", name);
     stack->emplace("id", id);
     stack->emplace("union_type", type);
@@ -275,25 +246,20 @@ JsonObjects::add_header_union_stack(const cstring& type, const cstring& name,
     header_union_stacks->append(stack);
 }
 
-/// Add an error to json.
-void
-JsonObjects::add_error(const cstring& name, const unsigned type) {
+void JsonObjects::add_error(const cstring &name, const unsigned type) {
     auto arr = append_array(errors);
     arr->append(name);
     arr->append(type);
 }
 
-/// Add a single enum entry to json.
-/// A enum entry is identified with { enum_name, entry_name, entry_value }
-void
-JsonObjects::add_enum(const cstring& enum_name, const cstring& entry_name,
-                      const unsigned entry_value) {
+void JsonObjects::add_enum(const cstring &enum_name, const cstring &entry_name,
+                           const unsigned entry_value) {
     // look up enum in json by name
-    Util::JsonObject* enum_json = find_object_by_name(enums, enum_name);
+    Util::JsonObject *enum_json = find_object_by_name(enums, enum_name);
     if (enum_json == nullptr) {  // first entry in a new enum
         enum_json = new Util::JsonObject();
         enum_json->emplace("name", enum_name);
-        auto entries = insert_array_field(enum_json, "entries");
+        auto entries = insert_array_field(enum_json, "entries"_cs);
         auto entry = new Util::JsonArray();
         entry->append(entry_name);
         entry->append(entry_value);
@@ -301,7 +267,7 @@ JsonObjects::add_enum(const cstring& enum_name, const cstring& entry_name,
         enums->append(enum_json);
         LOG3("new enum object: " << enum_name << " " << entry_name << " " << entry_value);
     } else {  // add entry to existing enum
-        auto entries = enum_json->get("entries")->to<Util::JsonArray>();
+        auto entries = enum_json->getAs<Util::JsonArray>("entries");
         auto entry = new Util::JsonArray();
         entry->append(entry_name);
         entry->append(entry_value);
@@ -310,10 +276,9 @@ JsonObjects::add_enum(const cstring& enum_name, const cstring& entry_name,
     }
 }
 
-unsigned
-JsonObjects::add_parser(const cstring& name) {
+unsigned JsonObjects::add_parser(const cstring &name) {
     auto parser = new Util::JsonObject();
-    unsigned id = BMV2::nextId("parser");
+    unsigned id = BMV2::nextId("parser"_cs);
     parser->emplace("name", name);
     parser->emplace("id", id);
     parser->emplace("init_state", IR::ParserState::start);
@@ -325,16 +290,12 @@ JsonObjects::add_parser(const cstring& name) {
     return id;
 }
 
-/// insert parser state into a parser identified by parser_id
-/// return the id of the parser state
-unsigned
-JsonObjects::add_parser_state(const unsigned parser_id, const cstring& state_name) {
-    if (map_parser.find(parser_id) == map_parser.end())
-        BUG("parser %1% not found.", parser_id);
+unsigned JsonObjects::add_parser_state(const unsigned parser_id, const cstring &state_name) {
+    if (map_parser.find(parser_id) == map_parser.end()) BUG("parser %1% not found.", parser_id);
     auto parser = map_parser[parser_id];
-    auto states = parser->get("parse_states")->to<Util::JsonArray>();
+    auto states = parser->getAs<Util::JsonArray>("parse_states");
     auto state = new Util::JsonObject();
-    unsigned state_id = BMV2::nextId("parse_states");
+    unsigned state_id = BMV2::nextId("parse_states"_cs);
     state->emplace("name", state_name);
     state->emplace("id", state_id);
     auto operations = new Util::JsonArray();
@@ -349,46 +310,42 @@ JsonObjects::add_parser_state(const unsigned parser_id, const cstring& state_nam
     return state_id;
 }
 
-void
-JsonObjects::add_parser_transition(const unsigned state_id, Util::IJson* transition) {
+void JsonObjects::add_parser_transition(const unsigned state_id, Util::IJson *transition) {
     if (map_parser_state.find(state_id) == map_parser_state.end())
         BUG("parser state %1% not found.", state_id);
     auto state = map_parser_state[state_id];
-    auto transitions = state->get("transitions")->to<Util::JsonArray>();
+    auto transitions = state->getAs<Util::JsonArray>("transitions");
     CHECK_NULL(transitions);
     auto trans = transition->to<Util::JsonObject>();
     CHECK_NULL(trans);
     transitions->append(trans);
 }
 
-void
-JsonObjects::add_parser_op(const unsigned state_id, Util::IJson* op) {
+void JsonObjects::add_parser_op(const unsigned state_id, Util::IJson *op) {
     if (map_parser_state.find(state_id) == map_parser_state.end())
         BUG("parser state %1% not found.", state_id);
     auto state = map_parser_state[state_id];
-    auto statements = state->get("parser_ops")->to<Util::JsonArray>();
+    auto statements = state->getAs<Util::JsonArray>("parser_ops");
     CHECK_NULL(statements);
     statements->append(op);
 }
 
-void
-JsonObjects::add_parser_transition_key(const unsigned state_id, Util::IJson* newKey) {
+void JsonObjects::add_parser_transition_key(const unsigned state_id, Util::IJson *newKey) {
     if (map_parser_state.find(state_id) != map_parser_state.end()) {
-       auto state = map_parser_state[state_id];
-       auto keys = state->get("transition_key")->to<Util::JsonArray>();
-       CHECK_NULL(keys);
-       auto new_keys = newKey->to<Util::JsonArray>();
-       for (auto k : *new_keys) {
-           keys->append(k);
-       }
+        auto state = map_parser_state[state_id];
+        auto keys = state->getAs<Util::JsonArray>("transition_key");
+        CHECK_NULL(keys);
+        auto new_keys = newKey->to<Util::JsonArray>();
+        for (auto k : *new_keys) {
+            keys->append(k);
+        }
     }
 }
 
-void
-JsonObjects::add_parse_vset(const cstring& name, const unsigned bitwidth,
-                            const big_int& size) {
+void JsonObjects::add_parse_vset(const cstring &name, const unsigned bitwidth,
+                                 const big_int &size) {
     auto parse_vset = new Util::JsonObject();
-    unsigned id = BMV2::nextId("parse_vsets");
+    unsigned id = BMV2::nextId("parse_vsets"_cs);
     parse_vset->emplace("name", name);
     parse_vset->emplace("id", id);
     parse_vset->emplace("compressed_bitwidth", bitwidth);
@@ -396,13 +353,13 @@ JsonObjects::add_parse_vset(const cstring& name, const unsigned bitwidth,
     parse_vsets->append(parse_vset);
 }
 
-unsigned
-JsonObjects::add_action(const cstring& name, Util::JsonArray*& params, Util::JsonArray*& body) {
+unsigned JsonObjects::add_action(const cstring &name, Util::JsonArray *&params,
+                                 Util::JsonArray *&body) {
     CHECK_NULL(params);
     CHECK_NULL(body);
     auto action = new Util::JsonObject();
     action->emplace("name", name);
-    unsigned id = BMV2::nextId("actions");
+    unsigned id = BMV2::nextId("actions"_cs);
     action->emplace("id", id);
     action->emplace("runtime_data", params);
     action->emplace("primitives", body);
@@ -410,9 +367,8 @@ JsonObjects::add_action(const cstring& name, Util::JsonArray*& params, Util::Jso
     return id;
 }
 
-void
-JsonObjects::add_extern_attribute(const cstring& name, const cstring& type,
-                                  const cstring& value, Util::JsonArray* attributes) {
+void JsonObjects::add_extern_attribute(const cstring &name, const cstring &type,
+                                       const cstring &value, Util::JsonArray *attributes) {
     auto attr = new Util::JsonObject();
     attr->emplace("name", name);
     attr->emplace("type", type);
@@ -420,11 +376,10 @@ JsonObjects::add_extern_attribute(const cstring& name, const cstring& type,
     attributes->append(attr);
 }
 
-void
-JsonObjects::add_extern(const cstring& name, const cstring& type,
-                        Util::JsonArray* attributes) {
+void JsonObjects::add_extern(const cstring &name, const cstring &type,
+                             Util::JsonArray *attributes) {
     auto extn = new Util::JsonObject();
-    unsigned id = BMV2::nextId("extern_instances");
+    unsigned id = BMV2::nextId("extern_instances"_cs);
     extn->emplace("name", name);
     extn->emplace("id", id);
     extn->emplace("type", type);
@@ -432,4 +387,4 @@ JsonObjects::add_extern(const cstring& name, const cstring& type,
     externs->append(extn);
 }
 
-}  // namespace BMV2
+}  // namespace P4::BMV2

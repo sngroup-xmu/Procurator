@@ -1,0 +1,49 @@
+#include <cstdlib>
+#include <filesystem>
+#include <memory>
+#include <sstream>
+
+#include "lib/nullstream.h"
+#include "options.h"
+#include "p4fmt.h"
+
+using namespace P4;
+
+int main(int argc, char *const argv[]) {
+    AutoCompileContext autoP4FmtContext(new P4Fmt::P4FmtContext);
+    auto &options = P4Fmt::P4FmtContext::get().options();
+    if (options.process(argc, argv) == nullptr) {
+        return EXIT_FAILURE;
+    }
+    options.setInputFile();
+
+    std::stringstream formattedOutput = P4Fmt::getFormattedOutput(options.file);
+    if (formattedOutput.str().empty()) {
+        return EXIT_FAILURE;
+    };
+
+    std::ostream *out = nullptr;
+    std::unique_ptr<std::ostream> outFile;
+    // Write to stdout in absence of an output file.
+    if (options.outputFile().empty()) {
+        out = &std::cout;
+    } else {
+        outFile = openFile(options.outputFile(), false);
+        if ((outFile == nullptr) || !(*outFile)) {
+            ::P4::error(ErrorType::ERR_NOT_FOUND, "%2%: No such file or directory.",
+                        options.outputFile().string());
+            options.usage();
+            return EXIT_FAILURE;
+        }
+        out = outFile.get();
+    }
+
+    (*out) << formattedOutput.str();
+    out->flush();
+    if (!(*out)) {
+        ::P4::error(ErrorType::ERR_IO, "Failed to write to output file.");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}

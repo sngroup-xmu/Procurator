@@ -14,11 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "ir.h"
 #include "dbprint.h"
-#include "lib/hex.h"
 
-using namespace DBPrint;
+#include <iostream>
+#include <list>
+#include <set>
+#include <utility>
+#include <vector>
+
+#include "ir/declaration.h"
+#include "ir/id.h"
+#include "ir/ir.h"
+#include "ir/node.h"
+#include "ir/vector.h"
+#include "lib/cstring.h"
+#include "lib/indent.h"
+#include "lib/log.h"
+#include "lib/ordered_map.h"
+
+namespace P4 {
+
+using namespace P4::DBPrint;
 using namespace IndentCtl;
 
 static int dbprint_index = -1;
@@ -40,26 +56,51 @@ void IR::Node::dbprint(std::ostream &out) const {
     out << "<" << node_type_name() << ">(" << id << ")";
 }
 
-void IR::Block::dbprint(std::ostream& out) const {
+void IR::Block::dbprint(std::ostream &out) const {
     IR::Node::dbprint(out);
     out << " " << node;
 }
 
-void IR::InstantiatedBlock::dbprint(std::ostream& out) const {
+void IR::InstantiatedBlock::dbprint(std::ostream &out) const {
     IR::Node::dbprint(out);
     out << " " << node << " instance type=" << instanceType;
 }
 
-void IR::Annotation::dbprint(std::ostream& out) const {
+void IR::Annotation::dbprint(std::ostream &out) const {
     out << '@' << name;
-    const char *sep = "(";
-    for (auto e : expr) {
-        out << sep << e;
-        sep = ", "; }
-    if (*sep != '(') out << ')';
+    if (needsParsing()) out << "<unparsed>";
+    const char *open = structured ? "[" : "(";
+    const char *close = structured ? "]" : ")";
+
+    const char *sep = open;
+    std::visit(
+        [&](const auto &body) {
+            using T = std::decay_t<decltype(body)>;
+            if constexpr (std::is_same_v<T, IR::Vector<IR::AnnotationToken>>) {
+                for (auto e : body) {
+                    out << sep << e;
+                    sep = " ";
+                }
+            } else if constexpr (std::is_same_v<T, IR::Vector<IR::Expression>>) {
+                for (auto e : body) {
+                    out << sep << e;
+                    sep = ", ";
+                }
+            } else if constexpr (std::is_same_v<T, IR::IndexedVector<IR::NamedExpression>>) {
+                for (auto kvp : body) {
+                    out << sep << kvp->name << " = " << kvp->expression;
+                    sep = ", ";
+                }
+            } else {
+                BUG("Unexpected variant field");
+            }
+        },
+        body);
+
+    if (*sep != *open) out << close;
 }
 
-void IR::Block::dbprint_recursive(std::ostream& out) const {
+void IR::Block::dbprint_recursive(std::ostream &out) const {
     out << dbp(this);
     out << indent;
     for (auto it : constantValue) {
@@ -81,24 +122,27 @@ std::ostream &operator<<(std::ostream &out, const IR::Vector<IR::Expression> &v)
     if (prec) {
         if (v.size() == 1) {
             out << v[0];
-            return out; }
-        out << "{"; }
-    for (auto e : v)
-        out << Log::endl << setprec(0) << e << setprec(prec);
-    if (prec)
-        out << " }";
+            return out;
+        }
+        out << "{";
+    }
+    for (auto e : v) out << Log::endl << setprec(0) << e << setprec(prec);
+    if (prec) out << " }";
     return out;
 }
 
-void dbprint(const IR::Node *n) {
-  std::cout << n << std::endl;
+std::ostream &operator<<(std::ostream &out, const IR::Vector<IR::Annotation> &v) {
+    for (const auto &a : v) out << a << ' ';
+    return out;
 }
-void dbprint(const IR::Node &n) {
-  std::cout << n << std::endl;
-}
+
+void dbprint(const IR::Node *n) { std::cout << n << std::endl; }
+void dbprint(const IR::Node &n) { std::cout << n << std::endl; }
 void dbprint(const std::set<const IR::Expression *> s) {
     std::cout << indent << " {";
     int i = 0;
     for (auto el : s) std::cout << Log::endl << '[' << i++ << "] " << el;
     std::cout << " }" << unindent << Log::endl;
 }
+
+}  // namespace P4

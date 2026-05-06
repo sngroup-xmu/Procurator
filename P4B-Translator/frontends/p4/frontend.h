@@ -14,37 +14,83 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _P4_FRONTEND_H_
-#define _P4_FRONTEND_H_
+#ifndef FRONTENDS_P4_FRONTEND_H_
+#define FRONTENDS_P4_FRONTEND_H_
 
+#include "../common/options.h"
 #include "ir/ir.h"
 #include "parseAnnotations.h"
-#include "../common/options.h"
+#include "unusedDeclarations.h"
 
 namespace P4 {
 
-class FrontEnd {
-    /// A pass for parsing annotations.
-    ParseAnnotations parseAnnotations;
+class ConstantFoldingPolicy;    // forward declare to avoid having to include
+class StrengthReductionPolicy;  // forward declare to avoid having to include
 
+/// A customization point for frontend. The each tool can provide their own implementation of the
+/// policy that customizes its behaviour, or use instance of this class directly to provide the
+/// defaults.
+class FrontEndPolicy : public RemoveUnusedPolicy {
+ public:
+    virtual ~FrontEndPolicy() = default;
+
+    /// Get a vector of debug hooks that will be added to frontend and all the pass managers it
+    /// uses internally.
+    /// @returns Defaults to no hooks.
+    virtual std::vector<DebugHook> getDebugHooks() const { return {}; }
+
+    /// A specialized instance of annotations parser for the target, or nullptr to use the
+    /// default configuration.
+    /// @returns Defaults to nullptr.
+    virtual ParseAnnotations *getParseAnnotations() const { return nullptr; }
+
+    /// Indicates whether OpAssignmentExpressions should be expanded and replaced
+    /// by simple assignments.  This depends on SideEffectOrdering to be correct, so
+    /// should probably be false if skipSideEffectOrdering is true.
+    virtual bool removeOpAssign() const { return true; }
+
+    /// Indicates whether the side-effect-ordering pass should be skipped.
+    /// @returns Defaults to false.
+    // TODO: This should probably not be allowed to be skipped at all.
+    virtual bool skipSideEffectOrdering() const { return false; }
+
+    /// Indicates whether control flow should fold blocks marked with @inlinedFrom annotation
+    /// @returns Defaults to true
+    virtual bool foldInlinedFrom() const { return true; }
+
+    /// Indicates whether the frontend should run some optimizations (inlining, action localization,
+    /// etc.).
+    /// @returns default to enabled optimizations unless -O0 was given in the options (i.e. enabled
+    /// unless options.optimizationLevel == 0).
+    virtual bool optimize(const CompilerOptions &options) const {
+        return options.optimizationLevel > 0;
+    }
+
+    /// Get policy for the constant folding pass. @see ConstantFoldingPolicy
+    /// @returns Defaults to nullptr, which causes constant folding to use the default policy, which
+    /// does not modify the pass defaults in any way.
+    virtual ConstantFoldingPolicy *getConstantFoldingPolicy() const { return nullptr; }
+
+    /// Get policy for the strength reduction pass. @see StrengthReductionPolicy
+    /// @returns Defaults to nullptr, which causes strength reduction to use the default policy,
+    /// which does not modify the pass defaults in any way.
+    virtual StrengthReductionPolicy *getStrengthReductionPolicy() const { return nullptr; }
+};
+
+class FrontEnd {
+    FrontEndPolicy *policy;
     std::vector<DebugHook> hooks;
 
  public:
-    FrontEnd() = default;
-    explicit FrontEnd(ParseAnnotations parseAnnotations)
-        : parseAnnotations(parseAnnotations) { }
-    explicit FrontEnd(DebugHook hook) { hooks.push_back(hook); }
-    explicit FrontEnd(ParseAnnotations parseAnnotations, DebugHook hook)
-            : FrontEnd(parseAnnotations) {
-        hooks.push_back(hook);
-    }
-    void addDebugHook(DebugHook hook) { hooks.push_back(hook); }
+    FrontEnd() : FrontEnd(new FrontEndPolicy()) {}
+    explicit FrontEnd(FrontEndPolicy *policy) : policy(policy), hooks(policy->getDebugHooks()) {}
+
+    void addDebugHook(const DebugHook &hook) { hooks.push_back(hook); }
     // If p4c is run with option '--listFrontendPasses', outStream is used for printing passes names
-    const IR::P4Program* run(const CompilerOptions& options, const IR::P4Program* program,
-                             bool skipSideEffectOrdering = false,
-                             std::ostream* outStream = nullptr);
+    const IR::P4Program *run(const CompilerOptions &options, const IR::P4Program *program,
+                             std::ostream *outStream = nullptr);
 };
 
 }  // namespace P4
 
-#endif /* _P4_FRONTEND_H_ */
+#endif /* FRONTENDS_P4_FRONTEND_H_ */

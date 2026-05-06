@@ -14,99 +14,133 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef P4C_UBPFTYPE_H
-#define P4C_UBPFTYPE_H
+#ifndef BACKENDS_UBPF_UBPFTYPE_H_
+#define BACKENDS_UBPF_UBPFTYPE_H_
 
 #include "backends/ebpf/ebpfType.h"
 #include "lib/sourceCodeBuilder.h"
 
-namespace UBPF {
+namespace P4::UBPF {
 
-    class UBPFTypeFactory : public EBPF::EBPFTypeFactory {
-    public:
-        UBPFTypeFactory(const P4::TypeMap *typeMap) : EBPF::EBPFTypeFactory(typeMap) {}
+class UBPFTypeFactory : public EBPF::EBPFTypeFactory {
+ public:
+    explicit UBPFTypeFactory(const P4::TypeMap *typeMap) : EBPF::EBPFTypeFactory(typeMap) {}
 
-        static void createFactory(const P4::TypeMap *typeMap) {
-            EBPF::EBPFTypeFactory::instance = new UBPFTypeFactory(typeMap);
-        }
+    static void createFactory(const P4::TypeMap *typeMap) {
+        EBPF::EBPFTypeFactory::instance = new UBPFTypeFactory(typeMap);
+    }
 
-        static EBPFTypeFactory *getInstance() {
-            return EBPF::EBPFTypeFactory::instance;
-        }
+    static EBPFTypeFactory *getInstance() { return EBPF::EBPFTypeFactory::instance; }
 
-        EBPF::EBPFType *create(const IR::Type *type) override;
+    EBPF::EBPFType *create(const IR::Type *type) override;
+};
+
+class UBPFBoolType : public EBPF::EBPFBoolType {
+ public:
+    UBPFBoolType() : EBPF::EBPFBoolType() {}
+
+    void emit(EBPF::CodeBuilder *builder) override { builder->append("uint8_t"); }
+
+    DECLARE_TYPEINFO(UBPFBoolType, EBPF::EBPFBoolType);
+};
+
+class UBPFScalarType : public EBPF::EBPFScalarType {
+ public:
+    explicit UBPFScalarType(const IR::Type_Bits *bits) : EBPF::EBPFScalarType(bits) {}
+
+    void emit(EBPF::CodeBuilder *builder) override;
+
+    cstring getAsString();
+
+    void declare(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
+    void declareInit(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
+
+    DECLARE_TYPEINFO(UBPFScalarType, EBPF::EBPFScalarType);
+};
+
+class UBPFExternType : public EBPF::EBPFScalarType {
+ public:
+    explicit UBPFExternType(const IR::Type_Bits *bits) : EBPF::EBPFScalarType(bits) {}
+
+    void emit(EBPF::CodeBuilder *builder) override;
+
+    cstring getAsString();
+
+    void declare(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
+    void declareInit(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
+
+    DECLARE_TYPEINFO(UBPFExternType, EBPF::EBPFScalarType);
+};
+
+class UBPFStructType : public EBPF::EBPFStructType {
+ public:
+    explicit UBPFStructType(const IR::Type_StructLike *strct) : EBPF::EBPFStructType(strct) {}
+    void emit(EBPF::CodeBuilder *builder) override;
+    void declare(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
+    void declareInit(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
+
+    DECLARE_TYPEINFO(UBPFStructType, EBPF::EBPFStructType);
+};
+
+class UBPFEnumType : public EBPF::EBPFEnumType {
+ public:
+    explicit UBPFEnumType(const IR::Type_Enum *strct) : EBPF::EBPFEnumType(strct) {}
+
+    void emit(EBPF::CodeBuilder *builder) override;
+
+    DECLARE_TYPEINFO(UBPFEnumType, EBPF::EBPFEnumType);
+};
+
+class UBPFErrorType : public EBPF::EBPFErrorType {
+ public:
+    explicit UBPFErrorType(const IR::Type_Error *strct) : EBPF::EBPFErrorType(strct) {}
+
+    void emit(EBPF::CodeBuilder *builder) override;
+
+    DECLARE_TYPEINFO(UBPFErrorType, EBPF::EBPFErrorType);
+};
+
+class UBPFListType : public EBPF::EBPFType, public EBPF::IHasWidth {
+    class UBPFListElement : public ICastable {
+     public:
+        EBPFType *type;
+        const cstring name;
+
+        UBPFListElement(EBPFType *type, const cstring name) : type(type), name(name) {}
+        virtual ~UBPFListElement() {}  // to make UBPFListElement polymorphic.
+
+        DECLARE_TYPEINFO(UBPFListElement);
     };
 
-    class UBPFBoolType : public EBPF::EBPFBoolType {
-    public:
-        UBPFBoolType() : EBPF::EBPFBoolType() {}
+    class Padding : public UBPFListElement {
+     public:
+        unsigned widthInBytes;
 
-        void emit(EBPF::CodeBuilder *builder) override { builder->append("uint8_t"); }
+        Padding(const cstring name, unsigned widthInBytes)
+            : UBPFListElement(nullptr, name), widthInBytes(widthInBytes) {}
+
+        DECLARE_TYPEINFO(Padding, UBPFListElement);
     };
 
-    class UBPFScalarType : public EBPF::EBPFScalarType {
-    public:
-        UBPFScalarType(const IR::Type_Bits *bits) : EBPF::EBPFScalarType(bits) {}
+ public:
+    cstring kind;
+    cstring name;
+    std::vector<UBPFListElement *> elements;
+    unsigned width;
+    unsigned implWidth;
 
-        void emit(EBPF::CodeBuilder *builder) override;
+    explicit UBPFListType(const IR::Type_List *lst);
+    void emitPadding(EBPF::CodeBuilder *builder, Padding *padding);
+    void declare(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
+    void declareInit(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
+    void emitInitializer(EBPF::CodeBuilder *builder) override;
+    unsigned widthInBits() const override { return width; }
+    unsigned implementationWidthInBits() const override { return implWidth; }
+    void emit(EBPF::CodeBuilder *builder) override;
 
-        cstring getAsString();
+    DECLARE_TYPEINFO(UBPFListType, EBPF::EBPFType, EBPF::IHasWidth);
+};
 
-        void declare(EBPF::CodeBuilder *builder, cstring id, bool asPointer) override;
-    };
+}  // namespace P4::UBPF
 
-    class UBPFStructType : public EBPF::EBPFStructType {
-    public:
-        UBPFStructType(const IR::Type_StructLike* strct) : EBPF::EBPFStructType(strct) {}
-        void emit(EBPF::CodeBuilder* builder) override;
-        void declare(EBPF::CodeBuilder* builder, cstring id, bool asPointer) override;
-    };
-
-    class UBPFEnumType : public EBPF::EBPFEnumType {
-    public:
-        UBPFEnumType(const IR::Type_Enum *strct) : EBPF::EBPFEnumType(strct) {}
-
-        void emit(EBPF::CodeBuilder *builder) override;
-    };
-
-    class UBPFListType : public EBPF::EBPFType, public EBPF::IHasWidth {
-
-        class UBPFListElement {
-        public:
-            EBPFType* type;
-            const cstring name;
-
-            UBPFListElement(EBPFType* type, const cstring name) : type(type), name(name) {}
-            virtual ~UBPFListElement() {}  // to make UBPFListElement polymorphic.
-            template<typename T> bool is() const { return dynamic_cast<const T*>(this) != nullptr; }
-            template<typename T> T *to() { return dynamic_cast<T*>(this); }
-        };
-
-        class Padding : public UBPFListElement {
-        public:
-            unsigned widthInBytes;
-
-            Padding(const cstring name, unsigned widthInBytes) : UBPFListElement(nullptr, name),
-                                              widthInBytes(widthInBytes) {}
-        };
-
-    public:
-        cstring  kind;
-        cstring  name;
-        std::vector<UBPFListElement*>  elements;
-        unsigned width;
-        unsigned implWidth;
-
-        explicit UBPFListType(const IR::Type_List *lst);
-        void emitPadding(EBPF::CodeBuilder* builder, Padding* padding);
-        void declare(EBPF::CodeBuilder* builder, cstring id, bool asPointer) override;
-        void emitInitializer(EBPF::CodeBuilder* builder) override;
-        unsigned widthInBits() override { return width; }
-        unsigned implementationWidthInBits() override { return implWidth; }
-        void emit(EBPF::CodeBuilder* builder) override;
-    };
-
-
-}
-
-#endif //P4C_UBPFTYPE_H
+#endif /* BACKENDS_UBPF_UBPFTYPE_H_ */

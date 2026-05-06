@@ -8,14 +8,19 @@
 
 abstract Operation_Unary : Operation {
     Expression expr;
-    Operation_Unary {
+    inline Operation_Unary {
         if (!srcInfo && expr) srcInfo = expr->srcInfo;
         if (type->is<Type::Unknown>() && expr) type = expr->type; }
     precedence = DBPrint::Prec_Prefix;
+    toString{ return getStringOp() + expr->toString(); }
 }
 
 class Neg : Operation_Unary {
     stringOp = "-";
+}
+
+class UPlus : Operation_Unary {
+    stringOp = "+";
 }
 
 class Cmpl : Operation_Unary {
@@ -24,66 +29,147 @@ class Cmpl : Operation_Unary {
 
 class LNot : Operation_Unary {
     stringOp = "!";
+    LNot {
+        // This sets the type only when no type is explicitly provided in the constructor.
+        // If a type is provided in the constructor this assignment has no effect
+        // because the type member is shadowed by the type parameter.
+        type = Type::Boolean::get();
+    }
 }
 
 abstract Operation_Binary : Operation {
     Expression left;
     Expression right;
-    Operation_Binary {
+    inline Operation_Binary {
         if (!srcInfo && left && right) srcInfo = left->srcInfo + right->srcInfo;
         if (type->is<Type::Unknown>() && left && right && left->type == right->type)
             type = left->type; }
+    toString {
+        // FIXME: Do not use debug printing to render user-side strings
+        std::stringstream tmp;
+        tmp << DBPrint::Prec_Low;
+        dbprint(tmp);
+        return tmp.str();
+    }
 }
 
 abstract Operation_Ternary : Operation {
     Expression e0;
     Expression e1;
     Expression e2;
-    Operation_Ternary { if (!srcInfo && e0 && e2) srcInfo = e0->srcInfo + e2->srcInfo; }
+    inline Operation_Ternary { if (!srcInfo && e0 && e2) srcInfo = e0->srcInfo + e2->srcInfo; }
 }
 
 abstract Operation_Relation : Operation_Binary {
-    Operation_Relation { type = Type::Boolean::get(); }
+    inline Operation_Relation {
+        // This sets the type only when no type is explicitly provided in the constructor.
+        // If a type is provided in the constructor this assignment has no effect
+        // because the type member is shadowed by the type parameter.
+        type = Type::Boolean::get();
+    }
 }
 
 class Mul : Operation_Binary {
     stringOp = "*";
     precedence = DBPrint::Prec_Mul;
 }
+class MulAssign : OpAssignmentStatement {
+#emit
+    typedef Mul BinOp;
+#end
+    stringOp = "*";
+#nodbprint
+}
 
 class Div : Operation_Binary {
     stringOp = "/";
     precedence = DBPrint::Prec_Div;
 }
+class DivAssign : OpAssignmentStatement {
+#emit
+    typedef Div BinOp;
+#end
+    stringOp = "/";
+#nodbprint
+}
 class Mod : Operation_Binary {
     stringOp = "%";
     precedence = DBPrint::Prec_Mod;
+}
+class ModAssign : OpAssignmentStatement {
+#emit
+    typedef Mod BinOp;
+#end
+    stringOp = "%";
+#nodbprint
 }
 class Add : Operation_Binary {
     stringOp = "+";
     precedence = DBPrint::Prec_Add;
 }
+class AddAssign : OpAssignmentStatement {
+#emit
+    typedef Add BinOp;
+#end
+    stringOp = "+";
+#nodbprint
+}
 class Sub : Operation_Binary {
     stringOp = "-";
     precedence = DBPrint::Prec_Sub;
+}
+class SubAssign : OpAssignmentStatement {
+#emit
+    typedef Sub BinOp;
+#end
+    stringOp = "-";
+#nodbprint
 }
 class AddSat : Operation_Binary {
     stringOp = "|+|";
     precedence = DBPrint::Prec_AddSat;
 }
+class AddSatAssign : OpAssignmentStatement {
+#emit
+    typedef AddSat BinOp;
+#end
+    stringOp = "|+|";
+#nodbprint
+}
 class SubSat : Operation_Binary {
     stringOp = "|-|";
     precedence = DBPrint::Prec_SubSat;
 }
+class SubSatAssign : OpAssignmentStatement {
+#emit
+    typedef SubSat BinOp;
+#end
+    stringOp = "|-|";
+#nodbprint
+}
 class Shl : Operation_Binary {
     stringOp = "<<";
     precedence = DBPrint::Prec_Shl;
-    Shl { if (type->is<Type::Unknown>() && left) type = left->type; }
+    inline Shl { if (type->is<Type::Unknown>() && left) type = left->type; }
+}
+class ShlAssign : OpAssignmentStatement {
+#emit
+    typedef Shl BinOp;
+#end
+    stringOp = "<<";
+#nodbprint
 }
 class Shr : Operation_Binary {
     stringOp = ">>";
     precedence = DBPrint::Prec_Shr;
-    Shr { if (type->is<Type::Unknown>() && left) type = left->type; }
+    inline Shr { if (type->is<Type::Unknown>() && left) type = left->type; }
+}
+class ShrAssign : OpAssignmentStatement {
+#emit
+    typedef Shr BinOp;
+#end
+    stringOp = ">>";
+#nodbprint
 }
 class Equ : Operation_Relation {
     stringOp = "==";
@@ -113,26 +199,72 @@ class BAnd : Operation_Binary {
     stringOp = "&";
     precedence = DBPrint::Prec_BAnd;
 }
+class BAndAssign : OpAssignmentStatement {
+#emit
+    typedef BAnd BinOp;
+#end
+    stringOp = "&";
+#nodbprint
+}
 class BOr : Operation_Binary {
     stringOp = "|";
     precedence = DBPrint::Prec_BOr;
+}
+class BOrAssign : OpAssignmentStatement {
+#emit
+    typedef BOr BinOp;
+#end
+    stringOp = "|";
+#nodbprint
 }
 class BXor : Operation_Binary {
     stringOp = "^";
     precedence = DBPrint::Prec_BXor;
 }
+class BXorAssign : OpAssignmentStatement {
+#emit
+    typedef BXor BinOp;
+#end
+    stringOp = "^";
+#nodbprint
+}
 class LAnd : Operation_Binary {
     stringOp = "&&";
     precedence = DBPrint::Prec_LAnd;
+    inline LAnd {
+        // This sets the type only when no type is explicitly provided in the constructor.
+        // If a type is provided in the constructor this assignment has no effect
+        // because the type member is shadowed by the type parameter.
+        type = Type::Boolean::get();
+    }
 }
 class LOr : Operation_Binary {
     stringOp = "||";
     precedence = DBPrint::Prec_LOr;
+    inline LOr {
+        // This sets the type only when no type is explicitly provided in the constructor.
+        // If a type is provided in the constructor this assignment has no effect
+        // because the type member is shadowed by the type parameter.
+        type = Type::Boolean::get();
+    }}
+
+/// Represents the ... default initializer expression
+class Dots : Expression {
+    dbprint { out << "..."; }
+    toString { return "..."_cs; }
 }
 
-abstract Literal : Expression, CompileTimeValue {
-#nodbprint
+/// Represents the ... default initializer expression
+/// when used in a StructExpression.
+class NamedDots : NamedExpression {
+    inline NamedDots() : NamedExpression("...", new Dots()) {}
+    inline NamedDots(Util::SourceInfo srcInfo, Dots dots) : NamedExpression(srcInfo, "..."_cs, dots) { CHECK_NULL(dots); }
+    inline NamedDots(Util::SourceInfo srcInfo) : NamedExpression(srcInfo, "...", new Dots()) {}
+    dbprint { out << "..."; }
+    toString { return "..."_cs; }
 }
+
+abstract Literal : Expression, CompileTimeValue {}
 
 /// This is an integer literal on arbitrary-precision.
 class Constant : Literal {
@@ -144,63 +276,67 @@ class Constant : Literal {
     // We need to enumerate all the integer types because we need proper 64-bit handling on
     // 32-bit systems (which ain't long!) and mpz_import is too big a hammer because and it loses
     // the signess of the value.
-    Constant(int v, unsigned base = 10) :
-        Literal(new Type_InfInt()), value(v), base(base) {}
-    Constant(unsigned v, unsigned base = 10) :
-        Literal(new Type_InfInt()), value(v), base(base) {}
+    inline Constant(int v, unsigned base = 10) :
+        Literal(Type_InfInt::get()), value(v), base(base) {}
+    inline Constant(unsigned v, unsigned base = 10) :
+        Literal(Type_InfInt::get()), value(v), base(base) {}
 #emit
 #if __WORDSIZE == 64
     Constant(intmax_t v, unsigned base = 10) :
-        Literal(new Type_InfInt()), value(v), base(base) {}
+        Literal(Type_InfInt::get()), value(v), base(base) {}
 #else
     Constant(long v, unsigned base = 10) :
-        Literal(new Type_InfInt()), value(v), base(base) {}
+        Literal(Type_InfInt::get()), value(v), base(base) {}
     Constant(unsigned long v, unsigned base = 10) :
-        Literal(new Type_InfInt()), value(v), base(base) {}
+        Literal(Type_InfInt::get()), value(v), base(base) {}
     Constant(intmax_t v, unsigned base = 10) :
-        Literal(new Type_InfInt()), value(v), base(base) {}
+        Literal(Type_InfInt::get()), value(v), base(base) {}
 #endif
 #end
-    Constant(uint64_t v, unsigned base = 10) :
-        Literal(new Type_InfInt()), value(v), base(base) {}
-    Constant(big_int v, unsigned base = 10) :
-        Literal(new Type_InfInt()), value(v), base(base) {}
-    Constant(Util::SourceInfo si, big_int v, unsigned base = 10) :
-        Literal(si, new Type_InfInt()), value(v), base(base) {}
-    Constant(const Type *t, big_int v, unsigned base = 10, bool noWarning = false) :
+    inline Constant(uint64_t v, unsigned base = 10) :
+        Literal(Type_InfInt::get()), value(v), base(base) {}
+    inline Constant(big_int v, unsigned base = 10) :
+        Literal(Type_InfInt::get()), value(v), base(base) {}
+    inline Constant(Util::SourceInfo si, big_int v, unsigned base = 10) :
+        Literal(si, Type_InfInt::get()), value(v), base(base) {}
+    inline Constant(const Type *t, big_int v, unsigned base = 10, bool noWarning = false) :
         Literal(t), value(v), base(base) { CHECK_NULL(t); handleOverflow(noWarning); }
-    Constant(Util::SourceInfo si, const Type *t, big_int v,
+    inline Constant(Util::SourceInfo si, const Type *t, big_int v,
              unsigned base = 10, bool noWarning = false) :
         Literal(si, t), value(v), base(base) { CHECK_NULL(t); handleOverflow(noWarning); }
 #emit
     static Constant GetMask(unsigned width);
 #end
-    bool fitsInt() const { return value >= INT_MIN && value <= INT_MAX; }
-    bool fitsLong() const { return value >= LONG_MIN && value <= LONG_MAX; }
-    bool fitsUint() const { return value >= 0 && value <= UINT_MAX; }
-    bool fitsUint64() const { return value >= 0 && value <= UINT64_MAX; }
-    bool fitsInt64() const { return value >= INT64_MIN && value <= INT64_MAX; }
-    long asLong() const {
+
+    /// @return a constant. Any constant returned here is interned. Base is always 10.
+    static const Constant *get(const Type *t, big_int v, Util::SourceInfo si = {});
+
+    inline bool fitsInt() const { return value >= INT_MIN && value <= INT_MAX; }
+    inline bool fitsLong() const { return value >= LONG_MIN && value <= LONG_MAX; }
+    inline bool fitsUint() const { return value >= 0 && value <= UINT_MAX; }
+    inline bool fitsUint64() const { return value >= 0 && value <= UINT64_MAX; }
+    inline bool fitsInt64() const { return value >= INT64_MIN && value <= INT64_MAX; }
+    inline long asLong() const {
         if (!fitsLong())
-            ::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for long", this);
+            ::P4::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for long", this);
         return static_cast<long>(value); }
-    int asInt() const {
+    inline int asInt() const {
         if (!fitsInt())
-            ::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for int", this);
+            ::P4::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for int", this);
         return static_cast<int>(value); }
-    unsigned asUnsigned() const {
+    inline unsigned asUnsigned() const {
         if (!fitsUint())
-            ::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for unsigned int", this);
+            ::P4::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for unsigned int", this);
         return static_cast<unsigned>(value);
     }
-    uint64_t asUint64() const {
+    inline uint64_t asUint64() const {
         if (!fitsUint64())
-            ::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for uint64", this);
+            ::P4::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for uint64", this);
         return static_cast<uint64_t>(value);
     }
-    int64_t asInt64() const {
+    inline int64_t asInt64() const {
         if (!fitsInt64())
-            ::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for int64", this);
+            ::P4::error(ErrorType::ERR_OVERLIMIT, "%1$x: Value too large for int64", this);
         return static_cast<int64_t>(value);
     }
     // The following operators are only used in special circumstances.
@@ -216,40 +352,46 @@ class Constant : Literal {
     Constant operator-() const;
 #end
     toString {
-        const IR::Type_Bits* tb = dynamic_cast<const IR::Type_Bits*>(type);
         unsigned width;
         bool sign;
-        if (tb == nullptr) {
-            width = 0;
-            sign = false;
-        } else {
+        if (const IR::Type_Bits* tb = type->to<IR::Type_Bits>()) {
             width = tb->size;
             sign = tb->isSigned;
+        } else {
+            width = 0;
+            sign = false;
         }
         return Util::toString(value, width, sign, base);
     }
-    visit_children { v.visit(type, "type"); }
+    visit_children { (void)n; v.visit(type, "type"); }
 }
 
 class BoolLiteral : Literal {
     bool value;
-    toString{ return value ? "true" : "false"; }
+    toString{ return value ? "true"_cs : "false"_cs; }
+
+    /// @return a bool literal. Both booleans are interned.
+    static const BoolLiteral *get(bool value, const Util::SourceInfo &si = {});
 }
 
 class StringLiteral : Literal {
     cstring value;
     validate{ if (value.isNull()) BUG("null StringLiteral"); }
-    toString{ return cstring("\"") + value + "\""; }
-    StringLiteral(ID v) : Literal(v.srcInfo), value(v.name) {}
+    toString{ return absl::StrCat("\"", value.escapeJson(), "\""); }
+    inline StringLiteral(ID v) : Literal(v.srcInfo), value(v.name) {}
 #emit
     operator IR::ID() const { return IR::ID(srcInfo, value); }
 #end
+
+    /// @returns a string literal. The value is cached.
+    static const StringLiteral *get(cstring value, const Type *t = Type_String::get(), const Util::SourceInfo &si = {});
 }
 
 class PathExpression : Expression {
     Path path;
-    PathExpression { if (!srcInfo && path) srcInfo = path->srcInfo; }
-    PathExpression(IR::ID id) : Expression(id.srcInfo), path(new IR::Path(id)) {}
+    inline PathExpression { if (!srcInfo && path) srcInfo = path->srcInfo; }
+    inline PathExpression(Type t, IR::ID id) : Expression(id.srcInfo, t), path(new IR::Path(id)) {}
+    inline PathExpression(IR::ID id) : Expression(id.srcInfo), path(new IR::Path(id)) {}
     toString{ return path->toString(); }
 }
 
@@ -257,30 +399,54 @@ class PathExpression : Expression {
 // X.a
 // The 'X' portion is a TypeNameExpression
 class TypeNameExpression : Expression {
-    Type_Name typeName;
-    TypeNameExpression { if (!srcInfo && typeName) srcInfo = typeName->srcInfo; }
-    TypeNameExpression(ID id) : Expression(id.srcInfo),
+    Type typeName;
+    inline TypeNameExpression { if (!srcInfo && typeName) srcInfo = typeName->srcInfo; }
+    inline TypeNameExpression(ID id) : Expression(id.srcInfo),
                                 typeName(new IR::Type_Name(new IR::Path(id))) {}
     dbprint{ out << typeName; }
     toString { return typeName->toString(); }
+    validate { BUG_CHECK(typeName->is<Type_Name>() || typeName->is<Type_Specialized>(),
+                         "%1% unexpected type in TypeNameExpression", typeName); }
 }
 
-class Slice : Operation_Ternary {
+abstract AbstractSlice : Operation_Ternary {
+    virtual unsigned getH() const = 0;
+    virtual unsigned getL() const = 0;
+}
+
+class Slice : AbstractSlice {
     precedence = DBPrint::Prec_Postfix;
     stringOp = "[:]";
-    toString{ return e0->toString() + "[" + e1->toString() + ":" + e2->toString() + "]"; }
+    toString{ return absl::StrCat(e0, "[", e1, ":", e2, "]"); }
     // After type checking e1 and e2 will be constants
-    unsigned getH() const { return e1->to<IR::Constant>()->asUnsigned(); }
-    unsigned getL() const { return e2->to<IR::Constant>()->asUnsigned(); }
-    Slice(Expression a, int hi, int lo)
-    : Operation_Ternary(IR::Type::Bits::get(hi-lo+1), a, new Constant(hi), new Constant(lo)) {}
-    Slice(Util::SourceInfo si, Expression a, int hi, int lo)
-    : Operation_Ternary(si, IR::Type::Bits::get(hi-lo+1), a, new Constant(hi), new Constant(lo)) {}
-    Slice {
+    unsigned getH() const override { return e1->checkedTo<IR::Constant>()->asUnsigned(); }
+    unsigned getL() const override { return e2->checkedTo<IR::Constant>()->asUnsigned(); }
+    inline Slice(Expression a, int hi, int lo)
+    : AbstractSlice(IR::Type::Bits::get(hi-lo+1), a, new Constant(hi), new Constant(lo)) {}
+    inline Slice(Util::SourceInfo si, Expression a, int hi, int lo)
+    : AbstractSlice(si, IR::Type::Bits::get(hi-lo+1), a, new Constant(hi), new Constant(lo)) {}
+    inline Slice {
         if (type->is<Type::Unknown>() && e1 && e1->is<Constant>() && e2 && e2->is<Constant>())
             type = IR::Type::Bits::get(getH() - getL() + 1); }
     // make a slice, folding slices on slices and slices on constants automatically
     static Expression make(Expression a, unsigned hi, unsigned lo);
+}
+
+class PlusSlice : AbstractSlice {
+    precedence = DBPrint::Prec_Postfix;
+    stringOp = "[+:]";
+    toString{ return absl::StrCat(e0, "[", e1, "+:", e2, "]"); }
+    unsigned getH() const override {
+        BUG_CHECK(e1->is<IR::Constant>(), "non-const PlusSlice not handled");
+        return e1->to<IR::Constant>()->asUnsigned() + e2->checkedTo<IR::Constant>()->asUnsigned() - 1; }
+    unsigned getL() const override {
+        BUG_CHECK(e1->is<IR::Constant>(), "non-const PlusSlice not handled");
+        return e1->to<IR::Constant>()->asUnsigned(); }
+    inline PlusSlice(Expression a, Expression lo, int width)
+    : AbstractSlice(IR::Type::Bits::get(width), a, lo, new Constant(width)) {}
+    inline PlusSlice {
+        if (type->is<Type::Unknown>() && e2 && e2->is<Constant>())
+            type = IR::Type::Bits::get(e2->to<IR::Constant>()->asUnsigned()); }
 }
 
 class Member : Operation_Unary {
@@ -290,13 +456,13 @@ class Member : Operation_Unary {
     int lsb() const;
     int msb() const;
     stringOp = ".";
-    toString{ return expr->toString() + "." + member; }
+    toString{ return absl::StrCat(expr, ".", member); }
 }
 
 class Concat : Operation_Binary {
     stringOp = "++";
     precedence = DBPrint::Prec_Add;
-    Concat {
+    inline Concat {
         if (left && right) {
             auto lt = left->type->to<IR::Type::Bits>();
             auto rt = right->type->to<IR::Type::Bits>();
@@ -307,23 +473,23 @@ class Concat : Operation_Binary {
 class ArrayIndex : Operation_Binary {
     stringOp = "[]";
     precedence = DBPrint::Prec_Postfix;
-    ArrayIndex {
-        if (auto st = left ? left->type->to<IR::Type_Stack>() : nullptr)
+    inline ArrayIndex {
+        if (auto st = left ? left->type->to<IR::Type_Array>() : nullptr)
             type = st->elementType; }
-    toString{ return left->toString() + "[" + right->toString() + "]"; }
+    toString{ return absl::StrCat(left, "[", right, "]"); }
 }
 
 class Range : Operation_Binary {
     stringOp = "..";
     precedence = DBPrint::Prec_Low;
-    Range { if (left && type == left->type && !left->type->is<Type::Unknown>())
+    inline Range { if (left && type == left->type && !left->type->is<Type::Unknown>())
                 type = new Type_Set(left->type); }
 }
 
 class Mask : Operation_Binary {
     stringOp = "&&&";
     precedence = DBPrint::Prec_Low;
-    Mask { if (left && type == left->type && !left->type->is<Type::Unknown>())
+    inline Mask { if (left && type == left->type && !left->type->is<Type::Unknown>())
                 type = new Type_Set(left->type); }
 }
 
@@ -331,12 +497,10 @@ class Mux : Operation_Ternary {
     stringOp = "?:";
     precedence = DBPrint::Prec_Low;
     visit_children {
+        (void)n;
         v.visit(e0, "e0");
-        auto &clone(v.flow_clone());
-        v.visit(e1, "e1");
-        clone.visit(e2, "e2");
-        v.flow_merge(clone); }
-    Mux { if (type->is<Type::Unknown>() && e1 && e2 && e1->type == e2->type) type = e1->type; }
+        SplitFlowVisit<Expression>(v, e1, e2).run_visit(); }
+    inline Mux { if (type->is<Type::Unknown>() && e1 && e2 && e1->type == e2->type) type = e1->type; }
 }
 
 class DefaultExpression : Expression {}
@@ -344,19 +508,21 @@ class DefaultExpression : Expression {}
 // Two different This should not be equal.
 // That's why we use a hidden id field to distinguish them.
 class This : Expression {
-    int id = nextId++;
+    long id = nextId++;
+    toString { return "this"_cs; }
  private:
-    static int nextId;
-}  // experimental
+    static long nextId;
+}
 
 class Cast : Operation_Unary {
-    Type destType = type;
     /// These will generally always be the same, except when a cast to a type argument of
     /// a generic occurs.  Then at some point, the 'destType' will be specialized to a concrete
     /// type, and 'type' will only be updated later when type inferencing occurs
+    Type destType = type;
+    optional bool implicit = false;
     precedence = DBPrint::Prec_Prefix;
     stringOp = "(cast)";
-    toString{ return "cast"; }
+    toString{ return absl::StrCat("(", destType, ")", expr); }
     validate{ BUG_CHECK(!destType->is<Type_Unknown>(), "%1%: Cannot cast to unknown type", this); }
 }
 
@@ -370,26 +536,48 @@ class SelectExpression : Expression {
     ListExpression            select;
     inline Vector<SelectCase> selectCases;
     visit_children {
+        (void)n;
         v.visit(select, "select");
-        v.parallel_visit(selectCases, "selectCases"); }
+        SplitFlowVisitVector<SelectCase>(v, selectCases).run_visit(); }
 }
 
 class MethodCallExpression : Expression {
     Expression                  method;
     optional Vector<Type>       typeArguments = new Vector<Type>;
     optional Vector<Argument>   arguments = new Vector<Argument>;
-    toString{ return method->toString(); }
+    toString {
+        return
+            absl::StrCat(method, "(",
+                         absl::StrJoin(*arguments, ", ",
+                                       [](std::string *out, const Argument *arg) {
+                                           absl::StrAppend(out, arg);
+                                       }),
+                         ")");
+    }
     validate{ typeArguments->check_null(); arguments->check_null(); }
-    MethodCallExpression(Util::SourceInfo si, IR::ID m, const std::initializer_list<Argument> &a)
-            : Expression(si), method(new PathExpression(m)), arguments(new Vector<Argument>(a)) {}
-    MethodCallExpression(Util::SourceInfo si, Expression m,
+    inline MethodCallExpression(Util::SourceInfo si, IR::ID m, std::initializer_list<Argument> a)
+        : Expression(si), method(new PathExpression(m)), arguments(new Vector<Argument>(a)) {}
+    inline MethodCallExpression(Util::SourceInfo si, Expression m,
                          const std::initializer_list<Argument> &a)
-    : Expression(si), method(m), arguments(new Vector<Argument>(a)) {}
+        : Expression(si), method(m), arguments(new Vector<Argument>(a)) {}
     MethodCallExpression(Expression m, const std::initializer_list<const Expression *> &a)
     : method(m), arguments(nullptr)  {
         auto arguments = new Vector<Argument>;
         for (auto arg : a) arguments->push_back(new Argument(arg));
         this->arguments = arguments; }
+#emit
+    // FIXME -- should not need #emit here, but ir-generator does not understand rvalue refs
+    // FIXME -- should have ir-generator autogenerate these?  ctor with rvalue ref for any
+    // IR type arg, or perhaps just Vector/IndexedVector?
+    // FIXME -- could instead make typeArguments/arguments inline, in which case these would
+    // be unnecessary (but perhaps desirable for efficiency)
+    MethodCallExpression(Util::SourceInfo si, const Expression *m, Vector<Type> &&ta,
+                         Vector<Argument> args)
+    : MethodCallExpression(si, m, new Vector<Type>(std::move(ta)),
+                           new Vector<Argument>(std::move(args))) {}
+    MethodCallExpression(Util::SourceInfo si, const Expression *m, Vector<Argument> args)
+    : MethodCallExpression(si, m, new Vector<Argument>(std::move(args))) {}
+#end
 }
 
 class ConstructorCallExpression : Expression {
@@ -400,21 +588,55 @@ class ConstructorCallExpression : Expression {
                         constructedType->is<Type_Specialized>(),
                         "%1%: unexpected type", constructedType);
         arguments->check_null(); }
+#emit
+    // FIXME -- should not need #emit here, but ir-generator does not understand rvalue refs
+    ConstructorCallExpression(Util::SourceInfo si, const IR::Type *t, Vector<Argument> &&args)
+    : ConstructorCallExpression(si, t, new Vector<Argument>(std::move(args))) {}
+#end
+}
+
+class BaseListExpression : Expression {
+    inline Vector<Expression> components;
+    validate { components.check_null(); }
+    inline size_t size() const { return components.size(); }
+    inline void push_back(Expression e) { components.push_back(e); }
+    inline bool containsDots() const {
+        if (components.empty())
+            return false;
+        size_t size = components.size();
+        return components.at(size - 1)->is<IR::Dots>();
+    }
+    toString {
+        return components.empty() ? "{}" :
+            absl::StrCat("{ ",
+                         absl::StrJoin(components, ", ",
+                                       [](std::string *out, const Expression *comp)  {
+                                           absl::StrAppend(out, comp);
+                                       }),
+                         " }");
+    }
+#nodbprint
 }
 
 /// Represents a list of expressions separated by commas
-class ListExpression : Expression {
-    inline Vector<Expression> components;
-    ListExpression {
+class ListExpression : BaseListExpression {
+    inline ListExpression {
         validate();
         if (type->is<Type::Unknown>()) {
             Vector<Type> tuple;
             for (auto e : components)
                 tuple.push_back(e->type);
             type = new Type_List(tuple); } }
-    validate { components.check_null(); }
-    size_t size() const { return components.size(); }
-    void push_back(Expression e) { components.push_back(e); }
+}
+
+/// Represents P4 list expression, not to be confused with
+/// ListExpression from above.
+class P4ListExpression : BaseListExpression {
+    Type elementType;
+    inline P4ListExpression {
+        validate();
+        if (type->is<Type::Unknown>()) {
+            type = new Type_P4List(elementType); } }
 }
 
 /// An expression that evaluates to a struct.
@@ -429,7 +651,47 @@ class StructExpression : Expression {
                   structType->is<IR::Type_Specialized>(),
                   "%1%: unexpected struct type", this);
     }
-    size_t size() const { return components.size(); }
+    inline size_t size() const { return components.size(); }
+    inline NamedExpression getField(cstring name) const {
+        return components.getDeclaration<NamedExpression>(name); }
+    inline bool containsDots() const {
+        if (components.empty())
+            return false;
+        size_t size = components.size();
+        return components.at(size - 1)->is<IR::NamedDots>();
+    }
+    toString {
+        return components.empty() ? "{}" :
+            absl::StrCat("{ ",
+                         absl::StrJoin(components, ", ",
+                                       [](std::string *out, const NamedExpression *comp)  {
+                                           absl::StrAppend(out, comp, " = ", comp->expression);
+                                       }),
+                         " }");
+    }
+}
+
+/// Can be an invalid header or header_union
+class Invalid : Expression {
+}
+
+/// An expression that evaluates to an invalid header with the specified type.
+class InvalidHeader : Expression {
+    Type headerType;
+}
+
+/// An expression that evaluates to an invalid header union with the specified type.
+class InvalidHeaderUnion : Expression {
+    Type headerUnionType;
+}
+
+/// An expression that evaluates to an array
+class ArrayExpression : BaseListExpression {
+    /// May only be known after type checking; so it can be nullptr.
+    NullOK Type arrayType;
+    validate {
+        components.check_null();
+    }
 }
 
 /// A ListExpression where all the components are compile-time values.
@@ -442,14 +704,55 @@ class ListCompileTimeValue : CompileTimeValue {
 #nodbprint
 }
 
+/// A P4ListExpression where all the components are compile-time values.
+/// This is used by the evaluator pass.
+class P4ListCompileTimeValue : CompileTimeValue {
+    inline Vector<Node> components;
+    validate {
+        for (auto v : components)
+            BUG_CHECK(v->is<CompileTimeValue>(), "%1%: not a compile-time value", v); }
+#nodbprint
+}
+
+/// A StructExpression where all the components are compile-time values.
+/// This is used by the evaluator pass.
+class StructCompileTimeValue : CompileTimeValue {
+    inline Vector<Node> components;
+    validate {
+        for (auto v : components)
+            BUG_CHECK(v->is<CompileTimeValue>(), "%1%: not a compile-time value", v); }
+#nodbprint
+}
+
 /// Experimental: an extern methond/function call with constant arguments to be
 /// evaluated at compile time
 class CompileTimeMethodCall : MethodCallExpression, CompileTimeValue {
-    CompileTimeMethodCall(MethodCallExpression e) : MethodCallExpression(*e) {}
+    inline CompileTimeMethodCall(MethodCallExpression e) : MethodCallExpression(*e) {}
     validate {
         for (auto v : *arguments)
             BUG_CHECK(v->is<CompileTimeValue>(), "%1%: not a compile-time value", v); }
 #nodbprint
+}
+
+/// Signifies that a particular expression is a symbolic variable with a label.
+/// These variables are intended to be consumed by SMT/SAT solvers.
+class SymbolicVariable : Expression {
+#noconstructor
+
+    /// The label of the symbolic variable.
+    cstring label;
+
+    /// A symbolic variable always has a type and no source info.
+    inline SymbolicVariable(Type type, cstring label) : Expression(type), label(label) {}
+
+    /// Implements comparisons so that SymbolicVariables can be used as map keys.
+    inline bool operator<(const SymbolicVariable &other) const {
+        return label < other.label;
+    }
+
+    toString { return absl::StrCat("|", label, "(", type, ")|"); }
+
+    dbprint { out << "|" + label +"(" << type << ")|"; }
 }
 
 /** @} *//* end group irdefs */

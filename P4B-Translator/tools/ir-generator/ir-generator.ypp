@@ -28,7 +28,6 @@ limitations under the License.
 #include <vector>
 
 #include "lib/cstring.h"
-#include "lib/stringref.h"
 #include "lib/source_file.h"
 #include "lib/error.h"
 #include "tools/ir-generator/irclass.h"
@@ -37,12 +36,17 @@ limitations under the License.
 #define YYDEBUG 1
 #endif
 
-#define YYLTYPE Util::SourceInfo
-#define YYLLOC_DEFAULT(Cur, Rhs, N)                                     \
-    ((Cur) = (N) ? YYRHSLOC(Rhs, 1) + YYRHSLOC(Rhs, N)                  \
-                 : Util::SourceInfo(sources, YYRHSLOC(Rhs, 0).getEnd()))
+namespace P4 {
 
-static void yyerror(const char *fmt, ...);
+#define YYLTYPE Util::SourceInfo
+#define YYLLOC_DEFAULT(Cur, Rhs, N)                                                     \
+    ((Cur) = (N) ? YYRHSLOC(Rhs, 1) + YYRHSLOC(Rhs, N)                                  \
+        : yylloc ? yyloc                                                                \
+                 : Util::SourceInfo(sources, sources->getCurrentPosition()))
+
+template<typename... Args>
+void yyerror(const char *fmt, Args&&... args);
+
 static std::vector<IrElement*> global;
 static CommentBlock *currCommentBlock = nullptr;
 
@@ -57,6 +61,7 @@ static IrNamespace *current_namespace = LookupScope().resolve(0);
 %union {
     YYSTYPE() {}
     int                         i;
+    // FIXME: decide if this is a good idea to store all tokens inside cstring cache
     cstring                     str;
     IrClass                     *irClass;
     IrElement                   *irElement;
@@ -70,13 +75,14 @@ static IrNamespace *current_namespace = LookupScope().resolve(0);
     NodeKind                    kind;
     struct {
         bool                    impl;
+        // FIXME: decide if this is a good idea to store all code blocks inside cstring cache
         cstring                 block;
     }                           emit;
 }
 
-%token          ABSTRACT APPLY CLASS CONST DBLCOL DEFAULT DELETE INLINE INTERFACE NAMESPACE NEW
-                NULLOK OPERATOR OPTIONAL PRIVATE PROTECTED PUBLIC STATIC VIRTUAL
-%token<str>     BLOCK COMMENTBLOCK IDENTIFIER INTEGER NO STRING ZERO
+%token          ABSTRACT APPLY CLASS CONST DBLCOL DEFAULT DELETE ENUM INLINE INTERFACE NAMESPACE
+                NEW NULLOK OPERATOR OPTIONAL PRIVATE PROTECTED PUBLIC STATIC VARIANT VIRTUAL
+%token<str>     BLOCK COMMENTBLOCK IDENTIFIER INCLUDE INTEGER NO STRING ZERO
 %token<emit>    EMITBLOCK
 
 %type<type>                     type nonRefType type_arg
@@ -92,13 +98,16 @@ static IrNamespace *current_namespace = LookupScope().resolve(0);
 %type<str>                      name expression optInitializer fieldName methodName body
 %type<lookup>                   lookup_scope
 
-%error-verbose
+%define parse.error verbose
 %locations
 
 %nonassoc COMMENTBLOCK
 %nonassoc ABSTRACT CLASS INTERFACE
 
 %{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void
 symbol_print(FILE* file, int type, YYSTYPE value)
 {
@@ -123,15 +132,13 @@ symbol_print(FILE* file, int type, YYSTYPE value)
 
 #define YYPRINT(file, type, value)   symbol_print(file, type, value)
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wunused-function"
 #include "ir-generator-lex.c"
 #pragma GCC diagnostic pop
 
+// FIXME: should receive string_view
 static cstring canon_name(cstring name) {
     /* canonical method names for backwards compatibility */
-    if (name == "visitchildren") return "visit_children";
+    if (name == "visitchildren") return "visit_children"_cs;
     return name;
 }
 
@@ -167,6 +174,12 @@ element
     | EMITBLOCK {
         pushCurrentComment();
         global.push_back(new EmitBlock(@1, $1.impl, $1.block)); }
+    | INCLUDE {
+        pushCurrentComment();
+        if ($1.startsWith("#include_impl")) {
+            global.push_back(new EmitBlock(@1, true, $1.substr(0, 7) + $1.substr(13)));
+        } else {
+            global.push_back(new EmitBlock(@1, false, $1)); } }
     | NAMESPACE { BEGIN(PARSE_BRACKET); }
       IDENTIFIER { current_namespace = IrNamespace::get(current_namespace, $3); }
       '{' input '}' {
@@ -228,6 +241,10 @@ part
       IDENTIFIER '{'  { $<irClass>$ = new IrClass(@2, &$<irClass>0->local, NodeKind::Nested, $3); }
       partList '}'    { $$ = $<irClass>5; }
     | COMMENTBLOCK    { $$ = new CommentBlock(@1, $1); }
+    | ENUM IDENTIFIER BLOCK {
+                        $$ = new IrEnumType(@1, &$<irClass>0->local, $2, false, $3); }
+    | ENUM CLASS IDENTIFIER BLOCK {
+                        $$ = new IrEnumType(@1, &$<irClass>0->local, $3, true, $4); }
     ;
 
 method
@@ -237,7 +254,8 @@ method
           { $$ = new IrMethod(@2, canon_name($2)); }
     | modifiers IDENTIFIER '('
           { if ($2 != $<irClass>0->name)
-                yyerror("constructor name %s doesn't match class name %s", $2, $<irClass>0->name);
+                yyerror("constructor name %s doesn't match class name %s", $2.c_str(),
+                        $<irClass>0->name.c_str());
             if ($1 & ~IrField::Inline)
                 yyerror("%s invalid on constructor", IrElement::modifier($1));
             ($<irMethod>$ = new IrMethod(@2, $2))->inImpl = !($1 & IrField::Inline);
@@ -248,17 +266,17 @@ method
             BEGIN(NORMAL); }
     | modifiers type methodName '('
           { ($<irMethod>$ = new IrMethod(@3, $3))->rtype = $2;
-            $<irMethod>$->inImpl = !($1 & IrField::Inline);
-            $<irMethod>$->isStatic = ($1 & IrField::Static);
-            $<irMethod>$->isVirtual = ($1 & IrField::Virtual);
+            $<irMethod>$->inImpl = !($1 & IrMethod::Inline);
+            $<irMethod>$->isStatic = ($1 & IrMethod::Static);
+            $<irMethod>$->isVirtual = ($1 & IrMethod::Virtual);
             $<irMethod>$->clss = $<irClass>0;
-            if ($1 & !(IrField::Inline | IrField::Virtual))
-                yyerror("%s invalid on method", IrElement::modifier($1)); }
+            if (auto mod = $1 & ~(IrMethod::Inline | IrMethod::Static | IrMethod::Virtual))
+                yyerror("'%s' invalid on method", IrMethod::modifier(mod)); }
       optArgList ')' optConst optOverride body
           { ($$ = $<irMethod>5)->body = $10;
-            if (!$10 || $10[0] == '=') {
+            if (!$10 || $10.startsWith("=")) {
                 if (!$$->inImpl)
-                    yyerror("inline method %s with no body", $3);
+                    yyerror("inline method %v with no body", $3.c_str());
                 $$->inImpl = false; }
             $$->isUser = true;
             $$->isConst = $8;
@@ -267,14 +285,16 @@ method
 
 methodName
     : IDENTIFIER
-    | OPERATOR '=' '='          { $$ = "operator=="; }
-    | OPERATOR '!' '='          { $$ = "operator!="; }
-    | OPERATOR '<' '='          { $$ = "operator<="; }
-    | OPERATOR '>' '='          { $$ = "operator>="; }
-    | OPERATOR '<'              { $$ = "operator<"; }
-    | OPERATOR '<' '<'          { $$ = "operator<<"; }
-    | OPERATOR '>'              { $$ = "operator>"; }
-    | OPERATOR '>' '>'          { $$ = "operator>>"; }
+    | OPERATOR '=' '='          { $$ = "operator=="_cs; }
+    | OPERATOR '!' '='          { $$ = "operator!="_cs; }
+    | OPERATOR '<' '='          { $$ = "operator<="_cs; }
+    | OPERATOR '>' '='          { $$ = "operator>="_cs; }
+    | OPERATOR '<'              { $$ = "operator<"_cs; }
+    | OPERATOR '<' '<'          { $$ = "operator<<"_cs; }
+    | OPERATOR '>'              { $$ = "operator>"_cs; }
+    | OPERATOR '>' '>'          { $$ = "operator>>"_cs; }
+    | OPERATOR '*'              { $$ = "operator*"_cs; }
+    | OPERATOR '-' '>'          { $$ = "operator->"_cs; }
     ;
 
 optArgList : argList | ;
@@ -298,21 +318,25 @@ optOverride
                             yyerror("syntax error, expecting override or method body"); }
 
 body: BLOCK
-    | '=' ZERO ';'    { $$ = "= 0;"; }
-    | '=' DEFAULT ';' { $$ = "= default;"; }
-    | '=' DELETE ';'  { $$ = "= delete;"; }
-    | ';'             { $$ = nullptr; }
+    | '=' ZERO ';'    { $$ = "= 0;"_cs; }
+    | '=' DEFAULT ';' { $$ = "= default;"_cs; }
+    | '=' DELETE ';'  { $$ = "= delete;"_cs; }
+    | ';'             { $$ = {}; }
     ;
 
 irField
     : modifiers type fieldName optInitializer ';'
           { $$ = new IrField(@3, $2, $3, $4, $1);
             if ($1 & IrElement::Virtual)
-                yyerror("virtual invalid on field %s", $3); }
+                yyerror("virtual invalid on field %s", $3.c_str()); }
     | modifiers CONST nonRefType fieldName optInitializer ';'
           { $$ = new IrField(@4, $3, $4, $5, $1 | IrElement::Const);
             if ($1 & IrElement::Virtual)
-                yyerror("virtual invalid on field %s", $4); }
+                yyerror("virtual invalid on field %s", $4.c_str()); }
+    | modifiers VARIANT '<' type_args '>' fieldName optInitializer ';'
+          { $$ = new IrVariantField(@6, $4, $6, $7, $1);
+            if ($1 & IrElement::Virtual)
+                yyerror("virtual invalid on field %s", $6.c_str()); }
     ;
 
 modifier
@@ -325,10 +349,10 @@ modifier
 
 modifiers : { $$ = 0; } | modifiers modifier { $$ = $1 | $2; }
 
-fieldName: IDENTIFIER | OPTIONAL { $$ = "optional"; } ;
+fieldName: IDENTIFIER | OPTIONAL { $$ = "optional"_cs; } ;
 
 optInitializer
-    : /* empty */       { $$ = nullptr; }
+    : /* empty */       { $$ = {}; }
     | '=' expression    { $$ = $2; }
     | '=' BLOCK         { $$ = $2; }
     ;
@@ -341,9 +365,9 @@ lookup_scope
 nonRefType
     : IDENTIFIER                        { $$ = new NamedType(@1, 0, $1); }
     | lookup_scope IDENTIFIER           { $$ = new NamedType(@2, $1, $2); }
-    | lookup_scope OPTIONAL             { $$ = new NamedType(@2, $1, "optional"); }
+    | lookup_scope OPTIONAL             { $$ = new NamedType(@2, $1, "optional"_cs); }
     | nonRefType '<' type_args '>'      { $$ = new TemplateInstantiation(@1+@4, $1, *$3); }
-    | nonRefType '[' INTEGER ']'        { $$ = new ArrayType(@1+@4, $1, atoi($3)); }
+    | nonRefType '[' INTEGER ']'        { $$ = new ArrayType(@1+@4, $1, atoi($3.c_str())); }
     ;
 
 type: nonRefType
@@ -397,7 +421,8 @@ name: IDENTIFIER
 %%
 }  // end anonymous namespace
 
-void yyerror(const char *fmt, ...) {
+template<typename... Args>
+void yyerror(const char *fmt, Args&&... args) {
     auto& context = BaseCompileContext::get();
     if (!strcmp(fmt, "syntax error, unexpected IDENTIFIER")) {
         context.errorReporter().parser_error(sources,
@@ -405,10 +430,7 @@ void yyerror(const char *fmt, ...) {
                                              yylval.str.c_str());
         return;
     }
-    va_list args;
-    va_start(args, fmt);
-    context.errorReporter().parser_error(sources, fmt, args);
-    va_end(args);
+    context.errorReporter().parser_error(sources, fmt, std::forward<Args>(args)...);
 }
 
 IrDefinitions *parse(char** files, int count) {
@@ -420,7 +442,7 @@ IrDefinitions *parse(char** files, int count) {
         yydebug = atoi(p);
 #endif
     if (count <= 0) {
-        ::error(ErrorType::ERR_EXPECTED, "No input files specified");
+        ::P4::error(ErrorType::ERR_EXPECTED, "No input files specified");
         errors = 1; }
 
     for (int i = 0; i < count; i++) {
@@ -434,9 +456,12 @@ IrDefinitions *parse(char** files, int count) {
                 error(ErrorType::ERR_OVERLIMIT, "out of memory");
                 break; }
         } else {
-            ::error(ErrorType::ERR_IO, "Cannot open file %s", files[i]);
+            ::P4::error(ErrorType::ERR_IO, "Cannot open file %s", files[i]);
             perror("");
             errors |= 1; } }
 
     return errors ? nullptr : new IrDefinitions(global);
 }
+
+}  // namespace P4
+

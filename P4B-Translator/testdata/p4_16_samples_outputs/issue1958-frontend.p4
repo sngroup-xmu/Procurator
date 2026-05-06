@@ -34,11 +34,11 @@ control verifyChecksum(inout headers_t hdr, inout metadata_t meta) {
 }
 
 control ingressImpl(inout headers_t hdr, inout metadata_t meta, inout standard_metadata_t stdmeta) {
-    @noWarn("unused") @name(".NoAction") action NoAction_0() {
-    }
-    @name("ingressImpl.reg1") register<bit<8>>(32w256) reg1_0;
     @name("ingressImpl.foo2_inst.idx") bit<32> foo2_inst_idx;
     @name("ingressImpl.foo2_inst.val") bit<8> foo2_inst_val;
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
+    }
+    @name("ingressImpl.reg1") register<bit<8>>(32w256) reg1_0;
     @name("ingressImpl.foo2_inst.foo2_action") action foo2_inst_foo2_action_0() {
         foo2_inst_idx = (bit<32>)hdr.ethernet.srcAddr[7:0];
         reg1_0.read(foo2_inst_val, foo2_inst_idx);
@@ -47,13 +47,13 @@ control ingressImpl(inout headers_t hdr, inout metadata_t meta, inout standard_m
     }
     @name("ingressImpl.foo2_inst.foo2_table") table foo2_inst_foo2_table {
         key = {
-            hdr.ethernet.srcAddr: exact @name("my_headers.ethernet.srcAddr") ;
+            hdr.ethernet.srcAddr: exact @name("my_headers.ethernet.srcAddr");
         }
         actions = {
             foo2_inst_foo2_action_0();
-            NoAction_0();
+            NoAction_1();
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         stdmeta.egress_spec = 9w0;
@@ -78,4 +78,3 @@ control deparserImpl(packet_out packet, in headers_t hdr) {
 }
 
 V1Switch<headers_t, metadata_t>(parserImpl(), verifyChecksum(), ingressImpl(), egressImpl(), updateChecksum(), deparserImpl()) main;
-

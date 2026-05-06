@@ -14,23 +14,28 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <fstream>
 #include "nullstream.h"
 
-std::ostream* openFile(cstring name, bool nullOnError) {
-    if (name.isNullOrEmpty()) {
-        if (nullOnError)
-            return new nullstream();
-        ::error(ErrorType::ERR_INVALID, "Empty name for openFile", name);
+#include <fstream>  // IWYU pragma: keep
+
+#include "lib/error.h"
+
+namespace P4 {
+
+std::unique_ptr<std::ostream> openFile(const std::filesystem::path &name, bool nullOnError) {
+    if (name.empty()) {
+        if (nullOnError) return std::make_unique<nullstream>();
+        ::P4::error(ErrorType::ERR_INVALID, "Empty name for openFile");
         return nullptr;
     }
-    std::ofstream *file = new std::ofstream(name);
+    auto file = std::make_unique<std::ofstream>(name);
     if (!file->good()) {
-        ::error(ErrorType::ERR_IO,
-                "Error writing output to file %1%: %2%", name, strerror(errno));
-        if (nullOnError)
-            return new nullstream();
+        ::P4::error(ErrorType::ERR_IO, "Error writing output to file %1%: %2%", name,
+                    strerror(errno));
+        if (nullOnError) return std::make_unique<nullstream>();
         return nullptr;
     }
     return file;
 }
+
+}  // namespace P4

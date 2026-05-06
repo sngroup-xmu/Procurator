@@ -1,22 +1,77 @@
 #! /bin/bash
 
-# Install some custom requirements on OS X using brew
-BREW=/usr/local/bin/brew
-if [[ ! -x $BREW ]]; then
-    /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+# Script to install P4C dependencies on MacOS.
+
+set -e  # Exit on error.
+set -x  # Make command execution verbose
+
+# Installation helper.
+brew_install() {
+    echo "\nInstalling $1"
+    if brew list $1 &>/dev/null; then
+        echo "${1} is already installed"
+    else
+        brew install --ignore-dependencies $1 && echo "$1 is installed"
+    fi
+}
+
+# Check if brew shellenv command is already in zprofile.
+if ! grep -q 'brew shellenv' ~/.zprofile; then
+    # Set up Homebrew differently for arm64.
+    if [[ $(uname -m) == 'arm64' ]]; then
+        (echo; echo 'eval "$(/opt/homebrew/bin/brew shellenv)"') >> ~/.zprofile
+        eval "$(/opt/homebrew/bin/brew shellenv)"
+    else
+        (echo; echo 'eval "$(/usr/local/bin/brew shellenv)"') >> ~/.zprofile
+        eval "$(/usr/local/bin/brew shellenv)"
+    fi
+fi
+# Source zprofile.
+source ~/.zprofile
+
+# Check if Homebrew is already installed.
+if ! which brew > /dev/null 2>&1; then
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+HOMEBREW_PREFIX=$(brew --prefix)
+
+# Fetch the latest formulae
+brew update
+
+BOOST_LIB="boost@1.85"
+REQUIRED_PACKAGES=(
+    autoconf automake ccache cmake libtool
+    openssl coreutils bison grep ninja virtualenv uv
+    libevent nanomsg thrift
+    ${BOOST_LIB}
+)
+for package in "${REQUIRED_PACKAGES[@]}"; do
+  brew_install ${package}
+done
+
+# Check if linking is needed.
+if ! brew ls --linked --formula ${BOOST_LIB} > /dev/null 2>&1; then
+  brew link ${BOOST_LIB}
 fi
 
-$BREW update
-$BREW install autoconf automake bdw-gc bison boost ccache cmake git \
-      libtool openssl pkg-config protobuf python
-$BREW install gmp --c++11
+# Check if PATH modification is needed.
+if ! grep -q "$(brew --prefix bison)/bin" ~/.bash_profile; then
+  echo 'export PATH="$(brew --prefix bison)/bin:$PATH"' >> ~/.bash_profile
+fi
+if ! grep -q "$HOMEBREW_PREFIX/opt/grep/libexec/gnubin" ~/.bash_profile; then
+  echo 'export PATH="$HOMEBREW_PREFIX/opt/grep/libexec/gnubin:$PATH"' >> ~/.bash_profile
+fi
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bash_profile
+source ~/.bash_profile
 
-# Prefer Homebrew's bison over the macOS-provided version
-$BREW link --force bison
-echo 'export PATH="/usr/local/opt/bison/bin:$PATH"' >> ~/.bash_profile
-export PATH="/usr/local/opt/bison/bin:$PATH"
+# Set up uv for Python dependency management.
+uv sync
 
-# install pip and required pip packages
-# curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-# python get-pip.py --user
-pip3 install --user scapy==2.4.0 ply==3.8
+# Install BMv2 from source via the shared CMake-based helper.
+THIS_DIR=$( cd -- "$( dirname -- "${0}" )" &> /dev/null && pwd )
+BMV2_INSTALL_ARGS=(
+)
+if [[ -n "${BMV2_REF:-}" ]]; then
+  BMV2_INSTALL_ARGS+=(--ref "${BMV2_REF}")
+fi
+"${THIS_DIR}/install_bmv2_from_source.sh" "${BMV2_INSTALL_ARGS[@]}"

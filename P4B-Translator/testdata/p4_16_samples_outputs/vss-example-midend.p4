@@ -5,13 +5,12 @@ error {
 }
 #include <core.p4>
 
-typedef bit<4> PortId;
 struct InControl {
-    PortId inputPort;
+    bit<4> inputPort;
 }
 
 struct OutControl {
-    PortId outputPort;
+    bit<4> outputPort;
 }
 
 parser Parser<H>(packet_in b, out H parsedHeaders);
@@ -25,27 +24,25 @@ extern Ck16 {
     bit<16> get();
 }
 
-typedef bit<48> EthernetAddress;
-typedef bit<32> IPv4Address;
 header Ethernet_h {
-    EthernetAddress dstAddr;
-    EthernetAddress srcAddr;
-    bit<16>         etherType;
+    bit<48> dstAddr;
+    bit<48> srcAddr;
+    bit<16> etherType;
 }
 
 header Ipv4_h {
-    bit<4>      version;
-    bit<4>      ihl;
-    bit<8>      diffserv;
-    bit<16>     totalLen;
-    bit<16>     identification;
-    bit<3>      flags;
-    bit<13>     fragOffset;
-    bit<8>      ttl;
-    bit<8>      protocol;
-    bit<16>     hdrChecksum;
-    IPv4Address srcAddr;
-    IPv4Address dstAddr;
+    bit<4>  version;
+    bit<4>  ihl;
+    bit<8>  diffserv;
+    bit<16> totalLen;
+    bit<16> identification;
+    bit<3>  flags;
+    bit<13> fragOffset;
+    bit<8>  ttl;
+    bit<8>  protocol;
+    bit<16> hdrChecksum;
+    bit<32> srcAddr;
+    bit<32> dstAddr;
 }
 
 struct Parsed_packet {
@@ -80,30 +77,29 @@ parser TopParser(packet_in b, out Parsed_packet p) {
 }
 
 control TopPipe(inout Parsed_packet headers, in error parseError, in InControl inCtrl, out OutControl outCtrl) {
-    @name("TopPipe.nextHop") IPv4Address nextHop_0;
-    @name("TopPipe.hasReturned") bool hasReturned;
-    @noWarn("unused") @name(".NoAction") action NoAction_0() {
+    @name("TopPipe.nextHop") bit<32> nextHop_0;
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("TopPipe.Drop_action") action Drop_action() {
         outCtrl.outputPort = 4w0xf;
     }
-    @name("TopPipe.Drop_action") action Drop_action_4() {
+    @name("TopPipe.Drop_action") action Drop_action_1() {
         outCtrl.outputPort = 4w0xf;
     }
-    @name("TopPipe.Drop_action") action Drop_action_5() {
+    @name("TopPipe.Drop_action") action Drop_action_2() {
         outCtrl.outputPort = 4w0xf;
     }
-    @name("TopPipe.Drop_action") action Drop_action_6() {
+    @name("TopPipe.Drop_action") action Drop_action_3() {
         outCtrl.outputPort = 4w0xf;
     }
-    @name("TopPipe.Set_nhop") action Set_nhop(IPv4Address ipv4_dest, PortId port) {
+    @name("TopPipe.Set_nhop") action Set_nhop(@name("ipv4_dest") bit<32> ipv4_dest, @name("port") bit<4> port) {
         nextHop_0 = ipv4_dest;
         headers.ip.ttl = headers.ip.ttl + 8w255;
         outCtrl.outputPort = port;
     }
     @name("TopPipe.ipv4_match") table ipv4_match_0 {
         key = {
-            headers.ip.dstAddr: lpm @name("headers.ip.dstAddr") ;
+            headers.ip.dstAddr: lpm @name("headers.ip.dstAddr");
         }
         actions = {
             Drop_action();
@@ -117,119 +113,68 @@ control TopPipe(inout Parsed_packet headers, in error parseError, in InControl i
     }
     @name("TopPipe.check_ttl") table check_ttl_0 {
         key = {
-            headers.ip.ttl: exact @name("headers.ip.ttl") ;
+            headers.ip.ttl: exact @name("headers.ip.ttl");
         }
         actions = {
             Send_to_cpu();
-            NoAction_0();
+            NoAction_1();
         }
-        const default_action = NoAction_0();
+        const default_action = NoAction_1();
     }
-    @name("TopPipe.Set_dmac") action Set_dmac(EthernetAddress dmac) {
-        headers.ethernet.dstAddr = dmac;
+    @name("TopPipe.Set_dmac") action Set_dmac(@name("dmac") bit<48> dmac_0) {
+        headers.ethernet.dstAddr = dmac_0;
     }
-    @name("TopPipe.dmac") table dmac_0 {
+    @name("TopPipe.dmac") table dmac_1 {
         key = {
-            nextHop_0: exact @name("nextHop") ;
+            nextHop_0: exact @name("nextHop");
         }
         actions = {
-            Drop_action_4();
+            Drop_action_1();
             Set_dmac();
         }
         size = 1024;
-        default_action = Drop_action_4();
+        default_action = Drop_action_1();
     }
-    @name("TopPipe.Set_smac") action Set_smac(EthernetAddress smac) {
-        headers.ethernet.srcAddr = smac;
+    @name("TopPipe.Set_smac") action Set_smac(@name("smac") bit<48> smac_0) {
+        headers.ethernet.srcAddr = smac_0;
     }
-    @name("TopPipe.smac") table smac_0 {
+    @name("TopPipe.smac") table smac_1 {
         key = {
-            outCtrl.outputPort: exact @name("outCtrl.outputPort") ;
+            outCtrl.outputPort: exact @name("outCtrl.outputPort");
         }
         actions = {
-            Drop_action_5();
+            Drop_action_2();
             Set_smac();
         }
         size = 16;
-        default_action = Drop_action_5();
-    }
-    @hidden action vssexample191() {
-        hasReturned = true;
-    }
-    @hidden action act() {
-        hasReturned = false;
-    }
-    @hidden action vssexample195() {
-        hasReturned = true;
-    }
-    @hidden action vssexample198() {
-        hasReturned = true;
-    }
-    @hidden action vssexample201() {
-        hasReturned = true;
-    }
-    @hidden table tbl_act {
-        actions = {
-            act();
-        }
-        const default_action = act();
+        default_action = Drop_action_2();
     }
     @hidden table tbl_Drop_action {
         actions = {
-            Drop_action_6();
+            Drop_action_3();
         }
-        const default_action = Drop_action_6();
-    }
-    @hidden table tbl_vssexample191 {
-        actions = {
-            vssexample191();
-        }
-        const default_action = vssexample191();
-    }
-    @hidden table tbl_vssexample195 {
-        actions = {
-            vssexample195();
-        }
-        const default_action = vssexample195();
-    }
-    @hidden table tbl_vssexample198 {
-        actions = {
-            vssexample198();
-        }
-        const default_action = vssexample198();
-    }
-    @hidden table tbl_vssexample201 {
-        actions = {
-            vssexample201();
-        }
-        const default_action = vssexample201();
+        const default_action = Drop_action_3();
     }
     apply {
-        tbl_act.apply();
         if (parseError != error.NoError) {
             tbl_Drop_action.apply();
-            tbl_vssexample191.apply();
-        }
-        if (!hasReturned) {
+        } else {
             ipv4_match_0.apply();
             if (outCtrl.outputPort == 4w0xf) {
-                tbl_vssexample195.apply();
+                ;
+            } else {
+                check_ttl_0.apply();
+                if (outCtrl.outputPort == 4w0xe) {
+                    ;
+                } else {
+                    dmac_1.apply();
+                    if (outCtrl.outputPort == 4w0xf) {
+                        ;
+                    } else {
+                        smac_1.apply();
+                    }
+                }
             }
-        }
-        if (!hasReturned) {
-            check_ttl_0.apply();
-            if (outCtrl.outputPort == 4w0xe) {
-                tbl_vssexample198.apply();
-            }
-        }
-        if (!hasReturned) {
-            dmac_0.apply();
-            if (outCtrl.outputPort == 4w0xf) {
-                tbl_vssexample201.apply();
-            }
-        }
-        if (!hasReturned) {
-            smac_0.apply();
         }
     }
 }
@@ -276,4 +221,3 @@ control TopDeparser(inout Parsed_packet p, packet_out b) {
 }
 
 VSS<Parsed_packet>(TopParser(), TopPipe(), TopDeparser()) main;
-

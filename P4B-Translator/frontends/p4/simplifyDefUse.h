@@ -14,52 +14,99 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _FRONTENDS_P4_SIMPLIFYDEFUSE_H_
-#define _FRONTENDS_P4_SIMPLIFYDEFUSE_H_
+#ifndef FRONTENDS_P4_SIMPLIFYDEFUSE_H_
+#define FRONTENDS_P4_SIMPLIFYDEFUSE_H_
 
-#include "ir/ir.h"
+#include "frontends/common/parser_options.h"
+#include "frontends/p4/cloner.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
+#include "ir/ir.h"
 
 namespace P4 {
 
 class DoSimplifyDefUse : public Transform {
-    ReferenceMap* refMap;
-    TypeMap*      typeMap;
+    ReferenceMap *refMap;
+    TypeMap *typeMap;
 
-    const IR::Node* process(const IR::Node* node);
+    const IR::Node *process(const IR::Node *node);
+
  public:
-    DoSimplifyDefUse(ReferenceMap* refMap, TypeMap* typeMap) :
-            refMap(refMap), typeMap(typeMap) {
-        CHECK_NULL(refMap); CHECK_NULL(typeMap);
+    DoSimplifyDefUse(ReferenceMap *refMap, TypeMap *typeMap) : refMap(refMap), typeMap(typeMap) {
+        CHECK_NULL(refMap);
+        CHECK_NULL(typeMap);
         setName("DoSimplifyDefUse");
     }
 
-    const IR::Node* postorder(IR::Function* function) override {
-        if (findContext<IR::Declaration_Instance>() == nullptr)
+    const IR::Node *postorder(IR::Function *function) override {
+        if (!isInContext<IR::Declaration_Instance>())
             // not an abstract function implementation: these
             // are processed as part of the control body
             return process(function);
         return function;
     }
-    const IR::Node* postorder(IR::P4Parser* parser) override
-    { return process(parser); }
-    const IR::Node* postorder(IR::P4Control* control) override
-    { return process(control); }
+    const IR::Node *postorder(IR::P4Parser *parser) override { return process(parser); }
+    const IR::Node *postorder(IR::P4Control *control) override { return process(control); }
 };
 
-class SimplifyDefUse : public PassRepeated {
+/// The Cloner pass below may insert @hidden annotations
+/// on empty control blocks; remove them
+class RemoveHidden : public Transform {
+    const IR::Node *postorder(IR::BlockStatement *stat) override {
+        if (!stat->components.empty()) return stat;
+        if (!stat->hasOnlyAnnotation(IR::Annotation::hiddenAnnotation)) return stat;
+        // Lose the annotation.
+        return new IR::BlockStatement(stat->srcInfo);
+    }
+};
+
+class SimplifyDefUse : public PassManager {
+    ReferenceMap refMap;
+
+    class Cloner : public CloneExpressions {
+     public:
+        Cloner() { setName("Cloner"); }
+        const IR::Node *postorder(IR::EmptyStatement *stat) override {
+            // You cannot clone an empty statement, since
+            // the visitor claims it's equal to the original one.
+            // So we convert it to an empty block.
+            return new IR::BlockStatement(stat->srcInfo);
+        }
+        const IR::Node *postorder(IR::BlockStatement *stat) override {
+            // If the block statement is empty then we need to clone
+            // it and add an new annotation to force it to be
+            // different from the original one.
+            if (stat->components.empty()) {
+                // We are losing the original annotations, but hopefully these don't
+                // matter on an empty block.
+                auto result = new IR::BlockStatement(
+                    stat->srcInfo, {new IR::Annotation(IR::Annotation::hiddenAnnotation, {})});
+                LOG2("Cloning " << getOriginal()->id << " into " << result->id);
+                return result;
+            }
+            // Ideally we'd like CloneExpressions::postorder(stat),
+            // but that doesn't work.
+            return Transform::postorder(stat);
+        }
+    };
+
  public:
-    SimplifyDefUse(ReferenceMap* refMap, TypeMap* typeMap,
-             TypeChecking* typeChecking = nullptr) : PassRepeated({}) {
-        CHECK_NULL(refMap); CHECK_NULL(typeMap);
-        if (!typeChecking)
-            typeChecking = new TypeChecking(refMap, typeMap);
-        passes.push_back(typeChecking);
-        passes.push_back(new DoSimplifyDefUse(refMap, typeMap));
+    explicit SimplifyDefUse(TypeMap *typeMap, TypeChecking *typeChecking = nullptr) {
+        CHECK_NULL(typeMap);
+
+        refMap.setIsV1(P4CContext::get().options().isv1());
+
+        // SimplifyDefUse needs the expression tree *not* to be a DAG,
+        // because it keeps state in hash-maps indexed with PathExpressions.
+        // This is achieved by Cloner.
+        passes.push_back(new Cloner());
+        if (!typeChecking) typeChecking = new TypeChecking(&refMap, typeMap);
+
+        passes.push_back(new PassRepeated({typeChecking, new DoSimplifyDefUse(&refMap, typeMap)}));
+        passes.push_back(new RemoveHidden());
         setName("SimplifyDefUse");
     }
 };
 
 }  // namespace P4
 
-#endif /* _FRONTENDS_P4_SIMPLIFYDEFUSE_H_ */
+#endif /* FRONTENDS_P4_SIMPLIFYDEFUSE_H_ */

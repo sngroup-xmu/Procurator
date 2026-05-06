@@ -14,39 +14,44 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <iostream>
-#include <fstream>
-
-#include "ir/ir.h"
-#include "../common/options.h"
-#include "lib/nullstream.h"
-#include "lib/path.h"
 #include "frontend.h"
 
-#include "frontends/p4/typeMap.h"
-#include "frontends/p4/typeChecking/bindVariables.h"
+#include <iostream>
+
+#include "../common/options.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
-#include "frontends/p4/fromv1.0/v1model.h"
+#include "frontends/p4/typeChecking/bindVariables.h"
+#include "frontends/p4/typeMap.h"
+#include "ir/ir.h"
+#include "lib/nullstream.h"
 // Passes
 #include "actionsInlining.h"
 #include "checkConstants.h"
+#include "checkCoreMethods.h"
 #include "checkNamedArgs.h"
 #include "createBuiltins.h"
 #include "defaultArguments.h"
+#include "defaultValues.h"
 #include "deprecated.h"
 #include "directCalls.h"
 #include "dontcareArgs.h"
+#include "duplicateActionControlPlaneNameCheck.h"
+#include "entryPriorities.h"
 #include "evaluator/evaluator.h"
 #include "frontends/common/constantFolding.h"
 #include "functionsInlining.h"
 #include "hierarchicalNames.h"
 #include "inlining.h"
 #include "localizeActions.h"
+#include "metrics/metricsPassManager.h"
 #include "moveConstructors.h"
 #include "moveDeclarations.h"
 #include "parseAnnotations.h"
 #include "parserControlFlow.h"
 #include "reassociation.h"
+#include "redundantParsers.h"
+#include "removeOpAssign.h"
+#include "removeParameters.h"
 #include "removeReturns.h"
 #include "resetHeaders.h"
 #include "setHeaders.h"
@@ -54,9 +59,11 @@ limitations under the License.
 #include "simplify.h"
 #include "simplifyDefUse.h"
 #include "simplifyParsers.h"
+#include "simplifySwitch.h"
 #include "specialize.h"
 #include "specializeGenericFunctions.h"
 #include "specializeGenericTypes.h"
+#include "staticAssert.h"
 #include "strengthReduction.h"
 #include "structInitializers.h"
 #include "switchAddDefault.h"
@@ -68,42 +75,50 @@ limitations under the License.
 #include "uselessCasts.h"
 #include "validateMatchAnnotations.h"
 #include "validateParsedProgram.h"
+#include "validateStringAnnotations.h"
+#include "validateValueSets.h"
 
 namespace P4 {
 
 namespace {
+
+/* Base class for inspectors that do not really visit the program. */
+class NoVisit : public Inspector {
+    // prune visit
+    bool preorder(const IR::P4Program *) override { return false; }
+};
+
 /**
 This pass outputs the program as a P4 source file.
 */
 class PrettyPrint : public Inspector {
     /// output file
-    cstring ppfile;
-    /// The file that is being compiled.  This used
-    cstring inputfile;
+    std::filesystem::path ppfile;
+    /// The file that is being compiled.
+    std::filesystem::path inputfile;
+
  public:
-    explicit PrettyPrint(const CompilerOptions& options) {
+    explicit PrettyPrint(const CompilerOptions &options) {
         setName("PrettyPrint");
         ppfile = options.prettyPrintFile;
         inputfile = options.file;
     }
-    bool preorder(const IR::P4Program* program) override {
-        if (!ppfile.isNullOrEmpty()) {
-            Util::PathName path(ppfile);
-            std::ostream *ppStream = openFile(path.toString(), true);
-            P4::ToP4 top4(ppStream, false, inputfile);
+    bool preorder(const IR::P4Program *program) override {
+        if (!ppfile.empty()) {
+            auto ppStream = openFile(ppfile, true);
+            P4::ToP4 top4(ppStream.get(), false, inputfile);
             (void)program->apply(top4);
         }
         return false;  // prune
     }
 };
-}  // namespace
 
 /**
  * This pass is a no-op whose purpose is to mark the end of the
  * front-end, which is useful for debugging. It is implemented as an
  * empty @ref PassManager (instead of a @ref Visitor) for efficiency.
  */
-class FrontEndLast : public PassManager {
+class FrontEndLast : public NoVisit {
  public:
     FrontEndLast() { setName("FrontEndLast"); }
 };
@@ -112,114 +127,212 @@ class FrontEndLast : public PassManager {
  * This pass is a no-op whose purpose is to mark a point in the
  * front-end, used for testing.
  */
-class FrontEndDump : public PassManager {
+class FrontEndDump : public NoVisit {
  public:
     FrontEndDump() { setName("FrontEndDump"); }
 };
 
-// TODO: remove skipSideEffectOrdering flag
-const IR::P4Program *FrontEnd::run(const CompilerOptions &options, const IR::P4Program* program,
-                                   bool skipSideEffectOrdering, std::ostream* outStream) {
-    if (program == nullptr && options.listFrontendPasses == 0)
-        return nullptr;
+/** Changes the value of strictStruct in the typeMap */
+class SetStrictStruct : public NoVisit {
+    TypeMap *typeMap;
+    bool strictStruct;
 
-    bool isv1 = options.isv1();
-    ReferenceMap  refMap;
-    TypeMap       typeMap;
-    refMap.setIsV1(isv1);
+ public:
+    SetStrictStruct(TypeMap *typeMap, bool strict) : typeMap(typeMap), strictStruct(strict) {}
+    Visitor::profile_t init_apply(const IR::Node *node) override {
+        typeMap->setStrictStruct(strictStruct);
+        return Inspector::init_apply(node);
+    }
+};
 
-    auto evaluator = new P4::EvaluatorPass(&refMap, &typeMap);
+/**
+ * This pass validates switch statement semantics.
+ * Must be run after ConstantFolding.
+ */
+class ValidateSwitchStatements : public Inspector {
+ public:
+    explicit ValidateSwitchStatements() {}
+    bool preorder(const IR::SwitchStatement *stat) override {
+        const IR::Node *foundDefault = nullptr;
+        for (unsigned i = 0; i < stat->cases.size(); i++) {
+            const auto *c = stat->cases.at(i);
+            if (c->label->is<IR::DefaultExpression>()) {
+                if (foundDefault)
+                    P4::error(P4::ErrorType::ERR_INVALID, "%1%: multiple 'default' labels %2%",
+                              c->label, foundDefault);
+                foundDefault = c->label;
+                continue;
+            }
+            for (unsigned j = i + 1; j < stat->cases.size(); j++) {
+                auto *other = stat->cases.at(j);
+                if (other->label->equiv(*c->label)) {
+                    P4::error(P4::ErrorType::ERR_INVALID, "%1%: duplicate case label %2%",
+                              other->label, c->label);
+                }
+            }
+        }
+        return true;
+    }
+};
+
+}  // namespace
+
+const IR::P4Program *FrontEnd::run(const CompilerOptions &options, const IR::P4Program *program,
+                                   std::ostream *outStream) {
+    if (program == nullptr && options.listFrontendPasses == 0) return nullptr;
+
+    TypeMap typeMap;
+
+    MetricsPassManager metricsPassManager(options, &typeMap, P4CContext::get().options().metrics);
+
+    ParseAnnotations *parseAnnotations = policy->getParseAnnotations();
+    if (!parseAnnotations) parseAnnotations = new ParseAnnotations();
+
+    ConstantFoldingPolicy *constantFoldingPolicy = policy->getConstantFoldingPolicy();
+
     PassManager passes({
-        new P4V1::getV1ModelVersion,
         // Parse annotations
-        new ParseAnnotationBodies(&parseAnnotations, &typeMap),
+        new ParseAnnotationBodies(parseAnnotations, &typeMap),
         new PrettyPrint(options),
         // Simple checks on parsed program
         new ValidateParsedProgram(),
         // Synthesize some built-in constructs
         new CreateBuiltins(),
-        new ResolveReferences(&refMap, true),  // check shadowing
+        new CheckShadowing(),
+        new WarnAboutUnusedDeclarations(*policy),
         // First pass of constant folding, before types are known --
         // may be needed to compute types.
-        new ConstantFolding(&refMap, nullptr),
+        new ConstantFolding(constantFoldingPolicy),
+        new ValidateSwitchStatements(),
+        // Validate @name/@deprecated/@noWarn. Should run after constant folding.
+        new ValidateStringAnnotations(),
         // Desugars direct parser and control applications
         // into instantiations followed by application
-        new InstantiateDirectCalls(&refMap),
-        new ResolveReferences(&refMap),  // check shadowing
-        new Deprecated(&refMap),
+        new InstantiateDirectCalls(),
+        new Deprecated(),
         new CheckNamedArgs(),
         // Type checking and type inference.  Also inserts
         // explicit casts where implicit casts exist.
-        new TypeInference(&refMap, &typeMap, false),  // insert casts
+        new SetStrictStruct(&typeMap, true),        // Next pass uses strict struct checking
+        new TypeInference(&typeMap, false, false),  // insert casts, don't check arrays
+        new SetStrictStruct(&typeMap, false),
         new ValidateMatchAnnotations(&typeMap),
-        new BindTypeVariables(&refMap, &typeMap),
-        new SpecializeGenericTypes(&refMap, &typeMap),
-        new DefaultArguments(&refMap, &typeMap),  // add default argument values to parameters
-        new ResolveReferences(&refMap),
-        new TypeInference(&refMap, &typeMap, false),  // more casts may be needed
-        new RemoveParserControlFlow(&refMap, &typeMap),
-        new StructInitializers(&refMap, &typeMap),
-        new SpecializeGenericFunctions(&refMap, &typeMap),
-        new TableKeyNames(&refMap, &typeMap),
-        PassRepeated({
-            new ConstantFolding(&refMap, &typeMap),
-            new StrengthReduction(&refMap, &typeMap),
-            new Reassociation(),
-            new UselessCasts(&refMap, &typeMap)
+        new ValidateValueSets(),
+        new DefaultValues(&typeMap),
+        new BindTypeVariables(&typeMap),
+        new EntryPriorities(),
+        new PassRepeated({
+            new SpecializeGenericTypes(&typeMap),
+            new DefaultArguments(&typeMap),       // add default argument values to parameters
+            new SetStrictStruct(&typeMap, true),  // Next pass uses strict struct checking
+            new TypeInference(&typeMap, false),   // more casts may be needed
+            new SetStrictStruct(&typeMap, false),
+            new SpecializeGenericFunctions(&typeMap),
         }),
-        new SimplifyControlFlow(&refMap, &typeMap),
+        new CheckCoreMethods(&typeMap),
+        new StaticAssert(&typeMap),
+    });
+    metricsPassManager.addUnusedCode(passes, true);
+    passes.addPasses({
+        new RemoveParserIfs(&typeMap),
+        new StructInitializers(&typeMap),
+        new TableKeyNames(&typeMap),
+        new PassRepeated({
+            new ConstantFolding(&typeMap, constantFoldingPolicy),
+            new StrengthReduction(&typeMap, policy->getStrengthReductionPolicy()),
+            new Reassociation(),
+            new UselessCasts(&typeMap),
+        }),
+        new SimplifyControlFlow(&typeMap, policy->foldInlinedFrom()),
         new SwitchAddDefault,
         new FrontEndDump(),  // used for testing the program at this point
-        new RemoveAllUnusedDeclarations(&refMap, true),
-        new SimplifyParsers(&refMap),
-        new ResetHeaders(&refMap, &typeMap),
-        new UniqueNames(&refMap),  // Give each local declaration a unique internal name
+        new RemoveAllUnusedDeclarations(*policy, true),
+        // Give each local declaration a unique internal name.
+        // Must run before SimplifyParsers, which may merge adjacent states that
+        // contain same-named state-local variables.
+        new UniqueNames(),
+        new SimplifyParsers(),
+        new ResetHeaders(&typeMap),
         new MoveDeclarations(),  // Move all local declarations to the beginning
-        new MoveInitializers(&refMap),
-        new SideEffectOrdering(&refMap, &typeMap, skipSideEffectOrdering),
-        new SimplifyControlFlow(&refMap, &typeMap),
+        new MoveInitializers(),
+        new SideEffectOrdering(&typeMap, policy->skipSideEffectOrdering()),
+        policy->removeOpAssign() ? new RemoveOpAssign() : nullptr,
+        new SimplifyControlFlow(&typeMap, policy->foldInlinedFrom()),
+        new SimplifySwitch(&typeMap),
         new MoveDeclarations(),  // Move all local declarations to the beginning
-        new SimplifyDefUse(&refMap, &typeMap),
-        new UniqueParameters(&refMap, &typeMap),
-        new SimplifyControlFlow(&refMap, &typeMap),
-        new SpecializeAll(&refMap, &typeMap),
-        new RemoveParserControlFlow(&refMap, &typeMap),
-        new RemoveReturns(&refMap),
-        new RemoveDontcareArgs(&refMap, &typeMap),
-        new MoveConstructors(&refMap),
-        new RemoveAllUnusedDeclarations(&refMap),
+        new SimplifyDefUse(&typeMap),
+        new UniqueParameters(&typeMap),
+        new SimplifyControlFlow(&typeMap, policy->foldInlinedFrom()),
+        new SpecializeAll(&typeMap, policy),
+        new RemoveParserControlFlow(&typeMap),
+        new RemoveReturns(),
+        new RemoveDontcareArgs(&typeMap),
+        new MoveConstructors(),
+        new RemoveAllUnusedDeclarations(*policy, true),
+        new RemoveRedundantParsers(&typeMap, *policy),
         new ClearTypeMap(&typeMap),
-        evaluator,
-        new Inline(&refMap, &typeMap, evaluator),
-        new InlineActions(&refMap, &typeMap),
-        new InlineFunctions(&refMap, &typeMap),
-        new SetHeaders(&refMap, &typeMap),
-        // Check for constants only after inlining
-        new CheckConstants(&refMap, &typeMap),
-        new SimplifyControlFlow(&refMap, &typeMap),
-        new RemoveParserControlFlow(&refMap, &typeMap),
-        new UniqueNames(&refMap),
-        new LocalizeAllActions(&refMap),
-        new UniqueNames(&refMap),  // needed again after inlining
-        new UniqueParameters(&refMap, &typeMap),
-        new SimplifyControlFlow(&refMap, &typeMap),
+        new EvaluatorPass(&typeMap),
+    });
+    if (policy->optimize(options)) {
+        passes.addPasses({
+            new Inline(&typeMap, *policy, options.optimizeParserInlining),
+        });
+    }
+    if (options.controlPlaneAPIGenEnabled()) {
+        passes.addPasses({
+            new DuplicateActionControlPlaneNameCheck(),
+        });
+    }
+    if (policy->optimize(options)) {
+        passes.addPasses({new InlineActions(&typeMap, *policy)});
+        metricsPassManager.addInlined(passes);
+        passes.addPasses({
+            new LocalizeAllActions(*policy),
+            new UniqueNames(),
+            new UniqueParameters(&typeMap),
+            // Must be done before inlining functions, to allow
+            // function calls used as action arguments to be inlined
+            // in the proper place.
+            new RemoveActionParameters(&typeMap),
+            new InlineFunctions(&typeMap, *policy),
+            new SetHeaders(&typeMap),
+            // Check for constants only after inlining
+            new CheckConstants(&typeMap),
+            new ConstantFolding(&typeMap, constantFoldingPolicy),
+            new SimplifyControlFlow(&typeMap, policy->foldInlinedFrom()),
+            // more ifs may have been added to parsers
+            new RemoveParserControlFlow(&typeMap),
+            new UniqueNames(),       // needed again after inlining
+            new MoveDeclarations(),  // needed again after inlining
+            new SimplifyDefUse(&typeMap),
+            new RemoveAllUnusedDeclarations(*policy, true),
+            new SimplifyControlFlow(&typeMap, policy->foldInlinedFrom()),
+        });
+    }
+    metricsPassManager.addUnusedCode(passes, false);
+    metricsPassManager.addMetricPasses(passes);
+
+    passes.addPasses({
+        // Check for shadowing after all inlining passes. We disable this
+        // check during inlining since it significantly slows compilation.
+        new CheckShadowing(),
         new HierarchicalNames(),
         new FrontEndLast(),
     });
     if (options.listFrontendPasses) {
-        passes.listPasses(*outStream, "\n");
+        passes.listPasses(*outStream, cstring::newline);
         *outStream << std::endl;
         return nullptr;
     }
 
     if (options.excludeFrontendPasses) {
-       passes.removePasses(options.passesToExcludeFrontend);
+        passes.removePasses(options.passesToExcludeFrontend);
     }
 
     passes.setName("FrontEnd");
     passes.setStopOnError(true);
     passes.addDebugHooks(hooks, true);
-    const IR::P4Program* result = program->apply(passes);
+    const IR::P4Program *result = program->apply(passes);
     return result;
 }
 

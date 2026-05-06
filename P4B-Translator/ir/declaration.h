@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _IR_DECLARATION_H_
-#define _IR_DECLARATION_H_
+#ifndef IR_DECLARATION_H_
+#define IR_DECLARATION_H_
 
-#include "node.h"
+#include "ir/id.h"
+#include "ir/node.h"
 
-namespace IR {
+namespace P4::IR {
 
 /// The Declaration interface, representing objects with names.
 class IDeclaration : public virtual INode {
@@ -46,8 +47,10 @@ class IDeclaration : public virtual INode {
     cstring controlPlaneName(cstring replace = cstring()) const;
 
     virtual ~IDeclaration() {}
+
+    DECLARE_TYPEINFO_WITH_TYPEID(IDeclaration, NodeKind::IDeclaration, INode);
 };
 
-}  // namespace IR
+}  // namespace P4::IR
 
-#endif  /* _IR_DECLARATION_H_ */
+#endif /* IR_DECLARATION_H_ */

@@ -23,20 +23,7 @@ parser p(packet_in pkt, out Headers hdr, inout Meta m, inout standard_metadata_t
 }
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
-    @name("ingress.tmp") bool tmp_0;
-    bool val;
     @name("ingress.do_action") action do_action() {
-        val = tmp_0;
-        tmp_0 = val;
-    }
-    @hidden action issue23751bmv2l33() {
-        tmp_0 = false;
-    }
-    @hidden table tbl_issue23751bmv2l33 {
-        actions = {
-            issue23751bmv2l33();
-        }
-        const default_action = issue23751bmv2l33();
     }
     @hidden table tbl_do_action {
         actions = {
@@ -45,7 +32,6 @@ control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
         const default_action = do_action();
     }
     apply {
-        tbl_issue23751bmv2l33.apply();
         tbl_do_action.apply();
     }
 }
@@ -72,4 +58,3 @@ control deparser(packet_out pkt, in Headers h) {
 }
 
 V1Switch<Headers, Meta>(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
-

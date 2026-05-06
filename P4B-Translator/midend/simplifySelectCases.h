@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _MIDEND_SIMPLIFYSELECTCASES_H_
-#define _MIDEND_SIMPLIFYSELECTCASES_H_
+#ifndef MIDEND_SIMPLIFYSELECTCASES_H_
+#define MIDEND_SIMPLIFYSELECTCASES_H_
 
-#include "ir/ir.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
+#include "ir/ir.h"
 
 namespace P4 {
 
@@ -27,6 +27,11 @@ namespace P4 {
  * - If there is just one case label, the select statement is eliminated.
  * - If a case label appears after the default label, the case is
  *   unreachable and therefore eliminated.
+ * - If all select case labels are compile-time constants, and if multiple different
+ *   states match a given case label, then all but the first select case with this
+ *   label are eliminated.
+ * - If all select case labels are compile-time constants, then all non-default transitions
+ *   to state s are eliminated if the select statement contains a default transition to state s.
  *
  * If requireConstants is true this pass requires that
  * all select labels evaluate to constants.
@@ -35,25 +40,25 @@ namespace P4 {
  * @post Unreachable case labels are removed. Case statement with
  *       a single label is replaced with a direct transition
  */
-class DoSimplifySelectCases : public Transform {
-    const TypeMap* typeMap;
+class DoSimplifySelectCases : public Transform, ResolutionContext {
+    const TypeMap *typeMap;
     bool requireConstants;
 
-    void checkSimpleConstant(const IR::Expression* expr) const;
+    void checkSimpleConstant(const IR::Expression *expr) const;
 
  public:
-    DoSimplifySelectCases(const TypeMap* typeMap, bool requireConstants) :
-            typeMap(typeMap), requireConstants(requireConstants)
-    { setName("DoSimplifySelectCases"); }
-    const IR::Node* preorder(IR::SelectExpression* expression) override;
+    DoSimplifySelectCases(const TypeMap *typeMap, bool requireConstants)
+        : typeMap(typeMap), requireConstants(requireConstants) {
+        setName("DoSimplifySelectCases");
+    }
+    const IR::Node *preorder(IR::SelectExpression *expression) override;
 };
 
 class SimplifySelectCases : public PassManager {
  public:
-    SimplifySelectCases(ReferenceMap* refMap, TypeMap* typeMap, bool requireConstants,
-            TypeChecking* typeChecking = nullptr) {
-        if (!typeChecking)
-            typeChecking = new TypeChecking(refMap, typeMap);
+    SimplifySelectCases(TypeMap *typeMap, bool requireConstants,
+                        TypeChecking *typeChecking = nullptr) {
+        if (!typeChecking) typeChecking = new TypeChecking(nullptr, typeMap);
         passes.push_back(typeChecking);
         passes.push_back(new DoSimplifySelectCases(typeMap, requireConstants));
         setName("SimplifySelectCases");
@@ -62,4 +67,4 @@ class SimplifySelectCases : public PassManager {
 
 }  // namespace P4
 
-#endif /* _MIDEND_SIMPLIFYSELECTCASES_H_ */
+#endif /* MIDEND_SIMPLIFYSELECTCASES_H_ */

@@ -15,18 +15,32 @@ limitations under the License.
 */
 
 #include "simplifySelectCases.h"
+
 #include "frontends/p4/enumInstance.h"
+#include "lib/algorithm.h"
 
 namespace P4 {
 
-void DoSimplifySelectCases::checkSimpleConstant(const IR::Expression* expr) const {
+bool isConstant(const IR::Expression *expr, const TypeMap *typeMap) {
+    if (expr->is<IR::Constant>()) return true;
+    if (expr->is<IR::BoolLiteral>()) return true;
+
+    if (auto list = expr->to<IR::ListExpression>()) {
+        const auto &components = list->components;
+        return std::all_of(components.begin(), components.end(),
+                           [&](const IR::Expression *e) { return isConstant(e, typeMap); });
+    }
+
+    if (EnumInstance::resolve(expr, typeMap)) return true;
+
+    return false;
+}
+
+void DoSimplifySelectCases::checkSimpleConstant(const IR::Expression *expr) const {
     CHECK_NULL(expr);
-    if (expr->is<IR::DefaultExpression>())
-        return;
-    if (expr->is<IR::Constant>())
-        return;
-    if (expr->is<IR::BoolLiteral>())
-        return;
+    if (expr->is<IR::DefaultExpression>()) return;
+    if (expr->is<IR::Constant>()) return;
+    if (expr->is<IR::BoolLiteral>()) return;
     if (expr->is<IR::Mask>() || expr->is<IR::Range>()) {
         auto bin = expr->to<IR::Operation_Binary>();
         checkSimpleConstant(bin->left);
@@ -35,13 +49,11 @@ void DoSimplifySelectCases::checkSimpleConstant(const IR::Expression* expr) cons
     }
     if (expr->is<IR::ListExpression>()) {
         auto list = expr->to<IR::ListExpression>();
-        for (auto e : list->components)
-            checkSimpleConstant(e);
+        for (auto e : list->components) checkSimpleConstant(e);
         return;
     }
     auto ei = EnumInstance::resolve(expr, typeMap);
-    if (ei != nullptr)
-        return;
+    if (ei != nullptr) return;
 
     // we allow value_set name to be used in place of select case;
     if (expr->is<IR::PathExpression>()) {
@@ -50,31 +62,60 @@ void DoSimplifySelectCases::checkSimpleConstant(const IR::Expression* expr) cons
             return;
         }
     }
-    ::error(ErrorType::ERR_INVALID, "%1%: must be a compile-time constant", expr);
+    ::P4::error(ErrorType::ERR_INVALID, "%1%: must be a compile-time constant", expr);
 }
 
-const IR::Node* DoSimplifySelectCases::preorder(IR::SelectExpression* expression) {
+const IR::Node *DoSimplifySelectCases::preorder(IR::SelectExpression *expression) {
     IR::Vector<IR::SelectCase> cases;
 
     bool seenDefault = false;
     bool changes = false;
     for (auto c : expression->selectCases) {
         if (seenDefault) {
-            ::warning(ErrorType::WARN_PARSER_TRANSITION, "%1%: unreachable", c);
+            warn(ErrorType::WARN_PARSER_TRANSITION, "%1%: unreachable", c);
             changes = true;
             continue;
         }
         cases.push_back(c);
-        if (c->keyset->is<IR::DefaultExpression>())
-            seenDefault = true;
-        if (requireConstants)
-            checkSimpleConstant(c->keyset);
+        if (c->keyset->is<IR::DefaultExpression>()) seenDefault = true;
+        if (requireConstants) checkSimpleConstant(c->keyset);
     }
+
+    bool allConst = std::all_of(cases.begin(), cases.end(), [&](const IR::SelectCase *c) {
+        if (!typeMap->isCompileTimeConstant(c->keyset)) return false;
+
+        return isConstant(c->keyset, typeMap) || c->keyset->is<IR::DefaultExpression>();
+    });
+    // Remove all duplicated select cases by keyset.
+    if (allConst) {
+        IR::Vector<IR::SelectCase> tmp;
+        for (auto c : cases) {  // exclude last
+            auto pred = [&](const IR::SelectCase *other) {
+                return c->keyset->equiv(*other->keyset);
+            };
+            if (!contains_if(tmp, pred)) tmp.push_back(c);
+        }
+        if (cases.size() != tmp.size()) {
+            cases = tmp;
+            changes = true;
+        }
+    }
+    // Remove all duplicated select cases equal to default state.
+    if (seenDefault && allConst) {
+        auto excludeDefault = std::prev(cases.end());
+        auto state = getDeclaration(cases.back()->state->path)->to<IR::ParserState>();
+        auto it = std::remove_if(cases.begin(), excludeDefault, [&](const IR::SelectCase *c) {
+            return state == getDeclaration(c->state->path)->to<IR::ParserState>();
+        });
+        changes |= it != excludeDefault;
+        cases.erase(it, excludeDefault);
+    }
+
     if (changes) {
         if (cases.size() == 1) {
             // just one default label
-            ::warning(ErrorType::WARN_PARSER_TRANSITION,
-                      "%1%: transition does not depend on select argument", expression->select);
+            warn(ErrorType::WARN_PARSER_TRANSITION,
+                 "'%1%': transition does not depend on select argument", expression->select);
             return cases.at(0)->state;
         }
         expression->selectCases = std::move(cases);

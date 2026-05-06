@@ -14,145 +14,216 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <cstddef>
+#include <map>
 #include <utility>
-#include "ir.h"
-#include "configuration.h"
 
-namespace IR {
+#include "frontends/common/parser_options.h"
+#include "ir/configuration.h"
+#include "ir/id.h"
+#include "ir/ir.h"
+#include "ir/vector.h"
+#include "lib/cstring.h"
+#include "lib/error.h"
+#include "lib/error_catalog.h"
+#include "lib/exceptions.h"
+#include "lib/source_file.h"
 
-const cstring IR::Type_Stack::next = "next";
-const cstring IR::Type_Stack::last = "last";
-const cstring IR::Type_Stack::arraySize = "size";
-const cstring IR::Type_Stack::lastIndex = "lastIndex";
-const cstring IR::Type_Stack::push_front = "push_front";
-const cstring IR::Type_Stack::pop_front = "pop_front";
-const cstring IR::Type_Header::isValid = "isValid";
-const cstring IR::Type_Header::setValid = "setValid";
-const cstring IR::Type_Header::setInvalid = "setInvalid";
-const cstring IR::Type_StructLike::minSizeInBits = "minSizeInBits";
-const cstring IR::Type_StructLike::minSizeInBytes = "minSizeInBytes";
+namespace P4::IR {
+
+const cstring IR::Type_Array::next = "next"_cs;
+const cstring IR::Type_Array::last = "last"_cs;
+const cstring IR::Type_Array::arraySize = "size"_cs;
+const cstring IR::Type_Array::lastIndex = "lastIndex"_cs;
+const cstring IR::Type_Array::push_front = "push_front"_cs;
+const cstring IR::Type_Array::pop_front = "pop_front"_cs;
+const cstring IR::Type_Header::isValid = "isValid"_cs;
+const cstring IR::Type_Header::setValid = "setValid"_cs;
+const cstring IR::Type_Header::setInvalid = "setInvalid"_cs;
+const cstring IR::Type::minSizeInBits = "minSizeInBits"_cs;
+const cstring IR::Type::minSizeInBytes = "minSizeInBytes"_cs;
+const cstring IR::Type::maxSizeInBits = "maxSizeInBits"_cs;
+const cstring IR::Type::maxSizeInBytes = "maxSizeInBytes"_cs;
 
 const IR::ID IR::Type_Table::hit = ID("hit");
 const IR::ID IR::Type_Table::miss = ID("miss");
 const IR::ID IR::Type_Table::action_run = ID("action_run");
 
-const cstring IR::Annotation::nameAnnotation = "name";
-const cstring IR::Annotation::tableOnlyAnnotation = "tableonly";
-const cstring IR::Annotation::defaultOnlyAnnotation = "defaultonly";
-const cstring IR::Annotation::atomicAnnotation = "atomic";
-const cstring IR::Annotation::hiddenAnnotation = "hidden";
-const cstring IR::Annotation::lengthAnnotation = "length";
-const cstring IR::Annotation::optionalAnnotation = "optional";
-const cstring IR::Annotation::pkginfoAnnotation = "pkginfo";
-const cstring IR::Annotation::deprecatedAnnotation = "deprecated";
-const cstring IR::Annotation::synchronousAnnotation = "synchronous";
-const cstring IR::Annotation::pureAnnotation = "pure";
-const cstring IR::Annotation::noSideEffectsAnnotation = "noSideEffects";
-const cstring IR::Annotation::noWarnAnnotation = "noWarn";
-const cstring IR::Annotation::matchAnnotation = "match";
+long Type_Declaration::nextId = 0;
+long Type_InfInt::nextId = 0;
+long Type_Any::nextId = 0;
 
-int Type_Declaration::nextId = 0;
-int Type_InfInt::nextId = 0;
+const Type *Type_Array::at(size_t) const { return elementType; }
 
-Annotations* Annotations::empty = new Annotations(Vector<Annotation>());
-
-const Type_Bits* Type_Bits::get(int width, bool isSigned) {
+const Type_Bits *Type_Bits::get(int width, bool isSigned) {
     // map (width, signed) to type
     using bit_type_key = std::pair<int, bool>;
-    static std::map<bit_type_key, const IR::Type_Bits*> *type_map = nullptr;
-    if (type_map == nullptr)
-        type_map = new std::map<bit_type_key, const IR::Type_Bits*>();
+    static std::map<bit_type_key, const IR::Type_Bits *> *type_map = nullptr;
+    if (type_map == nullptr) type_map = new std::map<bit_type_key, const IR::Type_Bits *>();
     auto &result = (*type_map)[std::make_pair(width, isSigned)];
-    if (!result)
-        result = new Type_Bits(width, isSigned);
-    if (width > P4CConfiguration::MaximumWidthSupported)
-        ::error(ErrorType::ERR_UNSUPPORTED, "%1%: Compiler only supports widths up to %2%",
-                result, P4CConfiguration::MaximumWidthSupported);
+    if (!result) result = new Type_Bits(width, isSigned);
+    if (width > P4CContext::getConfig().maximumWidthSupported())
+        ::P4::error(ErrorType::ERR_UNSUPPORTED, "%1%: Compiler only supports widths up to %2%",
+                    result, P4CContext::getConfig().maximumWidthSupported());
     return result;
 }
 
-const Type::Unknown *Type::Unknown::get() {
-    static const Type::Unknown *singleton = nullptr;
-    if (!singleton)
-        singleton = (new Type::Unknown());
+const Type_Bits *Type_Bits::get(const Util::SourceInfo &si, int sz, bool isSigned) {
+    if (sz < 0) {
+        ::P4::error(ErrorType::ERR_INVALID, "%1%Width %2% of type cannot be negative", si, sz);
+        // Return a value that will not cause crashes later on
+        return new IR::Type_Bits(si, 1024, isSigned);
+    }
+    if (sz == 0 && isSigned) {
+        ::P4::error(ErrorType::ERR_INVALID, "%1%Width of signed type cannot be zero", si);
+        // Return a value that will not cause crashes later on
+        return new IR::Type_Bits(si, 1024, isSigned);
+    }
+    return new IR::Type_Bits(si, sz, isSigned);
+}
+
+const Type_Bits *Type_Bits::get(const Util::SourceInfo &si, const IR::Expression *expression,
+                                bool isSigned) {
+    if (auto *k = expression->to<IR::Constant>()) {
+        if (!k->fitsInt())
+            error(ErrorType::ERR_OVERLIMIT,
+                  "%1$x: this implementation does not support bitstrings this large", k);
+        else
+            return get(si, k->asInt(), isSigned);
+    }
+    return new IR::Type_Bits(si, expression, isSigned);
+}
+
+const Type_Unknown *Type_Unknown::get() {
+    static const Type_Unknown *singleton = nullptr;
+    if (!singleton) singleton = (new Type_Unknown());
     return singleton;
 }
 
-const Type::Boolean *Type::Boolean::get() {
-    static const Type::Boolean *singleton = nullptr;
-    if (!singleton)
-        singleton = (new Type::Boolean());
+const Type_Unknown *Type_Unknown::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info (yet).
+    return new Type_Unknown(si);
+}
+
+const Type_Boolean *Type_Boolean::get() {
+    static const Type_Boolean *singleton = nullptr;
+    if (!singleton) singleton = (new Type_Boolean());
     return singleton;
+}
+
+const Type_Boolean *Type_Boolean::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info (yet).
+    return new Type_Boolean(si);
 }
 
 const Type_String *Type_String::get() {
     static const Type_String *singleton = nullptr;
-    if (!singleton)
-        singleton = (new Type_String());
+    if (!singleton) singleton = (new Type_String());
     return singleton;
 }
 
-const Type::Bits *Type::Bits::get(Util::SourceInfo si, int sz, bool isSigned) {
-    if (sz <= 0)
-        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be negative or zero", si);
-    return get(sz, isSigned);
+const Type_String *Type_String::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info (yet).
+    return new Type_String(si);
 }
 
-const Type::Varbits *Type::Varbits::get(Util::SourceInfo si, int sz) {
-    if (sz <= 0)
-        ::error(ErrorType::ERR_INVALID, "%1%: Width cannot be negative or zero", si);
-    return new Type::Varbits(si, sz);
+const Type_Varbits *Type_Varbits::get(const Util::SourceInfo &si, const IR::Expression *expr) {
+    if (auto *k = expr->to<IR::Constant>()) {
+        if (!k->fitsInt())
+            error(ErrorType::ERR_OVERLIMIT,
+                  "%1$x: this implementation does not support bitstrings this large", k);
+        else
+            return get(si, k->asInt());
+    }
+    return new Type_Varbits(si, expr);
 }
 
-const Type::Varbits *Type::Varbits::get() {
-    return new Type::Varbits(0);
+const Type_Varbits *Type_Varbits::get(const Util::SourceInfo &si, int sz) {
+    auto result = new Type_Varbits(si, sz);
+    if (sz < 0) {
+        ::P4::error(ErrorType::ERR_INVALID, "%1%: Width cannot be negative or zero", result);
+        // Return a value that will not cause crashes later on
+        return new IR::Type_Varbits(si, 1024);
+    }
+    return result;
+}
+
+const Type_Varbits *Type_Varbits::get(int sz) { return new Type_Varbits(sz); }
+
+const Type_Varbits *Type_Varbits::get() { return new Type_Varbits(0); }
+
+const Type_InfInt *Type_InfInt::get() {
+    // We do not cache types with declaration IDs (yet).
+    return new Type_InfInt();
+}
+
+const Type_InfInt *Type_InfInt::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info and declaration IDs (yet).
+    return new Type_InfInt(si);
 }
 
 const Type_Dontcare *Type_Dontcare::get() {
     static const Type_Dontcare *singleton;
-    if (!singleton)
-        singleton = (new Type_Dontcare());
+    if (!singleton) singleton = (new Type_Dontcare());
     return singleton;
+}
+
+const Type_Dontcare *Type_Dontcare::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info (yet).
+    return new Type_Dontcare(si);
 }
 
 const Type_State *Type_State::get() {
     static const Type_State *singleton;
-    if (!singleton)
-        singleton = (new Type_State());
+    if (!singleton) singleton = (new Type_State());
     return singleton;
+}
+
+const Type_State *Type_State::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info (yet).
+    return new Type_State(si);
 }
 
 const Type_Void *Type_Void::get() {
-    static const Type_Void *singleton;
-    if (!singleton)
-        singleton = (new Type_Void());
+    static const Type_Void *singleton = nullptr;
+    if (!singleton) singleton = (new Type_Void());
     return singleton;
 }
 
+const Type_Void *Type_Void::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info (yet).
+    return new Type_Void(si);
+}
+
 const Type_MatchKind *Type_MatchKind::get() {
-    static const Type_MatchKind *singleton;
-    if (!singleton)
-        singleton = (new Type_MatchKind());
+    static const Type_MatchKind *singleton = nullptr;
+    if (!singleton) singleton = (new Type_MatchKind());
     return singleton;
+}
+
+const Type_MatchKind *Type_MatchKind::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info (yet).
+    return new Type_MatchKind(si);
+}
+
+const Type_Any *Type_Any::get() {
+    // We do not cache types with declaration IDs (yet).
+    return new Type_Any();
+}
+
+const Type_Any *Type_Any::get(const Util::SourceInfo &si) {
+    // We do not cache types with source info and declaration IDs (yet).
+    return new Type_Any(si);
 }
 
 bool Type_ActionEnum::contains(cstring name) const {
     for (auto a : actionList->actionList) {
-        if (a->getName() == name)
-            return true;
+        if (a->getName() == name) return true;
     }
     return false;
 }
 
-size_t Type_MethodBase::minParameterCount() const {
-    size_t rv = 0;
-    for (auto p : *parameters)
-        if (!p->isOptional())
-            ++rv;
-    return rv;
-}
-
-const Type* Type_List::getP4Type() const {
+const Type *Type_List::getP4Type() const {
     auto args = new IR::Vector<Type>();
     for (auto a : components) {
         auto at = a->getP4Type();
@@ -162,25 +233,7 @@ const Type* Type_List::getP4Type() const {
     return new IR::Type_List(srcInfo, *args);
 }
 
-int Type_Tuple::fieldNameValid(cstring name) const {
-    if (!name.startsWith("f"))
-        return -1;
-
-    for (size_t i = 1; i < name.size(); i++) {
-        if (!isdigit(name.get(i)))
-            return -1;
-        if (name.get(i) == '0' && i < name.size() - 1)
-            // no leading zeros
-            return -1;
-    }
-    // There is no overflow if we use big_int
-    big_int v(name.substr(1));
-    if (v > size())
-        return -1;
-    return static_cast<int>(v);
-}
-
-const Type* Type_Tuple::getP4Type() const {
+const Type *Type_Tuple::getP4Type() const {
     auto args = new IR::Vector<Type>();
     for (auto a : components) {
         auto at = a->getP4Type();
@@ -190,7 +243,11 @@ const Type* Type_Tuple::getP4Type() const {
     return new IR::Type_Tuple(srcInfo, *args);
 }
 
-const Type* Type_Specialized::getP4Type() const {
+const Type *Type_P4List::getP4Type() const {
+    return new IR::Type_P4List(srcInfo, elementType->getP4Type());
+}
+
+const Type *Type_Specialized::getP4Type() const {
     auto args = new IR::Vector<Type>();
     for (auto a : *arguments) {
         auto at = a->getP4Type();
@@ -199,18 +256,17 @@ const Type* Type_Specialized::getP4Type() const {
     return new IR::Type_Specialized(srcInfo, baseType, args);
 }
 
-const Type* Type_SpecializedCanonical::getP4Type() const {
+const Type *Type_SpecializedCanonical::getP4Type() const {
     auto args = new IR::Vector<Type>();
     for (auto a : *arguments) {
         auto at = a->getP4Type();
         args->push_back(at);
     }
     auto bt = baseType->getP4Type();
-    if (auto tn = bt->to<IR::Type_Name>())
-        return new IR::Type_Specialized(srcInfo, tn, args);
+    if (auto tn = bt->to<IR::Type_Name>()) return new IR::Type_Specialized(srcInfo, tn, args);
     auto st = baseType->to<IR::Type_StructLike>();
     BUG_CHECK(st != nullptr, "%1%: expected a struct", baseType);
     return new IR::Type_Specialized(srcInfo, new IR::Type_Name(st->getName()), args);
 }
 
-}  // namespace IR
+}  // namespace P4::IR

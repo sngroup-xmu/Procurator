@@ -4,8 +4,8 @@
 /* Define to 1 if you have the boost graph headers */
 #cmakedefine HAVE_LIBBOOST_GRAPH 1
 
-/* Define to 1 if you have the execinfo.h header */
-#cmakedefine HAVE_EXECINFO_H 1
+/* Define to 1 if you have libbacktrace */
+#cmakedefine HAVE_LIBBACKTRACE 1
 
 /* Define to 1 if you have the LIBGC library. */
 #cmakedefine HAVE_LIBGC 1
@@ -30,3 +30,15 @@
 
 /* Define to 1 if you have the cxxabi.h header */
 #cmakedefine HAVE_CXXABI_H 1
+
+/* Define to 1 if you have the mm_malloc.h header */
+#cmakedefine HAVE_MM_MALLOC_H 1
+
+#cmakedefine CONFIG_PKGDATADIR "@CONFIG_PKGDATADIR@"
+
+#cmakedefine CONFIG_PREFIX "@CONFIG_PREFIX@"
+
+/* The maximum logging level for -T logs */
+#cmakedefine MAX_LOGGING_LEVEL @MAX_LOGGING_LEVEL@
+
+#cmakedefine P4C_GTEST_ENABLED 1

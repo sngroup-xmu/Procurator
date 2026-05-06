@@ -25,19 +25,14 @@ control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
     @name("ingress.tmp") bit<8> tmp;
     @name("ingress.tmp_0") bit<8> tmp_0;
     @name("ingress.tmp_1") bit<8> tmp_1;
+    @name("ingress.retval") bit<8> retval;
+    @name("ingress.inlinedRetval") bit<8> inlinedRetval_0;
     apply {
         val = 8w3;
         tmp = val;
-        {
-            @name("ingress.some_input_0") bit<8> some_input_0 = val;
-            @name("ingress.hasReturned") bool hasReturned = false;
-            @name("ingress.retval") bit<8> retval;
-            some_input_0 = 8w1;
-            hasReturned = true;
-            retval = 8w1;
-            val = some_input_0;
-            tmp_0 = retval;
-        }
+        retval = 8w1;
+        inlinedRetval_0 = retval;
+        tmp_0 = inlinedRetval_0;
         tmp_1 = tmp + tmp_0;
         h.h.a = tmp_1;
     }
@@ -73,4 +68,3 @@ control deparser(packet_out b, in Headers h) {
 }
 
 V1Switch<Headers, Meta>(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
-

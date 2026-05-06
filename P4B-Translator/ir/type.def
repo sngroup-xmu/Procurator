@@ -9,6 +9,7 @@
 */
 
 #emit
+namespace P4 {
 namespace IR {
 enum class Direction {
     None,
@@ -20,13 +21,13 @@ enum class Direction {
 inline cstring directionToString(IR::Direction direction) {
     switch (direction) {
         case IR::Direction::None:
-            return "<none>";
+            return "<none>"_cs;
         case IR::Direction::In:
-            return "in";
+            return "in"_cs;
         case IR::Direction::Out:
-            return "out";
+            return "out"_cs;
         case IR::Direction::InOut:
-            return "inout";
+            return "inout"_cs;
         default:
             BUG("Unhandled case");
     }
@@ -52,15 +53,69 @@ inline std::ostream& operator<<(std::ostream &out, IR::Direction d) {
     return out;
 }
 
+// FIXME: should accept string_view
 inline bool operator>>(cstring s, IR::Direction &d) {
-    if (!s || s == "") d = IR::Direction::None;
+    if (!s || s == cstring::empty) d = IR::Direction::None;
     else if (s == "in") d = IR::Direction::In;
     else if (s == "out") d = IR::Direction::Out;
     else if (s == "inout") d = IR::Direction::InOut;
     else return false;
     return true;
 }
+
+}  // namespace P4
+
 #end
+
+/// This represents a type that can unify with any other type.
+/// It is the original type of Dots (...) expressions.
+/// There is no syntax to represent this type.
+/// Treated like a type variable so that unification can assign it a value.
+class Type_Any : Type, ITypeVar {
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+    static long nextId;
+ public:
+    long declid = nextId++;
+    cstring getVarName() const override { return absl::StrCat("int_", declid); }
+    int getDeclId() const override { return declid; }
+    dbprint { out << "ANYTYPE/" << declid; }
+    toString { return "ANYTYPE"_cs; }
+    operator== { return declid == a.declid; }
+    static Type_Any get();
+    static Type_Any get(const Util::SourceInfo &si);
+    const Type* getP4Type() const override { return nullptr; }
+    equiv {
+        (void)a;  // silence unused warning
+        return true; /* ignore declid */
+    }
+}
+
+/// This type is a fragment of another type.
+/// This is used in conjunction with Type_Any to typecheck
+/// expressions containing ... (Dots).
+/// After unification this type replaces Type_Any.
+/// For example:
+/// struct S { bit<32> s; bit<16> t; }
+/// S s = { s = 2, ... };
+/// The type assigned to 'type' by unification will be
+/// Type_Fragment { type = Type_UnknownStruct { t: Type_Bits<15> } }.
+/// In other words, the type of the ... expression is a
+/// fragment of a struct that contains just the field t.
+class Type_Fragment : Type {
+    Type type;
+    dbprint { out << "FRAGMENT(" << type << ")"; }
+    toString { return absl::StrCat("FRAGMENT(", type, ")"); }
+    const Type* getP4Type() const override { return nullptr; }
+}
 
 /// Represents the type of a type.
 /// For example, in a declaration like
@@ -71,58 +126,120 @@ inline bool operator>>(cstring s, IR::Direction &d) {
 /// by type-checking.
 class Type_Type : Type {
     Type type;
-    toString { return "Type(" + type->toString() + ")"; }
+    toString { return absl::StrCat("Type(", type, ")"); }
     dbprint { out << "Type(" << type << ")"; }
-    Type getP4Type() const override { return type; }
+    const Type* getP4Type() const override { return type; }
     validate { BUG_CHECK(!type->is<IR::Type_Type>(), "%1%: nested Type_Type", type); }
 }
 
 class Type_Boolean : Type_Base {
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+ public:
     static Type_Boolean get();
+    static Type_Boolean get(const Util::SourceInfo &si);
     int width_bits() const override { return 1; }
-    toString{ return "bool"; }
+    int min_width_bits() const override { BUG("min_width_bits() on fixed-width type: %1%", this); }
+    int max_width_bits() const override { BUG("max_width_bits() on fixed-width type: %1%", this); }
+    int min_or_fixed_width_bits() const override { return width_bits(); }
+    int max_or_fixed_width_bits() const override { return width_bits(); }
+    toString{ return "bool"_cs; }
     dbprint { out << "bool"; }
 }
 
 /// The type of a parser state
 class Type_State : Type_Base {
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+ public:
     static Type_State get();
-    toString{ return "state"; }
+    static Type_State get(const Util::SourceInfo &si);
+    toString{ return "state"_cs; }
     dbprint { out << "state"; }
 }
 
 /// Represents both bit<> and int<> types in P4-14 and P4-16
 class Type_Bits : Type_Base {
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+ public:
     optional int size = 0;      // zero (only) for not-yet evaluated const expression
     NullOK optional Expression expression; // only used temporarily
     bool isSigned;
-    static Type_Bits get(Util::SourceInfo si, int sz, bool isSigned = false);
+    static Type_Bits get(const Util::SourceInfo &si, Expression expression, bool isSigned = false);
+    static Type_Bits get(const Util::SourceInfo &si, int sz, bool isSigned = false);
     static Type_Bits get(int sz, bool isSigned = false);
-    cstring baseName() const { return isSigned ? "int" : "bit"; }
+    inline cstring baseName() const { return isSigned ? "int"_cs : "bit"_cs; }
     int width_bits() const override { return size; }
+    int min_width_bits() const override { BUG("min_width_bits() on fixed-width type: %1%", this); }
+    int max_width_bits() const override { BUG("max_width_bits() on fixed-width type: %1%", this); }
 
-    toString{ return baseName() + "<" + Util::toString(size) + ">"; }
+    toString{ return absl::StrCat(baseName(), "<", size, ">"); }
     dbprint { out << toString(); }
 }
 
 class Type_Varbits : Type_Base {
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+ public:
     optional int         size = 0;   // if zero it means "unknown"
     NullOK optional Expression  expression = nullptr;  // only used temporarily
-    static Type_Varbits get(Util::SourceInfo si, int size = 0);
+    static Type_Varbits get(const Util::SourceInfo &si, Expression expr);
+    static Type_Varbits get(const Util::SourceInfo &si, int size);
+    static Type_Varbits get(int size);
     static Type_Varbits get();
-    toString{ return cstring("varbit<") + Util::toString(size) + ">"; }
+    toString{ return absl::StrCat("varbit<", size, ">"); }
     dbprint { out << "varbit<" << size << ">"; }
+    int width_bits() const override { return size; }
+    int min_width_bits() const override { return 0; }
+    int max_width_bits() const override { return size; }
+    int min_or_fixed_width_bits() const override { return min_width_bits(); }
+    int max_or_fixed_width_bits() const override { return max_width_bits(); }
+    virtual bool variable() const override { return true; }
 }
 
 class Parameter : Declaration, IAnnotated {
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
     Direction           direction;
     Type                type;
     optional NullOK Expression defaultValue;
-    Annotations getAnnotations() const override { return annotations; }
-    bool hasOut() const
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
+    inline bool hasOut() const
     { return direction == IR::Direction::Out || direction == IR::Direction::InOut; }
-    bool isOptional() const {
+    inline bool isOptional() const {
         return getAnnotation(Annotation::optionalAnnotation) != nullptr; }
     dbprint { out << annotations << direction << (direction != IR::Direction::None ? " " : "")
                   << type << ' ' << name; }
@@ -131,30 +248,28 @@ class Parameter : Declaration, IAnnotated {
 class ParameterList : ISimpleNamespace {
     optional inline IndexedVector<Parameter> parameters;
     validate{ parameters.check_null(); }
-    Util::Enumerator<Parameter>* getEnumerator() const {
+    inline Util::Enumerator<Parameter>* getEnumerator() const {
         return parameters.getEnumerator(); }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return parameters.getDeclarations(); }
-    size_t size() const { return parameters.size(); }
-    bool empty() const { return size() == 0; }
-    IR::Parameter getParameter(cstring name) const {
+    inline size_t size() const { return parameters.size(); }
+    inline bool empty() const { return size() == 0; }
+    inline IR::Parameter getParameter(cstring name) const {
         return parameters.getDeclaration<Parameter>(name); }
-    IR::Parameter getParameter(unsigned index) const {
+    inline IR::Parameter getParameter(std::string_view name) const {
+        return parameters.getDeclaration<Parameter>(name); }
+    inline IR::Parameter getParameter(unsigned index) const {
         for (auto &param : parameters)
             if (0 == index--) return param;
         BUG("Only %1% parameters; index #%2% requested", size(), size()+index); }
     IR::IDeclaration getDeclByName(cstring name) const override { return getParameter(name); }
-    void push_back(const Parameter *p) { parameters.push_back(p); }
+    IR::IDeclaration getDeclByName(std::string_view name) const override { return getParameter(name); }
+    inline void push_back(const Parameter *p) { parameters.push_back(p); }
     toString {
-        cstring result = "";
-        bool first = true;
-        for (auto p : parameters) {
-            if (!first)
-                result += ", ";
-            first = false;
-            result += p->toString();
-        }
-        return result;
+        return absl::StrJoin(parameters, ", ",
+                             [](std::string *out, const auto *p) {
+                                 absl::StrAppend(out, p);
+                             });
     }
 #emit
     auto begin() const -> decltype(parameters.begin()) { return parameters.begin(); }
@@ -175,37 +290,88 @@ class Type_Var : Type_Declaration, ITypeVar {
 /// type unification to discover the correct type for the constants
 /// in some contexts.
 class Type_InfInt : Type, ITypeVar {
-    int declid = nextId++;
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+    long declid = nextId++;
  private:
-    static int nextId;
+    static long nextId;
  public:
-    cstring getVarName() const override { return "int_" + Util::toString(declid); }
+    cstring getVarName() const override { return absl::StrCat("int_", declid); }
     int getDeclId() const override { return declid; }
     dbprint { out << "int/" << declid; }
-    toString { return "int"; }
+    toString { return "int"_cs; }
     operator== { return declid == a.declid; }
+    static Type_InfInt get();
+    static Type_InfInt get(const Util::SourceInfo &si);
     equiv {
         (void)a;  // silence unused warning
         return true; /* ignore declid */
     }
     const Type* getP4Type() const override { return this; }
+    int width_bits() const override { return 0; }
+    int min_width_bits() const override { BUG("min_width_bits() on unsized type: %1%", this); }
+    int max_width_bits() const override { BUG("max_width_bits() on unsized type: %1%", this); }
 }
 
 class Type_Dontcare : Type_Base {
-    toString{ return "_"; }
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+ public:
+    toString{ return "_"_cs; }
     static Type_Dontcare get();
+    static Type_Dontcare get(const Util::SourceInfo &si);
     dbprint { out << "_"; }
 }
 
 class Type_Void : Type_Base {
-    toString{ return "void"; }
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+ public:
+    toString{ return "void"_cs; }
     static Type_Void get();
+    static Type_Void get(const Util::SourceInfo &si);
     dbprint { out << "void"; }
 }
 
 class Type_MatchKind : Type_Base {
-    toString{ return "match_kind"; }
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+ public:
+    toString{ return "match_kind"_cs; }
     static Type_MatchKind get();
+    static Type_MatchKind get(const Util::SourceInfo &si);
     dbprint { out << "match_kind"; }
 }
 
@@ -213,55 +379,77 @@ class TypeParameters : ISimpleNamespace {
     optional inline IndexedVector<Type_Var> parameters;
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return parameters.getDeclarations(); }
-    bool empty() const { return parameters.empty(); }
-    size_t size() const { return parameters.size(); }
+    inline bool empty() const { return parameters.empty(); }
+    inline size_t size() const { return parameters.size(); }
     IR::IDeclaration getDeclByName(cstring name) const override {
         return parameters.getDeclaration(name); }
-    void push_back(Type_Var tv) { parameters.push_back(tv); }
+    IR::IDeclaration getDeclByName(std::string_view name) const override {
+        return parameters.getDeclaration(name); }
+    inline void push_back(Type_Var tv) { parameters.push_back(tv); }
     validate{ parameters.check_null(); }
     toString {
         if (parameters.size() == 0)
-            return "";
-        cstring result = "<";
-        bool first = true;
-        for (auto p : parameters) {
-            if (!first)
-                result += ", ";
-            first = false;
-            result += p->toString();
-        }
-        result += ">";
-        return result;
+            return cstring::empty;
+        return absl::StrCat("<",
+                            absl::StrJoin(parameters, ", ",
+                                          [](std::string *out, const auto *p) {
+                                              absl::StrAppend(out, p);
+                                          }),
+                            ">");
     }
 }
 
 class StructField : Declaration, IAnnotated {
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
     Type        type;
-    Annotations getAnnotations() const override { return annotations; }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
 }
 
 abstract Type_StructLike : Type_Declaration, INestedNamespace, ISimpleNamespace, IAnnotated, IMayBeGenericType {
-    static const cstring minSizeInBits;
-    static const cstring minSizeInBytes;
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
     optional TypeParameters typeParameters = new TypeParameters();
     optional inline IndexedVector<StructField>  fields;
     TypeParameters getTypeParameters() const override { return typeParameters; }
     std::vector<INamespace> getNestedNamespaces() const override { return { typeParameters }; }
-    Annotations getAnnotations() const override { return annotations; }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return fields.getDeclarations(); }
-    StructField getField(cstring name) const {
+    inline StructField getField(cstring name) const {
         return fields.getDeclaration<StructField>(name); }
-    int getFieldIndex(cstring name) const {
+    inline int getFieldIndex(cstring name) const {
         int index_pos = 0;
         for (auto f : fields) {
             if (f->name == name)
                 return index_pos;
-	    index_pos++;
+            index_pos++;
         }
         return -1;
+    }
+    /// This function returns start offset of the given field name in bits.
+    /// If the given name is not a valid field name, -1 is returned.
+    /// The given offset may not be correct if varbit field(s) present in between.
+    /// Offset for all fields will be correct if:
+    ///  - the type has only fixed width fields
+    ///  - the type has fixed width fields with only one varbit field as a last member.
+    inline int getFieldBitOffset(cstring name) const {
+        int offset = 0;
+        for (auto f : fields) {
+            if (f->name == name) {
+                return offset;
+            }
+            offset += f->type->width_bits();
+        }
+        return -1;
+    }
+    virtual bool variable() const override {
+        for (auto f : fields) {
+            if (f->type->variable()) {
+                return true;
+            }
+        }
+        return false;
     }
     int width_bits() const override {
         int rv = 0;
@@ -269,7 +457,23 @@ abstract Type_StructLike : Type_Declaration, INestedNamespace, ISimpleNamespace,
             rv += f->type->width_bits();
         }
         return rv; }
+    int min_width_bits() const override {
+        int rv = 0;
+        for (auto f : fields) {
+            rv += f->type->min_or_fixed_width_bits();
+        }
+        return rv;
+    }
+    int max_width_bits() const override {
+        int rv = 0;
+        for (auto f : fields) {
+             rv += f->type->max_or_fixed_width_bits();
+        }
+        return rv;
+    }
     IR::IDeclaration getDeclByName(cstring name) const override {
+        return fields.getDeclaration(name); }
+    IR::IDeclaration getDeclByName(std::string_view name) const override {
         return fields.getDeclaration(name); }
     validate{ fields.check_null(); }
     dbprint;
@@ -278,7 +482,7 @@ abstract Type_StructLike : Type_Declaration, INestedNamespace, ISimpleNamespace,
 
 class Type_Struct : Type_StructLike {
 #nodbprint
-    toString{ return cstring("struct ") + externalName(); }
+    toString{ return "struct "_cs + externalName(); }
 }
 
 /// This is the type of a struct-valued expression whose
@@ -290,13 +494,39 @@ class Type_UnknownStruct : Type_StructLike {
 
 class Type_HeaderUnion : Type_StructLike {
 #nodbprint
-    toString{ return cstring("header_union ") + externalName(); }
+    toString{ return "header_union "_cs + externalName(); }
     // this makes some assumptions on padding
     int width_bits() const override {
         int rv = 0;
         for (auto f : fields)
             rv = std::max(rv, f->type->width_bits());
         return rv; }
+    int min_width_bits() const override {
+        if (fields.empty()) {
+            return 0;
+        }
+
+        int rv = INT_MAX;
+        for (auto f : fields) {
+            rv = std::min(rv, f->type->min_or_fixed_width_bits());
+        }
+        return rv;
+    }
+    int max_width_bits() const override {
+        int rv = 0;
+        for (auto f : fields) {
+            rv = std::max(rv, f->type->max_or_fixed_width_bits());
+        }
+        return rv;
+    }
+    /// start offset of any field in a union is 0
+    inline int getFieldBitOffset(cstring name) const {
+        for (auto f : fields) {
+            if (f->name == name) {
+                return 0;
+            }
+        }
+        return -1; }
 }
 
 class Type_Header : Type_StructLike {
@@ -304,25 +534,35 @@ class Type_Header : Type_StructLike {
     static const cstring setInvalid;
     static const cstring isValid;
 #nodbprint
-    toString{ return cstring("header ") + externalName(); }
+    toString{ return "header "_cs + externalName(); }
 }
 
 class Type_Set : Type {
     Type elementType;
     dbprint{ Node::dbprint(out); out << "<" << elementType << ">"; }
-    toString { return cstring("set<") + elementType->toString() + ">"; }
+    toString { return absl::StrCat("set<", elementType, ">"); }
     const Type* getP4Type() const override { return nullptr; }
     int width_bits() const override {
         /// returning the width of the set elements, not the set itself, which doesn't
         /// really have a sensible size
         return elementType->width_bits(); }
+    int min_width_bits() const override { return elementType->min_width_bits(); }
+    int max_width_bits() const override { return elementType->max_width_bits(); }
 }
 
-/// Base class for Type_List and Type_Tuple
-abstract Type_BaseList : Type {
+interface Type_Indexed {
+    // Probably this sohuld be called 'size()', but some subclasses already
+    // have a 'size' field.
+    virtual size_t getSize() const = 0;
+    virtual Type at(size_t index) const = 0;
+}
+
+/// Base class for Type_List, and Type_Tuple
+abstract Type_BaseList : Type, Type_Indexed {
     optional inline Vector<Type> components;
     validate{ components.check_null(); }
-    size_t size() const { return components.size(); }
+    size_t getSize() const override { return components.size(); }
+    Type at(size_t index) const override { return components.at(index); }
     int width_bits() const override {
         /// returning sum of the width of the elements
         int rv = 0;
@@ -330,45 +570,90 @@ abstract Type_BaseList : Type {
             rv += f->width_bits();
         }
         return rv; }
+    int min_width_bits() const override {
+        int rv = 0;
+        for (auto f : components) {
+            rv += f->min_or_fixed_width_bits();
+        }
+        return rv;
+    }
+    int max_width_bits() const override {
+        int rv = 0;
+        for (auto f : components) {
+            rv += f->max_or_fixed_width_bits();
+        }
+        return rv;
+    }
+    cstring asString(const char* name) const {
+        return
+            absl::StrCat(name,
+                         "<",
+                         absl::StrJoin(components, ", ",
+                                       [](std::string *out, const auto *t) {
+                                           absl::StrAppend(out, t);
+                                       }),
+                         ">");
+    }
+    toString{
+        return asString("baselist");
+    }
 }
 
 /// The type of an expressionList; can be unified with both Type_Tuple and Type_Struct
 class Type_List : Type_BaseList {
-    // In error messages this is shown as if it is a Tuple
-    toString{ return "Tuple(" + Util::toString(components.size()) + ")"; }
     const Type* getP4Type() const override;
+    // shown as a tuple
+    toString{
+        return asString("tuple");
+    }
 }
 
 /// The type of a tuple.
 class Type_Tuple : Type_BaseList {
-    toString{ return "Tuple(" + Util::toString(components.size()) + ")"; }
     const Type* getP4Type() const override;
-    /// Return a field index if given a legal tuple field name.
-    /// Otherwise return -1.
-    int fieldNameValid(cstring name) const;
+    toString{
+        return asString("tuple");
+    }
+}
+
+/// The type of a P4ListExpression.
+class Type_P4List : Type {
+    Type elementType;
+    const Type* getP4Type() const override;
+    toString{
+        return absl::StrCat("list<", elementType, ">");
+    }
 }
 
 /// The type of an architectural block.
 /// Abstract base for Type_Control, Type_Parser and Type_Package
 abstract Type_ArchBlock : Type_Declaration, IMayBeGenericType, IAnnotated, ISimpleNamespace {
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
     optional TypeParameters typeParameters = new TypeParameters;
-    Annotations getAnnotations() const override { return annotations; }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
     TypeParameters getTypeParameters() const override { return typeParameters; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return typeParameters->getDeclarations(); }
     IDeclaration getDeclByName(cstring name) const override {
         return typeParameters->getDeclByName(name); }
+    IDeclaration getDeclByName(std::string_view name) const override {
+        return typeParameters->getDeclByName(name); }
 }
 
 class Type_Package : Type_ArchBlock, IContainer, ISimpleNamespace {
+    Type getType() const override { return this; }
     ParameterList constructorParams;
     Type_Method getConstructorMethodType() const override;
     ParameterList getConstructorParameters() const override { return constructorParams; }
-    toString{ return cstring("package ") + externalName(); }
+    toString{ return "package "_cs + externalName(); }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return typeParameters->getDeclarations()->concat(constructorParams->getDeclarations()); }
     IDeclaration getDeclByName(cstring name) const override {
+        auto decl = constructorParams->getDeclByName(name);
+        if (!decl) decl = typeParameters->getDeclByName(name);
+        return decl; }
+    IDeclaration getDeclByName(std::string_view name) const override {
         auto decl = constructorParams->getDeclByName(name);
         if (!decl) decl = typeParameters->getDeclByName(name);
         return decl; }
@@ -378,14 +663,14 @@ class Type_Parser : Type_ArchBlock, IApply {
     ParameterList applyParams;
     Type_Method getApplyMethodType() const override;
     ParameterList getApplyParameters() const override { return applyParams; }
-    toString { return cstring("parser ") + externalName(); }
+    toString { return "parser "_cs + externalName(); }
 }
 
 class Type_Control : Type_ArchBlock, IApply {
     ParameterList applyParams;
     Type_Method getApplyMethodType() const override;
     ParameterList getApplyParameters() const override { return applyParams; }
-    toString { return cstring("control ") + externalName(); }
+    toString { return "control "_cs + externalName(); }
 }
 
 /// A type referred by name
@@ -399,16 +684,29 @@ class Type_Name : Type {
         BUG("Type_Name is not a canonical type, use getTypeType()?");
         return 0;
     }
+    int min_width_bits() const override {
+        BUG("Type_Name is not a canonical type, use getTypeType()?");
+        return 0;
+    }
+    int max_width_bits() const override {
+        BUG("Type_Name is not a canonical type, use getTypeType()?");
+        return 0;
+    }
 }
 
-class Type_Stack : Type {
+class Type_Array : Type_Indexed, Type {
     Type        elementType;
     Expression  size;
-    toString{ return elementType->toString() + "[" +
-                (sizeKnown() ? Util::toString(getSize()) : "?") + "]"; }
+    toString{
+        return
+            absl::StrCat(elementType,
+                         "[",
+                         sizeKnown() ? size->toString() : "?"_cs,
+                         "]"); }
     dbprint{ out << elementType << "[" << size << "]"; }
     bool sizeKnown() const;
-    unsigned getSize() const;
+    size_t getSize() const override;
+    Type at(size_t index) const override;
     static const cstring next;
     static const cstring last;
     static const cstring arraySize;
@@ -416,20 +714,40 @@ class Type_Stack : Type {
     static const cstring push_front;
     static const cstring pop_front;
     const Type* getP4Type() const override
-    { return new IR::Type_Stack(srcInfo, elementType->getP4Type(), size); }
+    { return new IR::Type_Array(srcInfo, elementType->getP4Type(), size); }
+    int width_bits() const override { return getSize() * elementType->width_bits(); }
+    int min_width_bits() const override { BUG("min_width_bits on a stack: %1%",this); }
+    int max_width_bits() const override { BUG("max_width_bits on a stack: %1%",this); }
 }
 
 /** Given a declaration
    extern E<T> { ... }
    Type_Specialized represents a type such
    E<bit<32>>
-   baseType is Type_Extern E, arguments is a vector containing Type_Bits(32) */
+   baseType is Type_Name E, arguments is a vector containing Type_Bits(32) */
 class Type_Specialized : Type {
     Type_Name    baseType;
     Vector<Type> arguments;
-    toString{ return baseType->toString() + "<...>"; }
     validate{ arguments->check_null(); }
     const Type* getP4Type() const override;
+    toString{
+        return
+            absl::StrCat(baseType,
+                         "<",
+                         absl::StrJoin(*arguments, ", ",
+                                       [](std::string *out, const auto *t) {
+                                           absl::StrAppend(out, t);
+                                       }),
+                         ">");
+    }
+    Type_Specialized(cstring bt, std::initializer_list<Type> args)
+    : baseType(new Type_Name(bt)), arguments(new Vector<Type>(args)) {}
+#emit
+    // FIXME -- should not need #emit here, but ir-generator does not understand rvalue refs
+    // see FIXME notes in expression.def
+    Type_Specialized(Util::SourceInfo si, const Type_Name *bt, Vector<Type> &&args)
+    : Type_Specialized(si, bt, new Vector<Type>(std::move(args))) {}
+#end
 }
 
 /** Canonical representation of a Type_Specialized;
@@ -447,6 +765,7 @@ class Type_SpecializedCanonical : Type {
         BUG_CHECK(substituted->is<IMayBeGenericType>(), "substituted %1% is not generic", substituted);
     }
     const Type* getP4Type() const override;
+    toString{ return baseType->toString() + "<...>"_cs; }
 }
 
 /// A declaration that consists of just an identifier, e.g., an enum member
@@ -457,17 +776,32 @@ class Declaration_ID : Declaration, CompileTimeValue {
 /// The type of a string literal
 class Type_String : Type_Base {
 #nodbprint
+ protected:
+#emit
+    void *operator new(size_t size) { return ::operator new(size); }
+// FIXME: Remove this #ifdefine check once we switch to C++20
+#if defined(__cpp_sized_deallocation) && __cpp_sized_deallocation >= 201309L
+    void operator delete(void *p, size_t size) { return ::operator delete(p, size); }
+#else
+    void operator delete(void *p) { return ::operator delete(p); }
+#endif
+#end
+ public:
     static Type_String get();
-    toString{ return "string"; }
+    static Type_String get(const Util::SourceInfo &si);
+    toString{ return "string"_cs; }
 }
 
 class Type_Enum : Type_Declaration, ISimpleNamespace, IAnnotated {
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
     inline IndexedVector<Declaration_ID> members;
-    Annotations getAnnotations() const override { return annotations; }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return members.getDeclarations(); }
     IDeclaration getDeclByName(cstring name) const override {
+        return members.getDeclaration(name); }
+    IDeclaration getDeclByName(std::string_view name) const override {
         return members.getDeclaration(name); }
 #nodbprint
     validate{ members.check_null(); }
@@ -482,16 +816,22 @@ class SerEnumMember : Declaration, CompileTimeValue {
 
 /** A serializable enumeration with a backing type */
 class Type_SerEnum : Type_Declaration, ISimpleNamespace, IAnnotated {
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
     Type type;
     inline IndexedVector<SerEnumMember> members;
-    Annotations getAnnotations() const override { return annotations; }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return members.getDeclarations(); }
     IDeclaration getDeclByName(cstring name) const override {
         return members.getDeclaration(name); }
+    IDeclaration getDeclByName(std::string_view name) const override {
+        return members.getDeclaration(name); }
 #nodbprint
     validate{ members.check_null(); }
+    int width_bits() const override { return type->width_bits(); }
+    int min_width_bits() const override { return type->min_width_bits(); }
+    int max_width_bits() const override { return type->max_width_bits(); }
 }
 
 class Type_Table : Type, IApply {
@@ -523,15 +863,24 @@ abstract Type_MethodBase : Type, IMayBeGenericType, ISimpleNamespace {
     // nullptr for constructors or functors; nullptr is not void
     ParameterList parameters;
 
-    size_t maxParameterCount() const { return parameters->size(); }
-    size_t minParameterCount() const;
-    virtual TypeParameters getTypeParameters() const override { return typeParameters; }
+    inline size_t maxParameterCount() const { return parameters->size(); }
+    inline size_t minParameterCount() const {
+        size_t rv = 0;
+        for (auto p : *parameters)
+            if (!p->isOptional()) ++rv;
+        return rv;
+    }
+    TypeParameters getTypeParameters() const override { return typeParameters; }
     void dbprint(std::ostream& out) const override;
-    toString { return "<Method>"; }
+    toString { return "<Method>"_cs; }
     const IR::Type* getP4Type() const override { return nullptr; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return typeParameters->getDeclarations()->concat(parameters->getDeclarations()); }
     IDeclaration getDeclByName(cstring name) const override {
+        auto decl = parameters->getDeclByName(name);
+        if (!decl) decl = typeParameters->getDeclByName(name);
+        return decl; }
+    IDeclaration getDeclByName(std::string_view name) const override {
         auto decl = parameters->getDeclByName(name);
         if (!decl) decl = typeParameters->getDeclByName(name);
         return decl; }
@@ -565,7 +914,7 @@ class Type_MethodCall : Type {
     Vector<ArgumentInfo> arguments;
     validate{ typeArguments->check_null(); arguments->check_null(); }
     const Type* getP4Type() const override { return nullptr; }
-    toString { return "<Method call>"; }
+    toString { return "<Method call>"_cs; }
 }
 
 /// Actions look a lot like methods in many respects.
@@ -578,24 +927,30 @@ class Type_Action : Type_MethodBase {
 class Method : Declaration, IAnnotated, IFunctional, ISimpleNamespace {
     Type_Method type;
     optional bool isAbstract = false;
-    optional Annotations annotations = Annotations::empty;
-    size_t maxParameterCount() const { return type->maxParameterCount(); }
-    size_t minParameterCount() const { return type->minParameterCount(); }
-    void setAbstract() { isAbstract = true; }
-    Annotations getAnnotations() const override { return annotations; }
+    optional inline Vector<Annotation> annotations;
+    inline size_t maxParameterCount() const { return type->maxParameterCount(); }
+    inline size_t minParameterCount() const { return type->minParameterCount(); }
+    inline void setAbstract() { isAbstract = true; }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
     ParameterList getParameters() const override { return type->parameters; }
     // annotations can refer to parameters, so need to look them up in scope
     IDeclaration getDeclByName(cstring name) const override {
+        return type->parameters->getDeclByName(name); }
+    IDeclaration getDeclByName(std::string_view name) const override {
         return type->parameters->getDeclByName(name); }
     Util::Enumerator<IDeclaration> *getDeclarations() const override {
         return type->parameters->getDeclarations(); }
 }
 
 class Type_Typedef : Type_Declaration, IAnnotated {
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
     Type                 type;
     int width_bits() const override { return type->width_bits(); }
-    Annotations getAnnotations() const override { return annotations; }
+    int min_width_bits() const override { return type->min_width_bits(); }
+    int max_width_bits() const override { return type->max_width_bits(); }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
 #nodbprint
 }
 
@@ -605,10 +960,13 @@ class Type_Typedef : Type_Declaration, IAnnotated {
 /// assignment, equality, and casts to/from the original type.
 /// The keyword for newtype is actually `type'.
 class Type_Newtype : Type_Declaration, IAnnotated {
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
     Type                 type;
     int width_bits() const override { return type->width_bits(); }
-    Annotations getAnnotations() const override { return annotations; }
+    int min_width_bits() const override { return type->min_width_bits(); }
+    int max_width_bits() const override { return type->max_width_bits(); }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
 #nodbprint
 }
 
@@ -618,15 +976,16 @@ class Type_Extern : Type_Declaration, INestedNamespace, IGeneralNamespace,
     optional TypeParameters typeParameters = new TypeParameters;
     optional inline Vector<Method> methods;  // methods can be overloaded, so this is not NameMap
     optional inline NameMap<Attribute, ordered_map> attributes;  // P4_14 only, currently
-    optional Annotations annotations = Annotations::empty;
+    optional inline Vector<Annotation> annotations;
 
     std::vector<INamespace> getNestedNamespaces() const override { return { typeParameters }; }
     Util::Enumerator<IDeclaration>* getDeclarations() const override {
         return attributes.valueEnumerator()->as<const IDeclaration*>()
             ->concat(methods.getEnumerator()->as<const IDeclaration*>()); }
-    virtual TypeParameters getTypeParameters() const override { return typeParameters; }
+    TypeParameters getTypeParameters() const override { return typeParameters; }
     validate{ methods.check_null(); }
-    Annotations getAnnotations() const override { return annotations; }
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
     /// Returns the method that matches the specified arguments.
     /// Returns nullptr if no method or more than one method match.
     /// In the latter case it also reports an error.

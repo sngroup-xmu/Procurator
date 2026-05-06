@@ -1,3 +1,10 @@
+<!-- 
+Documentation Inclusion:
+This README is integrated as a subsection of the "Getting Started" page in the P4 compiler documentation.
+
+Refer to the specific section here: [Overview - Subsection](https://p4lang.github.io/p4c/getting_started.html#overview)
+-->
+
 # Overview
 
 The P4C compiler is a compiler infrastructure for the P4 compiler designed with the following goals:
@@ -14,13 +21,10 @@ The P4C compiler is a compiler infrastructure for the P4 compiler designed with 
 
 ## Additional documentation
 
-* the P4_14 (P4 v1.0) language is described in the [P4 spec](http://p4.org/wp-content/uploads/2015/04/p4-latest.pdf)
-
-* the [P4_16 draft language](http://p4.org/wp-content/uploads/2016/12/P4_16-prerelease-Dec_16.pdf)
-  specification is still under revision.
+* The documentation for P4_16 and P4Runtime is available [here](https://p4.org/specs/)
 
 * the core design of the compiler intermediate representation (IR) and
-  the visitor patterns are briefly described in [IR](IR.md)
+  the visitor patterns are briefly described in [IR](../IR.md)
 
-* The [migration guide](migration-guide.pptx) describes how P4_14 (v1.0)
+* The [migration guide](https://github.com/p4lang/p4c/blob/main/docs/migration-guide.pptx) describes how P4_14 (v1.0)
   programs are translated into P4_16 programs

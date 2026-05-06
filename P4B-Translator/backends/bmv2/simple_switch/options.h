@@ -20,24 +20,26 @@ limitations under the License.
 #include "backends/bmv2/common/options.h"
 #include "backends/bmv2/simple_switch/midend.h"
 
-namespace BMV2 {
+namespace P4::BMV2 {
 
 class SimpleSwitchOptions : public BMV2Options {
  public:
     SimpleSwitchOptions() {
-        registerOption("--listMidendPasses", nullptr,
-                [this](const char*) {
-                    listMidendPasses = true;
-                    loadIRFromJson = false;
-                    SimpleSwitchMidEnd midEnd(*this, outStream);
-                    exit(0);
-                    return false; },
-                "[SimpleSwitch back-end] Lists exact name of all midend passes.\n");
+        registerOption(
+            "--listMidendPasses", nullptr,
+            [this](const char *) {
+                listMidendPasses = true;
+                loadIRFromJson = false;
+                SimpleSwitchMidEnd midEnd(*this, outStream);
+                exit(0);
+                return false;
+            },
+            "[SimpleSwitch back-end] Lists exact name of all midend passes.\n");
     }
 };
 
 using SimpleSwitchContext = P4CContextWithOptions<SimpleSwitchOptions>;
 
-};  // namespace BMV2
+}  // namespace P4::BMV2
 
 #endif /* BACKENDS_BMV2_SIMPLE_SWITCH_OPTIONS_H_ */

@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _MIDEND_TABLEHIT_H_
-#define _MIDEND_TABLEHIT_H_
+#ifndef MIDEND_TABLEHIT_H_
+#define MIDEND_TABLEHIT_H_
 
-#include "ir/ir.h"
+#include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
+#include "ir/ir.h"
 
 namespace P4 {
 
@@ -32,28 +33,41 @@ else
    tmp = false;
 This may be needed by some back-ends which only support hit test in conditionals
 */
-class DoTableHit : public Transform {
-    ReferenceMap* refMap;
-    TypeMap* typeMap;
+class DoTableHit : public Transform, public ResolutionContext {
+    TypeMap *typeMap;
+    enum op_t { None, And, Or, Xor };
+
+    const IR::Node *process(IR::BaseAssignmentStatement *statement, op_t op);
+
  public:
-    DoTableHit(ReferenceMap* refMap, TypeMap* typeMap):
-            refMap(refMap), typeMap(typeMap)
-    { CHECK_NULL(refMap); CHECK_NULL(typeMap); setName("DoTableHit"); }
-    const IR::Node* postorder(IR::AssignmentStatement* statement) override;
+    const IR::Node *postorder(IR::BaseAssignmentStatement *statement) override {
+        return process(statement, None);
+    }
+    const IR::Node *postorder(IR::OpAssignmentStatement *statement) override { return statement; }
+    const IR::Node *postorder(IR::BAndAssign *statement) override {
+        return process(statement, And);
+    }
+    const IR::Node *postorder(IR::BOrAssign *statement) override { return process(statement, Or); }
+    const IR::Node *postorder(IR::BXorAssign *statement) override {
+        return process(statement, Xor);
+    }
+
+    explicit DoTableHit(TypeMap *typeMap) : typeMap(typeMap) {
+        CHECK_NULL(typeMap);
+        setName("DoTableHit");
+    }
 };
 
 class TableHit : public PassManager {
  public:
-    TableHit(ReferenceMap* refMap, TypeMap* typeMap,
-             TypeChecking* typeChecking = nullptr) {
-        if (!typeChecking)
-            typeChecking = new TypeChecking(refMap, typeMap);
+    explicit TableHit(TypeMap *typeMap, TypeChecking *typeChecking = nullptr) {
+        if (!typeChecking) typeChecking = new TypeChecking(nullptr, typeMap);
         passes.push_back(typeChecking);
-        passes.push_back(new DoTableHit(refMap, typeMap));
+        passes.push_back(new DoTableHit(typeMap));
         setName("TableHit");
     }
 };
 
 }  // namespace P4
 
-#endif /* _MIDEND_TABLEHIT_H_ */
+#endif /* MIDEND_TABLEHIT_H_ */

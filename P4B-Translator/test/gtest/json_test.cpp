@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <sstream>
-
-#include "gtest/gtest.h"
 #include "lib/json.h"
 
-namespace Util {
+#include <gtest/gtest.h>
+
+#include <sstream>
+
+namespace P4::Util {
 
 template <typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
 static cstring getNumStringRepr(T v) {
@@ -29,7 +30,7 @@ static cstring getNumStringRepr(T v) {
 }
 
 TEST(Util, Json) {
-    IJson* value;
+    IJson *value;
     value = new JsonValue(true);
     EXPECT_EQ("true", value->toString());
     value = new JsonValue();
@@ -49,6 +50,19 @@ TEST(Util, Json) {
     auto smallestLongLong = static_cast<long long>(1LL << 63);
     value = new JsonValue(smallestLongLong);
     EXPECT_EQ(getNumStringRepr(smallestLongLong), value->toString());
+    value = new JsonValue(0.0f);
+    EXPECT_EQ("0", value->toString());
+    value = new JsonValue(3.14f);
+    EXPECT_EQ("3.14", value->toString());
+    value = new JsonValue(2.718);
+    EXPECT_EQ("2.718", value->toString());
+    value = new JsonValue(-0.00123);
+    EXPECT_EQ("-0.00123", value->toString());
+    value = new JsonValue(1.23456e-10);
+    EXPECT_EQ("1.23456e-10", value->toString());
+    value = new JsonValue(static_cast<float>(1.0 / 3.0));
+    std::string floatStr = value->toString().string();
+    EXPECT_EQ(floatStr.find("0.333"), 0);
 
     auto arr = new JsonArray();
     arr->append(5);
@@ -71,4 +85,4 @@ TEST(Util, Json) {
               obj->toString());
 }
 
-}  // namespace Util
+}  // namespace P4::Util

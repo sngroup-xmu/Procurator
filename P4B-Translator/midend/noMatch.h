@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _MIDEND_NOMATCH_H_
-#define _MIDEND_NOMATCH_H_
+#ifndef MIDEND_NOMATCH_H_
+#define MIDEND_NOMATCH_H_
 
-#include "ir/ir.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
+#include "ir/ir.h"
+#include "ir/pass_manager.h"
 
 namespace P4 {
 
@@ -27,25 +28,23 @@ namespace P4 {
 /// into
 /// state s { transition select (e) { ... default: noMatch; }}
 /// state noMatch { verify(false, error.NoMatch); transition reject; }
-class DoHandleNoMatch : public Transform {
-    const IR::ParserState* noMatch = nullptr;
-    NameGenerator* nameGen;
- public:
-    explicit DoHandleNoMatch(NameGenerator* ng): nameGen(ng)
-    { CHECK_NULL(ng); setName("DoHandleNoMatch"); }
-    const IR::Node* postorder(IR::SelectExpression* expression) override;
-    const IR::Node* preorder(IR::P4Parser* parser) override;
-};
+class HandleNoMatch : public Transform {
+    MinimalNameGenerator nameGen;
 
-class HandleNoMatch : public PassManager {
  public:
-    explicit HandleNoMatch(ReferenceMap* refMap) {
-        passes.push_back(new ResolveReferences(refMap));
-        passes.push_back(new DoHandleNoMatch(refMap));
-        setName("HandleNoMatch");
+    const IR::ParserState *noMatch = nullptr;
+    HandleNoMatch() { setName("HandleNoMatch"); }
+    Visitor::profile_t init_apply(const IR::Node *node) override {
+        auto rv = Transform::init_apply(node);
+        node->apply(nameGen);
+
+        return rv;
     }
+    const IR::Node *postorder(IR::SelectExpression *expression) override;
+    const IR::Node *postorder(IR::P4Parser *parser) override;
+    const IR::Node *postorder(IR::P4Program *program) override;
 };
 
 }  // namespace P4
 
-#endif /* _MIDEND_NOMATCH_H_ */
+#endif /* MIDEND_NOMATCH_H_ */

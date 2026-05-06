@@ -16,39 +16,36 @@ limitations under the License.
 
 /* -*-C++-*- */
 
-#ifndef _EVALUATOR_SUBSTITUTEPARAMETERS_H_
-#define _EVALUATOR_SUBSTITUTEPARAMETERS_H_
+#ifndef FRONTENDS_P4_EVALUATOR_SUBSTITUTEPARAMETERS_H_
+#define FRONTENDS_P4_EVALUATOR_SUBSTITUTEPARAMETERS_H_
 
-#include "ir/ir.h"
-#include "frontends/p4/typeChecking/typeSubstitutionVisitor.h"
-#include "frontends/common/resolveReferences/referenceMap.h"
+#include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/parameterSubstitution.h"
+#include "frontends/p4/typeChecking/typeSubstitutionVisitor.h"
+#include "ir/ir.h"
 
 namespace P4 {
 
-class SubstituteParameters : public TypeVariableSubstitutionVisitor {
+class SubstituteParameters : public TypeVariableSubstitutionVisitor, public ResolutionContext {
  protected:
-    // When a PathExpression is cloned, it is added to the RefMap.
-    // It is set to point to the same declaration as the original path.
-    // But running this pass may change some declaration nodes - so
-    // in general the refMap won't be up-to-date at the end.
-    ReferenceMap*              refMap;  // input and output
-    const ParameterSubstitution* subst;   // input
+    const DeclarationLookup *refMap;     // input
+    const ParameterSubstitution *subst;  // input
  public:
-    SubstituteParameters(ReferenceMap* refMap,
-                         const ParameterSubstitution* subst,
-                         const TypeVariableSubstitution* tvs) :
-            TypeVariableSubstitutionVisitor(tvs), refMap(refMap), subst(subst) {
-        CHECK_NULL(refMap); CHECK_NULL(subst); CHECK_NULL(tvs);
+    SubstituteParameters(const DeclarationLookup *refMap, const ParameterSubstitution *subst,
+                         const TypeVariableSubstitution *tvs)
+        : TypeVariableSubstitutionVisitor(tvs), refMap(refMap), subst(subst) {
+        CHECK_NULL(subst);
+        CHECK_NULL(tvs);
         visitDagOnce = true;
         setName("SubstituteParameters");
-        LOG1("Will substitute " << std::endl << subst << bindings); }
+        LOG1("Will substitute " << std::endl << subst << bindings);
+    }
     using TypeVariableSubstitutionVisitor::postorder;
-    const IR::Node* postorder(IR::PathExpression* expr) override;
-    const IR::Node* postorder(IR::Type_Name* type) override;
-    const IR::Node* postorder(IR::This* t) override;
+    const IR::Node *postorder(IR::PathExpression *expr) override;
+    const IR::Node *postorder(IR::Type_Name *type) override;
+    const IR::Node *postorder(IR::This *t) override;
 };
 
 }  // namespace P4
 
-#endif /* _EVALUATOR_SUBSTITUTEPARAMETERS_H_ */
+#endif /* FRONTENDS_P4_EVALUATOR_SUBSTITUTEPARAMETERS_H_ */

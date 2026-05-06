@@ -14,159 +14,196 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _LIB_JSON_H_
-#define _LIB_JSON_H_
+#ifndef LIB_JSON_H_
+#define LIB_JSON_H_
 
 #include <iostream>
 #include <stdexcept>
-#include <vector>
 #include <type_traits>
+#include <vector>
 
-#if defined(__has_include)
-#  if __has_include(<gtest/gtest_prod.h>)
-#    include <gtest/gtest_prod.h>
-#  endif
+#include "config.h"
+#ifdef P4C_GTEST_ENABLED
+#include "gtest/gtest_prod.h"
 #endif
-// The production build should not depend on googletest headers. We only use
-// FRIEND_TEST-style annotations to grant access to unit tests. When googletest
-// is not available, define these macros as no-ops.
-#ifndef FRIEND_TEST
-#define FRIEND_TEST(test_case_name, test_name)
-#endif
-#ifndef FRIEND_TEST_ALL_PREFIXES
-#define FRIEND_TEST_ALL_PREFIXES(test_case_name, test_name)
-#endif
-#include "lib/gmputil.h"
+#include "lib/big_int.h"
+#include "lib/castable.h"
 #include "lib/cstring.h"
-#include "lib/ordered_map.h"
+#include "lib/map.h"
+#include "lib/string_map.h"
 
-namespace Test { class TestJson; }
+namespace P4::Test {
+class TestJson;
+}
 
-namespace Util {
+namespace P4::Util {
 
-class IJson {
+class IJson : public ICastable {
  public:
     virtual ~IJson() {}
-    virtual void serialize(std::ostream& out) const = 0;
+    virtual void serialize(std::ostream &out) const = 0;
     cstring toString() const;
-    template<typename T> bool is() const { return to<T>() != nullptr; }
-    template<typename T> T* to() { return dynamic_cast<T*>(this); }
-    template<typename T> const T* to() const { return dynamic_cast<const T*>(this); }
     void dump() const;
+
+    DECLARE_TYPEINFO(IJson);
 };
 
 class JsonValue final : public IJson {
+#ifdef P4C_GTEST_ENABLED
     FRIEND_TEST(Util, Json);
+#endif
 
  public:
-    enum Kind {
-        String,
-        Number,
-        True,
-        False,
-        Null
-    };
+    enum Kind { String, Integer, Float, True, False, Null };
     JsonValue() : tag(Kind::Null) {}
-    JsonValue(bool b) : tag(b ? Kind::True : Kind::False) {}          // NOLINT
-    JsonValue(big_int v) : tag(Kind::Number), value(v) {}             // NOLINT
-    JsonValue(int v) : tag(Kind::Number), value(v) {}                 // NOLINT
-    JsonValue(long v) : tag(Kind::Number), value(v) {}                // NOLINT
-    JsonValue(long long v);                                           // NOLINT
-    JsonValue(unsigned v) : tag(Kind::Number), value(v) {}            // NOLINT
-    JsonValue(unsigned long v) : tag(Kind::Number), value(v) {}       // NOLINT
-    JsonValue(unsigned long long v);                                  // NOLINT
-    JsonValue(double v) : tag(Kind::Number), value(v) {}              // NOLINT
-    JsonValue(float v) : tag(Kind::Number), value(v) {}               // NOLINT
-    JsonValue(cstring s) : tag(Kind::String), str(s) {}               // NOLINT
-    JsonValue(const std::string &s) : tag(Kind::String), str(s) {}    // NOLINT
-    JsonValue(const char* s) : tag(Kind::String), str(s) {}           // NOLINT
-    void serialize(std::ostream& out) const;
+    JsonValue(bool b) : tag(b ? Kind::True : Kind::False) {}         // NOLINT
+    JsonValue(big_int v) : tag(Kind::Integer), intValue(v) {}        // NOLINT
+    JsonValue(int v) : tag(Kind::Integer), intValue(v) {}            // NOLINT
+    JsonValue(long v) : tag(Kind::Integer), intValue(v) {}           // NOLINT
+    JsonValue(long long v);                                          // NOLINT
+    JsonValue(unsigned v) : tag(Kind::Integer), intValue(v) {}       // NOLINT
+    JsonValue(unsigned long v) : tag(Kind::Integer), intValue(v) {}  // NOLINT
+    JsonValue(unsigned long long v);                                 // NOLINT
+    JsonValue(double v) : tag(Kind::Float), floatValue(v) {}         // NOLINT
+    JsonValue(float v) : tag(Kind::Float), floatValue(v) {}          // NOLINT
+    JsonValue(cstring s) : tag(Kind::String), str(s) {}              // NOLINT
+    // FIXME: replace these two ctors with std::string view, cannot do now as
+    // std::string is implicitly convertible to cstring
+    JsonValue(const char *s) : tag(Kind::String), str(s) {}         // NOLINT
+    JsonValue(const std::string &s) : tag(Kind::String), str(s) {}  // NOLINT
+    void serialize(std::ostream &out) const override;
 
-    bool operator==(const big_int& v) const;
-    // is_integral is true for bool
-    template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
-    bool operator==(const T& v) const
-    { return (tag == Kind::Number) && (v == value); }
-    bool operator==(const double& v) const;
-    bool operator==(const float& v) const;
-    bool operator==(const cstring& s) const;
-    bool operator==(const std::string& s) const;
-    bool operator==(const char* s) const;
-    bool operator==(const JsonValue& other) const;
+    bool operator==(const big_int &v) const;
+    // Integer types
+    template <typename T, typename std::enable_if_t<std::is_integral_v<T>, int> = 0>
+    bool operator==(const T &v) const {
+        if (tag == Kind::Integer) return intValue == v;
+        return false;
+    }
 
-    bool isNumber() const { return tag == Kind::Number; }
+    template <typename T, typename std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+    bool operator==(const T &v) const {
+        if (tag == Kind::Integer) return static_cast<double>(intValue) == static_cast<double>(v);
+        if (tag == Kind::Float) return floatValue == static_cast<double>(v);
+        return false;
+    }
+    bool operator==(const double &v) const;
+    bool operator==(const float &v) const;
+    bool operator==(const cstring &s) const;
+    // FIXME: replace these two methods with std::string view, cannot do now as
+    // std::string is implicitly convertible to cstring
+    bool operator==(const char *s) const;
+    bool operator==(const std::string &s) const;
+    bool operator==(const JsonValue &other) const;
+
+    bool isNumber() const { return tag == Kind::Integer || tag == Kind::Float; }
     bool isBool() const { return tag == Kind::True || tag == Kind::False; }
     bool isString() const { return tag == Kind::String; }
     bool isNull() const { return tag == Kind::Null; }
+    bool isInteger() const { return tag == Kind::Integer; }
+    bool isFloat() const { return tag == Kind::Float; }
 
     bool getBool() const;
     cstring getString() const;
-    big_int getValue() const;
+    big_int getIntValue() const;
+    double getFloatValue() const;
     int getInt() const;
 
-    static JsonValue* null;
+    static JsonValue *null;
 
  private:
-    JsonValue(Kind kind) : tag(kind) {                        // NOLINT
-        if (kind == Kind::String || kind == Kind::Number)
+    JsonValue(Kind kind) : tag(kind) {
+        if (kind == Kind::String || kind == Kind::Integer || kind == Kind::Float)
             throw std::logic_error("Incorrect constructor called");
     }
 
-    static big_int makeValue(long long v);
-    static big_int makeValue(unsigned long long v);
-
     const Kind tag;
-    const big_int value = 0;
-    const cstring str = nullptr;
+    const big_int intValue = 0;
+    const double floatValue = 0.0;
+    const cstring str = cstring::empty;
+
+    DECLARE_TYPEINFO(JsonValue, IJson);
 };
 
-class JsonArray final : public IJson, public std::vector<IJson*> {
+class JsonArray final : public IJson, public std::vector<IJson *> {
     friend class Test::TestJson;
+
  public:
-    void serialize(std::ostream& out) const;
-    JsonArray* clone() const { return new JsonArray(*this); }
-    JsonArray* append(IJson* value);
-    JsonArray* append(big_int v) { append(new JsonValue(v)); return this; }
-    template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
-    JsonArray* append(T v) { append(new JsonValue(v)); return this; }
-    JsonArray* append(double v) { append(new JsonValue(v)); return this; }
-    JsonArray* append(float v) { append(new JsonValue(v)); return this; }
-    JsonArray* append(cstring s) { append(new JsonValue(s)); return this; }
-    JsonArray* append(const std::string &s) { append(new JsonValue(s)); return this; }
-    JsonArray* append(const char* s) { append(new JsonValue(s)); return this; }
-    JsonArray* concatenate(const Util::JsonArray* other) {
+    void serialize(std::ostream &out) const override;
+    JsonArray *clone() const { return new JsonArray(*this); }
+    JsonArray *append(IJson *value);
+    JsonArray *append(big_int v) {
+        append(new JsonValue(v));
+        return this;
+    }
+    template <typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
+    JsonArray *append(T v) {
+        append(new JsonValue(v));
+        return this;
+    }
+    JsonArray *append(double v) {
+        append(new JsonValue(v));
+        return this;
+    }
+    JsonArray *append(float v) {
+        append(new JsonValue(v));
+        return this;
+    }
+    JsonArray *append(cstring s) {
+        append(new JsonValue(s));
+        return this;
+    }
+    // FIXME: replace these two methods with std::string view, cannot do now as
+    // std::string is implicitly convertible to cstring
+    JsonArray *append(const char *s) {
+        append(new JsonValue(s));
+        return this;
+    }
+    JsonArray *append(const std::string &s) {
+        append(new JsonValue(s));
+        return this;
+    }
+    JsonArray *concatenate(const Util::JsonArray *other) {
         for (auto v : *other) append(v);
         return this;
     }
-    JsonArray(std::initializer_list<IJson*> data) : std::vector<IJson*>(data) {} // NOLINT
+    JsonArray(std::initializer_list<IJson *> data) : std::vector<IJson *>(data) {}  // NOLINT
     JsonArray() = default;
-    JsonArray(std::vector<IJson*> &data) : std::vector<IJson*>(data) {} // NOLINT
+    JsonArray(std::vector<IJson *> &data) : std::vector<IJson *>(data) {}  // NOLINT
+
+    DECLARE_TYPEINFO(JsonArray, IJson);
 };
 
-class JsonObject final : public IJson, public ordered_map<cstring, IJson*> {
+class JsonObject final : public IJson, public string_map<IJson *> {
     friend class Test::TestJson;
+
+    using base = string_map<IJson *>;
 
  public:
     JsonObject() = default;
-    void serialize(std::ostream& out) const;
-    JsonObject* emplace(cstring label, IJson* value);
-    JsonObject* emplace_non_null(cstring label, IJson* value);
-    JsonObject* emplace(cstring label, big_int v)
-    { emplace(label, new JsonValue(v)); return this; }
-    template<typename T, typename std::enable_if<std::is_integral<T>::value, int>::type = 0>
-    JsonObject* emplace(cstring label, T v)
-    { emplace(label, new JsonValue(v)); return this; }
-    JsonObject* emplace(cstring label, float v)
-    { emplace(label, new JsonValue(v)); return this; }
-    JsonObject* emplace(cstring label, cstring s)
-    { emplace(label, new JsonValue(s)); return this; }
-    JsonObject* emplace(cstring label, std::string s)
-    { emplace(label, new JsonValue(s)); return this; }
-    JsonObject* emplace(cstring label, const char* s)
-    { emplace(label, new JsonValue(s)); return this; }
-    IJson* get(cstring label) const { return ::get(*this, label); }
+    void serialize(std::ostream &out) const override;
+    JsonObject *emplace_non_null(cstring label, IJson *value);
+
+    JsonObject *emplace(cstring label, IJson *value);
+    JsonObject *emplace(std::string_view label, IJson *value);
+
+    template <class T, class String>
+    auto emplace(String label,
+                 T &&s) -> std::enable_if_t<!std::is_convertible_v<T, IJson *>, JsonObject *> {
+        emplace(label, new JsonValue(std::forward<T>(s)));
+        return this;
+    }
+
+    IJson *get(cstring label) const { return ::P4::get(*this, label); }
+    IJson *get(std::string_view label) const { return ::P4::get(*this, label); }
+    template <class T, class S>
+    T *getAs(S label) const {
+        return get(label)->template to<T>();
+    }
+
+    DECLARE_TYPEINFO(JsonObject, IJson);
 };
 
-}  // namespace Util
+}  // namespace P4::Util
 
-#endif  /* _LIB_JSON_H_ */
+#endif /* LIB_JSON_H_ */

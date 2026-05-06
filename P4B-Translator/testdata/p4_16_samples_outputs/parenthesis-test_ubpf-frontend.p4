@@ -50,20 +50,20 @@ parser prs(packet_in p, out Headers_t headers, inout metadata meta, inout standa
 }
 
 control pipe(inout Headers_t headers, inout metadata meta, inout standard_metadata std_meta) {
-    @noWarn("unused") @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
     @name("pipe.Reject") action Reject() {
         mark_to_drop();
     }
     @name("pipe.filter_tbl") table filter_tbl_0 {
         key = {
-            headers.ipv4.srcAddr: exact @name("headers.ipv4.srcAddr") ;
+            headers.ipv4.srcAddr: exact @name("headers.ipv4.srcAddr");
         }
         actions = {
             Reject();
-            NoAction_0();
+            NoAction_1();
         }
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     apply {
         if (headers.ipv4.isValid()) {
@@ -83,4 +83,3 @@ control dprs(packet_out packet, in Headers_t headers) {
 }
 
 ubpf<Headers_t, metadata>(prs(), pipe(), dprs()) main;
-

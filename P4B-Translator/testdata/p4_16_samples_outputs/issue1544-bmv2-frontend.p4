@@ -23,37 +23,38 @@ parser ParserImpl(packet_in packet, out headers hdr, inout metadata meta, inout 
 }
 
 control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @name(".my_drop") action my_drop(inout standard_metadata_t smeta) {
-        mark_to_drop(smeta);
+    @name("ingress.smeta") standard_metadata_t smeta_0;
+    @name("ingress.x_0") bit<16> x;
+    @name("ingress.retval") bit<16> retval;
+    @name("ingress.inlinedRetval") bit<16> inlinedRetval_0;
+    @name(".my_drop") action my_drop_0() {
+        smeta_0 = standard_metadata;
+        mark_to_drop(smeta_0);
+        standard_metadata = smeta_0;
     }
-    @name("ingress.set_port") action set_port(bit<9> output_port) {
+    @name("ingress.set_port") action set_port(@name("output_port") bit<9> output_port) {
         standard_metadata.egress_spec = output_port;
     }
     @name("ingress.mac_da") table mac_da_0 {
         key = {
-            hdr.ethernet.dstAddr: exact @name("hdr.ethernet.dstAddr") ;
+            hdr.ethernet.dstAddr: exact @name("hdr.ethernet.dstAddr");
         }
         actions = {
             set_port();
-            my_drop(standard_metadata);
+            my_drop_0();
         }
-        default_action = my_drop(standard_metadata);
+        default_action = my_drop_0();
     }
     apply {
         mac_da_0.apply();
-        {
-            @name("ingress.x_0") bit<16> x_0 = hdr.ethernet.srcAddr[15:0];
-            @name("ingress.hasReturned") bool hasReturned = false;
-            @name("ingress.retval") bit<16> retval;
-            if (x_0 > 16w5) {
-                hasReturned = true;
-                retval = x_0 + 16w65535;
-            } else {
-                hasReturned = true;
-                retval = x_0;
-            }
-            hdr.ethernet.srcAddr[15:0] = retval;
+        x = hdr.ethernet.srcAddr[15:0];
+        if (x > 16w5) {
+            retval = x + 16w65535;
+        } else {
+            retval = x;
         }
+        inlinedRetval_0 = retval;
+        hdr.ethernet.srcAddr[15:0] = inlinedRetval_0;
     }
 }
 
@@ -79,4 +80,3 @@ control computeChecksum(inout headers hdr, inout metadata meta) {
 }
 
 V1Switch<headers, metadata>(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
-

@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _BACKENDS_GRAPHS_CONTROLS_H_
-#define _BACKENDS_GRAPHS_CONTROLS_H_
+#ifndef BACKENDS_GRAPHS_CONTROLS_H_
+#define BACKENDS_GRAPHS_CONTROLS_H_
 
 #include "graphs.h"
 
-namespace graphs {
+namespace P4::graphs {
 
 class ControlGraphs : public Graphs {
  public:
@@ -30,12 +30,13 @@ class ControlGraphs : public Graphs {
         Graph *getSubgraph() const;
         cstring getName(const cstring &name) const;
         bool isEmpty() const;
+
      private:
         std::vector<cstring> names{};
         std::vector<Graph *> subgraphs{};
     };
 
-    ControlGraphs(P4::ReferenceMap *refMap, P4::TypeMap *typeMap, const cstring &graphsDir);
+    ControlGraphs(P4::ReferenceMap *refMap, P4::TypeMap *typeMap, std::filesystem::path graphsDir);
 
     bool preorder(const IR::PackageBlock *block) override;
     bool preorder(const IR::ControlBlock *block) override;
@@ -44,24 +45,27 @@ class ControlGraphs : public Graphs {
     bool preorder(const IR::IfStatement *statement) override;
     bool preorder(const IR::SwitchStatement *statement) override;
     bool preorder(const IR::MethodCallStatement *statement) override;
-    bool preorder(const IR::AssignmentStatement *statement) override;
+    bool preorder(const IR::BaseAssignmentStatement *statement) override;
     bool preorder(const IR::ReturnStatement *) override;
     bool preorder(const IR::ExitStatement *) override;
     bool preorder(const IR::P4Table *table) override;
+    bool preorder(const IR::Key *key) override;
+    bool preorder(const IR::P4Action *action) override;
 
-    void writeGraphToFile(const Graph &g, const cstring &name);
+    std::vector<Graph *> controlGraphsArray{};
 
  private:
-    P4::ReferenceMap *refMap; P4::TypeMap *typeMap;
+    P4::ReferenceMap *refMap;
+    P4::TypeMap *typeMap;
     const cstring graphsDir;
     Parents return_parents{};
-    // we keep a stack of subgraphs; every time we visit a control, we create a
-    // new subgraph and push it to the stack; this new graph becomes the
-    // "current graph" to which we add vertices (e.g. tables).
+    /// We keep a stack of subgraphs; every time we visit a control, we create a
+    /// new subgraph and push it to the stack; this new graph becomes the
+    /// "current graph" to which we add vertices (e.g. tables).
     ControlStack controlStack{};
-    boost::optional<cstring> instanceName{};
+    std::optional<cstring> instanceName{};
 };
 
-}  // namespace graphs
+}  // namespace P4::graphs
 
-#endif /* _BACKENDS_GRAPHS_CONTROLS_H_ */
+#endif /* BACKENDS_GRAPHS_CONTROLS_H_ */

@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _MIDEND_SIMPLIFYSELECTLIST_H_
-#define _MIDEND_SIMPLIFYSELECTLIST_H_
+#ifndef MIDEND_SIMPLIFYSELECTLIST_H_
+#define MIDEND_SIMPLIFYSELECTLIST_H_
 
-#include "frontends/common/resolveReferences/referenceMap.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
 #include "frontends/p4/typeMap.h"
 #include "ir/ir.h"
@@ -30,15 +29,18 @@ if the reference occurs in a select expression.  This should be run
 after tuple elimination, so we only need to deal with structs.
 */
 class SubstituteStructures : public Transform {
-    TypeMap* typeMap;
+    TypeMap *typeMap;
 
-    void explode(const IR::Expression* expression, const IR::Type* type,
-                 IR::Vector<IR::Expression>* components);
+    void explode(const IR::Expression *expression, const IR::Type *type,
+                 IR::Vector<IR::Expression> *components);
+
  public:
-    explicit SubstituteStructures(TypeMap* typeMap) : typeMap(typeMap)
-    { CHECK_NULL(typeMap); setName("SubstituteStructures"); }
+    explicit SubstituteStructures(TypeMap *typeMap) : typeMap(typeMap) {
+        CHECK_NULL(typeMap);
+        setName("SubstituteStructures");
+    }
 
-    const IR::Node* postorder(IR::PathExpression* expression) override;
+    const IR::Node *postorder(IR::PathExpression *expression) override;
 };
 
 /**
@@ -61,25 +63,27 @@ transition select(a, b, c, d) {
 class UnnestSelectList : public Transform {
     // Represent the nesting of lists inside of a selectExpression.
     // E.g.: [__[__]_] for two nested lists.
+    // FIXME: Lots of terrible concatenations here, must be std::string
     cstring nesting;
 
-    void flatten(const IR::Expression* expression, IR::Vector<IR::Expression> *output);
-    void flatten(const IR::Expression* expression, unsigned* nestingIndex,
+    void flatten(const IR::Expression *expression, IR::Vector<IR::Expression> *output);
+    void flatten(const IR::Expression *expression, unsigned *nestingIndex,
                  IR::Vector<IR::Expression> *output);
+
  public:
     UnnestSelectList() { setName("UnnestSelectList"); }
 
-    const IR::Node* preorder(IR::SelectExpression* expression) override;
-    const IR::Node* preorder(IR::P4Control* control) override
-    { prune(); return control; }
+    const IR::Node *preorder(IR::SelectExpression *expression) override;
+    const IR::Node *preorder(IR::P4Control *control) override {
+        prune();
+        return control;
+    }
 };
 
 class SimplifySelectList : public PassManager {
  public:
-    SimplifySelectList(ReferenceMap* refMap, TypeMap* typeMap,
-                       TypeChecking* typeChecking = nullptr) {
-        if (!typeChecking)
-            typeChecking = new TypeChecking(refMap, typeMap);
+    explicit SimplifySelectList(TypeMap *typeMap, TypeChecking *typeChecking = nullptr) {
+        if (!typeChecking) typeChecking = new TypeChecking(nullptr, typeMap);
         passes.push_back(typeChecking);
         passes.push_back(new SubstituteStructures(typeMap));
         passes.push_back(typeChecking);
@@ -90,4 +94,4 @@ class SimplifySelectList : public PassManager {
 
 }  // namespace P4
 
-#endif /* _MIDEND_SIMPLIFYSELECTLIST_H_ */
+#endif /* MIDEND_SIMPLIFYSELECTLIST_H_ */

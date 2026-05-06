@@ -89,12 +89,12 @@ control Ingress(inout headers hdr, out bool xout) {
     @name("Ingress.operation_drop") action operation_drop() {
         xout = false;
     }
-    @name("Ingress.operation_drop") action operation_drop_2() {
+    @name("Ingress.operation_drop") action operation_drop_1() {
         xout = false;
     }
     @name("Ingress.calculate") table calculate_0 {
         key = {
-            hdr.p4calc.op: exact @name("hdr.p4calc.op") ;
+            hdr.p4calc.op: exact @name("hdr.p4calc.op");
         }
         actions = {
             operation_add();
@@ -112,18 +112,17 @@ control Ingress(inout headers hdr, out bool xout) {
                         8w0x7c : operation_or();
                         8w0x5e : operation_xor();
         }
-
         implementation = hash_table(32w8);
+        size = 100;
     }
     apply {
         xout = true;
         if (hdr.p4calc.isValid()) {
             calculate_0.apply();
         } else {
-            operation_drop_2();
+            operation_drop_1();
         }
     }
 }
 
 ebpfFilter<headers>(Parser(), Ingress()) main;
-

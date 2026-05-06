@@ -23,20 +23,10 @@ parser p(packet_in pkt, out Headers hdr, inout Meta m, inout standard_metadata_t
 }
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
-    @name("ingress.tmp") bool tmp_0;
-    @name("ingress.do_action") action do_action(inout bool val) {
-        {
-            @name("ingress.val_1") bool val_1 = tmp_0;
-            @name("ingress.hasReturned") bool hasReturned = false;
-            @name("ingress.retval") bit<32> retval;
-            hasReturned = true;
-            retval = 32w1;
-            tmp_0 = val_1;
-        }
+    @name("ingress.do_action") action do_action() {
     }
     apply {
-        tmp_0 = false;
-        do_action(tmp_0);
+        do_action();
     }
 }
 
@@ -62,4 +52,3 @@ control deparser(packet_out pkt, in Headers h) {
 }
 
 V1Switch<Headers, Meta>(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
-

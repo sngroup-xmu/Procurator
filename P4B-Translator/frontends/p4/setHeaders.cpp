@@ -18,28 +18,24 @@ limitations under the License.
 
 namespace P4 {
 
-void DoSetHeaders::generateSetValid(
-    const IR::Expression* dest, const IR::Expression* src,
-    const IR::Type* destType,
-    IR::Vector<IR::StatOrDecl>* insert) {
-
+void DoSetHeaders::generateSetValid(const IR::Expression *dest, const IR::Expression *src,
+                                    const IR::Type *destType, IR::Vector<IR::StatOrDecl> &insert) {
     auto structType = destType->to<IR::Type_StructLike>();
-    if (structType == nullptr)
-        return;
+    if (structType == nullptr) return;
 
     auto srcType = typeMap->getType(src, true);
     auto list = src->to<IR::ListExpression>();
     auto si = src->to<IR::StructExpression>();
-    if (list == nullptr && si == nullptr)
-        return;
+    if (list == nullptr && si == nullptr) return;
 
     if (structType->is<IR::Type_Header>()) {
         LOG3("Inserting setValid for " << dest);
-        auto method = new IR::Member(dest->srcInfo, dest, IR::Type_Header::setValid);
-        auto mc = new IR::MethodCallExpression(
-            dest->srcInfo, method, new IR::Vector<IR::Argument>());
-        auto stat = new IR::MethodCallStatement(mc->srcInfo, mc);
-        insert->push_back(stat);
+        auto srcInfo = dest->srcInfo;
+        if (!srcInfo) srcInfo = src->srcInfo;
+        auto method = new IR::Member(srcInfo, dest, IR::Type_Header::setValid);
+        auto mc = new IR::MethodCallExpression(srcInfo, method, new IR::Vector<IR::Argument>());
+        auto stat = new IR::MethodCallStatement(srcInfo, mc);
+        insert.push_back(stat);
         return;
     }
 
@@ -67,14 +63,13 @@ void DoSetHeaders::generateSetValid(
     }
 }
 
-const IR::Node* DoSetHeaders::postorder(IR::AssignmentStatement* statement) {
-    auto vec = new IR::IndexedVector<IR::StatOrDecl>();
+const IR::Node *DoSetHeaders::postorder(IR::AssignmentStatement *statement) {
+    IR::IndexedVector<IR::StatOrDecl> vec;
     auto destType = typeMap->getType(statement->left, true);
     generateSetValid(statement->left, statement->right, destType, vec);
-    if (vec->empty())
-        return statement;
-    vec->push_back(statement);
-    return new IR::BlockStatement(statement->srcInfo, *vec);
+    if (vec.empty()) return statement;
+    vec.push_back(statement);
+    return new IR::BlockStatement(statement->srcInfo, vec);
 }
 
 }  // namespace P4

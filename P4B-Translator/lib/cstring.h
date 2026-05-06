@@ -14,16 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef P4C_LIB_CSTRING_H_
-#define P4C_LIB_CSTRING_H_
+#ifndef LIB_CSTRING_H_
+#define LIB_CSTRING_H_
 
-#include <cstring>
 #include <cstddef>
-
+#include <cstring>
 #include <functional>
-#include <iostream>
-#include <string>
+#include <ostream>
 #include <sstream>
+#include <string>
+#include <string_view>
+#include <type_traits>
+
+#include "hash.h"
 
 /**
  * A cstring is a reference to a zero-terminated, immutable, interned string.
@@ -69,13 +72,23 @@ limitations under the License.
  * This is convenient, but in performance-sensitive code it's good to be aware
  * that mixing the two types of strings can trigger a lot of implicit copies.
  */
+
+namespace P4 {
+class cstring;
+}  // namespace P4
+
+namespace P4::literals {
+inline cstring operator""_cs(const char *str, std::size_t len);
+}
+
+namespace P4 {
 class cstring {
     const char *str = nullptr;
 
  public:
     cstring() = default;
-    // TODO (DanilLutsenko): Enable when initialization with 0 will be eliminated
-    // cstring(std::nullptr_t) {} // NOLINT(runtime/explicit)
+
+    cstring(std::nullptr_t) {}  // NOLINT(runtime/explicit)
 
     // Copy and assignment from other kinds of strings
 
@@ -91,7 +104,11 @@ class cstring {
     // Owner of string is someone else, we do not know size of string.
     // Do not use if possible, this is linear time operation if string
     // not exists in table, because the underlying string must be copied.
+#ifdef P4VERIFY_LEGACY_CSTRING_IMPLICIT
     cstring(const char *string) {  // NOLINT(runtime/explicit)
+#else
+    explicit cstring(const char *string) {
+#endif
         if (string != nullptr) {
             construct_from_shared(string, std::strlen(string));
         }
@@ -103,14 +120,19 @@ class cstring {
         construct_from_shared(string.data(), string.length());
     }
 
+    // construct cstring from std::string_view. Do not use if possible, this is linear
+    // time operation if string not exists in table, because the underlying string must be copied.
+    explicit cstring(std::string_view string) {
+        construct_from_shared(string.data(), string.length());
+    }
+
     // TODO (DanilLutsenko): Make special case for r-value std::string?
 
     // Just helper function, for lazies, who do not like to write .str()
     // Do not use it, implicit std::string construction with implicit overhead
     // TODO (DanilLutsenko): Remove it?
-    cstring(const std::stringstream& stream)  // NOLINT(runtime/explicit)
-        : cstring(stream.str()) {
-    }
+    cstring(const std::stringstream &stream)  // NOLINT(runtime/explicit)
+        : cstring(stream.str()) {}
 
     // TODO (DanilLutsenko): Construct from StringRef?
 
@@ -118,7 +140,7 @@ class cstring {
     // cstring will control lifetime of passed object
     static cstring own(const char *string, std::size_t length) {
         if (string == nullptr) {
-            return{};
+            return {};
         }
 
         cstring result;
@@ -127,13 +149,18 @@ class cstring {
     }
 
     // construct cstring wrapper for literal
-    template<typename T, std::size_t N,
-        typename = typename std::enable_if<std::is_same<T, const char>::value>::type>
+    template <typename T, std::size_t N,
+              typename = typename std::enable_if<std::is_same<T, const char>::value>::type>
     static cstring literal(T (&string)[N]) {  // NOLINT(runtime/explicit)
         cstring result;
-        result.construct_from_literal(string, N - 1  /* String length without null terminator */);
+        result.construct_from_literal(string, N - 1 /* String length without null terminator */);
         return result;
     }
+
+    /// @return true if a given string is interned (contained in cstring cache)
+    static bool is_cached(std::string_view s);
+    /// @return corresponding cstring if it was interned, null cstring otherwise
+    static cstring get_cached(std::string_view s);
 
  private:
     // passed string is shared, we not unique owners
@@ -145,19 +172,30 @@ class cstring {
     // string is literal
     void construct_from_literal(const char *string, std::size_t length);
 
+    friend cstring P4::literals::operator""_cs(const char *str, std::size_t len);
+
  public:
     /// @return a version of the string where all necessary characters
     /// are properly escaped to make this into a json string (without
     /// the enclosing quotes).
     cstring escapeJson() const;
 
-    template <typename Iter> cstring(Iter begin, Iter end) {
-        *this = std::string(begin, end);
+    template <typename Iter>
+    cstring(Iter begin, Iter end) {
+        *this = cstring(std::string(begin, end));
     }
 
     char get(unsigned index) const { return (index < size()) ? str[index] : 0; }
     const char *c_str() const { return str; }
-    operator const char *() const { return str; }
+    explicit operator const char *() const { return str; }
+
+    std::string string() const { return str ? std::string(str) : std::string(""); }
+    explicit operator std::string() const { return string(); }
+
+    std::string_view string_view() const {
+        return str ? std::string_view(str) : std::string_view("");
+    }
+    operator std::string_view() const { return string_view(); }
 
     // Size tests. Constant time except for size(), which is linear time.
     size_t size() const {
@@ -168,6 +206,7 @@ class cstring {
     }
     bool isNull() const { return str == nullptr; }
     bool isNullOrEmpty() const { return str == nullptr ? true : str[0] == 0; }
+    explicit operator bool() const { return str; }
 
     // iterate over characters
     const char *begin() const { return str; }
@@ -179,10 +218,16 @@ class cstring {
 
     // Search for substring
     const char *find(const char *s) const { return str ? strstr(str, s) : nullptr; }
+#ifdef P4VERIFY_LEGACY_CSTRING_IMPLICIT
+    const char *find(cstring s) const { return find(s.c_str()); }
+#endif
 
     // Equality tests with other cstrings. Constant time.
     bool operator==(cstring a) const { return str == a.str; }
     bool operator!=(cstring a) const { return str != a.str; }
+
+    bool operator==(std::nullptr_t) const { return str == nullptr; }
+    bool operator!=(std::nullptr_t) const { return str != nullptr; }
 
     // Other comparisons and tests. Linear time.
     bool operator==(const char *a) const { return str ? a && !strcmp(str, a) : !a; }
@@ -195,6 +240,8 @@ class cstring {
     bool operator>(const char *a) const { return str ? !a || strcmp(str, a) > 0 : false; }
     bool operator>=(cstring a) const { return *this >= a.str; }
     bool operator>=(const char *a) const { return str ? !a || strcmp(str, a) >= 0 : !a; }
+    bool operator==(std::string_view a) const { return str ? a.compare(str) == 0 : a.empty(); }
+    bool operator!=(std::string_view a) const { return str ? a.compare(str) != 0 : !a.empty(); }
 
     bool operator==(const std::string &a) const { return *this == a.c_str(); }
     bool operator!=(const std::string &a) const { return *this != a.c_str(); }
@@ -203,8 +250,8 @@ class cstring {
     bool operator>(const std::string &a) const { return *this > a.c_str(); }
     bool operator>=(const std::string &a) const { return *this >= a.c_str(); }
 
-    bool startsWith(const cstring& prefix) const;
-    bool endsWith(const cstring& suffix) const;
+    bool startsWith(std::string_view prefix) const;
+    bool endsWith(std::string_view suffix) const;
 
     // FIXME (DanilLutsenko): We really need mutations for immutable string?
     // Probably better do transformation in std::string-like containter and
@@ -219,94 +266,185 @@ class cstring {
     cstring operator+=(std::string a);
     cstring operator+=(char a);
 
-    cstring before(const char* at) const;
-    cstring substr(size_t start) const
-    { return (start >= size()) ? "" : substr(start, size() - start); }
+    cstring before(const char *at) const;
+    cstring substr(size_t start) const {
+        return (start >= size()) ? cstring::literal("") : substr(start, size() - start);
+    }
     cstring substr(size_t start, size_t length) const;
     cstring replace(char find, char replace) const;
-    cstring replace(cstring find, cstring replace) const;
+    cstring replace(std::string_view find, std::string_view replace) const;
     cstring exceptLast(size_t count) { return substr(0, size() - count); }
 
     // trim leading and trailing whitespace (or other)
-    cstring trim(const char *ws = " \t\r\n") const {
-        if (!str) return *this;
-        const char *start = str + strspn(str, ws);
-        size_t len = strlen(start);
-        while (len > 0 && strchr(ws, start[len-1])) --len;
-        return cstring(start, len); }
+    cstring trim(const char *ws = " \t\r\n") const;
 
     // Useful singletons.
     static cstring newline;
     static cstring empty;
 
     // Static factory functions.
-    template<typename T>
+    template <typename T>
     static cstring to_cstring(const T &t) {
         std::stringstream ss;
         ss << t;
-        return cstring(ss.str()); }
-    template<typename Iterator>
+        return cstring(ss.str());
+    }
+    template <typename Iterator>
     static cstring join(Iterator begin, Iterator end, const char *delim = ", ") {
         std::stringstream ss;
         for (auto current = begin; current != end; ++current) {
             if (begin != current) ss << delim;
-            ss << *current; }
-        return cstring(ss.str()); }
-    template<class T> static cstring make_unique(const T &inuse, cstring base, char sep = '.');
+            ss << *current;
+        }
+        return cstring(ss.str());
+    }
+    template <class T>
+    static cstring make_unique(const T &inuse, cstring base, char sep = '.');
+    template <class T>
+    static cstring make_unique(const T &inuse, cstring base, int &counter, char sep = '.');
 
     /// @return the total size in bytes of all interned strings. @count is set
     /// to the total number of interned strings.
     static size_t cache_size(size_t &count);
 
-    // convert the cstring to upper case
-    cstring toUpper();
+    /// Convert the cstring to uppercase.
+    cstring toUpper() const;
+    /// Convert the cstring to lowercase.
+    cstring toLower() const;
+    /// Capitalize the first symbol.
+    cstring capitalize() const;
+    /// Append this many spaces after each newline (and before the first string).
+    cstring indent(size_t amount) const;
+
+    /// Helper to simplify usage of cstring in Abseil functions (e.g. StrCat / StrFormat, etc.)
+    /// without explicit string_view conversion.
+    template <typename Sink>
+    friend void AbslStringify(Sink &sink, cstring s) {
+        sink.Append(s.string_view());
+    }
 };
 
 inline bool operator==(const char *a, cstring b) { return b == a; }
 inline bool operator!=(const char *a, cstring b) { return b != a; }
+inline bool operator==(const std::string &a, cstring b) { return b == a; }
+inline bool operator!=(const std::string &a, cstring b) { return b != a; }
 
 inline std::string operator+(cstring a, cstring b) {
-    std::string rv(a); rv += b; return rv; }
+    std::string rv(a);
+    rv += b;
+    return rv;
+}
 inline std::string operator+(cstring a, const char *b) {
-    std::string rv(a); rv += b; return rv; }
+    std::string rv(a);
+    rv += b;
+    return rv;
+}
 inline std::string operator+(cstring a, const std::string &b) {
-    std::string rv(a); rv += b; return rv; }
+    std::string rv(a);
+    rv += b;
+    return rv;
+}
 inline std::string operator+(cstring a, char b) {
-    std::string rv(a); rv += b; return rv; }
+    std::string rv(a);
+    rv += b;
+    return rv;
+}
 inline std::string operator+(const char *a, cstring b) {
-    std::string rv(a); rv += b; return rv; }
-inline std::string operator+(std::string a, cstring b) { a += b; return a; }
+    std::string rv(a);
+    rv += b;
+    return rv;
+}
+inline std::string operator+(std::string a, cstring b) {
+    a += b;
+    return a;
+}
 inline std::string operator+(char a, cstring b) {
-    std::string rv(1, a); rv += b; return rv; }
+    std::string rv(1, a);
+    rv += b;
+    return rv;
+}
 
-inline cstring cstring::operator+=(cstring a) { *this = *this + a; return *this; }
-inline cstring cstring::operator+=(const char *a) { *this = *this + a; return *this; }
-inline cstring cstring::operator+=(std::string a) { *this = *this + a; return *this; }
-inline cstring cstring::operator+=(char a) { *this = *this + a; return *this; }
+inline cstring cstring::operator+=(cstring a) {
+    *this = cstring(*this + a);
+    return *this;
+}
+inline cstring cstring::operator+=(const char *a) {
+    *this = cstring(*this + a);
+    return *this;
+}
+inline cstring cstring::operator+=(std::string a) {
+    *this = cstring(*this + a);
+    return *this;
+}
+inline cstring cstring::operator+=(char a) {
+    *this = cstring(*this + a);
+    return *this;
+}
 
-inline std::string& operator+=(std::string& a, cstring b) {
+inline std::string &operator+=(std::string &a, cstring b) {
     a.append(b.c_str());
-    return a; }
+    return a;
+}
 
-template<class T> cstring cstring::make_unique(const T &inuse, cstring base, char sep) {
+inline cstring cstring::newline = cstring::literal("\n");
+inline cstring cstring::empty = cstring::literal("");
+
+template <class T>
+cstring cstring::make_unique(const T &inuse, cstring base, int &counter, char sep) {
+    if (!inuse.count(base)) return base;
+
     char suffix[12];
     cstring rv = base;
+    do {
+        snprintf(suffix, sizeof(suffix) / sizeof(suffix[0]), "%c%d", sep, counter++);
+        rv = cstring(base + (const char *)suffix);
+    } while (inuse.count(rv));
+    return rv;
+}
+
+template <class T>
+cstring cstring::make_unique(const T &inuse, cstring base, char sep) {
     int counter = 0;
-    while (inuse.count(rv)) {
-        snprintf(suffix, sizeof(suffix)/sizeof(suffix[0]), "%c%d", sep, counter++);
-        rv = base + suffix; }
-    return rv; }
+    return make_unique(inuse, base, counter, sep);
+}
 
 inline std::ostream &operator<<(std::ostream &out, cstring s) {
-    return out << (s ? s.c_str() : "<null>"); }
+    return out << (s.isNull() ? "<null>" : s.string_view());
+}
+
+}  // namespace P4
+
+/// Let's prevent literal clashes. A user wishing to use the literal can do using namespace
+/// P4::literals, similarly as they can do using namespace std::literals for the standard once.
+namespace P4::literals {
+
+/// A user-provided literal suffix to allow creation of cstring from literals: "foo"_cs.
+/// Note that the C++ standard mandates that all user-defined literal suffixes defined outside of
+/// the standard library must start with underscore.
+inline cstring operator""_cs(const char *str, std::size_t len) {
+    cstring result;
+    result.construct_from_literal(str, len);
+    return result;
+}
+}  // namespace P4::literals
 
 namespace std {
-template<> struct hash<cstring> {
-    std::size_t operator()(const cstring& c) const {
-        // This implementation is good for cstring, since the strings are internalized
-        return hash<const void *>()(c.c_str());
+template <>
+struct hash<P4::cstring> {
+    std::size_t operator()(const P4::cstring &c) const {
+        // cstrings are internalized, therefore their addresses are unique; we
+        // can just use their address to produce hash.
+        return P4::Util::Hash{}(c.c_str());
     }
 };
 }  // namespace std
 
-#endif /* P4C_LIB_CSTRING_H_ */
+namespace P4::Util {
+template <>
+struct Hasher<cstring> {
+    size_t operator()(const cstring &c) const { return Util::Hash{}(c.c_str()); }
+};
+
+}  // namespace P4::Util
+
+#endif /* LIB_CSTRING_H_ */

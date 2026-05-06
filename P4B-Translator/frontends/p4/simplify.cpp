@@ -15,27 +15,35 @@ limitations under the License.
 */
 
 #include "simplify.h"
+
 #include "sideEffects.h"
+#include "tableApply.h"
 
 namespace P4 {
 
-const IR::Node* DoSimplifyControlFlow::postorder(IR::BlockStatement* statement) {
+const IR::Node *DoSimplifyControlFlow::postorder(IR::BlockStatement *statement) {
     LOG3("Visiting " << dbp(getOriginal()));
-    if (statement->annotations->size() > 0)
-        return statement;
+    if (statement->hasAnnotations() &&
+        !(foldInlinedFrom && statement->hasOnlyAnnotation(IR::Annotation::inlinedFromAnnotation))) {
+        if (auto *pblk = getParent<IR::BlockStatement>()) {
+            for (auto *annot : statement->annotations) {
+                if (auto *p = pblk->getAnnotation(annot->name); !p || !p->equiv(*annot))
+                    return statement;
+            }
+        } else {
+            return statement;
+        }
+    }
     auto parent = getContext()->node;
     CHECK_NULL(parent);
-    if (parent->is<IR::SwitchCase>() ||
-        parent->is<IR::P4Control>() ||
-        parent->is<IR::Function>() ||
+    if (parent->is<IR::SwitchCase>() || parent->is<IR::P4Control>() || parent->is<IR::Function>() ||
         parent->is<IR::P4Action>()) {
         // Cannot remove these blocks
         return statement;
     }
-    bool inBlock = findContext<IR::Statement>() != nullptr;
-    bool inState = findContext<IR::ParserState>() != nullptr;
-    if (!(inBlock || inState))
-        return statement;
+    bool inBlock = isInContext<IR::Statement>();
+    bool inState = isInContext<IR::ParserState>();
+    if (!(inBlock || inState)) return statement;
 
     if (parent->is<IR::BlockStatement>() || parent->is<IR::ParserState>()) {
         // if there are no local declarations we can remove this block
@@ -45,23 +53,29 @@ const IR::Node* DoSimplifyControlFlow::postorder(IR::BlockStatement* statement) 
                 hasDeclarations = true;
                 break;
             }
-        if (!hasDeclarations)
-            return &statement->components;
+        if (!hasDeclarations) return &statement->components;
     }
 
-    if (statement->components.empty())
-        return new IR::EmptyStatement(statement->srcInfo);
+    if (statement->components.empty()) return new IR::EmptyStatement(statement->srcInfo);
     if (statement->components.size() == 1) {
         auto first = statement->components.at(0);
-        if (first->is<IR::Statement>())
-            return first;
+        if (first->is<IR::Statement>()) return first;
     }
     return statement;
 }
 
-const IR::Node* DoSimplifyControlFlow::postorder(IR::IfStatement* statement)  {
+const IR::Node *DoSimplifyControlFlow::postorder(IR::IfStatement *statement) {
     LOG3("Visiting " << dbp(getOriginal()));
-    if (SideEffects::check(statement->condition, refMap, typeMap))
+    if (auto lnot = statement->condition->to<IR::LNot>()) {
+        // swap branches
+        statement->condition = lnot->expr;
+        auto e = statement->ifFalse;
+        if (!e) e = new IR::EmptyStatement();
+        statement->ifFalse = statement->ifTrue;
+        statement->ifTrue = e;
+    }
+
+    if (SideEffects::check(statement->condition, this, typeMap, getChildContext()))
         return statement;
     if (statement->ifTrue->is<IR::EmptyStatement>() &&
         (statement->ifFalse == nullptr || statement->ifFalse->is<IR::EmptyStatement>()))
@@ -69,7 +83,7 @@ const IR::Node* DoSimplifyControlFlow::postorder(IR::IfStatement* statement)  {
     return statement;
 }
 
-const IR::Node* DoSimplifyControlFlow::postorder(IR::EmptyStatement* statement)  {
+const IR::Node *DoSimplifyControlFlow::postorder(IR::EmptyStatement *statement) {
     LOG3("Visiting " << dbp(getOriginal()));
     auto parent = findContext<IR::Statement>();
     if (parent == nullptr ||  // in a ParserState or P4Action
@@ -79,19 +93,22 @@ const IR::Node* DoSimplifyControlFlow::postorder(IR::EmptyStatement* statement) 
     return statement;
 }
 
-const IR::Node* DoSimplifyControlFlow::postorder(IR::SwitchStatement* statement)  {
+const IR::Node *DoSimplifyControlFlow::postorder(IR::SwitchStatement *statement) {
     LOG3("Visiting " << dbp(getOriginal()));
     if (statement->cases.empty()) {
-        // The P4_16 spec prohibits expressions other than table application as
-        // switch conditions.  The parser should have rejected programs for
-        // which this is not the case.
-        BUG_CHECK(statement->expression->is<IR::Member>(),
-                  "%1%: expected a Member", statement->expression);
-        auto expr = statement->expression->to<IR::Member>();
-        BUG_CHECK(expr->expr->is<IR::MethodCallExpression>(),
-                  "%1%: expected a table invocation", expr->expr);
-        auto mce = expr->expr->to<IR::MethodCallExpression>();
-        return new IR::MethodCallStatement(mce->srcInfo, mce);
+        // If this is a table application remove the switch altogether but keep
+        // the table application.  Otherwise remove the switch altogether.
+        if (TableApplySolver::isActionRun(statement->expression, this, typeMap)) {
+            auto mce = statement->expression->checkedTo<IR::Member>()
+                           ->expr->checkedTo<IR::MethodCallExpression>();
+            LOG2("Removing switch statement " << statement << " keeping " << mce);
+            return new IR::MethodCallStatement(statement->srcInfo, mce);
+        }
+        if (SideEffects::check(statement->expression, this, typeMap, getChildContext()))
+            // This can happen if this pass is run before SideEffectOrdering.
+            return statement;
+        LOG2("Removing switch statement " << statement);
+        return nullptr;
     }
     auto last = statement->cases.back();
     if (last->statement == nullptr) {
@@ -100,8 +117,12 @@ const IR::Node* DoSimplifyControlFlow::postorder(IR::SwitchStatement* statement)
             if ((*it)->statement != nullptr)
                 break;
             else
-                ::warning(ErrorType::WARN_MISSING, "%1%: fallthrough with no statement", last); }
-        statement->cases.erase(it.base(), statement->cases.end()); }
+                warn(ErrorType::WARN_MISSING, "%1%: fallthrough with no statement", last);
+        }
+        auto mod = last->clone();
+        mod->statement = new IR::BlockStatement;
+        statement->cases.back() = mod;
+    }
     return statement;
 }
 

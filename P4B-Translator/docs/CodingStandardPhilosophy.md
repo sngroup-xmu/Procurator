@@ -1,3 +1,10 @@
+<!-- 
+Documentation Inclusion:
+This README is integrated as a subsection of the "Contribute to the P4 Compiler Project" page in the P4 compiler documentation.
+
+Refer to the specific section here: [Coding Standard - Subsection](https://p4lang.github.io/p4c/contribute.html#coding-standard)
+-->
+
 # Coding Standard
 
 When writing code in any language the most important consideration is
@@ -106,7 +113,7 @@ aspects that are overlooked. Therefore, please take the time to think
 through the information you want to convey and write good, explicit
 error messages.
 
-An additional goal of the p4c compiler is to provide as many error
+An additional goal of the P4C compiler is to provide as many error
 messages as possible in one go. Therefore, while there is support for
 `FATAL_ERROR`s, it is desirable to try to continue execution and
 report all possible errors, using the `error` and `warning`

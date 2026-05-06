@@ -15,7 +15,7 @@ struct metadata {
 }
 
 struct headers {
-    @name(".data") 
+    @name(".data")
     data_t data;
 }
 
@@ -39,7 +39,7 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             @defaultonly NoAction();
         }
         key = {
-            hdr.data.f1: exact @name("data.f1") ;
+            hdr.data.f1: exact @name("data.f1");
         }
         default_action = NoAction();
     }
@@ -50,12 +50,12 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
             @defaultonly NoAction();
         }
         key = {
-            hdr.data.f2: exact @name("data.f2") ;
+            hdr.data.f2: exact @name("data.f2");
         }
         default_action = NoAction();
     }
     apply {
-        if (8w1 == 8w15 & hdr.data.b2) {
+        if (8w1 == hdr.data.b2 & 8w15) {
             test1.apply();
         } else {
             test2.apply();
@@ -85,4 +85,3 @@ control computeChecksum(inout headers hdr, inout metadata meta) {
 }
 
 V1Switch<headers, metadata>(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
-

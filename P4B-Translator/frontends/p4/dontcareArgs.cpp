@@ -16,33 +16,41 @@ limitations under the License.
 
 #include "dontcareArgs.h"
 
+#include "frontends/p4/methodInstance.h"
+
 namespace P4 {
 
-const IR::Node* DontcareArgs::postorder(IR::MethodCallExpression* expression) {
+Visitor::profile_t DontcareArgs::init_apply(const IR::Node *node) {
+    auto rv = Transform::init_apply(node);
+    node->apply(nameGen);
+
+    return rv;
+}
+
+const IR::Node *DontcareArgs::postorder(IR::MethodCallExpression *expression) {
     bool changes = false;
     auto vec = new IR::Vector<IR::Argument>();
 
-    auto mi = MethodInstance::resolve(expression, refMap, typeMap);
+    auto mi = MethodInstance::resolve(expression, this, typeMap);
     for (auto p : *mi->substitution.getParametersInArgumentOrder()) {
         auto a = mi->substitution.lookup(p);
         if (a->expression->is<IR::DefaultExpression>()) {
-            cstring name = refMap->newName("arg");
+            cstring name = nameGen.newName("arg");
             auto ptype = p->type;
             if (ptype->is<IR::Type_Dontcare>()) {
-                ::error(ErrorType::ERR_TYPE_ERROR, "Could not infer type for %1%", a);
+                ::P4::error(ErrorType::ERR_TYPE_ERROR, "Could not infer type for %1%", a);
                 return expression;
             }
             auto decl = new IR::Declaration_Variable(IR::ID(name), ptype, nullptr);
             toAdd.push_back(decl);
             changes = true;
-            vec->push_back(new IR::Argument(
-                a->srcInfo, a->name, new IR::PathExpression(IR::ID(name))));
+            vec->push_back(
+                new IR::Argument(a->srcInfo, a->name, new IR::PathExpression(IR::ID(name))));
         } else {
             vec->push_back(a);
         }
     }
-    if (changes)
-        expression->arguments = vec;
+    if (changes) expression->arguments = vec;
     return expression;
 }
 

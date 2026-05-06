@@ -2,11 +2,10 @@
 #define V1MODEL_VERSION 20180101
 #include <v1model.p4>
 
-typedef bit<48> EthernetAddress;
 header Ethernet_h {
-    EthernetAddress dstAddr;
-    EthernetAddress srcAddr;
-    bit<16>         etherType;
+    bit<48> dstAddr;
+    bit<48> srcAddr;
+    bit<16> etherType;
 }
 
 header ipv4_t {
@@ -53,11 +52,7 @@ parser parserI(packet_in pkt, out Parsed_packet hdr, inout mystruct1 meta, inout
     }
     state parse_ipv4 {
         pkt.extract<ipv4_t>(hdr.ipv4);
-        transition select(hdr.ipv4.version, hdr.ipv4.protocol) {
-            (4w0x4, 8w0x6): accept;
-            (4w0x4, 8w0x17): accept;
-            default: accept;
-        }
+        transition accept;
     }
 }
 
@@ -67,7 +62,7 @@ control cIngress(inout Parsed_packet hdr, inout mystruct1 meta, inout standard_m
     }
     @name("cIngress.guh") table guh_0 {
         key = {
-            hdr.ethernet.srcAddr: exact @name("hdr.ethernet.srcAddr") ;
+            hdr.ethernet.srcAddr: exact @name("hdr.ethernet.srcAddr");
         }
         actions = {
             foo();
@@ -95,4 +90,3 @@ control uc(inout Parsed_packet hdr, inout mystruct1 meta) {
 }
 
 V1Switch<Parsed_packet, mystruct1>(parserI(), vc(), cIngress(), cEgress(), uc(), DeparserI()) main;
-

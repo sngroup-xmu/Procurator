@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,30 +14,34 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include "type.h"
+
 #include "irclass.h"
 
+namespace P4 {
+
 LookupScope::LookupScope(const IrNamespace *ns)
-: in((ns && ns->name) ? new LookupScope(ns->parent) : nullptr),
-  global(!ns || !ns->name), name(ns ? ns->name : nullptr) {}
+    : in((ns && ns->name) ? new LookupScope(ns->parent) : nullptr),
+      global(!ns || !ns->name),
+      name(ns ? ns->name : nullptr) {}
 
 IrNamespace *LookupScope::resolve(const IrNamespace *in) const {
-    if (global)
-        return &IrNamespace::global();
+    if (global) return &IrNamespace::global();
     if (!in) in = &IrNamespace::global();
     if (this->in) {
         in = this->in->resolve(in);
-        return in->lookupChild(name); }
+        return in->lookupChild(name);
+    }
     while (in) {
-        if (auto *found = in->lookupChild(name))
-            return found;
-        in = in->parent; }
-    if (name == "IR")
-        return &IrNamespace::global();
+        if (auto *found = in->lookupChild(name)) return found;
+        in = in->parent;
+    }
+    if (name == "IR") return &IrNamespace::global();
     return nullptr;
 }
 
 NamedType::NamedType(const IrClass *cl)
-: lookup(new LookupScope(cl->containedIn)), name(cl->name), resolved(cl) {}
+    : lookup(new LookupScope(cl->containedIn)), name(cl->name), resolved(cl) {}
 
 const IrClass *NamedType::resolve(const IrNamespace *in) const {
     if (resolved) return resolved;
@@ -45,103 +49,128 @@ const IrClass *NamedType::resolve(const IrNamespace *in) const {
     if (lookup) {
         in = lookup->resolve(in);
         if (!in) return nullptr;
-        return (resolved = in->lookupClass(name)); }
+        if (auto *found = in->lookupClass(name)) {
+            foundin = in;
+            resolved = found;
+            found->resolve();
+            return resolved;
+        }
+        if (in->lookupOther(name)) {
+            foundin = in;
+            return nullptr;
+        }
+    }
     while (in) {
-        if (auto *found = in->lookupClass(name))
-            return (resolved = found);
-        in = in->parent; }
+        if (auto *found = in->lookupClass(name)) {
+            foundin = in;
+            resolved = found;
+            found->resolve();
+            return resolved;
+        }
+        if (in->lookupOther(name)) {
+            foundin = in;
+            return nullptr;
+        }
+        in = in->parent;
+    }
     return nullptr;
 }
 
-NamedType& NamedType::Bool() {
-    static NamedType nt("bool");
+NamedType &NamedType::Bool() {
+    static NamedType nt("bool"_cs);
     return nt;
 }
 
-NamedType& NamedType::Int() {
-    static NamedType nt("int");
+NamedType &NamedType::Int() {
+    static NamedType nt("int"_cs);
     return nt;
 }
 
-NamedType& NamedType::Void() {
-    static NamedType nt("void");
+NamedType &NamedType::Void() {
+    static NamedType nt("void"_cs);
     return nt;
 }
 
-NamedType& NamedType::Cstring() {
-    static NamedType nt("cstring");
+NamedType &NamedType::Cstring() {
+    static NamedType nt("cstring"_cs);
     return nt;
 }
 
-NamedType& NamedType::Ostream() {
-    static NamedType nt(new LookupScope("std"), "ostream");
+NamedType &NamedType::Ostream() {
+    static NamedType nt(new LookupScope("std"_cs), "ostream"_cs);
     return nt;
 }
 
-NamedType& NamedType::Visitor() {
-    static NamedType nt("Visitor");
+NamedType &NamedType::Visitor() {
+    static NamedType nt("Visitor"_cs);
     return nt;
 }
 
-NamedType& NamedType::Unordered_Set() {
-    static NamedType nt(new LookupScope("std"), "unordered_set");
+NamedType &NamedType::Unordered_Set() {
+    static NamedType nt(new LookupScope("std"_cs), "unordered_set"_cs);
     return nt;
 }
 
-NamedType& NamedType::JSONGenerator() {
-    static NamedType nt("JSONGenerator");
+NamedType &NamedType::JSONGenerator() {
+    static NamedType nt("JSONGenerator"_cs);
     return nt;
 }
 
-NamedType& NamedType::JSONLoader() {
-    static NamedType nt("JSONLoader");
+NamedType &NamedType::JSONLoader() {
+    static NamedType nt("JSONLoader"_cs);
     return nt;
 }
 
-NamedType& NamedType::JSONObject() {
-    static NamedType nt("JSONObject");
+NamedType &NamedType::JSONObject() {
+    static NamedType nt("JSONObject"_cs);
     return nt;
 }
 
-NamedType& NamedType::SourceInfo() {
-    static NamedType nt(new LookupScope("Util"), "SourceInfo");
+NamedType &NamedType::SourceInfo() {
+    static NamedType nt(new LookupScope("Util"_cs), "SourceInfo"_cs);
+    return nt;
+}
+
+NamedType &NamedType::Char() {
+    static NamedType nt("char"_cs);
     return nt;
 }
 
 cstring NamedType::toString() const {
     if (resolved) return resolved->fullName();
-    if (!lookup && name == "ID") return "IR::ID";  // hack -- ID is in namespace IR
-    return lookup ? lookup->toString() + name : name;
+    if (!lookup && name == "ID") return "IR::ID"_cs;  // hack -- ID is in namespace P4::IR
+    if (lookup) return lookup->toString() + name;
+    if (foundin) return LookupScope(foundin).toString() + name;
+    return name;
 }
 
 cstring TemplateInstantiation::toString() const {
     std::string rv = base->toString().c_str();
     rv += '<';
     const char *sep = "";
-    for (auto arg : args) {
+    for (const auto *arg : args) {
         rv += sep;
-        if (arg->isResolved() && !base->isResolved())
-            rv += "const ";
+        if (arg->isResolved() && !base->isResolved()) rv += "const ";
         rv += arg->toString().c_str();
-        if (arg->isResolved() && !base->isResolved())
-            rv += " *";
-        sep = ", "; }
+        if (arg->isResolved() && !base->isResolved()) rv += " *";
+        sep = ", ";
+    }
     rv += '>';
     return rv;
 }
 
 cstring ReferenceType::toString() const {
-    cstring rv = base->toString();
+    std::string rv = base->toString().c_str();
     if (isConst) rv += " const";
     rv += " &";
     return rv;
 }
 
-ReferenceType ReferenceType::OstreamRef(&NamedType::Ostream()),
-              ReferenceType::VisitorRef(&NamedType::Visitor());
+ReferenceType ReferenceType::OstreamRef(&NamedType::Ostream()), ReferenceType::VisitorRef(
+                                                                    &NamedType::Visitor());
 
 cstring PointerType::toString() const {
-    cstring rv = base->toString();
+    std::string rv = base->toString().c_str();
     if (isConst) rv += " const";
     rv += " *";
     return rv;
@@ -150,20 +179,20 @@ cstring PointerType::toString() const {
 cstring ArrayType::declSuffix() const {
     char buf[16];
     snprintf(buf, sizeof(buf), "[%d]", size);
-    return buf;
+    return cstring(buf);
 }
 
-const IrClass* FunctionType::resolve(const IrNamespace *ns) const {
+const IrClass *FunctionType::resolve(const IrNamespace *ns) const {
     ret->resolve(ns);
     for (auto arg : args) arg->resolve(ns);
     return nullptr;
 }
 
 cstring FunctionType::toString() const {
-    cstring result = ret->toString();
+    std::string result = ret->toString().c_str();
     result += "(";
-    const char* sep = "";
-    for (auto arg : args) {
+    const char *sep = "";
+    for (const auto *arg : args) {
         result += sep;
         if (arg->isResolved()) result += "const ";
         result += arg->toString().c_str();
@@ -173,3 +202,5 @@ cstring FunctionType::toString() const {
     result += ")";
     return result;
 }
+
+}  // namespace P4

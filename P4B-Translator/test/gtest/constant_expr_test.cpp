@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
+
 #include "helpers.h"
 #include "ir/ir.h"
 
-namespace Test {
+namespace P4::Test {
 
-class ConstantExpr : public P4CTest { };
+class ConstantExpr : public P4CTest {};
 
 TEST_F(ConstantExpr, TestInt) {
     int val = 0x1;
@@ -141,4 +142,4 @@ TEST_F(ConstantExpr, TestIntegerFuncs) {
     EXPECT_EQ(neg_res.asInt(), -123);
 }
 
-}  // namespace Test
+}  // namespace P4::Test

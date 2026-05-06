@@ -14,10 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _FRONTENDS_P4_MOVECONSTRUCTORS_H_
-#define _FRONTENDS_P4_MOVECONSTRUCTORS_H_
+#ifndef FRONTENDS_P4_MOVECONSTRUCTORS_H_
+#define FRONTENDS_P4_MOVECONSTRUCTORS_H_
 
-#include "frontends/common/resolveReferences/resolveReferences.h"
+#include "frontends/common/resolveReferences/referenceMap.h"
+#include "ir/ir.h"
+#include "ir/visitor.h"
+#include "lib/ordered_map.h"
 
 namespace P4 {
 
@@ -49,11 +52,38 @@ namespace P4 {
  *       constructor parameters.
  *
  */
-class MoveConstructors : public PassManager {
+class MoveConstructors : public Transform {
+    struct ConstructorMap {
+        // Maps a constructor to the temporary used to hold its value.
+        ordered_map<const IR::ConstructorCallExpression *, cstring> tmpName;
+
+        void clear() { tmpName.clear(); }
+        void add(const IR::ConstructorCallExpression *expression, cstring name) {
+            CHECK_NULL(expression);
+            tmpName[expression] = name;
+        }
+        bool empty() const { return tmpName.empty(); }
+    };
+
+    enum class Region { InParserStateful, InControlStateful, InBody, Outside };
+
+    MinimalNameGenerator nameGen;
+    ConstructorMap cmap;
+    Region convert;
+
  public:
-    explicit MoveConstructors(ReferenceMap* refMap);
+    MoveConstructors();
+
+    profile_t init_apply(const IR::Node *node) override;
+    const IR::Node *preorder(IR::P4Parser *parser) override;
+    const IR::Node *preorder(IR::IndexedVector<IR::Declaration> *declarations) override;
+    const IR::Node *postorder(IR::P4Parser *parser) override;
+    const IR::Node *preorder(IR::P4Control *control) override;
+    const IR::Node *postorder(IR::P4Control *control) override;
+    const IR::Node *preorder(IR::P4Table *table) override;
+    const IR::Node *postorder(IR::ConstructorCallExpression *expression) override;
 };
 
 }  // namespace P4
 
-#endif /* _FRONTENDS_P4_MOVECONSTRUCTORS_H_ */
+#endif /* FRONTENDS_P4_MOVECONSTRUCTORS_H_ */

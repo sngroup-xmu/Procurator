@@ -61,18 +61,18 @@ control MyVerifyChecksum(inout headers hdr, inout metadata meta) {
 }
 
 control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadata_t standard_metadata) {
-    @noWarn("unused") @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @noWarn("unused") @name(".NoAction") action NoAction_3() {
+    @noWarn("unused") @name(".NoAction") action NoAction_2() {
     }
-    @name("MyIngress.forward_and_do_something") action forward_and_do_something(egressSpec_t port) {
+    @name("MyIngress.forward_and_do_something") action forward_and_do_something(@name("port") egressSpec_t port) {
         standard_metadata.egress_spec = port;
-        if (hdr.ipv4.isValid()) {
+        if (hdr.ipv4.isValid()) @inlinedFrom("srcAddr") {
             meta.before1 = hdr.ipv4.srcAddr;
             hdr.ipv4.srcAddr = hdr.ipv4.srcAddr ^ 32w0x12345678;
             meta.after1 = hdr.ipv4.srcAddr;
         }
-        if (hdr.ethernet.isValid()) {
+        if (hdr.ethernet.isValid()) @inlinedFrom("dstAddr") {
             if (hdr.ethernet.isValid()) {
                 hdr.ipv4.protocol = hdr.ipv4.protocol ^ 8w1;
             }
@@ -89,34 +89,33 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
     }
     @name("MyIngress.ipv4_lpm") table ipv4_lpm_0 {
         key = {
-            standard_metadata.ingress_port: exact @name("standard_metadata.ingress_port") ;
+            standard_metadata.ingress_port: exact @name("standard_metadata.ingress_port");
         }
         actions = {
             forward_and_do_something();
-            NoAction_0();
+            NoAction_1();
         }
         const entries = {
                         9w1 : forward_and_do_something(9w2);
                         9w2 : forward_and_do_something(9w1);
         }
-
-        default_action = NoAction_0();
+        default_action = NoAction_1();
     }
     @name("MyIngress.debug") table debug_0 {
         key = {
-            meta.before1: exact @name("meta.before1") ;
-            meta.after1 : exact @name("meta.after1") ;
-            meta.before2: exact @name("meta.before2") ;
-            meta.after2 : exact @name("meta.after2") ;
-            meta.before3: exact @name("meta.before3") ;
-            meta.after3 : exact @name("meta.after3") ;
-            meta.before4: exact @name("meta.before4") ;
-            meta.after4 : exact @name("meta.after4") ;
+            meta.before1: exact @name("meta.before1");
+            meta.after1 : exact @name("meta.after1");
+            meta.before2: exact @name("meta.before2");
+            meta.after2 : exact @name("meta.after2");
+            meta.before3: exact @name("meta.before3");
+            meta.after3 : exact @name("meta.after3");
+            meta.before4: exact @name("meta.before4");
+            meta.after4 : exact @name("meta.after4");
         }
         actions = {
-            NoAction_3();
+            NoAction_2();
         }
-        default_action = NoAction_3();
+        default_action = NoAction_2();
     }
     apply {
         if (hdr.ipv4.isValid()) {
@@ -143,4 +142,3 @@ control MyDeparser(packet_out packet, in headers hdr) {
 }
 
 V1Switch<headers, metadata>(MyParser(), MyVerifyChecksum(), MyIngress(), MyEgress(), MyComputeChecksum(), MyDeparser()) main;
-

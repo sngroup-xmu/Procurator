@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _MIDEND_EXPANDEMIT_H_
-#define _MIDEND_EXPANDEMIT_H_
+#ifndef MIDEND_EXPANDEMIT_H_
+#define MIDEND_EXPANDEMIT_H_
 
-#include "ir/ir.h"
+#include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
+#include "ir/ir.h"
 
 namespace P4 {
 
@@ -41,32 +42,31 @@ namespace P4 {
  * emit(s.h2[0]);
  * emit(s.h2[1]);
  */
-class DoExpandEmit : public Transform {
-    ReferenceMap* refMap;
-    TypeMap* typeMap;
+class DoExpandEmit : public Transform, public ResolutionContext {
+    TypeMap *typeMap;
+
  public:
-    DoExpandEmit(ReferenceMap* refMap, TypeMap* typeMap):
-            refMap(refMap), typeMap(typeMap)
-    { CHECK_NULL(refMap); CHECK_NULL(typeMap); setName("DoExpandEmit"); }
+    explicit DoExpandEmit(TypeMap *typeMap) : typeMap(typeMap) {
+        CHECK_NULL(typeMap);
+        setName("DoExpandEmit");
+    }
     // return true if the expansion produced something "new"
-    bool expandArg(const IR::Type* type, const IR::Argument* argument,
-                   std::vector<const IR::Argument*> *result,
-                   std::vector<const IR::Type*> *resultTypes);
-    const IR::Node* postorder(IR::MethodCallStatement* statement) override;
+    bool expandArg(const IR::Type *type, const IR::Argument *argument,
+                   std::vector<const IR::Argument *> *result,
+                   std::vector<const IR::Type *> *resultTypes);
+    const IR::Node *postorder(IR::MethodCallStatement *statement) override;
 };
 
 class ExpandEmit : public PassManager {
  public:
-    ExpandEmit(ReferenceMap* refMap, TypeMap* typeMap,
-            TypeChecking* typeChecking = nullptr) {
+    explicit ExpandEmit(TypeMap *typeMap, TypeChecking *typeChecking = nullptr) {
         setName("ExpandEmit");
-        if (!typeChecking)
-            typeChecking = new TypeChecking(refMap, typeMap);
+        if (!typeChecking) typeChecking = new TypeChecking(nullptr, typeMap);
         passes.push_back(typeChecking);
-        passes.push_back(new DoExpandEmit(refMap, typeMap));
+        passes.push_back(new DoExpandEmit(typeMap));
     }
 };
 
 }  // namespace P4
 
-#endif /* _MIDEND_EXPANDEMIT_H_ */
+#endif /* MIDEND_EXPANDEMIT_H_ */

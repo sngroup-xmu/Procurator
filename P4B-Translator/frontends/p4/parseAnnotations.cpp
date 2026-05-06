@@ -20,135 +20,131 @@ namespace P4 {
 
 ParseAnnotations::HandlerMap ParseAnnotations::standardHandlers() {
     return {
-            // These annotations have empty bodies.
-            PARSE_EMPTY(IR::Annotation::tableOnlyAnnotation),
-            PARSE_EMPTY(IR::Annotation::defaultOnlyAnnotation),
-            PARSE_EMPTY(IR::Annotation::hiddenAnnotation),
-            PARSE_EMPTY(IR::Annotation::atomicAnnotation),
-            PARSE_EMPTY(IR::Annotation::optionalAnnotation),
-            PARSE_EMPTY(IR::Annotation::pureAnnotation),
-            PARSE_EMPTY(IR::Annotation::noSideEffectsAnnotation),
+        // These annotations have empty bodies.
+        PARSE_EMPTY(IR::Annotation::atomicAnnotation),
+        PARSE_EMPTY(IR::Annotation::defaultOnlyAnnotation),
+        PARSE_EMPTY(IR::Annotation::hiddenAnnotation),
+        PARSE_EMPTY(IR::Annotation::likelyAnnotation),
+        PARSE_EMPTY(IR::Annotation::noSideEffectsAnnotation),
+        PARSE_EMPTY(IR::Annotation::optionalAnnotation),
+        PARSE_EMPTY(IR::Annotation::pureAnnotation),
+        PARSE_EMPTY(IR::Annotation::tableOnlyAnnotation),
+        PARSE_EMPTY(IR::Annotation::unlikelyAnnotation),
+        PARSE_EMPTY("disable_optimization"_cs),
+        PARSE_EMPTY("unroll"_cs),
+        PARSE_EMPTY("nounroll"_cs),
 
-            // string literal argument.
-            PARSE(IR::Annotation::nameAnnotation, StringLiteral),
-            PARSE(IR::Annotation::deprecatedAnnotation, StringLiteral),
-            PARSE(IR::Annotation::noWarnAnnotation, StringLiteral),
+        // String arguments. These are allowed to contain concatenation which will be
+        // constant-folded, so just parse them as expressions.
+        PARSE(IR::Annotation::nameAnnotation, Expression),
+        PARSE(IR::Annotation::deprecatedAnnotation, Expression),
+        PARSE(IR::Annotation::noWarnAnnotation, Expression),
 
-            // @length has an expression argument.
-            PARSE(IR::Annotation::lengthAnnotation, Expression),
+        // @length has an expression argument.
+        PARSE(IR::Annotation::lengthAnnotation, Expression),
 
-            // @pkginfo has a key-value list argument.
-            PARSE_KV_LIST(IR::Annotation::pkginfoAnnotation),
+        // @pkginfo has a key-value list argument.
+        PARSE_KV_LIST(IR::Annotation::pkginfoAnnotation),
 
-            // @synchronous has a list of method names
-            PARSE_EXPRESSION_LIST(IR::Annotation::synchronousAnnotation),
+        // @synchronous has a list of method names
+        PARSE_EXPRESSION_LIST(IR::Annotation::synchronousAnnotation),
+        // @field_list also has a list of expressions
+        PARSE_EXPRESSION_LIST(IR::Annotation::fieldListAnnotation),
 
-            // @match has an expression argument
-            PARSE(IR::Annotation::matchAnnotation, Expression),
-        };
+        // @match has an expression argument
+        PARSE(IR::Annotation::matchAnnotation, Expression),
+
+        // @command_line to add to the command line
+        PARSE_STRING_LITERAL_LIST("command_line"_cs),
+    };
 }
 
-bool ParseAnnotations::parseSkip(IR::Annotation*) {
-    return false;
-}
+bool ParseAnnotations::parseSkip(IR::Annotation *) { return false; }
 
-bool ParseAnnotations::parseEmpty(IR::Annotation* annotation) {
-    if (!annotation->body.empty()) {
-        ::error(ErrorType::ERR_OVERLIMIT,
-                "%1% should not have any arguments", annotation);
+bool ParseAnnotations::parseEmpty(IR::Annotation *annotation) {
+    if (!annotation->getUnparsed().empty()) {
+        ::P4::error(ErrorType::ERR_OVERLIMIT, "%1% should not have any arguments", annotation);
         return false;
     }
+
+    annotation->body.emplace<IR::Annotation::ExpressionAnnotation>();
 
     return true;
 }
 
-bool ParseAnnotations::parseExpressionList(IR::Annotation* annotation) {
-    const IR::Vector<IR::Expression>* parsed =
-        P4::P4ParserDriver::parseExpressionList(annotation->srcInfo,
-                                                annotation->body);
+bool ParseAnnotations::parseExpressionList(IR::Annotation *annotation) {
+    const IR::Vector<IR::Expression> *parsed =
+        P4::P4ParserDriver::parseExpressionList(annotation->srcInfo, annotation->getUnparsed());
     if (parsed != nullptr) {
-        annotation->expr.append(*parsed);
+        annotation->body = *parsed;
     }
 
     return parsed != nullptr;
 }
 
-bool ParseAnnotations::parseKvList(IR::Annotation* annotation) {
-    const IR::IndexedVector<IR::NamedExpression>* parsed =
-        P4::P4ParserDriver::parseKvList(annotation->srcInfo,
-                                        annotation->body);
+bool ParseAnnotations::parseKvList(IR::Annotation *annotation) {
+    const IR::IndexedVector<IR::NamedExpression> *parsed =
+        P4::P4ParserDriver::parseKvList(annotation->srcInfo, annotation->getUnparsed());
     if (parsed != nullptr) {
-        annotation->kv.append(*parsed);
+        annotation->body = *parsed;
     }
 
     return parsed != nullptr;
 }
 
-bool ParseAnnotations::parseConstantList(IR::Annotation* annotation) {
-    const IR::Vector<IR::Expression>* parsed =
-        P4::P4ParserDriver::parseConstantList(annotation->srcInfo,
-                                              annotation->body);
+bool ParseAnnotations::parseConstantList(IR::Annotation *annotation) {
+    const IR::Vector<IR::Expression> *parsed =
+        P4::P4ParserDriver::parseConstantList(annotation->srcInfo, annotation->getUnparsed());
     if (parsed != nullptr) {
-        annotation->expr.append(*parsed);
+        annotation->body = *parsed;
     }
 
     return parsed != nullptr;
 }
 
-bool ParseAnnotations::parseConstantOrStringLiteralList(IR::Annotation* annotation) {
-    const IR::Vector<IR::Expression>* parsed =
-        P4::P4ParserDriver::parseConstantOrStringLiteralList(annotation->srcInfo,
-                                                             annotation->body);
+bool ParseAnnotations::parseConstantOrStringLiteralList(IR::Annotation *annotation) {
+    const IR::Vector<IR::Expression> *parsed = P4::P4ParserDriver::parseConstantOrStringLiteralList(
+        annotation->srcInfo, annotation->getUnparsed());
     if (parsed != nullptr) {
-        annotation->expr.append(*parsed);
+        annotation->body = *parsed;
     }
 
     return parsed != nullptr;
 }
 
-bool ParseAnnotations::parseStringLiteralList(IR::Annotation* annotation) {
-    const IR::Vector<IR::Expression>* parsed =
-        P4::P4ParserDriver::parseStringLiteralList(annotation->srcInfo,
-                                                   annotation->body);
+bool ParseAnnotations::parseStringLiteralList(IR::Annotation *annotation) {
+    const IR::Vector<IR::Expression> *parsed =
+        P4::P4ParserDriver::parseStringLiteralList(annotation->srcInfo, annotation->getUnparsed());
     if (parsed != nullptr) {
-        annotation->expr.append(*parsed);
+        annotation->body = *parsed;
     }
 
     return parsed != nullptr;
 }
 
-bool ParseAnnotations::parseP4rtTranslationAnnotation(
-        IR::Annotation* annotation) {
-    const IR::Vector<IR::Expression>* parsed =
-        P4::P4ParserDriver::parseP4rtTranslationAnnotation(annotation->srcInfo,
-                                                         annotation->body);
+bool ParseAnnotations::parseP4rtTranslationAnnotation(IR::Annotation *annotation) {
+    const IR::Vector<IR::Expression> *parsed = P4::P4ParserDriver::parseP4rtTranslationAnnotation(
+        annotation->srcInfo, annotation->getUnparsed());
     if (parsed != nullptr) {
-        annotation->expr.append(*parsed);
+        annotation->body = *parsed;
     }
     return parsed != nullptr;
 }
 
-void ParseAnnotations::postorder(IR::Annotation* annotation) {
-    if (!annotation->needsParsing) {
-        return;
-    }
-
-    if (!annotation->expr.empty() || !annotation->kv.empty()) {
-        BUG("Unparsed annotation with non-empty expr or kv");
-        return;
-    }
+void ParseAnnotations::postorder(IR::Annotation *annotation) {
+    if (!annotation->needsParsing()) return;
 
     cstring name = annotation->name.name;
-    if (!handlers.count(name)) {
+    auto handler = handlers.find(name);
+    if (handler == handlers.end()) {
         // Unknown annotation. Leave as is, but warn if desired.
-        if (warnUnknown && warned.count(name) == 0) {
-            warned.insert(name);
-            ::warning(ErrorType::WARN_UNKNOWN, "Unknown annotation: %1%", annotation->name);
+        if (warnUnknown && warned.insert(name).second) {
+            warn(ErrorType::WARN_UNKNOWN, "Unknown annotation: %1%", annotation->name);
         }
         return;
     }
 
-    annotation->needsParsing = !handlers[name](annotation);
+    handler->second(annotation);
 }
 
 }  // namespace P4

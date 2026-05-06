@@ -14,39 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "frontends/common/resolveReferences/resolveReferences.h"
 #include "deprecated.h"
 
 namespace P4 {
 
-void CheckDeprecated::warnIfDeprecated(
-    const IR::IAnnotated* annotated, const IR::Node* errorNode) {
-    if (annotated == nullptr)
-        return;
-    auto anno =
-        annotated->getAnnotations()->getSingle(IR::Annotation::deprecatedAnnotation);
-    if (anno == nullptr)
-        return;
+void Deprecated::warnIfDeprecated(const IR::IAnnotated *annotated, const IR::Node *errorNode) {
+    if (annotated == nullptr) return;
+    const auto *anno = annotated->getAnnotation(IR::Annotation::deprecatedAnnotation);
+    if (anno == nullptr) return;
 
-    cstring message = "";
-    for (auto a : anno->expr) {
-        if (auto str = a->to<IR::StringLiteral>())
-            message += str->value;
+    std::string message;
+    for (const auto *a : anno->getExpr()) {
+        if (const auto *str = a->to<IR::StringLiteral>()) message += str->value;
     }
-    ::warning(ErrorType::WARN_DEPRECATED, "%1%: Using deprecated feature %2%. %3%",
-              errorNode, annotated->getNode(), message);
+    ::P4::warning(ErrorType::WARN_DEPRECATED, "%1%: Using deprecated feature %2%. %3%", errorNode,
+                  annotated->getNode(), message);
 }
 
-bool CheckDeprecated::preorder(const IR::PathExpression* expression) {
-    auto decl = refMap->getDeclaration(expression->path);
-    CHECK_NULL(decl);
+bool Deprecated::preorder(const IR::PathExpression *expression) {
+    auto decl = getDeclaration(expression->path, true);
     warnIfDeprecated(decl->to<IR::IAnnotated>(), expression);
     return false;
 }
 
-bool CheckDeprecated::preorder(const IR::Type_Name* name) {
-    auto decl = refMap->getDeclaration(name->path);
-    CHECK_NULL(decl);
+bool Deprecated::preorder(const IR::Type_Name *name) {
+    auto decl = getDeclaration(name->path, true);
     warnIfDeprecated(decl->to<IR::IAnnotated>(), name);
     return false;
 }

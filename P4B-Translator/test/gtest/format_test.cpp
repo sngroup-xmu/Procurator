@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,15 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "gtest/gtest.h"
-#include "lib/error.h"
+#include <gtest/gtest.h>
+
 #include "lib/cstring.h"
+#include "lib/error.h"
 #include "lib/stringify.h"
 
-namespace Util {
+namespace P4::Util {
 
 TEST(Util, Format) {
-    auto& context = BaseCompileContext::get();
+    auto &context = BaseCompileContext::get();
     cstring message = context.errorReporter().format_message("%1%", 5u);
     EXPECT_EQ("5\n", message);
 
@@ -36,10 +37,8 @@ TEST(Util, Format) {
         int a, b, c;
 
         cstring toString() const {
-            return cstring("(") +
-                    Util::toString(this->a) + "," +
-                    Util::toString(this->b) + "," +
-                    Util::toString(this->c) + ")";
+            return "("_cs + Util::toString(this->a) + ","_cs + Util::toString(this->b) + ","_cs +
+                   Util::toString(this->c) + ")"_cs;
         }
     };
 
@@ -47,16 +46,13 @@ TEST(Util, Format) {
     message = context.errorReporter().format_message("Nice=%1%", nf);
     EXPECT_EQ("Nice=(1,2,3)\n", message);
 
-    cstring x = "x";
-    cstring y = "y";
+    cstring x = "x"_cs;
+    cstring y = "y"_cs;
     message = context.errorReporter().format_message("%1% %2%", x, y);
     EXPECT_EQ("x y\n", message);
 
     message = context.errorReporter().format_message("%1% %2%", x, 5);
     EXPECT_EQ("x 5\n", message);
-
-    message = Util::printf_format("Number=%d, String=%s", 5, "short");
-    EXPECT_EQ("Number=5, String=short", message);
 }
 
-}  // namespace Util
+}  // namespace P4::Util

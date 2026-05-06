@@ -15,45 +15,48 @@ limitations under the License.
 */
 
 #include "irclass.h"
-#include "lib/exceptions.h"
-#include "lib/enumerator.h"
 
-const char* IrClass::indent = "    ";
-IrNamespace& IrNamespace::global() {
-    static IrNamespace irn(nullptr, nullptr);
+#include "lib/enumerator.h"
+#include "lib/exceptions.h"
+
+namespace P4 {
+
+const char *IrClass::indent = "    ";
+IrNamespace &IrNamespace::global() {
+    static IrNamespace irn({}, {});
     return irn;
 }
-static const LookupScope utilScope(nullptr, "Util");
-static const NamedType srcInfoType(Util::SourceInfo(), &utilScope, "SourceInfo");
+static const LookupScope utilScope(nullptr, "Util"_cs);
+static const NamedType srcInfoType(Util::SourceInfo(), &utilScope, "SourceInfo"_cs);
 
-IrField* IrField::srcInfoField() {
-    static IrField irf(
-        Util::SourceInfo(), &srcInfoType, "srcInfo", nullptr, IrField::Inline | IrField::Optional);
+IrField *IrField::srcInfoField() {
+    static IrField irf(Util::SourceInfo(), &srcInfoType, "srcInfo"_cs, {},
+                       IrField::Inline | IrField::Optional);
     return &irf;
 }
 
-IrClass* IrClass::nodeClass() {
-    static IrClass irc(NodeKind::Abstract, "Node", {IrField::srcInfoField()});
+IrClass *IrClass::nodeClass() {
+    static IrClass irc(NodeKind::Abstract, "Node"_cs, {IrField::srcInfoField()});
     return &irc;
 }
-IrClass* IrClass::vectorClass() {
-    static IrClass irc(NodeKind::Template, "Vector");
+IrClass *IrClass::vectorClass() {
+    static IrClass irc(NodeKind::Template, "Vector"_cs);
     return &irc;
 }
-IrClass* IrClass::namemapClass() {
-    static IrClass irc(NodeKind::Template, "NameMap");
+IrClass *IrClass::namemapClass() {
+    static IrClass irc(NodeKind::Template, "NameMap"_cs);
     return &irc;
 }
-IrClass* IrClass::nodemapClass() {
-    static IrClass irc(NodeKind::Template, "NodeMap");
+IrClass *IrClass::nodemapClass() {
+    static IrClass irc(NodeKind::Template, "NodeMap"_cs);
     return &irc;
 }
-IrClass* IrClass::ideclaration() {
-    static IrClass irc(NodeKind::Interface, "IDeclaration");
+IrClass *IrClass::ideclaration() {
+    static IrClass irc(NodeKind::Interface, "IDeclaration"_cs);
     return &irc;
 }
-IrClass* IrClass::indexedVectorClass() {
-    static IrClass irc(NodeKind::Template, "IndexedVector");
+IrClass *IrClass::indexedVectorClass() {
+    static IrClass irc(NodeKind::Template, "IndexedVector"_cs);
     return &irc;
 }
 bool LineDirective::inhibit = false;
@@ -63,8 +66,7 @@ bool LineDirective::inhibit = false;
 IrNamespace *IrNamespace::get(IrNamespace *parent, cstring name) {
     IrNamespace *ns = parent ? parent : &global();
     IrNamespace *rv = ns->children[name];
-    if (!rv)
-        ns->children[name] = rv = new IrNamespace(ns, name);
+    if (!rv) ns->children[name] = rv = new IrNamespace(ns, name);
     return rv;
 }
 
@@ -84,39 +86,93 @@ std::ostream &operator<<(std::ostream &out, IrNamespace *ns) {
 void enter_namespace(std::ostream &out, IrNamespace *ns) {
     if (ns && ns->name) {
         enter_namespace(out, ns->parent);
-        out << "namespace " << ns->name << " {" << std::endl; }
+        out << "namespace " << ns->name << " {" << std::endl;
+    }
 }
 
 void exit_namespace(std::ostream &out, IrNamespace *ns) {
     if (ns && ns->name) {
         exit_namespace(out, ns->parent);
-        out << "}  // namespace " << ns->name << std::endl; }
+        out << "}  // namespace " << ns->name << std::endl;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-Util::Enumerator<IrClass*>* IrDefinitions::getClasses() const {
-    return Util::Enumerator<IrElement*>::createEnumerator(elements)
-            ->map<IrClass*>([] (IrElement* e) { return dynamic_cast<IrClass*>(e); })
-            ->where([] (IrClass* e) { return e != nullptr; });
+/* sort class definitions so defs come before uses */
+void IrDefinitions::toposort() {
+    std::vector<IrElement *> sorted;
+    std::map<const IrClass *, IrClass *> classes;
+
+    auto visit = [&](const IrClass *cl) -> void {
+        auto do_visit = [&](const auto &self, const IrClass *cl) -> void {
+            auto it = classes.find(cl);
+            if (it != classes.end()) {
+                auto *cl = it->second;
+                classes.erase(it);
+                self(self, cl->concreteParent);
+                for (auto *p : cl->parentClasses) self(self, p);
+                sorted.push_back(cl);
+            }
+        };
+        do_visit(do_visit, cl);
+    };
+
+    for (auto *el : elements)
+        if (auto *cl = el->to<IrClass>()) classes.emplace(cl, cl);
+
+    for (auto *el : elements) {
+        if (auto *cl = el->to<IrClass>())
+            visit(cl);
+        else
+            sorted.push_back(el);
+    }
+    elements = std::move(sorted);
+}
+
+Util::Enumerator<IrClass *> *IrDefinitions::getClasses() const {
+    return Util::enumerate(elements)->as<IrClass *>()->where(
+        [](IrClass *e) { return e != nullptr; });
 }
 
 void IrDefinitions::generate(std::ostream &t, std::ostream &out, std::ostream &impl) const {
-    std::string macroname = "_IR_GENERATED_H_";
+    std::string macroname = "IR_GENERATED_H_";
     out << "#ifndef " << macroname << "\n"
-        << "#define " << macroname << "\n" << std::endl;
+        << "#define " << macroname << "\n"
+        << std::endl;
 
-    impl << "#include \"ir/ir.h\"\n"
-         << "#include \"ir/visitor.h\"\n"
-         << "#include \"ir/json_loader.h\"\n" << std::endl;
+    impl << "#include \"ir/ir-generated.h\"    // IWYU pragma: keep\n\n"
+         << "#include \"ir/ir-inline.h\"       // IWYU pragma: keep\n"
+         << "#include \"ir/json_generator.h\"  // IWYU pragma: keep\n"
+         << "#include \"ir/json_loader.h\"     // IWYU pragma: keep\n"
+         << "#include \"ir/visitor.h\"         // IWYU pragma: keep\n"
+         << "#include \"lib/algorithm.h\"      // IWYU pragma: keep\n"
+         << "#include \"lib/log.h\"            // IWYU pragma: keep\n"
+         << std::endl
+         << "using namespace P4;\n"
+         << std::endl;
 
-    out << "#include <map>\n"
-        << "#include <functional>\n" << std::endl
+    out << "#include <functional>\n"
+        << "#include <map>\n\n"
+        << "#include \"lib/big_int.h\"        // IWYU pragma: keep\n"
+        << "// Special IR classes and types\n"
+        << "#include \"ir/dbprint.h\"         // IWYU pragma: keep\n"
+        << "#include \"ir/id.h\"              // IWYU pragma: keep\n"
+        << "#include \"ir/indexed_vector.h\"  // IWYU pragma: keep\n"
+        << "#include \"ir/namemap.h\"         // IWYU pragma: keep\n"
+        << "#include \"ir/node.h\"            // IWYU pragma: keep\n"
+        << "#include \"ir/nodemap.h\"         // IWYU pragma: keep\n"
+        << "#include \"ir/vector.h\"          // IWYU pragma: keep\n"
+        << "#include \"lib/ordered_map.h\"    // IWYU pragma: keep\n"
+        << std::endl
+        << "namespace P4 {\n"
+        << std::endl
         << "class JSONLoader;\n"
         << "using NodeFactoryFn = IR::Node*(*)(JSONLoader&);\n"
         << std::endl
         << "namespace IR {\n"
         << "extern std::map<cstring, NodeFactoryFn> unpacker_table;\n"
+        << "using namespace P4::literals;\n"
         << "}\n";
 
     impl << "std::map<cstring, NodeFactoryFn> IR::unpacker_table = {\n";
@@ -128,75 +184,153 @@ void IrDefinitions::generate(std::ostream &t, std::ostream &out, std::ostream &i
                 first = false;
             else
                 impl << ",\n";
-            impl << "{\"" << cls->name << "\", NodeFactoryFn(&IR::";
-            if (cls->containedIn && cls->containedIn->name)
-                impl << cls->containedIn->name << "::";
-            impl << cls->name << "::fromJSON)}"; } }
+            impl << "{\"" << cls->name << "\"_cs, NodeFactoryFn(&IR::";
+            if (cls->containedIn && cls->containedIn->name) impl << cls->containedIn->name << "::";
+            impl << cls->name << "::fromJSON)}";
+        }
+    }
     impl << " };\n" << std::endl;
+
+    impl << "template class IR::Vector<IR::Node>;" << std::endl;
+    out << "extern template class IR::Vector<IR::Node>;" << std::endl;
+    impl << "template class IR::IndexedVector<IR::Node>;" << std::endl;
+    out << "extern template class IR::IndexedVector<IR::Node>;" << std::endl;
+    for (auto cls : *getClasses()) {
+        if (cls->needVector || cls->needIndexedVector) {
+            impl << "template class IR::Vector<IR::" << cls->containedIn << cls->name << ">;"
+                 << std::endl;
+            out << "extern template class IR::Vector<IR::" << cls->containedIn << cls->name << ">;"
+                << std::endl;
+        }
+        if (cls->needIndexedVector) {
+            impl << "template class IR::IndexedVector<IR::" << cls->containedIn << cls->name << ">;"
+                 << std::endl;
+            out << "extern template class IR::IndexedVector<IR::" << cls->containedIn << cls->name
+                << ">;" << std::endl;
+        }
+    }
+    out << "}  // namespace P4" << std::endl;
 
     for (auto e : elements) {
         e->generate_hdr(out);
-        e->generate_impl(impl); }
+        e->generate_impl(impl);
+    }
 
     out << "#endif /* " << macroname << " */" << std::endl;
 
     ///////////////////////////////// tree
 
+    t << "#pragma once\n"
+      << "#include <cstdint>\n"
+      << "#include \"lib/rtti.h\"\n";
+
     t << "#define IRNODE_ALL_SUBCLASSES_AND_DIRECT_AND_INDIRECT_BASES(M, T, D, B, ...) \\"
       << std::endl;
     for (auto cls : *getClasses())
-        if (cls->kind != NodeKind::Interface)
-            cls->generateTreeMacro(t);
+        if (cls->kind != NodeKind::Interface) cls->generateTreeMacro(t);
 
     t << "T(Vector<IR::Node>, D(Node), ##__VA_ARGS__) \\" << std::endl;
     t << "T(IndexedVector<IR::Node>, "
-            "D(Vector<IR::Node>) "
-            "B(Node), ##__VA_ARGS__) \\" << std::endl;
+         "D(Vector<IR::Node>) "
+         "B(Node), ##__VA_ARGS__) \\"
+      << std::endl;
     for (auto cls : *getClasses()) {
         if (cls->needVector || cls->needIndexedVector)
-            t << "T(Vector<IR::" << cls->containedIn << cls->name << ">, D(Node), "
-                    "##__VA_ARGS__) \\" << std::endl;
+            t << "T(Vector<IR::" << cls->containedIn << cls->name
+              << ">, D(Node), "
+                 "##__VA_ARGS__) \\"
+              << std::endl;
         if (cls->needIndexedVector)
             // We generate IndexedVector only if needed; we expect users won't use
             // these if they don't want to place them in fields.
-            t << "T(IndexedVector<IR::" << cls->containedIn << cls->name << ">, "
-                    "D(Vector<IR::" << cls->containedIn << cls->name << ">) "
-                    "B(Node), ##__VA_ARGS__) \\" << std::endl;
-        if (cls->needNameMap)
-            BUG("visitable (non-inline) NameMap not yet implemented");
-        if (cls->needNodeMap)
-            BUG("visitable (non-inline) NodeMap not yet implemented"); }
+            t << "T(IndexedVector<IR::" << cls->containedIn << cls->name
+              << ">, "
+                 "D(Vector<IR::"
+              << cls->containedIn << cls->name
+              << ">) "
+                 "B(Node), ##__VA_ARGS__) \\"
+              << std::endl;
+        if (cls->needNameMap) BUG("visitable (non-inline) NameMap not yet implemented");
+        if (cls->needNodeMap) BUG("visitable (non-inline) NodeMap not yet implemented");
+    }
     t << std::endl;
 
-    t << "namespace IR {" << std::endl;
-    for (auto cls : *getClasses()) {
+    t << "namespace P4::IR {" << std::endl;
+
+    // Emit forward declarations
+    for (auto *cls : *getClasses()) {
         enter_namespace(t, cls->containedIn);
         cls->declare(t);
         exit_namespace(t, cls->containedIn);
     }
-    t << "}  // namespace IR" << std::endl;
+
+    t << std::endl;
+
+    // Emit node kinds
+    // TODO: Probably it would make sense to topo-sort the IDs to optimize the
+    // comparison trees generated by a compiler
+    t << "enum class NodeKind : RTTI::TypeId {\n"
+      << "  Auto = 0,\n"
+      << "  INode = 1,\n"
+      << "  Node = 2,\n";
+
+    unsigned nkId = 3;
+    auto *irNamespace = IrNamespace::get(nullptr, "IR"_cs);
+    for (auto *cls : *getClasses())
+        t << "  " << cls->qualified_name(irNamespace).replace("::", "_") << " = " << nkId++
+          << ",\n";
+
+    // Add some specials:
+    t << "  IDeclaration = " << nkId++ << ",\n";
+    t << "  VectorBase = " << nkId++ << "\n"
+      << "};\n";
+    t << "enum class NodeDiscriminator : RTTI::TypeId {\n"
+      << "  NodeT = UINT64_C(1),\n"
+      << "  VectorT = UINT64_C(1),\n"
+      << "  IndexedVectorT = UINT64_C(2),\n"
+      << "  Auto = UINT64_C(0xFF)\n"
+      << "};\n"
+      << " inline bool operator==(RTTI::TypeId lhs, NodeKind rhs) { return lhs == "
+         "RTTI::TypeId(rhs); }\n"
+      << " inline bool operator==(NodeKind lhs, RTTI::TypeId rhs) { return RTTI::TypeId(lhs) == "
+         "rhs; }\n"
+      << " inline bool operator!=(RTTI::TypeId lhs, NodeKind rhs) { return lhs != "
+         "RTTI::TypeId(rhs); }\n"
+      << " inline bool operator!=(NodeKind lhs, RTTI::TypeId rhs) { return RTTI::TypeId(lhs) != "
+         "rhs; }\n"
+      << " inline bool operator==(RTTI::TypeId lhs, NodeDiscriminator rhs) { return lhs == "
+         "RTTI::TypeId(rhs); }\n"
+      << " inline bool operator==(NodeDiscriminator lhs, RTTI::TypeId rhs) { return "
+         "RTTI::TypeId(lhs) == rhs; }\n"
+      << " inline bool operator!=(RTTI::TypeId lhs, NodeDiscriminator rhs) { return lhs != "
+         "RTTI::TypeId(rhs); }\n"
+      << " inline bool operator!=(NodeDiscriminator lhs, RTTI::TypeId rhs) { return "
+         "RTTI::TypeId(lhs) != rhs; }\n";
+    t << "}  // namespace P4::IR" << std::endl;
 }
 
 void IrClass::generateTreeMacro(std::ostream &out) const {
-    for (auto p = this; p != nodeClass(); p = p->getParent())
+    auto *p = this;
+    for (; p && p != nodeClass(); p = p->getParent()) {
         out << "  ";
+    }
+    BUG_CHECK(p != nullptr, "Falled out of the class hierarchy");
     out << "M(";
     const char *sep = "";
-    for (auto p = this; p; p = p->getParent()) {
+    for (p = this; p; p = p->getParent()) {
         out << sep << p->containedIn << p->name;
-        sep = *sep ? ") B(" : ", D("; }
+        sep = *sep ? ") B(" : ", D(";
+    }
     out << "), ##__VA_ARGS__) \\" << std::endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
 
 void EmitBlock::generate_hdr(std::ostream &out) const {
-    if (!impl)
-        out << LineDirective(srcInfo, +1) << body << LineDirective();
+    if (!impl) out << LineDirective(srcInfo, +1) << body << LineDirective();
 }
 void EmitBlock::generate_impl(std::ostream &out) const {
-    if (impl)
-        out << LineDirective(srcInfo, +1) << body << LineDirective();
+    if (impl) out << LineDirective(srcInfo, +1) << body << LineDirective();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -205,23 +339,22 @@ void IrMethod::generate_proto(std::ostream &out, bool fullname, bool defaults) c
     if (rtype) {
         if (rtype->isResolved()) out << "const ";
         out << rtype->toString() << " ";
-        if (rtype->isResolved()) out << "*"; }
-    if (fullname && !isFriend)
-        out << "IR::" << clss->containedIn << clss->name << "::";
+        if (rtype->isResolved()) out << "*";
+    }
+    if (fullname && !isFriend) out << "IR::" << clss->containedIn << clss->name << "::";
     out << name << "(";
     const char *sep = "";
     for (auto *a : args) {
         out << sep;
         a->generate(out, false);
-        if (a->initializer && defaults)
-            out << " = " << a->initializer;
-        sep = ", "; }
+        if (a->initializer && defaults) out << " = " << a->initializer;
+        sep = ", ";
+    }
     out << ")" << (isConst ? " const" : "");
 }
 
 void IrMethod::generate_hdr(std::ostream &out) const {
-    if (srcInfo.isValid())
-        out << LineDirective(srcInfo);
+    if (srcInfo.isValid()) out << LineDirective(srcInfo);
     out << IrClass::indent;
     if (isStatic) out << "static ";
     if (isVirtual) out << "virtual ";
@@ -241,9 +374,9 @@ void IrMethod::generate_hdr(std::ostream &out) const {
         out << ";" << std::endl;
     } else if (name == "node_type_name") {
         out << LineDirective(srcInfo) << IrClass::indent << "static " << rtype->toString()
-            << " static_type_name() " << body << std::endl; }
-    if (srcInfo.isValid())
-        out << LineDirective();
+            << " static_type_name() " << body << std::endl;
+    }
+    if (srcInfo.isValid()) out << LineDirective();
 }
 
 void IrMethod::generate_impl(std::ostream &out) const {
@@ -254,9 +387,9 @@ void IrMethod::generate_impl(std::ostream &out) const {
     if (name == "visit_children") {
         out << LineDirective(srcInfo);
         generate_proto(out, true, false);
-        out << " const " << body << std::endl; }
-    if (srcInfo.isValid())
-        out << LineDirective();
+        out << " const " << body << std::endl;
+    }
+    if (srcInfo.isValid()) out << LineDirective();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -272,9 +405,7 @@ void IrApply::generate_impl(std::ostream &out) const {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-void IrClass::declare(std::ostream &out) const {
-    out << "class " << name << ";" << std::endl;
-}
+void IrClass::declare(std::ostream &out) const { out << "class " << name << ";" << std::endl; }
 
 std::string IrClass::fullName() const {
     std::stringstream tmp;
@@ -283,13 +414,15 @@ std::string IrClass::fullName() const {
 }
 
 cstring IrNamespace::qualified_name(const IrNamespace *in) const {
-    cstring rv = name ? name : "IR";
+    cstring rv = name ? name : "IR"_cs;
     if (parent) {
         for (auto i = in; i; i = i->parent) {
             auto sym = i->lookupChild(name);
             if (sym && this != sym) break;
-            if (parent == i) return rv; }
-        rv = parent->qualified_name(in) + "::" + rv; }
+            if (parent == i) return rv;
+        }
+        rv = parent->qualified_name(in) + "::"_cs + rv;
+    }
     return rv;
 }
 
@@ -299,22 +432,24 @@ cstring IrClass::qualified_name(const IrNamespace *in) const {
         for (auto i = in; i; i = i->parent) {
             auto sym = i->lookupClass(name);
             if (sym && this != sym) break;
-            if (containedIn == i) return rv; }
-        rv = containedIn->qualified_name(in) + "::" + rv; }
+            if (containedIn == i) return rv;
+        }
+        rv = containedIn->qualified_name(in) + "::"_cs + rv;
+    }
     return rv;
 }
 
 void IrClass::generate_hdr(std::ostream &out) const {
     if (kind != NodeKind::Nested) {
-        out << "namespace IR {" << std::endl;
-        enter_namespace(out, containedIn); }
+        out << "namespace P4::IR {" << std::endl;
+        enter_namespace(out, containedIn);
+    }
     for (auto cblock : comments) cblock->generate_hdr(out);
     out << "class " << name;
 
     bool concreteParent = false;
     for (auto p : parentClasses) {
-        if (p->kind != NodeKind::Interface)
-            concreteParent = true;
+        if (p->kind != NodeKind::Interface) concreteParent = true;
     }
 
     const char *sep = " : ";
@@ -323,46 +458,59 @@ void IrClass::generate_hdr(std::ostream &out) const {
             out << sep << "public Node";
         else
             out << sep << "public virtual INode";
-        sep = ", "; }
+        sep = ", ";
+    }
     for (auto p : parentClasses) {
         out << sep << "public ";
-        if (p->kind == NodeKind::Interface)
-            out << "virtual ";
+        if (p->kind == NodeKind::Interface) out << "virtual ";
         out << p->qualified_name(containedIn);
-        sep = ", "; }
+        sep = ", ";
+    }
 
     out << " {" << std::endl;
 
     auto access = IrElement::Private;
     for (auto e : elements) {
         if (e->access != access) out << (access = e->access);
-        e->generate_hdr(out); }
+        e->generate_hdr(out);
+    }
 
     if (kind != NodeKind::Interface && kind != NodeKind::Nested)
-        out << indent << "IRNODE" << (kind == NodeKind::Abstract ?  "_ABSTRACT" : "")
-            << "_SUBCLASS(" << name << ")" << std::endl;
+        out << indent << "IRNODE" << (kind == NodeKind::Abstract ? "_ABSTRACT" : "") << "_SUBCLASS("
+            << name << ")" << std::endl;
+
+    auto *irNamespace = IrNamespace::get(nullptr, "IR"_cs);
+    if (kind != NodeKind::Nested) {
+        out << indent << "DECLARE_TYPEINFO_WITH_TYPEID(" << name
+            << ", NodeKind::" << qualified_name(irNamespace).replace("::", "_");
+        if (!concreteParent) out << ", " << (kind != NodeKind::Interface ? "Node" : "INode");
+        for (const auto *p : parentClasses) out << ", " << p->qualified_name(containedIn);
+        out << ");" << std::endl;
+    }
 
     out << "};" << std::endl;
     if (kind != NodeKind::Nested) {
         exit_namespace(out, containedIn);
-        out << "}  // namespace IR" << std::endl; }
+        out << "}  // namespace P4::IR" << std::endl;
+    }
 }
 
 void IrClass::generate_impl(std::ostream &out) const {
-    for (auto e : elements)
-        e->generate_impl(out);
+    for (auto e : elements) e->generate_impl(out);
 }
 
 void IrClass::computeConstructorArguments(IrClass::ctor_args_t &args) const {
     if (concreteParent == nullptr) {
         if (kind != NodeKind::Nested) {
             // direct descendant of Node, add srcInfo
-            args.emplace_back(IrField::srcInfoField(), IrClass::nodeClass()); }
+            args.emplace_back(IrField::srcInfoField(), IrClass::nodeClass());
+        }
     } else {
-        concreteParent->computeConstructorArguments(args); }
+        concreteParent->computeConstructorArguments(args);
+    }
 
     for (auto field : *getFields())
-        if (!field->isStatic && (!field->initializer|| field->optional))
+        if (!field->isStatic && (!field->initializer || field->optional))
             args.emplace_back(field, this);
 }
 
@@ -382,104 +530,113 @@ int IrClass::generateConstructor(const ctor_args_t &arglist, const IrMethod *use
     auto parent = getParent() ? getParent()->qualified_name(containedIn) : cstring();
     const char *end_parent = "";
     for (auto &arg : arglist) {
-        if (arg.first->optional && (skip_opt & (1U << optargs++)))
-            continue;
+        if (arg.first->optional && (skip_opt & (1U << optargs++))) continue;
         if (arg.second == this) {
             body << end_parent;
             end_parent = "";
-        } else if (parent) {
+        } else if (!parent.isNullOrEmpty()) {
             body << sep << parent;
-            parent = nullptr;
+            parent = ""_cs;
             sep = "(";
-            end_parent = ")"; }
+            end_parent = ")";
+        }
         body << sep << arg.first->name;
-        if (arg.second == this)
-            body << "(" << arg.first->name << ")";
-        sep = ", "; }
+        if (arg.second == this) body << "(" << arg.first->name << ")";
+        sep = ", ";
+    }
 
     body << end_parent << std::endl << indent << "{";
     if (user)
-        body << '\n' << LineDirective(user->getSourceInfo()) << user->body << '\n'
+        body << '\n'
+             << LineDirective(user->getSourceInfo()) << user->body << '\n'
              << LineDirective() << indent;
-    if (kind != NodeKind::Nested)
-        body << " validate(); ";
+    if (kind != NodeKind::Nested) body << " validate(); ";
     body << "}";
     auto ctor = new IrMethod(name, body.str());
     ctor->clss = this;
     optargs = 0;
     for (auto a : arglist) {
-        if (a.first->optional && (skip_opt & (1U << optargs++)))
-            continue;
-        ctor->args.push_back(a.first); }
+        if (a.first->optional && (skip_opt & (1U << optargs++))) continue;
+        ctor->args.push_back(a.first);
+    }
 
-    if (kind == NodeKind::Abstract)
-        ctor->access = IrElement::Protected;
-    ctor->inImpl = true;
+    if (kind == NodeKind::Abstract) ctor->access = IrElement::Protected;
+    ctor->inImpl = false;
     elements.push_back(ctor);
     return optargs;
 }
 
-Util::Enumerator<IrField*>* IrClass::getFields() const {
-    return Util::Enumerator<IrElement*>::createEnumerator(elements)
-            ->where([] (IrElement *e) { return e->is<IrField>(); })
-            ->map<IrField*>([] (IrElement *e)->IrField* { return e->to<IrField>(); })
-            ->where([] (IrField *f) { return !f->isStatic; });
+Util::Enumerator<IrField *> *IrClass::getFields() const {
+    return Util::enumerate(elements)->as<IrField *>()->where(
+        [](IrField *f) { return f && !f->isStatic; });
 }
 
-Util::Enumerator<IrMethod*>* IrClass::getUserMethods() const {
-    return Util::Enumerator<IrElement*>::createEnumerator(elements)
-            ->where([] (IrElement* e) { return e->is<IrMethod>(); })
-            ->map<IrMethod*>([] (IrElement* e)->IrMethod* { return e->to<IrMethod>(); });
+Util::Enumerator<IrMethod *> *IrClass::getUserMethods() const {
+    return Util::enumerate(elements)->as<IrMethod *>()->where(
+        [](IrElement *e) { return e != nullptr; });
+}
+
+bool IrClass::hasNoDirective(cstring feature) const {
+    return Util::enumerate(elements)
+        ->where([](IrElement *el) { return el->is<IrNo>(); })
+        ->where([feature](IrElement *el) { return el->to<IrNo>()->text == feature; })
+        ->any();
 }
 
 bool IrClass::shouldSkip(cstring feature) const {
-    // skip if there is a 'no' directive
-    auto *e = Util::Enumerator<IrElement*>::createEnumerator(elements);
-    bool explicitNo = e->where([] (IrElement *el) { return el->is<IrNo>(); })
-            ->where([feature] (IrElement *el) { return el->to<IrNo>()->text == feature; })
-            ->any();
-    if (explicitNo) return true;
-    // also, skip if the user provided an implementation manually
-    // (except for validate)
-    if (feature == "validate") return false;
-
-    e = Util::Enumerator<IrElement*>::createEnumerator(elements);
-    bool provided = e->where([] (IrElement* e) { return e->is<IrMethod>(); })
-            ->where([feature] (IrElement* e) { return e->to<IrMethod>()->name == feature; })
-            ->any();
+    // Skip if there is a '#no' directive.
+    if (hasNoDirective(feature)) {
+        return true;
+    }
+    // Do not skip if the feature is 'validate'.
+    if (feature == "validate") {
+        return false;
+    }
+    // Also skip if the user provided an implementation manually
+    bool provided = Util::enumerate(elements)
+                        ->where([feature](IrElement *e) {
+                            const auto *m = e->to<IrMethod>();
+                            return m && m->name == feature;
+                        })
+                        ->any();
     return provided;
 }
 
 void IrClass::resolve() {
+    if (resolved) return;
+    resolved = true;
     for (auto s : parents) {
         const IrClass *p = s->resolve(containedIn);
-        if (p == nullptr)
-            throw Util::CompilationError("Could not find class %1%", s);
+        if (p == nullptr) throw Util::CompilationError("Could not find class %1%", s);
         if (p->kind != NodeKind::Interface) {
             if (concreteParent == nullptr)
                 concreteParent = p;
             else
-                BUG(
-                    "Class %1% has more than 1 non-interface parent: %2% and %3%",
-                    this, concreteParent, p); }
-        parentClasses.push_back(p); }
+                BUG("Class %1% has more than 1 non-interface parent: %2% and %3%", this,
+                    concreteParent, p);
+        }
+        parentClasses.push_back(p);
+    }
     generateMethods();
-    for (auto e : elements)
-        e->resolve();
+    for (auto e : elements) e->resolve();
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+//
+void IrEnumType::generate_hdr(std::ostream &out) const {
+    out << "enum " << (isClassEnum ? "class " : "") << name << "\n"
+        << LineDirective(srcInfo, +1) << body << ";\n"
+        << LineDirective();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-void IrField::generate(std::ostream &out, bool asField) const {
-    if (asField) {
-        out << IrClass::indent;
-        if (isStatic) out << "static ";
-        if (isConst) out << "const "; }
+void IrField::resolve() { resolveType(type); }
 
+void IrField::resolveType(const Type *type) {
     auto tmpl = dynamic_cast<const TemplateInstantiation *>(type);
-    const IrClass* cls = type->resolve(clss ? clss->containedIn : nullptr);
+    const IrClass *cls = type->resolve(clss ? clss->containedIn : nullptr);
     if (cls) {
-        // FIXME -- should be doing this in resolve and converting type to PointerType as needed
         if (tmpl) {
             if (cls->kind != NodeKind::Template)
                 throw Util::CompilationError("Template args with non-template class %1%", cls);
@@ -497,24 +654,40 @@ void IrField::generate(std::ostream &out, bool asField) const {
                     else if (cls == IrClass::nodemapClass() && !isInline)
                         acl->needNodeMap = true;
                 } else {
-                    throw Util::CompilationError("%1% template argment %2% is not "
-                                                 "an IR class", cls->name, tmpl->args[i]); } }
+                    throw Util::CompilationError(
+                        "%1% template argment %2% is not "
+                        "an IR class",
+                        cls->name, tmpl->args[i]);
+                }
+            }
         } else if (cls->kind == NodeKind::Template) {
-            throw Util::CompilationError("No args for template %1%", cls); } }
-    if (cls != nullptr && !isInline)
-        out << "const ";
+            throw Util::CompilationError("No args for template %1%", cls);
+        }
+    }
+}
+
+void IrField::generate(std::ostream &out, bool asField) const {
+    if (asField) {
+        out << IrClass::indent;
+        if (isStatic) out << "static ";
+        if (isConst) out << "const ";
+    }
+
+    const IrClass *cls = type->resolve(clss ? clss->containedIn : nullptr);
+    if (cls != nullptr && !isInline) out << "const ";
     out << type->toString();
-    if (cls != nullptr && !isInline)
-        out << "*";
+    if (cls != nullptr && !isInline) out << "*";
     out << " " << name << type->declSuffix();
     if (asField) {
         if (!isStatic) {
             if (!initializer.isNullOrEmpty())
                 out << " = " << initializer;
             else if (cls != nullptr && !isInline)
-                out << " = nullptr"; }
+                out << " = nullptr";
+        }
         out << ";";
-        out << std::endl; }
+        out << std::endl;
+    }
 }
 
 void IrField::generate_impl(std::ostream &) const {
@@ -524,13 +697,51 @@ void IrField::generate_impl(std::ostream &) const {
 
 ////////////////////////////////////////////////////////////////////////////////////
 
+void IrVariantField::resolve() {
+    for (const Type *type : *types) resolveType(type);
+}
+
+void IrVariantField::generate(std::ostream &out, bool asField) const {
+    if (asField) {
+        out << IrClass::indent << "using " << name << "_variant = std::variant<";
+        bool first = true;
+        for (const Type *type : *types) {
+            if (!first) out << ", ";
+
+            // FIXME: Support variant of IR node pointers
+            // const IrClass *cls = type->resolve(clss ? clss->containedIn : nullptr);
+            // if (cls != nullptr) out << "const ";
+            out << type->toString();
+            // if (cls != nullptr) out << "*";
+            first = false;
+        }
+        out << ">;" << std::endl << IrClass::indent;
+
+        if (isStatic) out << "static ";
+        if (isConst) out << "const ";
+    }
+
+    out << name << "_variant " << name;
+
+    if (asField) {
+        if (!isStatic && !initializer.isNullOrEmpty()) out << " = " << initializer;
+
+        out << ";";
+        out << std::endl;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////
+
 void ConstFieldInitializer::generate_hdr(std::ostream &out) const {
     out << IrClass::indent;
     if (name == "precedence")
-        out << "int getPrecedence() const override { return ";
+        out << "int getPrecedence() const override { return " << initializer << "; }" << std::endl;
     else if (name == "stringOp")
-        out << "cstring getStringOp() const override { return ";
+        out << "cstring getStringOp() const override { return cstring(" << initializer << "); }"
+            << std::endl;
     else
         throw Util::CompilationError("Unexpected constant field %1%", this);
-    out << initializer << "; }" << std::endl;
 }
+
+}  // namespace P4

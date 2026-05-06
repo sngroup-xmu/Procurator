@@ -19,6 +19,8 @@ limitations under the License.
 
 #include "ir/ir.h"
 
+namespace P4 {
+
 /**
  * Pattern matcher for IR::Expression trees.
  *
@@ -30,57 +32,65 @@ class Pattern {
      public:
         virtual bool match(const IR::Node *) = 0;
     } *pattern;
-    Pattern(Base *p) : pattern(p) {}
+    Pattern(Base *p) : pattern(p) {}  // NOLINT(runtime/explicit)
 
-    template<class T> class MatchExt : public Base {
+    template <class T>
+    class MatchExt : public Base {
         const T *&m;
+
      public:
         bool match(const IR::Node *n) override { return (m = n->to<T>()); }
-        MatchExt(const T *&m) : m(m) {}
+        MatchExt(const T *&m) : m(m) {}  // NOLINT(runtime/explicit)
     };
 
     class Const : public Base {
-        big_int       value;
+        big_int value;
+
      public:
         bool match(const IR::Node *n) override {
-            if (auto k = n->to<IR::Constant>())
-                return k->value == value;
-            return false; }
-        Const(big_int v) : value(v) {}
-        Const(int v) : value(v) {}
+            if (auto k = n->to<IR::Constant>()) return k->value == value;
+            return false;
+        }
+        Const(big_int v) : value(v) {}  // NOLINT(runtime/explicit)
+        Const(int v) : value(v) {}      // NOLINT(runtime/explicit)
     };
-    template<class T> class Unary : public Base {
+    template <class T>
+    class Unary : public Base {
         Base *expr;
+
      public:
         bool match(const IR::Node *n) override {
-            if (auto b = n->to<T>())
-                return expr->match(b->expr);
-            return false; }
-        Unary(Base *e) : expr(e) {}
+            if (auto b = n->to<T>()) return expr->match(b->expr);
+            return false;
+        }
+        Unary(Base *e) : expr(e) {}  // NOLINT(runtime/explicit)
     };
-    template<class T> class Binary : public Base {
-        Base    *left, *right;
-        bool    commutative;
+    template <class T>
+    class Binary : public Base {
+        Base *left, *right;
+        bool commutative;
+
      public:
         bool match(const IR::Node *n) override {
             if (auto b = n->to<T>()) {
-                if (left->match(b->left) && right->match(b->right))
-                    return true;
-                if (commutative && left->match(b->right) && right->match(b->left))
-                    return true; }
-            return false; }
+                if (left->match(b->left) && right->match(b->right)) return true;
+                if (commutative && left->match(b->right) && right->match(b->left)) return true;
+            }
+            return false;
+        }
         Binary(Base *l, Base *r, bool commute = false) : left(l), right(r), commutative(commute) {}
     };
 
  public:
-
-    template<class T> class Match : public Base {
+    template <class T>
+    class Match : public Base {
         const T *m;
+
      public:
         bool match(const IR::Node *n) override { return (m = n->to<T>()); }
         Match() : m(nullptr) {}
         const T *operator->() const { return m; }
-        operator const T *() const { return m; }
+        operator const T *() const { return m; }  // NOLINT(runtime/explicit)
         Pattern operator*(const Pattern &a) { return Pattern(*this) * a; }
         Pattern operator/(const Pattern &a) { return Pattern(*this) / a; }
         Pattern operator%(const Pattern &a) { return Pattern(*this) % a; }
@@ -94,6 +104,7 @@ class Pattern {
         Pattern operator<=(const Pattern &a) { return Pattern(*this) <= a; }
         Pattern operator>(const Pattern &a) { return Pattern(*this) > a; }
         Pattern operator>=(const Pattern &a) { return Pattern(*this) >= a; }
+        Pattern Relation(const Pattern &a) { return Pattern(*this).Relation(a); }
         Pattern operator&(const Pattern &a) { return Pattern(*this) & a; }
         Pattern operator|(const Pattern &a) { return Pattern(*this) | a; }
         Pattern operator^(const Pattern &a) { return Pattern(*this) ^ a; }
@@ -106,49 +117,106 @@ class Pattern {
         Pattern operator!=(int a) { return Pattern(*this) != Pattern(a); }
     };
 
-    template <class T> Pattern(const T*&m) : pattern(new MatchExt<T>(m)) {}
-    template <class T>Pattern(Match<T> &m) : pattern(&m) {}
-    Pattern(big_int v) : pattern(new Const(v)) {}     // NOLINT(runtime/explicit)
-    Pattern(int v) : pattern(new Const(v)) {}           // NOLINT(runtime/explicit)
+    template <class T = IR::AssignmentStatement>
+    class Assign : public Base {
+        static_assert(std::is_base_of_v<IR::BaseAssignmentStatement, T>);
+        Base *left, *right;
+
+     public:
+        bool match(const IR::Node *n) override {
+            if (auto as = n->to<T>()) {
+                if (left->match(as->left) && right->match(as->right)) return true;
+            }
+            return false;
+        }
+        Assign(Base *l, Base *r) : left(l), right(r) {}
+        Assign(const Pattern &l, const Pattern &r) : left(l.pattern), right(r.pattern) {}
+        Assign(Base *l, int val) : left(l), right(new Const(val)) {}
+        Assign(Base *l, big_int val) : left(l), right(new Const(val)) {}
+    };
+
+    template <class T>
+    Pattern(const T *&m) : pattern(new MatchExt<T>(m)) {}  // NOLINT(runtime/explicit)
+    template <class T>
+    Pattern(Match<T> &m) : pattern(&m) {}                   // NOLINT(runtime/explicit)
+    explicit Pattern(big_int v) : pattern(new Const(v)) {}  // NOLINT(runtime/explicit)
+    explicit Pattern(int v) : pattern(new Const(v)) {}      // NOLINT(runtime/explicit)
     Pattern operator-() const { return Pattern(new Unary<IR::Neg>(pattern)); }
     Pattern operator~() const { return Pattern(new Unary<IR::Cmpl>(pattern)); }
     Pattern operator!() const { return Pattern(new Unary<IR::LNot>(pattern)); }
     Pattern operator*(const Pattern &r) const {
-        return Pattern(new Binary<IR::Mul>(pattern, r.pattern, true)); }
+        return Pattern(new Binary<IR::Mul>(pattern, r.pattern, true));
+    }
     Pattern operator/(const Pattern &r) const {
-        return Pattern(new Binary<IR::Div>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Div>(pattern, r.pattern));
+    }
     Pattern operator%(const Pattern &r) const {
-        return Pattern(new Binary<IR::Mod>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Mod>(pattern, r.pattern));
+    }
     Pattern operator+(const Pattern &r) const {
-        return Pattern(new Binary<IR::Add>(pattern, r.pattern, true)); }
+        return Pattern(new Binary<IR::Add>(pattern, r.pattern, true));
+    }
     Pattern operator-(const Pattern &r) const {
-        return Pattern(new Binary<IR::Sub>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Sub>(pattern, r.pattern));
+    }
     Pattern operator<<(const Pattern &r) const {
-        return Pattern(new Binary<IR::Shl>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Shl>(pattern, r.pattern));
+    }
     Pattern operator>>(const Pattern &r) const {
-        return Pattern(new Binary<IR::Shr>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Shr>(pattern, r.pattern));
+    }
     Pattern operator==(const Pattern &r) const {
-        return Pattern(new Binary<IR::Equ>(pattern, r.pattern, true)); }
+        return Pattern(new Binary<IR::Equ>(pattern, r.pattern, true));
+    }
     Pattern operator!=(const Pattern &r) const {
-        return Pattern(new Binary<IR::Neq>(pattern, r.pattern, true)); }
+        return Pattern(new Binary<IR::Neq>(pattern, r.pattern, true));
+    }
     Pattern operator<(const Pattern &r) const {
-        return Pattern(new Binary<IR::Lss>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Lss>(pattern, r.pattern));
+    }
     Pattern operator<=(const Pattern &r) const {
-        return Pattern(new Binary<IR::Leq>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Leq>(pattern, r.pattern));
+    }
     Pattern operator>(const Pattern &r) const {
-        return Pattern(new Binary<IR::Grt>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Grt>(pattern, r.pattern));
+    }
     Pattern operator>=(const Pattern &r) const {
-        return Pattern(new Binary<IR::Geq>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::Geq>(pattern, r.pattern));
+    }
+    Pattern Relation(const Pattern &r) const {
+        return Pattern(new Binary<IR::Operation::Relation>(pattern, r.pattern, true));
+    }
     Pattern operator&(const Pattern &r) const {
-        return Pattern(new Binary<IR::BAnd>(pattern, r.pattern, true)); }
+        return Pattern(new Binary<IR::BAnd>(pattern, r.pattern, true));
+    }
     Pattern operator|(const Pattern &r) const {
-        return Pattern(new Binary<IR::BOr>(pattern, r.pattern, true)); }
+        return Pattern(new Binary<IR::BOr>(pattern, r.pattern, true));
+    }
     Pattern operator^(const Pattern &r) const {
-        return Pattern(new Binary<IR::BXor>(pattern, r.pattern, true)); }
+        return Pattern(new Binary<IR::BXor>(pattern, r.pattern, true));
+    }
     Pattern operator&&(const Pattern &r) const {
-        return Pattern(new Binary<IR::LAnd>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::LAnd>(pattern, r.pattern));
+    }
     Pattern operator||(const Pattern &r) const {
-        return Pattern(new Binary<IR::LOr>(pattern, r.pattern)); }
+        return Pattern(new Binary<IR::LOr>(pattern, r.pattern));
+    }
+    /// We use these templates to deal with amgigous overloads introduced by C++20.
+    /// https://en.cppreference.com/w/cpp/language/default_comparisons
+    // TODO: Ideally, we would fix these ambiguous overloads by making the Pattern class explicit in
+    // its initialization but that is a breaking change.
+    template <class T>
+    Pattern operator==(Match<T> &m) const {
+        return *this == Pattern(m);
+    }
+    template <class T>
+    Pattern operator!=(Match<T> &m) const {
+        return *this != Pattern(m);
+    }
+    template <class T>
+    Pattern operator==(const Match<T> &m) const {
+        return *this == Pattern(m);
+    }
 
     bool match(const IR::Node *n) { return pattern->match(n); }
 };
@@ -172,5 +240,6 @@ inline Pattern operator^(int v, const Pattern &a) { return Pattern(v) ^ a; }
 inline Pattern operator&&(int v, const Pattern &a) { return Pattern(v) && a; }
 inline Pattern operator||(int v, const Pattern &a) { return Pattern(v) || a; }
 
+}  // namespace P4
 
 #endif /* IR_PATTERN_H_ */

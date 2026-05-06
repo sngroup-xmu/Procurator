@@ -14,18 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _FRONTENDS_COMMON_CONSTANTPARSING_H_
-#define _FRONTENDS_COMMON_CONSTANTPARSING_H_
+#ifndef FRONTENDS_COMMON_CONSTANTPARSING_H_
+#define FRONTENDS_COMMON_CONSTANTPARSING_H_
 
 #include "lib/cstring.h"
 
-namespace IR {
+namespace P4::IR {
 class Constant;
-}  // namespace IR
+}  // namespace P4::IR
 
-namespace Util {
+namespace P4::Util {
 class SourceInfo;
-}  // namespace Util
+}  // namespace P4::Util
+
+namespace P4 {
+
+class JSONGenerator;
+class JSONLoader;
 
 /**
  * An unparsed numeric constant. We produce these as token values during
@@ -65,9 +70,13 @@ struct UnparsedConstant {
     unsigned skip;  /// An ignored prefix of the numeric constant (e.g. '0x').
     unsigned base;  /// The base in which the constant is expressed.
     bool hasWidth;  /// If true, a bitwidth and separator are present.
+    void toJSON(JSONGenerator &) const;
+    static UnparsedConstant fromJSON(JSONLoader &);
 };
 
-std::ostream& operator<<(std::ostream& out, const UnparsedConstant& constant);
+std::ostream &operator<<(std::ostream &out, const UnparsedConstant &constant);
+
+bool operator<(const UnparsedConstant &a, const UnparsedConstant &b);
 
 /**
  * Parses an UnparsedConstant @constant into an IR::Constant object, with
@@ -77,15 +86,15 @@ std::ostream& operator<<(std::ostream& out, const UnparsedConstant& constant);
  * @return an IR::Constant parsed from @constant. If parsing fails, returns
  * either a default value.
  */
-IR::Constant* parseConstant(const Util::SourceInfo& srcInfo,
-                            const UnparsedConstant& constant,
+IR::Constant *parseConstant(const Util::SourceInfo &srcInfo, const UnparsedConstant &constant,
                             long defaultValue);
 
 /**
  * Parses a constant that should fit in an int value.
  * Reports an error if it does not.
  */
-int parseConstantChecked(const Util::SourceInfo& srcInfo,
-                         const UnparsedConstant& constant);
+int parseConstantChecked(const Util::SourceInfo &srcInfo, const UnparsedConstant &constant);
 
-#endif /* _FRONTENDS_COMMON_CONSTANTPARSING_H_ */
+}  // namespace P4
+
+#endif /* FRONTENDS_COMMON_CONSTANTPARSING_H_ */

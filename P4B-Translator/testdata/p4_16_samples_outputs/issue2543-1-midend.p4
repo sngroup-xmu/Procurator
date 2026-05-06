@@ -14,9 +14,6 @@ control ingress(inout Headers h) {
     @name("ingress.retval_0") ethernet_t retval_0;
     @hidden action issue25431l17() {
         retval_0.setValid();
-        retval_0.dst_addr = 48w1;
-        retval_0.src_addr = 48w1;
-        retval_0.eth_type = 16w1;
     }
     @hidden table tbl_issue25431l17 {
         actions = {
@@ -32,4 +29,3 @@ control ingress(inout Headers h) {
 control Ingress(inout Headers hdr);
 package top(Ingress ig);
 top(ingress()) main;
-

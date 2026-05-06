@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <gtest/gtest.h>
+
 #include <exception>
 
-#include "gtest/gtest.h"
 #include "lib/cstring.h"
 #include "lib/exceptions.h"
 
-namespace Util {
+namespace P4::Util {
 
 TEST(UtilException, Messages) {
     // Check that exception message formatting works as expected.
@@ -28,8 +29,12 @@ TEST(UtilException, Messages) {
         throw CompilerBug("test");
     } catch (std::exception &ex) {
         cstring err(ex.what());
-        cstring expected = cstring(ANSI_RED) + "Compiler Bug" + ANSI_CLR +":\ntest\n";
-        EXPECT_EQ(expected, err);
+        cstring redir_msg("Compiler Bug:\ntest\n");
+        cstring no_redir_msg = cstring(ANSI_RED) + "Compiler Bug" + ANSI_CLR + ":\ntest\n";
+        // The error message might or might not be colorized based on if the test are redirected
+        // or not, to make sure both options are valid an array is used.
+        bool is_content_correct = (err == redir_msg) || (err == no_redir_msg);
+        EXPECT_EQ(is_content_correct, true);
     }
 
     try {
@@ -40,4 +45,4 @@ TEST(UtilException, Messages) {
     }
 }
 
-}  // namespace Util
+}  // namespace P4::Util

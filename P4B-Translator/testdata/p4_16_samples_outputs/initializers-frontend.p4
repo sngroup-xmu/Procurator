@@ -10,9 +10,6 @@ parser P() {
     @name("P.fake") Fake() fake_0;
     state start {
         x_0 = 32w0;
-        transition start_0;
-    }
-    state start_0 {
         fake_0.call(x_0);
         transition accept;
     }
@@ -33,4 +30,3 @@ parser SimpleParser();
 control SimpleControl();
 package top(SimpleParser prs, SimpleControl ctrl);
 top(P(), C()) main;
-

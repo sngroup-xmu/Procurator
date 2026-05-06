@@ -15,14 +15,17 @@
  * limitations under the License.
  */
 
+#include "parsers.h"
+
 #include "frontends/common/resolveReferences/referenceMap.h"
 #include "frontends/p4/toP4/toP4.h"
 #include "lib/nullstream.h"
-#include "parsers.h"
 
-namespace graphs {
+namespace P4::graphs {
 
-static cstring toString(const IR::Expression* expression) {
+using Graph = ParserGraphs::Graph;
+
+static cstring toString(const IR::Expression *expression) {
     std::stringstream ss;
     P4::ToP4 toP4(&ss, false);
     toP4.setListTerm("(", ")");
@@ -30,41 +33,55 @@ static cstring toString(const IR::Expression* expression) {
     return cstring(ss.str());
 }
 
-void ParserGraphs::postorder(const IR::P4Parser *parser) {
-    auto path = Util::PathName(graphsDir).join(parser->name + ".dot");
-    LOG2("Writing parser graph " << parser->name);
-    auto out = openFile(path.toString(), false);
-    if (out == nullptr) {
-        ::error(ErrorType::ERR_IO, "Failed to open file %1%", path.toString());
-        return;
-    }
+/// We always have only one subgraph.
+Graph *ParserGraphs::CreateSubGraph(Graph &currentSubgraph, const cstring &name) {
+    auto &newSubgraph = currentSubgraph.create_subgraph();
+    boost::get_property(newSubgraph, boost::graph_name) = "cluster" + name;
+    boost::get_property(newSubgraph, boost::graph_graph_attribute)["label"_cs] = name;
+    boost::get_property(newSubgraph, boost::graph_graph_attribute)["fontsize"_cs] = "22pt"_cs;
+    boost::get_property(newSubgraph, boost::graph_graph_attribute)["style"_cs] = "bold"_cs;
+    return &newSubgraph;
+}
 
-    (*out) << "digraph " << parser->name << "{" << std::endl;
+ParserGraphs::ParserGraphs(P4::ReferenceMap *refMap, std::filesystem::path graphsDir)
+    : refMap(refMap), graphsDir(std::move(graphsDir)) {
+    visitDagOnce = false;
+}
+
+void ParserGraphs::postorder(const IR::P4Parser *parser) {
+    Graph *g_ = new Graph();
+    g = CreateSubGraph(*g_, parser->name);
+    boost::get_property(*g_, boost::graph_name) = parser->name.string();
+
+    std::map<const char *, unsigned int> nodes;
+    unsigned int iter = 0;
+
     for (auto state : states[parser]) {
         cstring label = state->name;
         if (state->selectExpression != nullptr &&
             state->selectExpression->is<IR::SelectExpression>()) {
-            label += "\n" + toString(
-                state->selectExpression->to<IR::SelectExpression>()->select);
+            label += "\n" + toString(state->selectExpression->to<IR::SelectExpression>()->select);
         }
-        (*out) << state->name.name << " [shape=rectangle,label=\"" <<
-                label << "\"]" << std::endl;
+        add_vertex(label, VertexType::STATE);
+        nodes.emplace(std::make_pair(state->name.name.c_str(), iter++));
     }
 
     for (auto edge : transitions[parser]) {
-        *out << edge->sourceState->name.name << " -> " << edge->destState->name.name <<
-                " [label=\"" << edge->label << "\"]" << std::endl;
+        auto from = nodes[edge->sourceState->name.name.c_str()];
+        auto to = nodes[edge->destState->name.name.c_str()];
+        add_edge((vertex_t)from, (vertex_t)to, edge->label);
     }
-    *out << "}" << std::endl;
+
+    parserGraphsArray.push_back(g_);
 }
 
-void ParserGraphs::postorder(const IR::ParserState* state) {
+void ParserGraphs::postorder(const IR::ParserState *state) {
     auto parser = findContext<IR::P4Parser>();
     CHECK_NULL(parser);
     states[parser].push_back(state);
 }
 
-void ParserGraphs::postorder(const IR::PathExpression* expression) {
+void ParserGraphs::postorder(const IR::PathExpression *expression) {
     auto state = findContext<IR::ParserState>();
     if (state != nullptr) {
         auto parser = findContext<IR::P4Parser>();
@@ -74,7 +91,7 @@ void ParserGraphs::postorder(const IR::PathExpression* expression) {
             auto sc = findContext<IR::SelectCase>();
             cstring label;
             if (sc == nullptr) {
-                label = "always";
+                label = "always"_cs;
             } else {
                 label = toString(sc->keyset);
             }
@@ -84,8 +101,8 @@ void ParserGraphs::postorder(const IR::PathExpression* expression) {
     }
 }
 
-void ParserGraphs::postorder(const IR::SelectExpression* expression) {
-    // transition (..) { ... } may imply a transition to
+void ParserGraphs::postorder(const IR::SelectExpression *expression) {
+    // Transition (..) { ... } may imply a transition to
     // "reject" - if none of the cases matches.
     for (auto c : expression->selectCases) {
         if (c->keyset->is<IR::DefaultExpression>())
@@ -99,7 +116,7 @@ void ParserGraphs::postorder(const IR::SelectExpression* expression) {
     auto reject = parser->getDeclByName(IR::ParserState::reject);
     CHECK_NULL(reject);
     transitions[parser].push_back(
-        new TransitionEdge(state, reject->to<IR::ParserState>(), "fallthrough"));
+        new TransitionEdge(state, reject->to<IR::ParserState>(), "fallthrough"_cs));
 }
 
-}  // namespace graphs
+}  // namespace P4::graphs

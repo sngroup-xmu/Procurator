@@ -19,7 +19,7 @@ set -ex
 # Dependencies
 sudo apt-get -y install libnuma-dev clang-6.0 libc6-dev-i386 python python-pip python-dev libffi-dev tcpdump
 sudo apt-get -y install flex bison
-sudo apt-get -y install cmake g++ git automake libtool libgc-dev bison flex libfl-dev libgmp-dev libboost-dev libboost-iostreams-dev libboost-graph-dev llvm pkg-config python python-scapy python-ipaddr python-ply tcpdump
+sudo apt-get -y install cmake g++ git automake libtool libgc-dev bison flex libfl-dev libboost-dev libboost-iostreams-dev libboost-graph-dev llvm pkg-config python python-scapy python-ply tcpdump
 
 # Install scapy
 if ! type "scapy" > /dev/null; then
@@ -37,7 +37,7 @@ if ! type "ptf" > /dev/null; then
  sudo python setup.py install
 fi
 
-# Install nanomsg and nnpy
+# Install nanomsg and pynng
 if [ ! -d "/home/vagrant/nanomsg" ]
 then
  cd /home/vagrant
@@ -54,8 +54,8 @@ then
  sudo cp /home/vagrant/nanomsg/build/*.* /usr/lib
 
  cd /home/vagrant/ptf/ptf_nn
- sudo python -m pip install nnpy
- ./check-nnpy.py
+  sudo python -m pip install pynng
+  ../CI/check-pynng.py
 fi
 
 # Clone P4c

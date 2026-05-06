@@ -14,9 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _MIDEND_REMOVEEXITS_H_
-#define _MIDEND_REMOVEEXITS_H_
+#ifndef MIDEND_REMOVEEXITS_H_
+#define MIDEND_REMOVEEXITS_H_
 
+#include "frontends/common/resolveReferences/resolveReferences.h"
 #include "frontends/p4/removeReturns.h"
 
 namespace P4 {
@@ -31,41 +32,42 @@ e.g., SideEffectOrdering.
 if (t1.apply().hit && t2.apply().hit) { ... }
 It also assumes that there are no global actions and that action calls have been inlined.
 */
-class DoRemoveExits : public DoRemoveReturns {
-    TypeMap* typeMap;
+class DoRemoveExits : public DoRemoveReturns, public ResolutionContext {
+    TypeMap *typeMap;
     // In this class "Return" (inherited from RemoveReturns) should be read as "Exit"
-    std::set<const IR::Node*> callsExit;  // actions, tables
-    void callExit(const IR::Node* node);
+    std::set<const IR::Node *> callsExit;  // actions, tables
+    void callExit(const IR::Node *node);
+
  public:
-    DoRemoveExits(ReferenceMap* refMap, TypeMap* typeMap) :
-            DoRemoveReturns(refMap, "hasExited"), typeMap(typeMap)
-    { visitDagOnce = false; CHECK_NULL(typeMap); setName("DoRemoveExits"); }
+    explicit DoRemoveExits(TypeMap *typeMap) : DoRemoveReturns("hasExited"_cs), typeMap(typeMap) {
+        visitDagOnce = false;
+        CHECK_NULL(typeMap);
+        setName("DoRemoveExits");
+    }
 
-    const IR::Node* preorder(IR::ExitStatement* action) override;
-    const IR::Node* preorder(IR::P4Table* table) override;
+    const IR::Node *preorder(IR::ExitStatement *action) override;
+    const IR::Node *preorder(IR::P4Table *table) override;
 
-    const IR::Node* preorder(IR::BlockStatement* statement) override;
-    const IR::Node* preorder(IR::IfStatement* statement) override;
-    const IR::Node* preorder(IR::SwitchStatement* statement) override;
-    const IR::Node* preorder(IR::AssignmentStatement* statement) override;
-    const IR::Node* preorder(IR::MethodCallStatement* statement) override;
+    const IR::Node *preorder(IR::BlockStatement *statement) override;
+    const IR::Node *preorder(IR::IfStatement *statement) override;
+    const IR::Node *preorder(IR::SwitchStatement *statement) override;
+    const IR::Node *preorder(IR::BaseAssignmentStatement *statement) override;
+    const IR::Node *preorder(IR::MethodCallStatement *statement) override;
 
-    const IR::Node* preorder(IR::P4Action* action) override;
-    const IR::Node* preorder(IR::P4Control* control) override;
+    const IR::Node *preorder(IR::P4Action *action) override;
+    const IR::Node *preorder(IR::P4Control *control) override;
 };
 
 class RemoveExits : public PassManager {
  public:
-    RemoveExits(ReferenceMap* refMap, TypeMap* typeMap,
-                TypeChecking* typeChecking = nullptr) {
-        if (!typeChecking)
-            typeChecking = new TypeChecking(refMap, typeMap);
+    explicit RemoveExits(TypeMap *typeMap, TypeChecking *typeChecking = nullptr) {
+        if (!typeChecking) typeChecking = new TypeChecking(nullptr, typeMap);
         passes.push_back(typeChecking);
-        passes.push_back(new DoRemoveExits(refMap, typeMap));
+        passes.push_back(new DoRemoveExits(typeMap));
         setName("RemoveExits");
     }
 };
 
 }  // namespace P4
 
-#endif /* _MIDEND_REMOVEEXITS_H_ */
+#endif /* MIDEND_REMOVEEXITS_H_ */

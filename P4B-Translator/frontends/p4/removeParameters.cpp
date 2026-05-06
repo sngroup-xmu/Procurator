@@ -1,0 +1,260 @@
+/*
+Copyright 2016 VMware, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+#include "removeParameters.h"
+
+#include "frontends/common/resolveReferences/resolveReferences.h"
+#include "frontends/p4/methodInstance.h"
+#include "frontends/p4/moveDeclarations.h"
+#include "frontends/p4/sideEffects.h"
+#include "frontends/p4/tableApply.h"
+#include "frontends/p4/typeChecking/typeChecker.h"
+
+namespace P4 {
+
+namespace {
+
+// Extract side-effecting array index expressions into temporaries
+// to ensure they are evaluated exactly once for inout copy-in/copy-out.
+class ExtractArrayIndices : public Transform {
+    TypeMap *typeMap;
+    MinimalNameGenerator &nameGen;
+    IR::IndexedVector<IR::Declaration> &tempDecls;
+    IR::IndexedVector<IR::StatOrDecl> &tempAssigns;
+
+ public:
+    ExtractArrayIndices(TypeMap *typeMap, MinimalNameGenerator &nameGen,
+                        IR::IndexedVector<IR::Declaration> &tempDecls,
+                        IR::IndexedVector<IR::StatOrDecl> &tempAssigns)
+        : typeMap(typeMap), nameGen(nameGen), tempDecls(tempDecls), tempAssigns(tempAssigns) {
+        setName("ExtractArrayIndices");
+    }
+    const IR::Node *preorder(IR::ArrayIndex *aindex) override {
+        visit(aindex->left);
+        if (SideEffects::check(aindex->right, called_by, typeMap)) {
+            if (auto indexType = typeMap->getType(aindex->right, true)) {
+                auto tmp = nameGen.newName("tmp_idx");
+                auto decl = new IR::Declaration_Variable(aindex->right->srcInfo, tmp, indexType);
+                tempDecls.push_back(decl);
+                auto assign = new IR::AssignmentStatement(
+                    aindex->right->srcInfo, new IR::PathExpression(tmp), aindex->right);
+                tempAssigns.push_back(assign);
+                aindex->right = new IR::PathExpression(aindex->right->srcInfo, new IR::Path(tmp));
+            }
+        }
+        prune();
+        return aindex;
+    }
+};
+
+// Remove arguments from any embedded MethodCallExpression
+class RemoveMethodCallArguments : public Transform {
+    int argumentsToRemove;  // -1 => all
+ public:
+    explicit RemoveMethodCallArguments(int toRemove = -1) : argumentsToRemove(toRemove) {
+        setName("RemoveMethodCallArguments");
+    }
+    const IR::Node *postorder(IR::MethodCallExpression *expression) override {
+        if (argumentsToRemove == -1) {
+            expression->arguments = new IR::Vector<IR::Argument>();
+        } else {
+            auto args = new IR::Vector<IR::Argument>();
+            for (int i = 0; i < static_cast<int>(expression->arguments->size()); i++) {
+                if (i < argumentsToRemove) continue;
+                args->push_back(expression->arguments->at(i));
+            }
+            expression->arguments = args;
+        }
+        return expression;
+    }
+};
+}  // namespace
+
+void FindActionParameters::postorder(const IR::ActionListElement *element) {
+    auto path = element->getPath();
+    auto decl = getDeclaration(path, true);
+    BUG_CHECK(decl->is<IR::P4Action>(), "%1%: not an action", element);
+    BUG_CHECK(element->expression->is<IR::MethodCallExpression>(), "%1%: expected a method call",
+              element->expression);
+    invocations->bind(decl->to<IR::P4Action>(), element->expression->to<IR::MethodCallExpression>(),
+                      false);
+}
+
+void FindActionParameters::postorder(const IR::MethodCallExpression *expression) {
+    auto mi = MethodInstance::resolve(expression, this, typeMap);
+    if (!mi->is<P4::ActionCall>()) return;
+    auto ac = mi->to<P4::ActionCall>();
+
+    if (isInContext<IR::P4Table>()) {
+        if (isInContext<IR::ActionListElement>())
+            // These are processed elsewhere
+            return;
+        // This is probably the default_action; we must remove some parameters
+        invocations->bindDefaultAction(ac->action, expression);
+    } else {
+        // Direction action invocation: remove all parameters
+        invocations->bind(ac->action, expression, true);
+    }
+}
+
+namespace {
+
+// Inserts a vector of operations before a return or exit
+// statement.
+class InsertBeforeExits : public Transform {
+    const IR::IndexedVector<IR::StatOrDecl> *toInsert;
+
+ public:
+    explicit InsertBeforeExits(const IR::IndexedVector<IR::StatOrDecl> *toInsert)
+        : toInsert(toInsert) {
+        setName("InsertBeforeExits");
+    }
+    const IR::Node *postorder(IR::ReturnStatement *statement) override {
+        IR::IndexedVector<IR::StatOrDecl> vec(*toInsert);
+        vec.push_back(statement);
+        return new IR::BlockStatement(statement->srcInfo, std::move(vec));
+    }
+
+    const IR::Node *postorder(IR::ExitStatement *statement) override {
+        IR::IndexedVector<IR::StatOrDecl> vec(*toInsert);
+        vec.push_back(statement);
+        return new IR::BlockStatement(statement->srcInfo, std::move(vec));
+    }
+};
+
+}  // namespace
+
+const IR::Node *DoRemoveActionParameters::postorder(IR::P4Action *action) {
+    LOG1("Visiting " << dbp(action));
+    BUG_CHECK(getParent<IR::P4Control>() || getParent<IR::P4Program>(),
+              "%1%: unexpected parent %2%", getOriginal(), getContext()->node);
+    auto result = new IR::IndexedVector<IR::Declaration>();
+    IR::IndexedVector<IR::Parameter> leftParams;
+    IR::IndexedVector<IR::StatOrDecl> body;
+    IR::IndexedVector<IR::StatOrDecl> postamble;
+    auto invocation = invocations->get(getOriginal<IR::P4Action>());
+    if (invocation == nullptr) return action;
+    auto args = invocation->arguments;
+
+    ParameterSubstitution substitution;
+    substitution.populate(action->parameters, args);
+
+    bool removeAll = invocations->removeAllParameters(getOriginal<IR::P4Action>());
+    for (auto p : action->parameters->parameters) {
+        if (p->direction == IR::Direction::None && !removeAll) {
+            leftParams.push_back(p);
+        } else {
+            auto decl =
+                new IR::Declaration_Variable(p->srcInfo, p->name, p->annotations, p->type, nullptr);
+            LOG3("Added declaration " << decl << " annotations " << p->annotations);
+            result->push_back(decl);
+            auto arg = substitution.lookup(p);
+            if (arg == nullptr) {
+                ::P4::error(ErrorType::ERR_UNINITIALIZED, "action %1%: parameter %2% must be bound",
+                            invocation, p);
+                continue;
+            }
+
+            if (p->direction == IR::Direction::InOut) {
+                // For inout parameters, extract side-effecting array indices
+                // into temporaries to evaluate them once and avoid DAG sharing.
+                IR::IndexedVector<IR::Declaration> tempDecls;
+                IR::IndexedVector<IR::StatOrDecl> tempAssigns;
+                ExtractArrayIndices eai(typeMap, *nameGen, tempDecls, tempAssigns);
+                eai.setCalledBy(this);
+                auto argExpr = arg->expression->apply(eai)->to<IR::Expression>();
+                for (auto *d : tempDecls) result->push_back(d);
+                body.append(tempAssigns);
+
+                auto left = new IR::PathExpression(p->name);
+                auto assign = new IR::AssignmentStatement(arg->srcInfo, left, argExpr);
+                body.push_back(assign);
+
+                auto right = new IR::PathExpression(p->name);
+                auto assign2 = new IR::AssignmentStatement(arg->srcInfo, argExpr->clone(), right);
+                postamble.push_back(assign2);
+            } else if (p->direction == IR::Direction::In || p->direction == IR::Direction::None) {
+                auto left = new IR::PathExpression(p->name);
+                auto assign = new IR::AssignmentStatement(arg->srcInfo, left, arg->expression);
+                body.push_back(assign);
+            } else if (p->direction == IR::Direction::Out) {
+                auto right = new IR::PathExpression(p->name);
+                auto assign = new IR::AssignmentStatement(arg->srcInfo, arg->expression, right);
+                postamble.push_back(assign);
+            } else {
+                BUG("unhandled direction %1%", directionToString(p->direction));
+            }
+        }
+    }
+    if (result->empty()) return action;
+
+    InsertBeforeExits ibf(&postamble);
+    ibf.setCalledBy(this);
+    auto actionBody = action->body->apply(ibf)->to<IR::BlockStatement>();
+    body.append(actionBody->components);
+    body.append(postamble);
+
+    action->parameters = new IR::ParameterList(action->parameters->srcInfo, std::move(leftParams));
+    action->body =
+        new IR::BlockStatement(action->body->srcInfo, action->body->annotations, std::move(body));
+    LOG1("To replace " << dbp(action));
+    result->push_back(action);
+    return result;
+}
+
+const IR::Node *DoRemoveActionParameters::postorder(IR::ActionListElement *element) {
+    RemoveMethodCallArguments rmca;
+    rmca.setCalledBy(this);
+    element->expression = element->expression->apply(rmca)->to<IR::Expression>();
+    return element;
+}
+
+const IR::Node *DoRemoveActionParameters::postorder(IR::MethodCallExpression *expression) {
+    auto orig = getOriginal<IR::MethodCallExpression>();
+    if (invocations->isCall(orig)) {
+        RemoveMethodCallArguments rmca;
+        rmca.setCalledBy(this);
+        return expression->apply(rmca);
+    } else if (unsigned toRemove = invocations->argsToRemove(orig)) {
+        RemoveMethodCallArguments rmca(toRemove);
+        rmca.setCalledBy(this);
+        return expression->apply(rmca);
+    }
+    return expression;
+}
+
+RemoveActionParameters::RemoveActionParameters(TypeMap *typeMap, TypeChecking *typeChecking) {
+    setName("RemoveActionParameters");
+    auto ai = new ActionInvocation();
+    // MoveDeclarations() is needed because of this case:
+    // action a(inout x) { x = x + 1 }
+    // bit<32> w;
+    // table t() { actions = a(w); ... }
+    // Without the MoveDeclarations the code would become
+    // action a() { x = w; x = x + 1; w = x; } << w is not yet defined
+    // bit<32> w;
+    // table t() { actions = a(); ... }
+    passes.emplace_back(new MoveDeclarations());
+    if (!typeChecking) typeChecking = new TypeChecking(nullptr, typeMap);
+    passes.emplace_back(typeChecking);
+    auto nameGen = new MinimalNameGenerator();
+    passes.emplace_back(new FindActionParameters(typeMap, ai));
+    passes.emplace_back(nameGen);
+    passes.emplace_back(new DoRemoveActionParameters(ai, typeMap, nameGen));
+    passes.emplace_back(new ClearTypeMap(typeMap));
+}
+
+}  // namespace P4

@@ -1,5 +1,23 @@
-# P4 Compiler Intermediate representation
+<!--!
+\page intermediate_representation_ir P4C Intermediate Representation (IR)                                                                                                                          
+-->
+<!-- 
+Documentation Inclusion:
+This README is integrated as a standalone page in the P4 compiler documentation.
 
+Refer to the full page here: [P4C Intermediate Representation (IR)](https://p4lang.github.io/p4c/intermediate_representation_ir.html)
+-->
+<!--!
+\internal
+-->
+# P4C Intermediate Representation (IR)
+<!--!
+\endinternal
+-->
+
+<!--!
+[TOC]
+-->
 ## Introduction
 
 This document outlines the design of the P4_16 compiler.
@@ -46,7 +64,7 @@ object, recursively.
 ## Visitors and Transforms
 
 The compiler is organized as a series of `Visitor` and `Transform`
-passes (https://en.wikipedia.org/wiki/Visitor_pattern).  The `Visitor`
+passes [Wikipedia](https://en.wikipedia.org/wiki/Visitor_pattern).  The `Visitor`
 and `Transform` base classes make defining new passes easy -- a new
 transform need only specify the IR types it is interested in, and can
 ignore others.  A (constant) `Visitor` pass visits every node in the
@@ -254,14 +272,12 @@ method is not declared in the .def file, a standard definition (based on the fie
 declared in the class) will be created.  In this way, *most* classes can avoid including
 this boilerplate code in the .def file.
 
-#### `IR::Node`
+## Classes
+| **Class**      | **Description**  |
+|----------------|------------------|
+| `IR::Node`     | This is the ultimate abstract base class of all IR nodes and contains only a small amount of data for error reporting and debugging.  In general, this info is NEVER compared for equality (so subclasses should never call `Node::operator==`) as Nodes that differ only in this information should be considered equal, and not require cloning or the IR tree.   |
+| `IR::Vector<T>`| This template class holds a vector of (`const`) pointers to nodes of a particular `IR::Node` subclass. |
 
-This is the ultimate abstract base class of all IR nodes and contains only a small amount of
-data for error reporting and debugging.  In general, this info is NEVER compared for
-equality (so subclasses should never call Node::operator==`) as Nodes that differ only
-in this information should be considered equal, and not require cloning or the IR tree.
-
-#### `IR::Vector<T>`
-
-This template class holds a vector of (`const`) pointers to nodes of a particular `IR::Node`
-subclass.
+<!--!
+\include{doc} "../ir/README.md" 
+-->

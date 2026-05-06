@@ -14,67 +14,76 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef P4C_UBPFPROGRAM_H
-#define P4C_UBPFPROGRAM_H
+#ifndef BACKENDS_UBPF_UBPFPROGRAM_H_
+#define BACKENDS_UBPF_UBPFPROGRAM_H_
 
+#include "backends/ebpf/ebpfOptions.h"
+#include "backends/ebpf/ebpfProgram.h"
+#include "codeGen.h"
+#include "frontends/p4/evaluator/evaluator.h"
+#include "frontends/p4/typeMap.h"
+#include "ir/ir.h"
 #include "target.h"
 #include "ubpfModel.h"
-#include "ir/ir.h"
-#include "frontends/p4/typeMap.h"
-#include "frontends/p4/evaluator/evaluator.h"
-#include "backends/ebpf/ebpfProgram.h"
-#include "backends/ebpf/ebpfOptions.h"
-#include "codeGen.h"
 
+namespace P4::UBPF {
 
-namespace UBPF {
+class UBPFControl;
+class UBPFParser;
+class UBPFDeparser;
+class UBPFTable;
+class UBPFType;
 
-    class UBPFControl;
-    class UBPFParser;
-    class UBPFDeparser;
-    class UBPFTable;
-    class UBPFType;
+class UBPFProgram : public EBPF::EBPFProgram {
+ public:
+    UBPFParser *parser{};
+    UBPFControl *control{};
+    UBPFDeparser *deparser{};
+    UBPFModel &model;
 
-    class UBPFProgram : public EBPF::EBPFProgram {
-    public:
-        UBPFParser *parser{};
-        UBPFControl *control{};
-        UBPFDeparser *deparser{};
-        UBPFModel &model;
+    cstring contextVar, outerHdrOffsetVar, outerHdrLengthVar;
+    cstring stdMetadataVar;
+    cstring packetTruncatedSizeVar;
+    cstring arrayIndexType = "uint32_t"_cs;
 
-        cstring contextVar, outerHdrOffsetVar, outerHdrLengthVar;
-        cstring stdMetadataVar;
-        cstring packetTruncatedSizeVar;
-        cstring arrayIndexType = "uint32_t";
+    UBPFProgram(const EbpfOptions &options, const IR::P4Program *program, P4::ReferenceMap *refMap,
+                P4::TypeMap *typeMap, const IR::ToplevelBlock *toplevel)
+        : EBPF::EBPFProgram(options, program, refMap, typeMap, toplevel),
+          model(UBPFModel::instance) {
+        packetStartVar = cstring("pkt");
+        offsetVar = cstring("packetOffsetInBits");
+        outerHdrOffsetVar = cstring("outHeaderOffset");
+        outerHdrLengthVar = cstring("outHeaderLength");
+        contextVar = cstring("ctx");
+        lengthVar = cstring("pkt_len");
+        endLabel = cstring("deparser");
+        stdMetadataVar = cstring("std_meta");
+        packetTruncatedSizeVar = cstring("packetTruncatedSize");
+    }
 
-        UBPFProgram(const EbpfOptions &options, const IR::P4Program *program,
-                    P4::ReferenceMap *refMap, P4::TypeMap *typeMap, const IR::ToplevelBlock *toplevel) :
-                EBPF::EBPFProgram(options, program, refMap, typeMap, toplevel), model(UBPFModel::instance) {
-            packetStartVar = cstring("pkt");
-            offsetVar = cstring("packetOffsetInBits");
-            outerHdrOffsetVar = cstring("outHeaderOffset");
-            outerHdrLengthVar = cstring("outHeaderLength");
-            contextVar = cstring("ctx");
-            lengthVar = cstring("pkt_len");
-            endLabel = cstring("deparser");
-            stdMetadataVar = cstring("std_meta");
-            packetTruncatedSizeVar = cstring("packetTruncatedSize");
-        }
+    bool build() override;
+    void emitC(UbpfCodeBuilder *builder, const std::filesystem::path &headerFile);
+    void emitH(EBPF::CodeBuilder *builder, const std::filesystem::path &headerFile) override;
+    void emitPreamble(EBPF::CodeBuilder *builder) override;
+    void emitTypes(EBPF::CodeBuilder *builder) override;
+    void emitTableDefinition(EBPF::CodeBuilder *builder) const;
+    void emitPktVariable(UbpfCodeBuilder *builder) const;
+    void emitPacketLengthVariable(UbpfCodeBuilder *builder) const;
+    void emitHeaderInstances(EBPF::CodeBuilder *builder) override;
+    void emitMetadataInstance(EBPF::CodeBuilder *builder) const;
+    void emitLocalVariables(EBPF::CodeBuilder *builder) override;
+    void emitPipeline(EBPF::CodeBuilder *builder) override;
 
-        bool build() override;
-        void emitC(UbpfCodeBuilder *builder, cstring headerFile);
-        void emitH(EBPF::CodeBuilder *builder, cstring headerFile) override;
-        void emitPreamble(EBPF::CodeBuilder *builder) override;
-        void emitTypes(EBPF::CodeBuilder *builder) override;
-        void emitTableDefinition(EBPF::CodeBuilder *builder) const;
-        void emitPktVariable(UbpfCodeBuilder *builder) const;
-        void emitPacketLengthVariable(UbpfCodeBuilder *builder) const;
-        void emitHeaderInstances(EBPF::CodeBuilder *builder) override;
-        void emitMetadataInstance(EBPF::CodeBuilder *builder) const;
-        void emitLocalVariables(EBPF::CodeBuilder *builder) override;
-        void emitPipeline(EBPF::CodeBuilder *builder) override;
-    };
+    bool isLibraryMethod(cstring methodName) override {
+        static std::set<cstring> DEFAULT_METHODS = {
+            "mark_to_drop"_cs, "mark_to_pass"_cs,  "ubpf_time_get_ns"_cs, "truncate"_cs,
+            "hash"_cs,         "csum_replace2"_cs, "csum_replace4"_cs,
+        };
+        return DEFAULT_METHODS.find(methodName) != DEFAULT_METHODS.end() ||
+               EBPFProgram::isLibraryMethod(methodName);
+    }
+};
 
-}
+}  // namespace P4::UBPF
 
-#endif
+#endif /* BACKENDS_UBPF_UBPFPROGRAM_H_ */

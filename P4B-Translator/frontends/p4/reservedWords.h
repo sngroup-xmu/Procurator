@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,16 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _P4_RESERVEDWORDS_H_
-#define _P4_RESERVEDWORDS_H_
+#ifndef FRONTENDS_P4_RESERVEDWORDS_H_
+#define FRONTENDS_P4_RESERVEDWORDS_H_
 
 #include <set>
+
 #include "lib/cstring.h"
 
 namespace P4 {
 
-extern std::set<cstring> reservedWords;
+extern const std::set<cstring> reservedWords;
 
 }  // namespace P4
 
-#endif /* _P4_RESERVEDWORDS_H_ */
+#endif /* FRONTENDS_P4_RESERVEDWORDS_H_ */

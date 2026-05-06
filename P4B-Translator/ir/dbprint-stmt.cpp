@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,8 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "ir.h"
+#include <ostream>
+
 #include "dbprint.h"
+#include "ir/ir.h"
+#include "lib/indent.h"
+#include "lib/log.h"
+
+namespace P4 {
 
 using namespace DBPrint;
 using namespace IndentCtl;
@@ -24,10 +30,10 @@ void IR::ReturnStatement::dbprint(std::ostream &out) const {
     int prec = getprec(out);
     out << "return";
     if (expression) {
-        out << " " << Prec_Low << expression << setprec(prec); }
+        out << " " << Prec_Low << expression << setprec(prec);
+    }
     if (!prec) out << ';';
 }
-
 
 void IR::AssignmentStatement::dbprint(std::ostream &out) const {
     int prec = getprec(out);
@@ -35,11 +41,23 @@ void IR::AssignmentStatement::dbprint(std::ostream &out) const {
     if (!prec) out << ';';
 }
 
+void IR::OpAssignmentStatement::dbprint(std::ostream &out) const {
+    int prec = getprec(out);
+    out << Prec_Low << left << " " << getStringOp() << "= " << right << setprec(prec);
+    if (!prec) out << ';';
+}
+
 void IR::IfStatement::dbprint(std::ostream &out) const {
     int prec = getprec(out);
     out << Prec_Low << "if (" << condition << ") {" << indent << setprec(0) << Log::endl << ifTrue;
-    if (ifFalse)
-        out << unindent << Log::endl << "} else {" << indent << Log::endl << ifFalse;
+    if (ifFalse) {
+        out << unindent << Log::endl << "} else ";
+        if (ifFalse->is<IR::IfStatement>()) {
+            out << ifFalse << setprec(prec);
+            return;
+        }
+        out << "{" << indent << Log::endl << ifFalse;
+    }
     out << " }" << unindent << setprec(prec);
 }
 
@@ -50,13 +68,12 @@ void IR::MethodCallStatement::dbprint(std::ostream &out) const {
 }
 
 void IR::Function::dbprint(std::ostream &out) const {
+    out << annotations;
     if (type->returnType) out << type->returnType << ' ';
     out << name;
-    if (type->typeParameters && !type->typeParameters->empty())
-        out << type->typeParameters;
+    if (type->typeParameters && !type->typeParameters->empty()) out << type->typeParameters;
     out << "(" << type->parameters << ") {" << indent;
-    for (auto s : body->components)
-        out << Log::endl << s;
+    for (auto s : body->components) out << Log::endl << s;
     out << unindent << " }";
 }
 
@@ -76,3 +93,36 @@ void IR::SwitchStatement::dbprint(std::ostream &out) const {
     }
     out << unindent << " }" << setprec(prec);
 }
+
+void IR::ForStatement::dbprint(std::ostream &out) const {
+    int prec = getprec(out);
+    out << annotations << Prec_Low << "for (";
+    bool first = true;
+    for (auto *sd : init) {
+        if (!first) out << ", ";
+        out << sd;
+        first = false;
+    }
+    out << "; " << condition << "; ";
+    first = true;
+    for (auto *sd : updates) {
+        if (!first) out << ", ";
+        out << sd;
+        first = false;
+    }
+    out << ") {" << indent << Log::endl << body << " }" << unindent << setprec(prec);
+}
+
+void IR::ForInStatement::dbprint(std::ostream &out) const {
+    int prec = getprec(out);
+    out << annotations << Prec_Low << "for (";
+    if (decl) {
+        out << decl;
+    } else {
+        out << ref;
+    }
+    out << " in " << collection << ") {" << indent << Log::endl
+        << body << " }" << unindent << setprec(prec);
+}
+
+}  // namespace P4

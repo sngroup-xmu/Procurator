@@ -13,12 +13,12 @@ header ethernet_t {
 }
 
 struct metadata {
-    @name("meta") 
+    @name("meta")
     meta_t meta;
 }
 
 struct headers {
-    @name("ethernet") 
+    @name("ethernet")
     ethernet_t ethernet;
 }
 
@@ -60,12 +60,12 @@ control ingress(inout headers hdr, inout metadata meta, inout standard_metadata_
         size = 16;
         default_action = NoAction();
     }
-    @name("m_action") action m_action_0(bit<9> meter_idx) {
+    @name("m_action_2") action m_action_0(bit<9> meter_idx) {
         standard_metadata.egress_spec = meter_idx;
         standard_metadata.egress_spec = 9w1;
         my_meter.read(meta.meta.meter_tag);
     }
-    @name("_nop") action _nop_0() {
+    @name("_nop_2") action _nop_0() {
         my_meter.read(meta.meta.meter_tag);
     }
     @name("m_table") table m_table {
@@ -104,4 +104,3 @@ control computeChecksum(inout headers hdr, inout metadata meta) {
 }
 
 V1Switch(ParserImpl(), verifyChecksum(), ingress(), egress(), computeChecksum(), DeparserImpl()) main;
-

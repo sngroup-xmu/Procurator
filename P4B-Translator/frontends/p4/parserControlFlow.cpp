@@ -18,16 +18,16 @@ limitations under the License.
 
 namespace P4 {
 
-const IR::Node* DoRemoveParserControlFlow::postorder(IR::ParserState* state) {
+const IR::Node *DoRemoveParserControlFlow::postorder(IR::ParserState *state) {
     LOG1("Visiting " << dbp(state));
     // TODO: we keep annotations on the first state,
     // but this may be wrong for something like @atomic
 
     // Set of newly created states
     auto states = new IR::IndexedVector<IR::ParserState>();
-    IR::ParserState* currentState = state;
+    IR::ParserState *currentState = state;
     // components of the currentState
-    auto currentComponents = new IR::IndexedVector<IR::StatOrDecl>();
+    IR::IndexedVector<IR::StatOrDecl> currentComponents;
     auto origComponents = state->components;
     auto origSelect = state->selectExpression;
 
@@ -38,59 +38,53 @@ const IR::Node* DoRemoveParserControlFlow::postorder(IR::ParserState* state) {
 
             states->push_back(currentState);
             auto ifstat = c->to<IR::IfStatement>();
-            joinName = refMap->newName(state->name.name + "_join");
+            joinName = nameGen.newName(state->name.name + "_join");
 
             // s_true
-            cstring trueName = refMap->newName(state->name.name + "_true");
-            auto trueComponents = new IR::IndexedVector<IR::StatOrDecl>();
-            trueComponents->push_back(ifstat->ifTrue);
-            auto trueState = new IR::ParserState(trueName, *trueComponents,
-                new IR::PathExpression(IR::ID(joinName, nullptr)));
+            cstring trueName = nameGen.newName(state->name.name + "_true");
+            auto trueState = new IR::ParserState(trueName, {ifstat->ifTrue},
+                                                 new IR::PathExpression(IR::ID(joinName, nullptr)));
             states->push_back(trueState);
 
             // s_false
             cstring falseName = joinName;
             if (ifstat->ifFalse != nullptr) {
-                falseName = refMap->newName(state->name.name + "_false");
-                auto falseComponents = new IR::IndexedVector<IR::StatOrDecl>();
-                falseComponents->push_back(ifstat->ifFalse);
-                auto falseState = new IR::ParserState(falseName, *falseComponents,
-                    new IR::PathExpression(IR::ID(joinName, nullptr)));
+                falseName = nameGen.newName(state->name.name + "_false");
+                auto falseState =
+                    new IR::ParserState(falseName, {ifstat->ifFalse},
+                                        new IR::PathExpression(IR::ID(joinName, nullptr)));
                 states->push_back(falseState);
             }
 
             // left-over
-            auto vec = new IR::Vector<IR::Expression>();
-            vec->push_back(ifstat->condition);
             auto trueCase = new IR::SelectCase(new IR::BoolLiteral(true),
-                new IR::PathExpression(IR::ID(trueName, nullptr)));
-            auto falseCase = new IR::SelectCase(
-                new IR::BoolLiteral(false),
-                new IR::PathExpression(IR::ID(falseName, nullptr)));
-            auto cases = new IR::Vector<IR::SelectCase>();
-            cases->push_back(trueCase);
-            cases->push_back(falseCase);
+                                               new IR::PathExpression(IR::ID(trueName, nullptr)));
+            auto falseCase = new IR::SelectCase(new IR::BoolLiteral(false),
+                                                new IR::PathExpression(IR::ID(falseName, nullptr)));
             currentState->selectExpression = new IR::SelectExpression(
-                new IR::ListExpression(*vec), std::move(*cases));
+                new IR::ListExpression({ifstat->condition}), {trueCase, falseCase});
 
-            currentState->components = *currentComponents;
-            currentComponents = new IR::IndexedVector<IR::StatOrDecl>();
+            currentState->components = std::move(currentComponents);
+            currentComponents.clear();
             currentState = new IR::ParserState(joinName, origSelect);  // may be overriten
         } else {
-            currentComponents->push_back(c);
+            currentComponents.push_back(c);
         }
     }
-    currentState->components = *currentComponents;
+    currentState->components = std::move(currentComponents);
 
-    if (states->empty())
-        return state;
+    if (states->empty()) return state;
     states->push_back(currentState);
     return states;
 }
 
-Visitor::profile_t DoRemoveParserControlFlow::init_apply(const IR::Node* node) {
+Visitor::profile_t DoRemoveParserControlFlow::init_apply(const IR::Node *node) {
     LOG1("DoRemoveControlFlow");
-    return Transform::init_apply(node);
+    auto rv = Transform::init_apply(node);
+
+    node->apply(nameGen);
+
+    return rv;
 }
 
 }  // namespace P4

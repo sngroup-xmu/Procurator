@@ -14,32 +14,57 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "ir.h"
+// If you want to use 'raise' below to trace a node creation uncomment the next line
+// #include <signal.h>
+
+#include "node.h"
+
+#include <ostream>
+// use in combination with "raise" below
+// #include <csignal>
+
+#include "ir/declaration.h"
+#include "ir/ir.h"
+#include "ir/json_generator.h"
 #include "ir/json_loader.h"
+#include "lib/indent.h"
+#include "lib/json.h"
+#include "lib/log.h"
 
-void IR::Node::traceVisit(const char* visitor) const
-{ LOG3("Visiting " << visitor << " " << id << ":" << node_type_name()); }
+namespace P4 {
 
-void IR::Node::traceCreation() const { LOG5("Created node " << id); }
+void IR::Node::traceVisit(const char *visitor) const {
+    LOG3("Visiting " << visitor << " " << id << ":" << node_type_name());
+}
+
+void IR::Node::traceCreation() const {
+    /*
+      You can use this to trigger a breakpoint in the debugger when a
+      specific node is created
+    if (id == 279493)
+        raise(SIGINT);
+    */
+    LOG5("Created node " << id);
+}
 
 int IR::Node::currentId = 0;
 
 void IR::Node::toJSON(JSONGenerator &json) const {
-    json << json.indent << "\"Node_ID\" : " << id << "," << std::endl
-         << json.indent << "\"Node_Type\" : " << node_type_name();
+    json.emit("Node_ID", id);
+    json.emit("Node_Type", node_type_name());
 }
 
 IR::Node::Node(JSONLoader &json) : id(-1) {
-    json.load("Node_ID", id);
+    json.load("Node_ID", id) || json.error("missing field Node_Id");
     if (id < 0)
         id = currentId++;
     else if (id >= currentId)
-        currentId = id+1;
+        currentId = id + 1;
     clone_id = id;
 }
 
 // Abbreviated debug print
-cstring IR::dbp(const IR::INode* node) {
+cstring IR::dbp(const IR::INode *node) {
     std::stringstream str;
     if (node == nullptr) {
         str << "<nullptr>";
@@ -57,15 +82,12 @@ cstring IR::dbp(const IR::INode* node) {
         } else if (node->is<IR::Type_Type>()) {
             node->getNode()->Node::dbprint(str);
             str << "(" << dbp(node->to<IR::Type_Type>()->type) << ")";
-        } else if (node->is<IR::PathExpression>() ||
-                   node->is<IR::Path>() ||
-                   node->is<IR::TypeNameExpression>() ||
-                   node->is<IR::Constant>() ||
-                   node->is<IR::Type_Name>() ||
-                   node->is<IR::Type_Base>() ||
-                   node->is<IR::Type_Specialized>()) {
+        } else if (node->is<IR::PathExpression>() || node->is<IR::Path>() ||
+                   node->is<IR::TypeNameExpression>() || node->is<IR::Constant>() ||
+                   node->is<IR::Type_Name>() || node->is<IR::Type_Base>() ||
+                   node->is<IR::ITypeVar>() || node->is<IR::Type_Specialized>()) {
             node->getNode()->Node::dbprint(str);
-            str << " " << node->toString();
+            str << " " << node->getNode();
         } else {
             node->getNode()->Node::dbprint(str);
         }
@@ -73,14 +95,12 @@ cstring IR::dbp(const IR::INode* node) {
     return str.str();
 }
 
-cstring IR::Node::prepareSourceInfoForJSON(Util::SourceInfo& si,
-                                           unsigned *lineNumber,
+cstring IR::Node::prepareSourceInfoForJSON(Util::SourceInfo &si, unsigned *lineNumber,
                                            unsigned *columnNumber) const {
     if (!si.isValid()) {
         return nullptr;
     }
-    if (is<IR::AssignmentStatement>()) {
-        auto assign = to<IR::AssignmentStatement>();
+    if (auto assign = to<IR::BaseAssignmentStatement>()) {
         si = (assign->left->srcInfo + si) + assign->right->srcInfo;
     }
     return si.toSourcePositionData(lineNumber, columnNumber);
@@ -88,7 +108,7 @@ cstring IR::Node::prepareSourceInfoForJSON(Util::SourceInfo& si,
 
 // TODO: Find a way to eliminate the duplication below.
 
-Util::JsonObject* IR::Node::sourceInfoJsonObj() const {
+Util::JsonObject *IR::Node::sourceInfoJsonObj() const {
     Util::SourceInfo si = srcInfo;
     unsigned lineNumber, columnNumber;
     cstring fName = prepareSourceInfoForJSON(si, &lineNumber, &columnNumber);
@@ -112,8 +132,7 @@ Util::JsonObject* IR::Node::sourceInfoJsonObj() const {
         json->emplace("filename", fName);
         json->emplace("line", lineNumber);
         json->emplace("column", columnNumber);
-        json->emplace("source_fragment",
-                      si.toBriefSourceFragment().escapeJson());
+        json->emplace("source_fragment", si.toBriefSourceFragment().escapeJson());
         return json;
     }
 }
@@ -126,17 +145,24 @@ void IR::Node::sourceInfoToJSON(JSONGenerator &json) const {
         // Same reasoning as above.
         return;
     }
+    json.emit_tag("Source_Info");
+    auto state = json.begin_object();
+    json.emit("filename", fName);
+    json.emit("line", lineNumber);
+    json.emit("column", columnNumber);
+    json.emit("source_fragment", si.toBriefSourceFragment());
+    json.end_object(state);
+}
 
-    json << "," << std::endl
-         << json.indent++ << "\"Source_Info\" : {" << std::endl;
-
-    json << json.indent << "\"filename\" : " << fName << "," << std::endl;
-    json << json.indent << "\"line\" : " << lineNumber << "," << std::endl;
-    json << json.indent << "\"column\" : " << columnNumber << "," << std::endl;
-    json << json.indent << "\"source_fragment\" : " <<
-            si.toBriefSourceFragment().escapeJson() << std::endl;
-
-    json << --json.indent << "}";
+void IR::Node::sourceInfoFromJSON(JSONLoader &json) {
+    if (auto si = JSONLoader(json, "Source_Info")) {
+        si.load("filename", srcInfo.filename);
+        si.load("line", srcInfo.line);
+        si.load("column", srcInfo.column);
+        si.load("source_fragment", srcInfo.srcBrief);
+    }
 }
 
 IRNODE_DEFINE_APPLY_OVERLOAD(Node, , )
+
+}  // namespace P4

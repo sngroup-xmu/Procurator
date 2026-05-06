@@ -14,38 +14,47 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "ir.h"
+#include "ir/declaration.h"
+#include "ir/id.h"
+#include "ir/ir.h"
+#include "ir/vector.h"
+#include "lib/cstring.h"
+#include "lib/error.h"
+#include "lib/error_catalog.h"
+#include "lib/exceptions.h"
 
-namespace IR {
+namespace P4::IR {
 
 cstring Annotation::getName() const {
-    BUG_CHECK(name == IR::Annotation::nameAnnotation,
-              "%1%: Only works on name annotations", this);
+    BUG_CHECK(name == IR::Annotation::nameAnnotation, "%1%: Only works on name annotations", this);
+    if (needsParsing())
+        // This can happen if this method is invoked before we have parsed
+        // annotation bodies.
+        return name;
     return getSingleString();
 }
 
-cstring Annotation::getSingleString() const {
+cstring Annotation::getSingleString(bool error) const {
+    const auto &expr = getExpr();
     if (expr.size() != 1) {
-        ::error(ErrorType::ERR_INVALID, "%1%: should contain a string", this);
-        return "";
+        if (error) ::P4::error(ErrorType::ERR_INVALID, "%1%: should contain a string", this);
+        return cstring::empty;
     }
     auto str = expr[0]->to<IR::StringLiteral>();
     if (str == nullptr) {
-        ::error(ErrorType::ERR_INVALID, "%1%: should contain a string", this);
-        return "";
+        if (error) ::P4::error(ErrorType::ERR_INVALID, "%1%: should contain a string", this);
+        return cstring::empty;
     }
     return str->value;
 }
 
 cstring IDeclaration::externalName(cstring replace /* = cstring() */) const {
-    if (!is<IAnnotated>())
-        return getName().toString();
+    if (const auto *annotated = to<IAnnotated>()) {
+        if (const auto *anno = annotated->getAnnotation(IR::Annotation::nameAnnotation))
+            return anno->getName();
+        if (replace) return replace;
+    }
 
-    auto anno = getAnnotation(IR::Annotation::nameAnnotation);
-    if (anno != nullptr)
-        return anno->getName();
-    if (replace)
-        return replace;
     return getName().toString();
 }
 
@@ -54,4 +63,4 @@ cstring IDeclaration::controlPlaneName(cstring replace /* = cstring() */) const 
     return name.startsWith(".") ? name.substr(1) : name;
 }
 
-}  // namespace IR
+}  // namespace P4::IR

@@ -10,6 +10,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #ifdef __clang__
 #pragma clang diagnostic ignored "-Wnull-conversion"
+#pragma clang diagnostic ignored "-Wregister"
 #endif
 
 
@@ -49,17 +50,19 @@ static std::string      comment_block;
                             return EMITBLOCK; }
 <EMIT>.*                  { block_buffer += yytext; }
 
+"#include".*[\n]          { yylval.str = cstring(yytext); return INCLUDE; }
+
 "/*"            { comment_block.clear();
                   comment_block += yytext;
                   yy_push_state(COMMENT); }
 <COMMENT>"*/"   { yy_pop_state();
                   comment_block += yytext;
-                  yylval.str = comment_block;
+                  yylval.str = cstring(comment_block);
                   return COMMENTBLOCK; }
 <COMMENT>.      { comment_block += yytext; }
 <COMMENT>[\n]   { comment_block += yytext; }
 
-"//".*           { yylval.str = yytext; return COMMENTBLOCK; }
+"//".*           { yylval.str = cstring(yytext); return COMMENTBLOCK; }
 
 "::"            { return DBLCOL; }
 "abstract"      { return ABSTRACT; }
@@ -67,6 +70,7 @@ static std::string      comment_block;
 "const"         { return CONST; }
 "default"       { return DEFAULT; }
 "delete"        { return DELETE; }
+"enum"          { return ENUM; }
 "inline"        { return INLINE; }
 "interface"     { return INTERFACE; }
 "namespace"     { return NAMESPACE; }
@@ -77,16 +81,17 @@ static std::string      comment_block;
 "protected"     { return PROTECTED; }
 "public"        { return PUBLIC; }
 "static"        { return STATIC; }
+"variant"       { return VARIANT; }
 "virtual"       { return VIRTUAL; }
 "NullOK"        { return NULLOK; }
 "#apply"        { return APPLY; }
-"#no"[a-z]*     { yylval.str = yytext+3; return NO; }
-"#nooperator==" { yylval.str = yytext+3; return NO; }
-"0"             { yylval.str = yytext; return ZERO; }
--?[0-9]+        { yylval.str = yytext; return INTEGER; }
+"#no"[a-zA-Z_]*    { yylval.str = cstring(yytext+3); return NO; }
+"#nooperator==" { yylval.str = cstring(yytext+3); return NO; }
+"0"             { yylval.str = cstring(yytext); return ZERO; }
+-?[0-9]+        { yylval.str = cstring(yytext); return INTEGER; }
 
-[A-Za-z_][A-Za-z0-9_]*  { yylval.str = yytext; return IDENTIFIER; }
-\"(\\.|[^\\"])*\"       { yylval.str = yytext; return STRING; }
+[A-Za-z_][A-Za-z0-9_]*  { yylval.str = cstring(yytext); return IDENTIFIER; }
+\"(\\.|[^\\"])*\"       { yylval.str = cstring(yytext); return STRING; }
 <PARSE_BRACKET>"{"      { BEGIN(NORMAL); return *yytext; }
 
 "{"                     { block_buffer = yytext;
@@ -100,7 +105,7 @@ static std::string      comment_block;
 <CODEBLOCK>"}"          { block_buffer += *yytext;
                           if (--block_depth <= 0) {
                               yy_pop_state();
-                              yylval.str = block_buffer;
+                              yylval.str = cstring(block_buffer);
                               yylloc = block_start + yylloc;
                               return BLOCK; } }
 <CODEBLOCK>"{"          { block_buffer += *yytext; ++block_depth; }

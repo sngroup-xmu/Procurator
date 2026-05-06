@@ -1,1 +1,1 @@
-IntxLNK.
+../../backends/ubpf/tests/testdata/test-simple-firewall.p4

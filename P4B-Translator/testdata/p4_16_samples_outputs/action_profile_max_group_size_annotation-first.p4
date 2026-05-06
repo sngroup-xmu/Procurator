@@ -22,25 +22,23 @@ control IngressI(inout H hdr, inout M meta, inout standard_metadata_t smeta) {
         mark_to_drop(smeta);
     }
     table indirect {
-        key = {
-        }
         actions = {
             drop();
             NoAction();
         }
         const default_action = NoAction();
-        @name("ap") @max_group_size(200) implementation = action_profile(32w128);
+        @name("ap") @max_group_size(200) @selector_size_semantics("sum_of_weights") @max_member_weight(4000) implementation = action_profile(32w128);
     }
     table indirect_ws {
         key = {
-            meta.hash1: selector @name("meta.hash1") ;
+            meta.hash1: selector @name("meta.hash1");
         }
         actions = {
             drop();
             NoAction();
         }
         const default_action = NoAction();
-        @name("ap_ws") @max_group_size(200) implementation = action_selector(HashAlgorithm.identity, 32w1024, 32w10);
+        @name("ap_ws") @max_group_size(200) @name("ap") @max_group_size(200) @selector_size_semantics("sum_of_weights") @max_member_weight(4000) implementation = action_selector(HashAlgorithm.identity, 32w1024, 32w10);
     }
     apply {
         indirect.apply();
@@ -69,4 +67,3 @@ control ComputeChecksumI(inout H hdr, inout M meta) {
 }
 
 V1Switch<H, M>(ParserI(), VerifyChecksumI(), IngressI(), EgressI(), ComputeChecksumI(), DeparserI()) main;
-

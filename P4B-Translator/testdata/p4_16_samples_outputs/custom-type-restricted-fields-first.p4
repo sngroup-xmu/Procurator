@@ -13,7 +13,7 @@ header ethernet_t {
 
 @controller_header("packet_out") header packet_out_t {
     bit<9>         egress_port;
-    bit<8>         queue_id;
+    bit<7>         queue_id;
     EthernetAddr_t not_actually_useful;
 }
 
@@ -106,7 +106,7 @@ control ingressImpl(inout headers_t hdr, inout metadata_t meta, inout standard_m
     }
     table t1 {
         key = {
-            hdr.andycustom.srcAddr: exact @name("hdr.andycustom.srcAddr") ;
+            hdr.andycustom.srcAddr: exact @name("hdr.andycustom.srcAddr");
         }
         actions = {
             set_addr();
@@ -137,4 +137,3 @@ control deparserImpl(packet_out packet, in headers_t hdr) {
 }
 
 V1Switch<headers_t, metadata_t>(parserImpl(), verifyChecksum(), ingressImpl(), egressImpl(), updateChecksum(), deparserImpl()) main;
-

@@ -44,32 +44,27 @@ parser prs(packet_in p, out Headers_t headers) {
 }
 
 control pipe(inout Headers_t headers, out bool pass) {
-    @noWarn("unused") @name(".NoAction") action NoAction_0() {
-    }
     @name("pipe.address_0") IPv4Address address_0;
     @name("pipe.pass_0") bool pass_0;
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
+    }
     @name("pipe.c1.Reject") action c1_Reject_0() {
         pass_0 = false;
     }
     @name("pipe.c1.Check_ip") table c1_Check_ip {
         key = {
-            address_0: exact @name("address") ;
+            address_0: exact @name("address");
         }
         actions = {
             c1_Reject_0();
-            NoAction_0();
+            NoAction_1();
         }
         implementation = hash_table(32w1024);
-        const default_action = NoAction_0();
+        const default_action = NoAction_1();
     }
     apply {
-        @name("pipe.hasReturned") bool hasReturned = false;
         pass = true;
-        if (!headers.ipv4.isValid()) {
-            pass = false;
-            hasReturned = true;
-        }
-        if (!hasReturned) {
+        if (headers.ipv4.isValid()) {
             address_0 = headers.ipv4.srcAddr;
             pass_0 = pass;
             c1_Check_ip.apply();
@@ -78,9 +73,10 @@ control pipe(inout Headers_t headers, out bool pass) {
             pass_0 = pass;
             c1_Check_ip.apply();
             pass = pass_0;
+        } else {
+            pass = false;
         }
     }
 }
 
 ebpfFilter<Headers_t>(prs(), pipe()) main;
-

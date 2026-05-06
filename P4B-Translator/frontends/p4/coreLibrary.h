@@ -14,12 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _FRONTENDS_P4_CORELIBRARY_H_
-#define _FRONTENDS_P4_CORELIBRARY_H_
+#ifndef FRONTENDS_P4_CORELIBRARY_H_
+#define FRONTENDS_P4_CORELIBRARY_H_
 
-#include "lib/cstring.h"
 #include "frontends/common/model.h"
 #include "ir/ir.h"
+#include "lib/cstring.h"
 
 namespace P4 {
 enum class StandardExceptions {
@@ -27,13 +27,14 @@ enum class StandardExceptions {
     PacketTooShort,
     NoMatch,
     StackOutOfBounds,
-    OverwritingHeader,
     HeaderTooShort,
     ParserTimeout,
 };
 }  // namespace P4
 
-inline std::ostream& operator<<(std::ostream &out, P4::StandardExceptions e) {
+namespace P4 {
+
+inline std::ostream &operator<<(std::ostream &out, P4::StandardExceptions e) {
     switch (e) {
         case P4::StandardExceptions::NoError:
             out << "NoError";
@@ -47,9 +48,6 @@ inline std::ostream& operator<<(std::ostream &out, P4::StandardExceptions e) {
         case P4::StandardExceptions::StackOutOfBounds:
             out << "StackOutOfBounds";
             break;
-        case P4::StandardExceptions::OverwritingHeader:
-            out << "OverwritingHeader";
-            break;
         case P4::StandardExceptions::HeaderTooShort:
             out << "HeaderTooShort";
             break;
@@ -62,14 +60,20 @@ inline std::ostream& operator<<(std::ostream &out, P4::StandardExceptions e) {
     return out;
 }
 
+}  // namespace P4
+
 namespace P4 {
+
+using namespace literals;
 
 class PacketIn : public Model::Extern_Model {
  public:
-    PacketIn() :
-            Extern_Model("packet_in"),
-            extract("extract"), lookahead("lookahead"),
-            advance("advance"), length("length") {}
+    PacketIn()
+        : Extern_Model("packet_in"_cs),
+          extract("extract"_cs),
+          lookahead("lookahead"_cs),
+          advance("advance"_cs),
+          length("length"_cs) {}
     Model::Elem extract;
     Model::Elem lookahead;
     Model::Elem advance;
@@ -79,14 +83,15 @@ class PacketIn : public Model::Extern_Model {
 
 class PacketOut : public Model::Extern_Model {
  public:
-    PacketOut() : Extern_Model("packet_out"), emit("emit") {}
+    PacketOut() : Extern_Model("packet_out"_cs), emit("emit"_cs) {}
     Model::Elem emit;
 };
 
-class P4Exception_Model : public ::Model::Elem {
+class P4Exception_Model : public ::P4::Model::Elem {
  public:
     const StandardExceptions exc;
-    explicit P4Exception_Model(StandardExceptions exc) : ::Model::Elem(""), exc(exc) {
+    explicit P4Exception_Model(StandardExceptions exc)
+        : ::P4::Model::Elem(cstring::empty), exc(exc) {
         std::stringstream str;
         str << exc;
         name = str.str();
@@ -95,37 +100,42 @@ class P4Exception_Model : public ::Model::Elem {
 
 // Model of P4 core library
 // To be kept in sync with core.p4
-class P4CoreLibrary : public ::Model::Model {
+class P4CoreLibrary : public ::P4::Model::Model {
  protected:
-    P4CoreLibrary() :
-            Model("0.2"), noAction("NoAction"), exactMatch("exact"),
-            ternaryMatch("ternary"), lpmMatch("lpm"), packetIn(PacketIn()),
-            packetOut(PacketOut()), noError(StandardExceptions::NoError),
-            packetTooShort(StandardExceptions::PacketTooShort),
-            noMatch(StandardExceptions::NoMatch),
-            stackOutOfBounds(StandardExceptions::StackOutOfBounds),
-            overwritingHeader(StandardExceptions::OverwritingHeader),
-            headerTooShort(StandardExceptions::HeaderTooShort) {}
+    // NOLINTBEGIN(bugprone-throw-keyword-missing)
+    P4CoreLibrary()
+        : noAction("NoAction"_cs),
+          exactMatch("exact"_cs),
+          ternaryMatch("ternary"_cs),
+          lpmMatch("lpm"_cs),
+          noError(StandardExceptions::NoError),
+          packetTooShort(StandardExceptions::PacketTooShort),
+          noMatch(StandardExceptions::NoMatch),
+          stackOutOfBounds(StandardExceptions::StackOutOfBounds),
+          headerTooShort(StandardExceptions::HeaderTooShort) {}
+    // NOLINTEND(bugprone-throw-keyword-missing)
 
  public:
-    static P4CoreLibrary instance;
-    ::Model::Elem noAction;
+    static P4CoreLibrary &instance() {
+        static P4CoreLibrary *corelib = new P4CoreLibrary();
+        return *corelib;
+    }
+    ::P4::Model::Elem noAction;
 
-    ::Model::Elem exactMatch;
-    ::Model::Elem ternaryMatch;
-    ::Model::Elem lpmMatch;
+    ::P4::Model::Elem exactMatch;
+    ::P4::Model::Elem ternaryMatch;
+    ::P4::Model::Elem lpmMatch;
 
-    PacketIn    packetIn;
-    PacketOut   packetOut;
+    PacketIn packetIn;
+    PacketOut packetOut;
 
     P4Exception_Model noError;
     P4Exception_Model packetTooShort;
     P4Exception_Model noMatch;
     P4Exception_Model stackOutOfBounds;
-    P4Exception_Model overwritingHeader;
     P4Exception_Model headerTooShort;
 };
 
 }  // namespace P4
 
-#endif /* _FRONTENDS_P4_CORELIBRARY_H_ */
+#endif /* FRONTENDS_P4_CORELIBRARY_H_ */

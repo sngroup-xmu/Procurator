@@ -118,12 +118,12 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
     @name("MyIngress.operation_drop") action operation_drop() {
         mark_to_drop(standard_metadata);
     }
-    @name("MyIngress.operation_drop") action operation_drop_2() {
+    @name("MyIngress.operation_drop") action operation_drop_1() {
         mark_to_drop(standard_metadata);
     }
     @name("MyIngress.calculate") table calculate_0 {
         key = {
-            hdr.p4calc.op: exact @name("hdr.p4calc.op") ;
+            hdr.p4calc.op: exact @name("hdr.p4calc.op");
         }
         actions = {
             operation_add();
@@ -143,13 +143,12 @@ control MyIngress(inout headers hdr, inout metadata meta, inout standard_metadat
                         8w0x5e : operation_xor();
                         8w0x3e : operation_crc();
         }
-
     }
     apply {
         if (hdr.p4calc.isValid()) {
             calculate_0.apply();
         } else {
-            operation_drop_2();
+            operation_drop_1();
         }
     }
 }
@@ -173,4 +172,3 @@ control MyDeparser(packet_out packet, in headers hdr) {
 }
 
 V1Switch<headers, metadata>(MyParser(), MyVerifyChecksum(), MyIngress(), MyEgress(), MyComputeChecksum(), MyDeparser()) main;
-

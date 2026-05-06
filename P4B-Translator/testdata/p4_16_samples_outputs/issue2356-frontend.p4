@@ -24,12 +24,6 @@ parser p(packet_in pkt, out Headers hdr, inout Meta m, inout standard_metadata_t
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
     apply {
-        {
-            @name("ingress.hasReturned") bool hasReturned = false;
-            @name("ingress.retval") bit<16> retval;
-            hasReturned = true;
-            retval = 16w1;
-        }
     }
 }
 
@@ -55,4 +49,3 @@ control deparser(packet_out pkt, in Headers h) {
 }
 
 V1Switch<Headers, Meta>(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
-

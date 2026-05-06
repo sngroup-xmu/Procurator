@@ -25,17 +25,15 @@ parser p(packet_in pkt, out Headers hdr, inout Meta m, inout standard_metadata_t
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
     @name("ingress.tmp") bit<16> tmp;
     @name("ingress.tmp_0") bit<16> tmp_0;
+    @name("ingress.val_0") bit<48> val;
+    @name("ingress.retval") bit<16> retval;
+    @name("ingress.inlinedRetval") bit<16> inlinedRetval_0;
     apply {
-        {
-            @name("ingress.val_0") bit<48> val_0 = h.eth_hdr.dst_addr;
-            @name("ingress.hasReturned") bool hasReturned = false;
-            @name("ingress.retval") bit<16> retval;
-            val_0 = 48w1;
-            hasReturned = true;
-            retval = 16w1;
-            h.eth_hdr.dst_addr = val_0;
-            tmp = retval;
-        }
+        val = 48w1;
+        retval = 16w1;
+        h.eth_hdr.dst_addr = val;
+        inlinedRetval_0 = retval;
+        tmp = inlinedRetval_0;
         tmp_0 = tmp[0:0] ++ 15w0;
         h.eth_hdr.eth_type = tmp_0;
     }
@@ -63,4 +61,3 @@ control deparser(packet_out pkt, in Headers h) {
 }
 
 V1Switch<Headers, Meta>(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
-

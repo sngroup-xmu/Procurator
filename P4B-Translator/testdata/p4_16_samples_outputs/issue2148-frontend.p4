@@ -14,38 +14,25 @@ struct Meta {
 }
 
 control ingress(inout Headers h, inout Meta m, inout standard_metadata_t sm) {
+    @name("ingress.not_initialized") H not_initialized_0;
+    @name("ingress.retval") bit<16> retval_1;
+    @name("ingress.not_initialized") H not_initialized_1;
+    @name("ingress.new_val") bit<32> new_val_1;
+    @name("ingress.inlinedRetval_0") bit<16> inlinedRetval_2;
     @name("ingress.do_thing_action") action do_thing_action() {
-        {
-            @name("ingress.hasReturned") bool hasReturned = false;
-            @name("ingress.retval") bit<16> retval;
-            @name("ingress.not_initialized") H not_initialized_0;
-            @name("ingress.new_val") bit<32> new_val_0;
-            new_val_0 = 32w1;
-            if (not_initialized_0.a < 16w6) {
-                ;
-            } else {
-                new_val_0 = 32w232;
-            }
-            hasReturned = true;
-            retval = (bit<16>)new_val_0;
-        }
+        not_initialized_0.setInvalid();
     }
     apply {
-        {
-            @name("ingress.hasReturned") bool hasReturned_1 = false;
-            @name("ingress.retval") bit<16> retval_1;
-            @name("ingress.not_initialized") H not_initialized_2;
-            @name("ingress.new_val") bit<32> new_val_1;
-            new_val_1 = 32w1;
-            if (not_initialized_2.a < 16w6) {
-                ;
-            } else {
-                new_val_1 = 32w232;
-            }
-            hasReturned_1 = true;
-            retval_1 = (bit<16>)new_val_1;
-            h.h.a = retval_1;
+        not_initialized_1.setInvalid();
+        new_val_1 = 32w1;
+        if (not_initialized_1.a < 16w6) {
+            ;
+        } else {
+            new_val_1 = 32w232;
         }
+        retval_1 = (bit<16>)new_val_1;
+        inlinedRetval_2 = retval_1;
+        h.h.a = inlinedRetval_2;
         do_thing_action();
     }
 }
@@ -77,4 +64,3 @@ control deparser(packet_out b, in Headers h) {
 }
 
 V1Switch<Headers, Meta>(p(), vrfy(), ingress(), egress(), update(), deparser()) main;
-

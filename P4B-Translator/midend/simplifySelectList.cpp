@@ -16,11 +16,12 @@ limitations under the License.
 
 #include "simplifySelectList.h"
 
+#include "lib/cstring.h"
+
 namespace P4 {
 
-void SubstituteStructures::explode(
-    const IR::Expression* expression, const IR::Type* type,
-    IR::Vector<IR::Expression>* output) {
+void SubstituteStructures::explode(const IR::Expression *expression, const IR::Type *type,
+                                   IR::Vector<IR::Expression> *output) {
     if (type->is<IR::Type_Struct>()) {
         auto st = type->to<IR::Type_Struct>();
         for (auto f : st->fields) {
@@ -29,32 +30,27 @@ void SubstituteStructures::explode(
             explode(e, t, output);
         }
     } else {
-        BUG_CHECK(!type->is<IR::Type_StructLike>() && !type->is<IR::Type_Stack>(),
+        BUG_CHECK(!type->is<IR::Type_StructLike>() && !type->is<IR::Type_Array>(),
                   "%1%: unexpected type", type);
         output->push_back(expression);
     }
 }
 
-const IR::Node* SubstituteStructures::postorder(IR::PathExpression* expression) {
-    if (findContext<IR::SelectExpression>() == nullptr)
-        return expression;
-    if (getParent<IR::Member>() != nullptr)
-        return expression;
+const IR::Node *SubstituteStructures::postorder(IR::PathExpression *expression) {
+    if (!isInContext<IR::SelectExpression>()) return expression;
+    if (getParent<IR::Member>() != nullptr) return expression;
     auto type = typeMap->getType(getOriginal(), true);
-    if (!type->is<IR::Type_Struct>())
-        return expression;
+    if (!type->is<IR::Type_Struct>()) return expression;
     auto result = new IR::ListExpression(expression->srcInfo, {});
     explode(expression, type, &result->components);
     LOG3("Replacing " << expression << " with " << result);
     return result;
 }
 
-void UnnestSelectList::flatten(const IR::Expression* expression,
-                               IR::Vector<IR::Expression>* vec) {
+void UnnestSelectList::flatten(const IR::Expression *expression, IR::Vector<IR::Expression> *vec) {
     if (expression->is<IR::ListExpression>()) {
         nesting += '[';
-        for (auto e : expression->to<IR::ListExpression>()->components)
-            flatten(e, vec);
+        for (auto e : expression->to<IR::ListExpression>()->components) flatten(e, vec);
         nesting += ']';
     } else {
         vec->push_back(expression);
@@ -62,9 +58,8 @@ void UnnestSelectList::flatten(const IR::Expression* expression,
     }
 }
 
-void UnnestSelectList::flatten(const IR::Expression* expression,
-                               unsigned* nestingIndex,
-                               IR::Vector<IR::Expression>* vec) {
+void UnnestSelectList::flatten(const IR::Expression *expression, unsigned *nestingIndex,
+                               IR::Vector<IR::Expression> *vec) {
     char c = nesting.get(*nestingIndex);
     if (expression->is<IR::ListExpression>()) {
         BUG_CHECK(c == '[', "%1%: expected [, got %2%", *nestingIndex, c);
@@ -94,9 +89,9 @@ void UnnestSelectList::flatten(const IR::Expression* expression,
     }
 }
 
-const IR::Node* UnnestSelectList::preorder(IR::SelectExpression* expression) {
+const IR::Node *UnnestSelectList::preorder(IR::SelectExpression *expression) {
     IR::Vector<IR::Expression> vec;
-    nesting = "";
+    nesting = cstring::empty;
     flatten(expression->select, &vec);
     if (nesting.findlast(']') == nesting.c_str())
         // no nested lists found

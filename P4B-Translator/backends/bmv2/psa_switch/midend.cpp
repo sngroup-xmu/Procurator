@@ -15,10 +15,13 @@ limitations under the License.
 */
 
 #include "midend.h"
+
+#include "backends/bmv2/common/check_unsupported.h"
+#include "backends/bmv2/psa_switch/options.h"
 #include "frontends/common/constantFolding.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
+#include "frontends/p4-14/fromv1.0/v1model.h"
 #include "frontends/p4/evaluator/evaluator.h"
-#include "frontends/p4/fromv1.0/v1model.h"
 #include "frontends/p4/moveDeclarations.h"
 #include "frontends/p4/simplify.h"
 #include "frontends/p4/simplifyParsers.h"
@@ -28,54 +31,52 @@ limitations under the License.
 #include "frontends/p4/uniqueNames.h"
 #include "frontends/p4/unusedDeclarations.h"
 #include "midend/actionSynthesis.h"
+#include "midend/compileTimeOps.h"
 #include "midend/complexComparison.h"
 #include "midend/convertEnums.h"
 #include "midend/copyStructures.h"
-#include "midend/eliminateTuples.h"
+#include "midend/eliminateInvalidHeaders.h"
 #include "midend/eliminateNewtype.h"
 #include "midend/eliminateSerEnums.h"
 #include "midend/eliminateSwitch.h"
+#include "midend/eliminateTuples.h"
+#include "midend/expandEmit.h"
+#include "midend/expandLookahead.h"
+#include "midend/fillEnumMap.h"
 #include "midend/flattenHeaders.h"
 #include "midend/flattenInterfaceStructs.h"
-#include "midend/replaceSelectRange.h"
 #include "midend/local_copyprop.h"
+#include "midend/midEndLast.h"
 #include "midend/nestedStructs.h"
+#include "midend/orderArguments.h"
+#include "midend/predication.h"
+#include "midend/removeAssertAssume.h"
 #include "midend/removeLeftSlices.h"
 #include "midend/removeMiss.h"
-#include "midend/removeParameters.h"
+#include "midend/removeSelectBooleans.h"
 #include "midend/removeUnusedParameters.h"
+#include "midend/replaceSelectRange.h"
+#include "midend/simplifyExternMethod.h"
 #include "midend/simplifyKey.h"
 #include "midend/simplifySelectCases.h"
 #include "midend/simplifySelectList.h"
-#include "midend/removeSelectBooleans.h"
-#include "midend/validateProperties.h"
-#include "midend/compileTimeOps.h"
-#include "midend/orderArguments.h"
-#include "midend/predication.h"
-#include "midend/expandLookahead.h"
-#include "midend/expandEmit.h"
 #include "midend/tableHit.h"
-#include "midend/midEndLast.h"
-#include "midend/fillEnumMap.h"
-#include "midend/removeAssertAssume.h"
-#include "backends/bmv2/psa_switch/options.h"
+#include "midend/validateProperties.h"
 
-namespace BMV2 {
+namespace P4::BMV2 {
 
-/**
-This class implements a policy suitable for the ConvertEnums pass.
-The policy is: convert all enums that are not part of the psa.
-Use 32-bit values for all enums.
-Also convert PSA_PacketPath_t to bit<32>
-*/
+using namespace P4::literals;
+
+/// This class implements a policy suitable for the ConvertEnums pass.
+/// The policy is: convert all enums that are not part of the psa.
+/// Use 32-bit values for all enums.
+/// Also convert PSA_PacketPath_t to bit<32>
 class PsaEnumOn32Bits : public P4::ChooseEnumRepresentation {
     cstring filename;
 
-    bool convert(const IR::Type_Enum* type) const override {
-        if (type->name == "PSA_PacketPath_t")
-            return true;
-        if (type->name == "PSA_MeterColor_t")
-            return true;
+    bool convert(const IR::Type_Enum *type) const override {
+        if (type->name == "PSA_PacketPath_t") return true;
+        if (type->name == "PSA_MeterColor_t") return true;
         if (type->srcInfo.isValid()) {
             auto sourceFile = type->srcInfo.getSourceFile();
             if (sourceFile.endsWith(filename))
@@ -84,90 +85,93 @@ class PsaEnumOn32Bits : public P4::ChooseEnumRepresentation {
         }
         return true;
     }
-    unsigned enumSize(unsigned) const override
-    { return 32; }
+    unsigned enumSize(unsigned) const override { return 32; }
 
  public:
-    explicit PsaEnumOn32Bits(cstring filename) : filename(filename) { }
+    explicit PsaEnumOn32Bits(cstring filename) : filename(filename) {}
 };
 
-PsaSwitchMidEnd::PsaSwitchMidEnd(CompilerOptions& options, std::ostream* outStream)
-                                : MidEnd(options) {
-    auto convertEnums = new P4::ConvertEnums(&refMap, &typeMap, new PsaEnumOn32Bits("psa.p4"));
+PsaSwitchMidEnd::PsaSwitchMidEnd(CompilerOptions &options, std::ostream *outStream)
+    : PortableMidEnd(options) {
+    auto convertEnums = new P4::ConvertEnums(&typeMap, new PsaEnumOn32Bits("psa.p4"_cs));
     auto evaluator = new P4::EvaluatorPass(&refMap, &typeMap);
-    std::function<bool(const Context *, const IR::Expression *)> policy =
-            [=](const Context *, const IR::Expression *e) -> bool {
+    P4::LocalCopyPropPolicyCallbackFn policy = [=](const Context *, const IR::Expression *e,
+                                                   const DeclarationLookup *refMap) -> bool {
         auto mce = e->to<IR::MethodCallExpression>();
-        if (mce == nullptr)
-            return true;
-        auto mi = P4::MethodInstance::resolve(mce, &refMap, &typeMap);
+        if (mce == nullptr) return true;
+        // FIXME: Add utility method to resolve declaration given a context
+        auto mi = P4::MethodInstance::resolve(mce, refMap, &typeMap);
         auto em = mi->to<P4::ExternMethod>();
-        if (em == nullptr)
-            return true;
-        if (em->originalExternType->name.name == "Register" ||
-                em->method->name.name == "read")
+        if (em == nullptr) return true;
+        if (em->originalExternType->name.name == "Register" || em->method->name.name == "read")
             return false;
-        if (em->originalExternType->name.name == "Meter" &&
-                em->method->name.name == "execute")
+        if (em->originalExternType->name.name == "Meter" && em->method->name.name == "execute")
             return false;
         return true;
     };
     if (BMV2::PsaSwitchContext::get().options().loadIRFromJson == false) {
         addPasses({
-            options.ndebug ? new P4::RemoveAssertAssume(&refMap, &typeMap) : nullptr,
-            new P4::RemoveMiss(&refMap, &typeMap),
-            new P4::EliminateNewtype(&refMap, &typeMap),
-            new P4::EliminateSerEnums(&refMap, &typeMap),
-            new P4::RemoveActionParameters(&refMap, &typeMap),
+            options.ndebug ? new P4::RemoveAssertAssume(&typeMap) : nullptr,
+            new P4::TypeChecking(&refMap, &typeMap),
+            new P4::SimplifyExternMethodCalls(&typeMap),
+            new P4::TypeChecking(&refMap, &typeMap),
+            new CheckUnsupported(),
+            new P4::RemoveMiss(&typeMap),
+            new P4::EliminateNewtype(&typeMap),
+            new P4::EliminateInvalidHeaders(&typeMap),
+            new P4::EliminateSerEnums(&typeMap),
             convertEnums,
             [this, convertEnums]() { enumMap = convertEnums->getEnumMapping(); },
-            new P4::OrderArguments(&refMap, &typeMap),
+            new P4::OrderArguments(&typeMap),
             new P4::TypeChecking(&refMap, &typeMap),
-            new P4::SimplifyKey(&refMap, &typeMap,
-                                new P4::OrPolicy(
-                                    new P4::IsValid(&refMap, &typeMap),
-                                    new P4::IsMask())),
-            new P4::ConstantFolding(&refMap, &typeMap),
-            new P4::StrengthReduction(&refMap, &typeMap),
-            new P4::SimplifySelectCases(&refMap, &typeMap, true),  // require constant keysets
-            new P4::ExpandLookahead(&refMap, &typeMap),
-            new P4::ExpandEmit(&refMap, &typeMap),
-            new P4::SimplifyParsers(&refMap),
-            new P4::StrengthReduction(&refMap, &typeMap),
-            new P4::EliminateTuples(&refMap, &typeMap),
-            new P4::SimplifyComparisons(&refMap, &typeMap),
-            new P4::CopyStructures(&refMap, &typeMap),
-            new P4::NestedStructs(&refMap, &typeMap),
-            new P4::SimplifySelectList(&refMap, &typeMap),
-            new P4::RemoveSelectBooleans(&refMap, &typeMap),
-            new P4::FlattenHeaders(&refMap, &typeMap),
-            new P4::FlattenInterfaceStructs(&refMap, &typeMap),
-            new P4::ReplaceSelectRange(&refMap, &typeMap),
-            new P4::Predication(&refMap),
+            new P4::SimplifyKey(&typeMap,
+                                new P4::OrPolicy(new P4::IsValid(&typeMap), new P4::IsMask())),
+            new P4::ConstantFolding(&typeMap),
+            new P4::StrengthReduction(&typeMap),
+            new P4::SimplifySelectCases(&typeMap, true),  // require constant keysets
+            new P4::ExpandLookahead(&typeMap),
+            new P4::ExpandEmit(&typeMap),
+            new P4::SimplifyParsers(),
+            new P4::StrengthReduction(&typeMap),
+            new P4::EliminateTuples(&typeMap),
+            new P4::SimplifyComparisons(&typeMap),
+            new P4::CopyStructures(&typeMap),
+            new P4::NestedStructs(&typeMap),
+            new P4::SimplifySelectList(&typeMap),
+            new P4::RemoveSelectBooleans(&typeMap),
+            new P4::FlattenHeaders(&typeMap),
+            new P4::FlattenInterfaceStructs(&typeMap),
+            new P4::ReplaceSelectRange(),
+            new P4::Predication(),
             new P4::MoveDeclarations(),  // more may have been introduced
-            new P4::ConstantFolding(&refMap, &typeMap),
-            new P4::LocalCopyPropagation(&refMap, &typeMap, nullptr, policy),
-            new P4::ConstantFolding(&refMap, &typeMap),
-            new P4::StrengthReduction(&refMap, &typeMap),
+            new P4::ConstantFolding(&typeMap),
+            new P4::TypeChecking(&refMap, &typeMap),  // policy below relies on fresh refmap
+            new P4::LocalCopyPropagation(&typeMap, nullptr, policy),
+            new PassRepeated({
+                new P4::ConstantFolding(&typeMap),
+                new P4::StrengthReduction(&typeMap),
+            }),
             new P4::MoveDeclarations(),
-            new P4::ValidateTableProperties({ "psa_implementation",
-                                              "psa_direct_counter",
-                                              "psa_direct_meter",
-                                              "psa_idle_timeout",
-                                              "size" }),
-            new P4::SimplifyControlFlow(&refMap, &typeMap),
+            new P4::ValidateTableProperties({
+                "psa_implementation"_cs,
+                "psa_direct_counter"_cs,
+                "psa_direct_meter"_cs,
+                "psa_idle_timeout"_cs,
+                "size"_cs,
+            }),
+            new P4::SimplifyControlFlow(&typeMap, true),
             new P4::CompileTimeOperations(),
-            new P4::TableHit(&refMap, &typeMap),
-            new P4::EliminateSwitch(&refMap, &typeMap),
+            new P4::TableHit(&typeMap),
+            new P4::EliminateSwitch(&typeMap),
             new P4::MoveActionsToTables(&refMap, &typeMap),
-            new P4::RemoveLeftSlices(&refMap, &typeMap),
+            new P4::RemoveLeftSlices(&typeMap),
             new P4::TypeChecking(&refMap, &typeMap),
             new P4::MidEndLast(),
             evaluator,
             [this, evaluator]() { toplevel = evaluator->getToplevelBlock(); },
         });
         if (options.listMidendPasses) {
-            listPasses(*outStream, "\n");
+            listPasses(*outStream, cstring::newline);
             *outStream << std::endl;
             return;
         }
@@ -175,10 +179,11 @@ PsaSwitchMidEnd::PsaSwitchMidEnd(CompilerOptions& options, std::ostream* outStre
             removePasses(options.passesToExcludeMidend);
         }
     } else {
-        auto fillEnumMap = new P4::FillEnumMap(new PsaEnumOn32Bits("psa.p4"), &typeMap);
+        auto fillEnumMap = new P4::FillEnumMap(new PsaEnumOn32Bits("psa.p4"_cs), &typeMap);
         addPasses({
             new P4::ResolveReferences(&refMap),
             new P4::TypeChecking(&refMap, &typeMap),
+            new CheckUnsupported(),
             fillEnumMap,
             [this, fillEnumMap]() { enumMap = fillEnumMap->repr; },
             evaluator,
@@ -187,4 +192,4 @@ PsaSwitchMidEnd::PsaSwitchMidEnd(CompilerOptions& options, std::ostream* outStre
     }
 }
 
-}  // namespace BMV2
+}  // namespace P4::BMV2

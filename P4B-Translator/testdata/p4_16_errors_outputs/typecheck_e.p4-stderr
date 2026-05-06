@@ -1,8 +1,11 @@
-typecheck_e.p4(21): [--Werror=type-error] error: f
+typecheck_e.p4(18): [--Wwarn=unused] warning: control 'p' is unused
+control p<T>(in T x)
+        ^
+typecheck_e.p4(21): [--Werror=type-error] error: 'f(x)'
         f(x);
         ^^^^
   ---- Actual error:
-typecheck_e.p4(18): Cannot unify type 'T' with type 'int<32>'
+typecheck_e.p4(18): Cannot cast implicitly type 'T' to type 'int<32>'
   control p<T>(in T x)
             ^
   ---- Originating from:

@@ -16,12 +16,14 @@ limitations under the License.
 
 #include "checkNamedArgs.h"
 
+#include "lib/hash.h"
+
 namespace P4 {
 
-bool CheckNamedArgs::checkArguments(const IR::Vector<IR::Argument>* arguments) {
+bool CheckNamedArgs::checkArguments(const IR::Vector<IR::Argument> *arguments) {
     bool first = true;
     bool hasName = false;
-    std::map<cstring, const IR::Argument*> found;
+    absl::flat_hash_map<cstring, const IR::Argument *, Util::Hash> found;
 
     for (auto arg : *arguments) {
         cstring argName = arg->name.name;
@@ -31,29 +33,38 @@ bool CheckNamedArgs::checkArguments(const IR::Vector<IR::Argument>* arguments) {
             first = false;
         } else {
             if (argHasName != hasName)
-                ::error(ErrorType::ERR_INVALID,
-                        "%1%: either all or none of the arguments of a call must be named", arg);
+                ::P4::error(ErrorType::ERR_INVALID,
+                            "%1%: either all or none of the arguments of a call must be named",
+                            arg);
             if (argHasName) {
                 auto it = found.find(argName);
                 if (it != found.end())
-                    ::error(ErrorType::ERR_DUPLICATE,
-                            "%1% and %2%: same argument name", it->second, arg);
+                    ::P4::error(ErrorType::ERR_DUPLICATE, "%1% and %2%: same argument name",
+                                it->second, arg);
             }
         }
-        if (argHasName)
-            found.emplace(argName, arg);
+        if (argHasName) found.emplace(argName, arg);
     }
     return true;
 }
 
-bool CheckNamedArgs::preorder(const IR::Parameter* parameter) {
+bool CheckNamedArgs::checkOptionalParameters(const IR::ParameterList *parameters) {
+    for (auto parameter : parameters->parameters) {
+        if (parameter->isOptional())
+            ::P4::error(ErrorType::ERR_INVALID, "%1%: optional parameter not allowed here",
+                        parameter);
+    }
+    return true;
+}
+
+bool CheckNamedArgs::preorder(const IR::Parameter *parameter) {
     if (parameter->defaultValue != nullptr) {
         if (parameter->isOptional())
-            ::error(ErrorType::ERR_INVALID,
-                    "%1%: optional parameters cannot have default values", parameter);
+            ::P4::error(ErrorType::ERR_INVALID,
+                        "%1%: optional parameters cannot have default values", parameter);
         if (parameter->hasOut())
-            ::error(ErrorType::ERR_INVALID,
-                    "%1%: out parameters cannot have default values", parameter);
+            ::P4::error(ErrorType::ERR_INVALID, "%1%: out parameters cannot have default values",
+                        parameter);
     }
     return true;
 }

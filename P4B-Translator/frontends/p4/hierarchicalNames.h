@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _FRONTENDS_P4_HIERARCHICALNAMES_H_
-#define _FRONTENDS_P4_HIERARCHICALNAMES_H_
+#ifndef FRONTENDS_P4_HIERARCHICALNAMES_H_
+#define FRONTENDS_P4_HIERARCHICALNAMES_H_
 
 #include "ir/ir.h"
+#include "ir/visitor.h"
 
 namespace P4 {
 
@@ -54,29 +55,38 @@ This pass should be run after inlining.  It assumes that all
 externally-visible objects already have @name annotations -- this is
 done by the UniqueNames front-end pass.
 */
-class HierarchicalNames : public Transform {
+class HierarchicalNames : public Modifier {
     std::vector<cstring> stack;
+
+    cstring getName(const IR::IDeclaration *decl) const { return decl->getName(); }
+
  public:
-    cstring getName(const IR::IDeclaration* decl);
+    HierarchicalNames() {
+        setName("HierarchicalNames");
+        visitDagOnce = false;
+    }
+    bool preorder(IR::P4Parser *parser) override {
+        stack.push_back(getName(parser));
+        return true;
+    }
+    void postorder(IR::P4Parser *) override { stack.pop_back(); }
 
-    HierarchicalNames() { setName("HierarchicalNames"); visitDagOnce = false; }
-    const IR::Node* preorder(IR::P4Parser* parser) override
-    { stack.push_back(getName(parser)); return parser; }
-    const IR::Node* postorder(IR::P4Parser* parser) override
-    { stack.pop_back(); return parser; }
+    bool preorder(IR::P4Control *control) override {
+        stack.push_back(getName(control));
+        return true;
+    }
+    void postorder(IR::P4Control *) override { stack.pop_back(); }
 
-    const IR::Node* preorder(IR::P4Control* control) override
-    { stack.push_back(getName(control)); return control; }
-    const IR::Node* postorder(IR::P4Control* control) override
-    { stack.pop_back(); return control; }
+    bool preorder(IR::P4Table *table) override {
+        visit(table->annotations);
+        return false;
+    }
 
-    const IR::Node* preorder(IR::P4Table* table) override
-    { visit(table->annotations); prune(); return table; }
-
-    const IR::Node* postorder(IR::Annotation* annotation) override;
+    void postorder(IR::Annotation *annotation) override;
+    // Do not change name annotations on parameters
+    bool preorder(IR::Parameter *) override { return false; }
 };
 
 }  // namespace P4
 
-
-#endif  /* _FRONTENDS_P4_HIERARCHICALNAMES_H_ */
+#endif /* FRONTENDS_P4_HIERARCHICALNAMES_H_ */

@@ -14,13 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _FRONTENDS_P4_SIMPLIFY_H_
-#define _FRONTENDS_P4_SIMPLIFY_H_
+#ifndef FRONTENDS_P4_SIMPLIFY_H_
+#define FRONTENDS_P4_SIMPLIFY_H_
 
-#include "ir/ir.h"
-#include "frontends/p4/typeChecking/typeChecker.h"
-#include "frontends/p4/methodInstance.h"
 #include "frontends/common/resolveReferences/resolveReferences.h"
+#include "frontends/p4/methodInstance.h"
+#include "frontends/p4/typeChecking/typeChecker.h"
+#include "ir/ir.h"
 
 namespace P4 {
 
@@ -48,38 +48,38 @@ namespace P4 {
  *
  * @pre An up-to-date ReferenceMap and TypeMap.
  */
-class DoSimplifyControlFlow : public Transform {
-    ReferenceMap* refMap;
-    TypeMap*      typeMap;
+class DoSimplifyControlFlow : public Transform, public ResolutionContext {
+    TypeMap *typeMap;
+    bool foldInlinedFrom;
+
  public:
-    DoSimplifyControlFlow(ReferenceMap* refMap, TypeMap* typeMap) :
-            refMap(refMap), typeMap(typeMap) {
-        CHECK_NULL(refMap); CHECK_NULL(typeMap);
+    explicit DoSimplifyControlFlow(TypeMap *typeMap, bool foldInlinedFrom)
+        : typeMap(typeMap), foldInlinedFrom(foldInlinedFrom) {
+        CHECK_NULL(typeMap);
         setName("DoSimplifyControlFlow");
         // We may want to replace the same statement with different things
         // in different places.
         visitDagOnce = false;
     }
-    const IR::Node* postorder(IR::BlockStatement* statement) override;
-    const IR::Node* postorder(IR::IfStatement* statement) override;
-    const IR::Node* postorder(IR::EmptyStatement* statement) override;
-    const IR::Node* postorder(IR::SwitchStatement* statement) override;
+    const IR::Node *postorder(IR::BlockStatement *statement) override;
+    const IR::Node *postorder(IR::IfStatement *statement) override;
+    const IR::Node *postorder(IR::EmptyStatement *statement) override;
+    const IR::Node *postorder(IR::SwitchStatement *statement) override;
 };
 
 /// Repeatedly simplify control flow until convergence, as some simplification
 /// steps enable further simplification.
 class SimplifyControlFlow : public PassRepeated {
  public:
-    SimplifyControlFlow(ReferenceMap* refMap, TypeMap* typeMap,
-            TypeChecking* typeChecking = nullptr) {
-        if (!typeChecking)
-            typeChecking = new TypeChecking(refMap, typeMap);
+    explicit SimplifyControlFlow(TypeMap *typeMap, bool foldInlinedFrom,
+                                 TypeChecking *typeChecking = nullptr) {
+        if (!typeChecking) typeChecking = new TypeChecking(nullptr, typeMap);
         passes.push_back(typeChecking);
-        passes.push_back(new DoSimplifyControlFlow(refMap, typeMap));
+        passes.push_back(new DoSimplifyControlFlow(typeMap, foldInlinedFrom));
         setName("SimplifyControlFlow");
     }
 };
 
 }  // namespace P4
 
-#endif /* _FRONTENDS_P4_SIMPLIFY_H_ */
+#endif /* FRONTENDS_P4_SIMPLIFY_H_ */

@@ -14,32 +14,101 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef BACKENDS_DPDK_PSA_SWITCH_OPTIONS_H_
-#define BACKENDS_DPDK_PSA_SWITCH_OPTIONS_H_
+#ifndef BACKENDS_DPDK_OPTIONS_H_
+#define BACKENDS_DPDK_OPTIONS_H_
 
-#include "backends/bmv2/common/options.h"
 #include "backends/dpdk/midend.h"
 
-namespace DPDK {
+namespace P4::DPDK {
 
-class PsaSwitchOptions : public BMV2::BMV2Options {
-  public:
-    PsaSwitchOptions() {
+class DpdkOptions : public CompilerOptions {
+ public:
+    std::filesystem::path bfRtSchema;
+    /// File to output to.
+    std::filesystem::path outputFile;
+    /// File to output TDI JSON to.
+    std::filesystem::path tdiFile;
+    /// File to output context JSON to.
+    std::filesystem::path ctxtFile;
+    /// File to output the TDI builder configuration to.
+    std::filesystem::path tdiBuilderConf;
+    /// Read from JSON.
+    bool loadIRFromJson = false;
+    /// Enable/disable Egress pipeline in PSA.
+    bool enableEgress = false;
+
+    DpdkOptions() {
         registerOption(
             "--listMidendPasses", nullptr,
             [this](const char *) {
                 listMidendPasses = true;
-                loadIRFromJson = false;
-                DPDK::PsaSwitchMidEnd midEnd(*this, outStream);
+                DPDK::DpdkMidEnd midEnd(*this, outStream);
                 exit(0);
                 return false;
             },
-            "[PsaSwitch back-end] Lists exact name of all midend passes.\n");
+            "[Dpdk back-end] Lists exact name of all midend passes.\n");
+        registerOption(
+            "--enableEgress", nullptr,
+            [this](const char *) {
+                enableEgress = true;
+                return true;
+            },
+            "[Dpdk back-end] Enable egress pipeline's codegen\n", OptionFlags::Hide);
+
+        registerOption(
+            "--bf-rt-schema", "file",
+            [this](const char *arg) {
+                bfRtSchema = arg;
+                return true;
+            },
+            "Generate and write BF-RT JSON schema to the specified file");
+        registerOption(
+            "-o", "outfile",
+            [this](const char *arg) {
+                outputFile = arg;
+                return true;
+            },
+            "Write output to outfile");
+        registerOption(
+            "--tdi-builder-conf", "file",
+            [this](const char *arg) {
+                tdiBuilderConf = arg;
+                return true;
+            },
+            "Generate and write the TDI builder configuration to the specified file");
+        registerOption(
+            "--tdi", "file",
+            [this](const char *arg) {
+                tdiFile = arg;
+                return true;
+            },
+            "Generate and write TDI JSON to the specified file");
+        registerOption(
+            "--context", "file",
+            [this](const char *arg) {
+                ctxtFile = arg;
+                return true;
+            },
+            "Generate and write context JSON to the specified file");
+        registerOption(
+            "--fromJSON", "file",
+            [this](const char *arg) {
+                loadIRFromJson = true;
+                file = arg;
+                return true;
+            },
+            "Use IR representation from JsonFile dumped previously,"
+            "the compilation starts with reduced midEnd.");
     }
+
+    /// Process the command line arguments and set options accordingly.
+    std::vector<const char *> *process(int argc, char *const argv[]) override;
+
+    const char *getIncludePath() const override;
 };
 
-using PsaSwitchContext = P4CContextWithOptions<PsaSwitchOptions>;
+using DpdkContext = P4CContextWithOptions<DpdkOptions>;
 
-}; // namespace DPDK
+}  // namespace P4::DPDK
 
-#endif /* BACKENDS_DPDK_PSA_SWITCH_OPTIONS_H_ */
+#endif /* BACKENDS_DPDK_OPTIONS_H_ */

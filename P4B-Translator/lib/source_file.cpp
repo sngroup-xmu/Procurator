@@ -14,50 +14,74 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include <sstream>
+#include "source_file.h"
 
 #include <algorithm>
-#include "source_file.h"
-#include "exceptions.h"
+#include <sstream>
+
+#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_replace.h"
+#include "lib/exceptions.h"
 #include "lib/log.h"
+#include "lib/stringify.h"
 
-void IHasDbPrint::print() const { dbprint(std::cout); std::cout << std::endl; }
+namespace P4 {
 
-namespace Util {
+void IHasDbPrint::print() const {
+    dbprint(std::cout);
+    std::cout << std::endl;
+}
+
+}  // namespace P4
+
+namespace P4::Util {
 SourcePosition::SourcePosition(unsigned lineNumber, unsigned columnNumber)
-        : lineNumber(lineNumber),
-          columnNumber(columnNumber) {
-    if (lineNumber == 0)
-        BUG("Line numbering should start at one");
+    : lineNumber(lineNumber), columnNumber(columnNumber) {
+    if (lineNumber == 0) BUG("Line numbering should start at one");
 }
 
 cstring SourcePosition::toString() const {
-    return Util::printf_format("%d:%d", lineNumber, columnNumber);
+    return absl::StrFormat("%d:%d", lineNumber, columnNumber);
 }
-
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-SourceInfo::SourceInfo(const InputSources* sources, SourcePosition start,
-                       SourcePosition end)
-        : sources(sources), start(start), end(end) {
+SourceInfo::SourceInfo(const InputSources *sources, SourcePosition start, SourcePosition end)
+    : sources(sources), start(start), end(end) {
     BUG_CHECK(sources != nullptr, "Invalid InputSources in SourceInfo");
-    if (!start.isValid() || !end.isValid())
-        BUG("Invalid source position in SourceInfo %1%-%2%",
-                          start.toString(), end.toString());
+    if (!start.isValid() || !end.isValid()) {
+        BUG("Invalid source position in SourceInfo %1%-%2% for %3%", start.toString(),
+            end.toString(), sources->toDebugString());
+    }
     if (start > end)
-        BUG("SourceInfo position start %1% after end %2%",
-                          start.toString(), end.toString());
+        BUG("SourceInfo position start %1% after end %2%", start.toString(), end.toString());
 }
 
-cstring SourceInfo::toDebugString() const {
-    return Util::printf_format("(%s)-(%s)", start.toString(), end.toString());
+SourceInfo::SourceInfo(const InputSources *sources, SourcePosition point)
+    : SourceInfo(sources, point, point) {}
+
+SourceInfo::SourceInfo(cstring filename, int line, int column, cstring srcBrief) {
+    this->filename = filename;
+    this->line = line;
+    this->column = column;
+    this->srcBrief = srcBrief;
+}
+
+cstring SourceInfo::toString() const {
+    return absl::StrFormat("(%v)-(%v)", start.toString(), end.toString());
+}
+
+std::ostream &operator<<(std::ostream &os, const SourceInfo &info) {
+    os << absl::StrFormat("(%v)-(%v)", info.start, info.end);
+    return os;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
 InputSources::InputSources() : sealed(false) {
-    mapLine(nullptr, 1);  // the first line read will be line 1 of stdin
+    mapLine("", 1);  // the first line read will be line 1 of stdin
     contents.push_back("");
 }
 
@@ -65,15 +89,15 @@ void InputSources::addComment(SourceInfo srcInfo, bool singleLine, cstring body)
     if (!singleLine)
         // Drop the "*/"
         body = body.exceptLast(2);
-    auto comment = new Comment(srcInfo, singleLine, body);
-    comments.push_back(comment);
+    comments.push_back(new Comment(srcInfo, singleLine, body));
 }
+
+const std::vector<Comment *> &InputSources::getAllComments() const { return comments; }
 
 /// prevent further changes
 void InputSources::seal() {
     LOG4(toDebugString());
-    if (sealed)
-        BUG("InputSources already sealed");
+    if (sealed) BUG("InputSources already sealed");
     sealed = true;
 }
 
@@ -82,67 +106,62 @@ unsigned InputSources::lineCount() const {
     if (contents.back().empty()) {
         // do not count the last line if it is empty.
         size -= 1;
-        if (size < 0)
-            BUG("Negative line count");
+        if (size < 0) BUG("Negative line count");
     }
     return size;
 }
 
 // Append this text to the last line
-void InputSources::appendToLastLine(StringRef text) {
-    if (sealed)
-        BUG("Appending to sealed InputSources");
+void InputSources::appendToLastLine(std::string_view text) {
+    if (sealed) BUG("Appending to sealed InputSources");
     // Text should not contain any newline characters
-    for (size_t i = 0; i < text.len; i++) {
+    for (size_t i = 0; i < text.size(); i++) {
         char c = text[i];
-        if (c == '\n')
-            BUG("Text contains newlines");
+        if (c == '\n') BUG("Text contains newlines");
     }
-    contents.back() += text.toString();
+    contents.back() += text;
 }
 
 // Append a newline and start a new line
-void InputSources::appendNewline(StringRef newline) {
-    if (sealed)
-        BUG("Appending to sealed InputSources");
-    contents.back() += newline.toString();
+void InputSources::appendNewline(std::string_view newline) {
+    if (sealed) BUG("Appending to sealed InputSources");
+    contents.back() += newline;
     contents.push_back("");  // start a new line
 }
 
-void InputSources::appendText(const char* text) {
-    if (text == nullptr)
-        BUG("Null text being appended");
-    StringRef ref = text;
+void InputSources::appendText(const char *text) {
+    if (text == nullptr) BUG("Null text being appended");
+    std::string_view ref(text);
 
-    while (ref.len > 0) {
-        const char* nl = ref.find("\r\n");
-        if (nl == nullptr) {
+    while (ref.size() > 0) {
+        auto nlPos = ref.find_first_of("\r\n");
+        if (nlPos == std::string_view::npos) {
             appendToLastLine(ref);
             break;
         }
 
-        size_t toCut = nl - ref.p;
+        size_t toCut = nlPos;
         if (toCut != 0) {
-            StringRef nonnl(ref.p, toCut);
+            std::string_view nonnl(ref.data(), toCut);
             appendToLastLine(nonnl);
-            ref += toCut;
+            ref.remove_prefix(toCut);
         } else {
             if (ref[0] == '\n') {
                 appendNewline("\n");
-                ref += 1;
-            } else if (ref.len > 2 && ref[0] == '\r' && ref[1] == '\n') {
+                ref.remove_prefix(1);
+            } else if (ref.size() > 2 && ref[0] == '\r' && ref[1] == '\n') {
                 appendNewline("\r\n");
-                ref += 2;
+                ref.remove_prefix(2);
             } else {
                 // Just \r
                 appendToLastLine(ref.substr(0, 1));
-                ref += 1;
+                ref.remove_prefix(1);
             }
         }
     }
 }
 
-cstring InputSources::getLine(unsigned lineNumber) const {
+std::string_view InputSources::getLine(unsigned lineNumber) const {
     if (lineNumber == 0) {
         return "";
         // BUG("Lines are numbered starting at 1");
@@ -152,15 +171,14 @@ cstring InputSources::getLine(unsigned lineNumber) const {
     return contents.at(lineNumber - 1);
 }
 
-void InputSources::mapLine(cstring file, unsigned originalSourceLineNo) {
-    if (sealed)
-        BUG("Changing mapping to sealed InputSources");
+void InputSources::mapLine(std::string_view file, unsigned originalSourceLineNo) {
+    if (sealed) BUG("Changing mapping to sealed InputSources");
     unsigned lineno = getCurrentLineNumber();
     line_file_map.emplace(lineno, SourceFileLine(file, originalSourceLineNo));
 }
 
 SourceFileLine InputSources::getSourceLine(unsigned line) const {
-    auto it = line_file_map.upper_bound(line+1);
+    auto it = line_file_map.upper_bound(line);
     if (it == line_file_map.begin())
         // There must be always something mapped to line 0
         BUG("No source information for line %1%", line);
@@ -180,9 +198,7 @@ SourceFileLine InputSources::getSourceLine(unsigned line) const {
     return SourceFileLine(it->second.fileName, realLine);
 }
 
-unsigned InputSources::getCurrentLineNumber() const {
-    return contents.size();
-}
+unsigned InputSources::getCurrentLineNumber() const { return contents.size(); }
 
 SourcePosition InputSources::getCurrentPosition() const {
     unsigned line = getCurrentLineNumber();
@@ -190,114 +206,143 @@ SourcePosition InputSources::getCurrentPosition() const {
     return SourcePosition(line, column);
 }
 
-cstring InputSources::getSourceFragment(const SourcePosition &position) const {
+cstring InputSources::getSourceFragment(const SourcePosition &position, int trimWidth,
+                                        bool useMarker) const {
     SourceInfo info(this, position, position);
-    return getSourceFragment(info);
+    return getSourceFragment(info, trimWidth, useMarker);
 }
 
-cstring carets(cstring source, unsigned start, unsigned end) {
+static std::string carets(std::string_view source, unsigned start, unsigned end) {
     std::stringstream builder;
-    if (start > source.size())
-        start = source.size();
+    if (start > source.size()) start = source.size();
 
-    unsigned i;
-    for (i=0; i < start; i++) {
-        char c = source.c_str()[i];
+    unsigned i = 0;
+    for (; i < start; i++) {
+        char c = source[i];
         if (c == ' ' || c == '\t')
             builder.put(c);
         else
             builder.put(' ');
     }
 
-    for (; i < std::max(end, start+1); i++)
-        builder.put('^');
+    for (; i < std::max(end, start + 1); i++) builder.put('^');
 
     return builder.str();
 }
 
-cstring InputSources::getSourceFragment(const SourceInfo &position) const {
-    if (!position.isValid())
-        return "";
+cstring InputSources::getSourceFragment(const SourceInfo &position, int trimWidth,
+                                        bool useMarker) const {
+    if (!position.isValid()) return ""_cs;
+    constexpr char ELIPSIS[] = "...";
+    constexpr int ELIPSIS_W = sizeof(ELIPSIS) - 1;
 
     // If the position spans multiple lines, truncate to just the first line
     if (position.getEnd().getLineNumber() > position.getStart().getLineNumber())
-        return getSourceFragment(position.getStart());
+        return getSourceFragment(position.getStart(), trimWidth, useMarker);
 
-    cstring result = getLine(position.getStart().getLineNumber());
-    // Normally result has a newline, but if not
-    // then we have to add a newline
-    cstring toadd = "";
-    if (result.find('\n') == nullptr)
-        toadd = cstring::newline;
-    cstring marker = carets(result, position.getStart().getColumnNumber(),
-                            position.getEnd().getColumnNumber());
-    return result + toadd + marker + cstring::newline;
+    std::string_view result = getLine(position.getStart().getLineNumber());
+    unsigned int start = position.getStart().getColumnNumber();
+    unsigned int end = position.getEnd().getColumnNumber();
+    if (trimWidth == -1) {
+        if (!useMarker)
+            trimWidth = 0;
+        else if (auto *cols = getenv("COLUMNS"))
+            trimWidth = atoi(cols);
+        else
+            trimWidth = 100;
+    }
+    std::string tmp;  // holding place for temp string_view
+    if (trimWidth > 10 && result.size() > (size_t)trimWidth) {
+        if (result.back() == '\n') result.remove_suffix(1);
+        int ltrim = (int)(end + start) / 2 - trimWidth / 2 + ELIPSIS_W;
+        if (ltrim > (int)start) ltrim = start;
+        if (ltrim < 4) ltrim = 0;
+        if (ltrim > (int)result.size() - trimWidth + ELIPSIS_W)
+            ltrim = result.size() - trimWidth + ELIPSIS_W;
+        if (ltrim == 0) {
+            result.remove_suffix(result.size() - trimWidth + ELIPSIS_W);
+            tmp = absl::StrCat(result, ELIPSIS);
+        } else if ((int)result.size() - ltrim + ELIPSIS_W > trimWidth) {
+            result.remove_prefix(ltrim);
+            result.remove_suffix(result.size() - trimWidth + 2 * ELIPSIS_W);
+            tmp = absl::StrCat(ELIPSIS, result, ELIPSIS);
+        } else {
+            result.remove_prefix(ltrim);
+            tmp = absl::StrCat(ELIPSIS, result);
+        }
+        if (ltrim > 0) {
+            start -= ltrim - ELIPSIS_W;
+            end -= ltrim - ELIPSIS_W;
+        }
+        if (end > (unsigned)trimWidth) end = trimWidth;
+        result = tmp;
+    }
+
+    // Normally result has a newline, but if not then we have to add a newline
+    bool addNewline = !absl::StrContains(result, "\n");
+    if (useMarker) {
+        return absl::StrCat(result, addNewline ? "\n" : "", carets(result, start, end), "\n");
+    }
+
+    return absl::StrCat(result, addNewline ? "\n" : "", "\n");
 }
 
 cstring InputSources::getBriefSourceFragment(const SourceInfo &position) const {
-    if (!position.isValid())
-        return "";
+    if (!position.isValid()) return ""_cs;
 
-    cstring result = getLine(position.getStart().getLineNumber());
+    std::string_view result = getLine(position.getStart().getLineNumber());
     unsigned int start = position.getStart().getColumnNumber();
-    unsigned int end;
-    cstring toadd = "";
+    unsigned int end = position.getEnd().getColumnNumber();
+    bool truncate = false;
 
     // If the position spans multiple lines, truncate to just the first line
     if (position.getEnd().getLineNumber() > position.getStart().getLineNumber()) {
         // go to the end of the first line
         end = result.size();
-        if (result.find('\n') != nullptr) {
+        if (absl::StrContains(result, "\n")) {
             --end;
         }
-        toadd = " ...";
-    } else {
-        end = position.getEnd().getColumnNumber();
+        truncate = true;
     }
 
     // Adding escape character in front of '"' character to properly store
     // quote marks as part of JSON properties, they must be escaped.
-    if (result.find('"') != nullptr) {
-        cstring out = result.replace("\"", "\\\"");
-        return out.substr(0, out.size()-1);
+    if (absl::StrContains(result, "\"")) {
+        auto out = absl::StrReplaceAll(result, {{"\"", "\\\""}});
+        return out.substr(0, out.size() - 1);
     }
 
-    return result.substr(start, end - start) + toadd;
+    return absl::StrCat(result.substr(start, end - start), truncate ? " ..." : "");
 }
 
 cstring InputSources::toDebugString() const {
     std::stringstream builder;
-    for (auto line : contents)
-        builder << line;
+    for (const auto &line : contents) builder << line;
     builder << "---------------" << std::endl;
-    for (auto lf : line_file_map)
+    for (const auto &lf : line_file_map)
         builder << lf.first << ": " << lf.second.toString() << std::endl;
-    return cstring(builder.str());
+    return {builder};
 }
 
 ///////////////////////////////////////////////////
 
-cstring SourceInfo::toSourceFragment() const {
-    if (!isValid())
-        return "";
-    return sources->getSourceFragment(*this);
+cstring SourceInfo::toSourceFragment(int trimWidth, bool useMarker) const {
+    if (!isValid()) return ""_cs;
+    return sources->getSourceFragment(*this, trimWidth, useMarker);
 }
 
 cstring SourceInfo::toBriefSourceFragment() const {
-    if (!isValid())
-        return "";
+    if (!isValid()) return ""_cs;
     return sources->getBriefSourceFragment(*this);
 }
 
 cstring SourceInfo::toPositionString() const {
-    if (!isValid())
-        return "";
+    if (!isValid()) return ""_cs;
     SourceFileLine position = sources->getSourceLine(start.getLineNumber());
     return position.toString();
 }
 
-cstring SourceInfo::toSourcePositionData(unsigned *outLineNumber,
-                                         unsigned *outColumnNumber) const {
+cstring SourceInfo::toSourcePositionData(unsigned *outLineNumber, unsigned *outColumnNumber) const {
     SourceFileLine position = sources->getSourceLine(start.getLineNumber());
     if (outLineNumber != nullptr) {
         *outLineNumber = position.sourceLine;
@@ -305,11 +350,15 @@ cstring SourceInfo::toSourcePositionData(unsigned *outLineNumber,
     if (outColumnNumber != nullptr) {
         *outColumnNumber = start.getColumnNumber();
     }
-    return position.fileName.c_str();
+    return position.fileName;
 }
 
 SourceFileLine SourceInfo::toPosition() const {
     return sources->getSourceLine(start.getLineNumber());
+}
+
+SourceFileLine SourceInfo::toPositionEnd() const {
+    return sources->getSourceLine(end.getLineNumber());
 }
 
 cstring SourceInfo::getSourceFile() const {
@@ -317,10 +366,25 @@ cstring SourceInfo::getSourceFile() const {
     return sourceLine.fileName;
 }
 
-////////////////////////////////////////////////////////
-
-cstring SourceFileLine::toString() const {
-    return Util::printf_format("%s(%d)", fileName.c_str(), sourceLine);
+cstring SourceInfo::getLineNum() const {
+    SourceFileLine sourceLine = sources->getSourceLine(start.getLineNumber());
+    return Util::toString(sourceLine.sourceLine);
 }
 
-}  // namespace Util
+////////////////////////////////////////////////////////
+
+cstring SourceFileLine::toString() const { return absl::StrFormat("%v(%d)", fileName, sourceLine); }
+
+}  // namespace P4::Util
+
+////////////////////////////////////////////////////////
+
+namespace P4 {
+
+[[gnu::used]]  // ensure linker will not drop function even if unused
+void dbprint(const IHasDbPrint *o) {
+    o->dbprint(std::cout);
+    std::cout << std::endl << std::flush;
+}
+
+}  // namespace P4

@@ -8,7 +8,19 @@ class DpdkDeclaration : IDPDKNode {
 #nodbprint
 }
 
+class DpdkExternDeclaration :  Declaration_Instance, IDPDKNode {
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
 class DpdkHeaderType : Type_Header, IDPDKNode {
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
+class DpdkHeaderInstance : IDPDKNode {
+    Declaration_Variable name;
+    Type_Header headerType;
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
 }
@@ -22,15 +34,65 @@ abstract DpdkAsmStatement : IDPDKNode {
     std::ostream& toSpec(std::ostream& out) const override;
 }
 
-class DpdkAction {
+class DpdkAction : IAnnotated {
+    optional inline Vector<Annotation>        annotations;
     inline IndexedVector<DpdkAsmStatement> statements;
-    inline cstring name;
+    inline ID name;
     inline ParameterList para;
     std::ostream& toSpec(std::ostream& out) const;
+    const Vector<Annotation> &getAnnotations() const override { return annotations; }
+    Vector<Annotation> &getAnnotations() override { return annotations; }
 #nodbprint
 }
 
 class DpdkTable {
+    inline cstring name;
+    Key match_keys;
+    ActionList actions;
+    Expression default_action;
+    TableProperties properties;
+    inline ParameterList default_action_paraList;
+    Key getKey() const {
+        auto kp = properties->getProperty(TableProperties::keyPropertyName);
+        if (kp == nullptr)
+            return nullptr;
+        if (!kp->value->is<IR::Key>()) {
+            ::P4::error(ErrorType::ERR_INVALID, "%1%: must be a key", kp);
+            return nullptr; }
+        return kp->value->to<IR::Key>(); }
+    EntriesList getEntries() const {
+        auto ep = properties->getProperty(TableProperties::entriesPropertyName);
+        if (ep == nullptr)
+            return nullptr;
+        if (!ep->value->is<IR::EntriesList>()) {
+            ::P4::error(ErrorType::ERR_INVALID, "%1%: must be a list of entries", ep);
+            return nullptr;
+        }
+        return ep->value->to<IR::EntriesList>();
+    }
+    std::ostream& toSpec(std::ostream& out) const;
+#nodbprint
+#novalidate
+}
+
+class DpdkSelector {
+    inline cstring name;
+    Expression group_id;
+    Expression member_id;
+    Key selectors;
+    int n_groups_max;
+    int n_members_per_group_max;
+
+    std::ostream& toSpec(std::ostream& out) const;
+#nodbprint
+#novalidate
+}
+
+// This class corresponds to the learner table object in dpdk
+// which supports adding an table entry upon hit/miss event.
+// This special table type is defined in PNA specification
+// under the add_on_miss section.
+class DpdkLearner {
     inline cstring name;
     Key match_keys;
     ActionList actions;
@@ -46,25 +108,40 @@ class DpdkTable {
 class DpdkAsmProgram {
     inline IndexedVector<DpdkHeaderType> headerType;
     inline IndexedVector<DpdkStructType> structType;
+    inline IndexedVector<DpdkHeaderInstance> headerInstance;
+    inline IndexedVector<DpdkExternDeclaration> externDeclarations;
     inline IndexedVector<DpdkAction> actions;
     inline IndexedVector<DpdkTable> tables;
+    inline IndexedVector<DpdkSelector> selectors;
+    inline IndexedVector<DpdkLearner> learners;
     inline IndexedVector<DpdkAsmStatement> statements;
     inline IndexedVector<DpdkDeclaration> globals;
     std::ostream& toSpec(std::ostream& out) const;
-#nodbprint
 }
 
 class DpdkListStatement : DpdkAsmStatement, IDPDKNode {
-    optional cstring name;
     optional inline IndexedVector<DpdkAsmStatement> statements;
     std::ostream& toSpec(std::ostream& out) const override;
-#nodbprint
 }
 
 class DpdkApplyStatement : DpdkAsmStatement, IDPDKNode {
     cstring table;
     std::ostream& toSpec(std::ostream& out) const override;
 }
+
+class DpdkLearnStatement : DpdkAsmStatement, IDPDKNode {
+    ID action;
+    Expression timeout;
+    NullOK optional Expression argument;
+    std::ostream& toSpec(std::ostream& out) const override;
+}
+
+class DpdkMirrorStatement : DpdkAsmStatement, IDPDKNode {
+    Expression slotId;
+    Expression sessionId;
+    std::ostream& toSpec(std::ostream& out) const override;
+}
+
 class DpdkEmitStatement : DpdkAsmStatement, IDPDKNode {
     Expression header;
     std::ostream& toSpec(std::ostream& out) const override;
@@ -72,8 +149,13 @@ class DpdkEmitStatement : DpdkAsmStatement, IDPDKNode {
 
 class DpdkExtractStatement : DpdkAsmStatement, IDPDKNode {
     Expression header;
+    NullOK optional Expression length;
     std::ostream& toSpec(std::ostream& out) const override;
-#nodbprint
+}
+
+class DpdkLookaheadStatement : DpdkAsmStatement, IDPDKNode {
+    Expression header;
+    std::ostream& toSpec(std::ostream& out) const override;
 }
 
 abstract DpdkJmpStatement : DpdkAsmStatement {
@@ -88,21 +170,44 @@ abstract DpdkJmpStatement : DpdkAsmStatement {
 class DpdkJmpLabelStatement : DpdkJmpStatement {
 #noconstructor
     DpdkJmpLabelStatement(cstring label) :
-        DpdkJmpStatement("jmp", label) { }
+        DpdkJmpStatement("jmp"_cs, label) { }
 }
 
 class DpdkJmpHitStatement : DpdkJmpStatement {
 #nodbprint
 #noconstructor
     DpdkJmpHitStatement(cstring label) :
-        DpdkJmpStatement("jmph", label) { }
+        DpdkJmpStatement("jmph"_cs, label) { }
 }
 
 class DpdkJmpMissStatement : DpdkJmpStatement {
 #nodbprint
 #noconstructor
     DpdkJmpMissStatement(cstring label) :
-        DpdkJmpStatement("jmpnh", label) { }
+        DpdkJmpStatement("jmpnh"_cs, label) { }
+}
+
+abstract DpdkJmpActionStatement : DpdkJmpStatement {
+    ID action;
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+#noconstructor
+    DpdkJmpActionStatement(cstring instruction, cstring label, ID action) :
+        DpdkJmpStatement(instruction, label), action(action) { }
+}
+
+class DpdkJmpIfActionRunStatement : DpdkJmpActionStatement {
+#nodbprint
+#noconstructor
+    DpdkJmpIfActionRunStatement(cstring label, cstring act) :
+        DpdkJmpActionStatement("jmpa"_cs, label, act) { }
+}
+
+class DpdkJmpIfActionNotRunStatement : DpdkJmpActionStatement {
+#nodbprint
+#noconstructor
+    DpdkJmpIfActionNotRunStatement(cstring label, cstring act) :
+        DpdkJmpActionStatement("jmpna"_cs, label, act) { }
 }
 
 abstract DpdkJmpHeaderStatement : DpdkJmpStatement {
@@ -116,14 +221,14 @@ abstract DpdkJmpHeaderStatement : DpdkJmpStatement {
 class DpdkJmpIfInvalidStatement : DpdkJmpHeaderStatement {
 #noconstructor
     DpdkJmpIfInvalidStatement(cstring label, Expression hdr) :
-        DpdkJmpHeaderStatement("jmpnv", label, hdr) { }
+        DpdkJmpHeaderStatement("jmpnv"_cs, label, hdr) { }
 }
 
 class DpdkJmpIfValidStatement : DpdkJmpHeaderStatement {
 #nodbprint
 #noconstructor
     DpdkJmpIfValidStatement(cstring label, Expression hdr) :
-        DpdkJmpHeaderStatement("jmpv", label, hdr) { }
+        DpdkJmpHeaderStatement("jmpv"_cs, label, hdr) { }
 }
 
 abstract DpdkJmpCondStatement : DpdkJmpStatement {
@@ -136,52 +241,53 @@ abstract DpdkJmpCondStatement : DpdkJmpStatement {
 }
 
 class DpdkJmpEqualStatement: DpdkJmpCondStatement, IDPDKNode {
-#nodbprint
-#noconstructor
     DpdkJmpEqualStatement(cstring label, Expression src1, Expression src2) :
-        DpdkJmpCondStatement("jmpeq", label, src1, src2) { }
+        DpdkJmpCondStatement("jmpeq"_cs, label, src1, src2) { }
+#noconstructor
 }
 
 class DpdkJmpNotEqualStatement: DpdkJmpCondStatement, IDPDKNode {
 #noconstructor
     DpdkJmpNotEqualStatement(cstring label, Expression src1, Expression src2) :
-        DpdkJmpCondStatement("jmpneq", label, src1, src2) { }
+        DpdkJmpCondStatement("jmpneq"_cs, label, src1, src2) { }
 }
 
 class DpdkJmpGreaterEqualStatement: DpdkJmpCondStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkJmpGreaterEqualStatement(cstring label, Expression src1, Expression src2) :
-        DpdkJmpCondStatement("jmpge", label, src1, src2) { }
+        DpdkJmpCondStatement("jmpge"_cs, label, src1, src2) { }
 }
 
 class DpdkJmpGreaterStatement: DpdkJmpCondStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkJmpGreaterStatement(cstring label, Expression src1, Expression src2) :
-        DpdkJmpCondStatement("jmpgt", label, src1, src2) { }
+        DpdkJmpCondStatement("jmpgt"_cs, label, src1, src2) { }
 }
 
 class DpdkJmpLessOrEqualStatement: DpdkJmpCondStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkJmpLessOrEqualStatement(cstring label, Expression src1, Expression src2) :
-        DpdkJmpCondStatement("jmple", label, src1, src2) { }
+        DpdkJmpCondStatement("jmple"_cs, label, src1, src2) { }
 }
 
 class DpdkJmpLessStatement: DpdkJmpCondStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkJmpLessStatement(cstring label, Expression src1, Expression src2) :
-        DpdkJmpCondStatement("jmplt", label, src1, src2) { }
+        DpdkJmpCondStatement("jmplt"_cs, label, src1, src2) { }
 }
 
 class DpdkRxStatement : DpdkAsmStatement, IDPDKNode {
+    Expression port;
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
 }
 
 class DpdkTxStatement : DpdkAsmStatement, IDPDKNode {
+    Expression port;
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
 }
@@ -203,31 +309,15 @@ abstract DpdkUnaryStatement : DpdkAssignmentStatement {
 }
 
 class DpdkMovStatement : DpdkUnaryStatement {
-#nodbprint
-#noconstructor
     DpdkMovStatement(Expression dst, Expression src) :
-        DpdkUnaryStatement("mov", dst, src) { }
+        DpdkUnaryStatement("mov"_cs, dst, src) { }
+#noconstructor
 }
 
-class DpdkNegStatement: DpdkUnaryStatement {
-#nodbprint
+class DpdkMovhStatement : DpdkUnaryStatement {
+    DpdkMovhStatement(Expression dst, Expression src) :
+        DpdkUnaryStatement("movh"_cs, dst, src) { }
 #noconstructor
-    DpdkNegStatement(Expression dst, Expression src) :
-        DpdkUnaryStatement("neg", dst, src) { }
-}
-
-class DpdkCmplStatement: DpdkUnaryStatement {
-#nodbprint
-#noconstructor
-    DpdkCmplStatement(Expression dst, Expression src) :
-        DpdkUnaryStatement("compl", dst, src) { }
-}
-
-class DpdkLNotStatement: DpdkUnaryStatement {
-#nodbprint
-#noconstructor
-    DpdkLNotStatement(Expression dst, Expression src) :
-        DpdkUnaryStatement("lnot", dst, src) { }
 }
 
 abstract DpdkBinaryStatement : DpdkAssignmentStatement {
@@ -243,119 +333,69 @@ class DpdkAddStatement : DpdkBinaryStatement {
 #nodbprint
 #noconstructor
     DpdkAddStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("add", dst, src1, src2) { }
+        DpdkBinaryStatement("add"_cs, dst, src1, src2) { }
 }
 
 class DpdkAndStatement : DpdkBinaryStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkAndStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("and", dst, src1, src2) { }
+        DpdkBinaryStatement("and"_cs, dst, src1, src2) { }
 }
 
 class DpdkShlStatement : DpdkBinaryStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkShlStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("shl", dst, src1, src2) { }
+        DpdkBinaryStatement("shl"_cs, dst, src1, src2) { }
 }
 
 class DpdkShrStatement : DpdkBinaryStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkShrStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("shr", dst, src1, src2) { }
+        DpdkBinaryStatement("shr"_cs, dst, src1, src2) { }
 }
 
 class DpdkSubStatement : DpdkBinaryStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkSubStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("sub", dst, src1, src2) { }
+        DpdkBinaryStatement("sub"_cs, dst, src1, src2) { }
 }
 
 class DpdkOrStatement : DpdkBinaryStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkOrStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("or", dst, src1, src2) { }
-}
-
-class DpdkEquStatement : DpdkBinaryStatement, IDPDKNode {
-#nodbprint
-#noconstructor
-    DpdkEquStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("equ", dst, src1, src2) { }
+        DpdkBinaryStatement("or"_cs, dst, src1, src2) { }
 }
 
 class DpdkXorStatement : DpdkBinaryStatement, IDPDKNode {
 #nodbprint
 #noconstructor
     DpdkXorStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("xor", dst, src1, src2) { }
+        DpdkBinaryStatement("xor"_cs, dst, src1, src2) { }
 }
 
-class DpdkCmpStatement: DpdkBinaryStatement, IDPDKNode {
-#nodbprint
-#noconstructor
-    DpdkCmpStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("cmp", dst, src1, src2) { }
-}
-
-class DpdkLAndStatement: DpdkBinaryStatement {
-#nodbprint
-#noconstructor
-    DpdkLAndStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("land", dst, src1, src2) { }
-}
-
-class DpdkLeqStatement: DpdkBinaryStatement {
-#nodbprint
-#noconstructor
-    DpdkLeqStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("leq", dst, src1, src2) { }
-}
-
-class DpdkLssStatement: DpdkBinaryStatement {
-#nodbprint
-#noconstructor
-    DpdkLssStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("lss", dst, src1, src2) { }
-}
-
-class DpdkGrtStatement: DpdkBinaryStatement {
-#nodbprint
-#noconstructor
-    DpdkGrtStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("grt", dst, src1, src2) { }
-}
-
-class DpdkGeqStatement: DpdkBinaryStatement {
-#nodbprint
-#noconstructor
-    DpdkGeqStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("geq", dst, src1, src2) { }
-}
-
-class DpdkNeqStatement: DpdkBinaryStatement {
-#nodbprint
-#noconstructor
-    DpdkNeqStatement(Expression dst, Expression src1, Expression src2) :
-        DpdkBinaryStatement("neq", dst, src1, src2) { }
-}
-
-class DpdkExternObjStatement : DpdkAsmStatement, IDPDKNode {
-    Expression methodCall;
-    std::ostream& toSpec(std::ostream& out) const override;
-#nodbprint
-}
-
-class DpdkExternFuncStatement : DpdkAsmStatement, IDPDKNode {
+class DpdkRecircidStatement : DpdkAsmStatement, IDPDKNode {
+    Expression pass;
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
 }
 
 class DpdkReturnStatement : DpdkAsmStatement, IDPDKNode {
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
+class DpdkRearmStatement : DpdkAsmStatement, IDPDKNode {
+    NullOK optional Expression timeout;
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
+class DpdkRecirculateStatement : DpdkAsmStatement, IDPDKNode {
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
 }
@@ -375,7 +415,30 @@ class DpdkChecksumAddStatement : DpdkAsmStatement, IDPDKNode {
 #nodbprint
 }
 
+class DpdkChecksumSubStatement : DpdkAsmStatement, IDPDKNode {
+    cstring csum;
+    cstring intermediate_value;
+    Expression field;
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
+class DpdkChecksumClearStatement : DpdkAsmStatement, IDPDKNode {
+    cstring csum;
+    cstring intermediate_value;
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
+class DpdkHashDeclStatement: DpdkAsmStatement {
+    cstring hash;
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
+
 class DpdkGetHashStatement : DpdkAsmStatement, IDPDKNode {
+    cstring instr;
     cstring hash;
     Expression fields;
     Expression dst;
@@ -392,8 +455,8 @@ class DpdkGetChecksumStatement: DpdkAsmStatement, IDPDKNode {
 }
 
 class DpdkCastStatement: DpdkAsmStatement, IDPDKNode {
-    Expression src;
     Expression dst;
+    Expression src;
     Type type;
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
@@ -406,10 +469,25 @@ class DpdkVerifyStatement: DpdkAsmStatement, IDPDKNode {
 #nodbprint
 }
 
+class DpdkMeterDeclStatement: DpdkAsmStatement {
+    cstring meter;
+    Expression size;
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
 class DpdkMeterExecuteStatement: DpdkAsmStatement, IDPDKNode {
     cstring meter;
     Expression index;
-    Expression color;
+    NullOK Expression length;
+    Expression color_in;
+    Expression color_out;
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
+class DpdkGetTableEntryIndex: DpdkAsmStatement, IDPDKNode {
+    Expression index;
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
 }
@@ -417,6 +495,15 @@ class DpdkMeterExecuteStatement: DpdkAsmStatement, IDPDKNode {
 class DpdkCounterCountStatement: DpdkAsmStatement, IDPDKNode {
     cstring counter;
     Expression index;
+    NullOK optional Expression incr;
+    std::ostream& toSpec(std::ostream& out) const override;
+#nodbprint
+}
+
+class DpdkRegisterDeclStatement: DpdkAsmStatement {
+    cstring reg;
+    Expression size;
+    NullOK optional Expression init_val;
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
 }
@@ -428,7 +515,7 @@ class DpdkRegisterReadStatement: DpdkAssignmentStatement {
 #nodbprint
 #noconstructor
     DpdkRegisterReadStatement(Expression dst, cstring reg, Expression index) :
-        DpdkAssignmentStatement("read", dst), reg(reg), index(index) { }
+        DpdkAssignmentStatement("read"_cs, dst), reg(reg), index(index) { }
 }
 
 class DpdkRegisterWriteStatement: DpdkAsmStatement, IDPDKNode {
@@ -438,3 +525,18 @@ class DpdkRegisterWriteStatement: DpdkAsmStatement, IDPDKNode {
     std::ostream& toSpec(std::ostream& out) const override;
 #nodbprint
 }
+
+class DpdkValidateStatement: DpdkAsmStatement, IDPDKNode {
+    Expression header;
+    std::ostream& toSpec(std::ostream& out) const override;
+}
+
+class DpdkInvalidateStatement: DpdkAsmStatement, IDPDKNode {
+    Expression header;
+    std::ostream& toSpec(std::ostream& out) const override;
+}
+
+class DpdkDropStatement: DpdkAsmStatement, IDPDKNode {
+    std::ostream& toSpec(std::ostream& out) const override;
+}
+

@@ -14,27 +14,40 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _FRONTENDS_P4_CLONER_H_
-#define _FRONTENDS_P4_CLONER_H_
+#ifndef FRONTENDS_P4_CLONER_H_
+#define FRONTENDS_P4_CLONER_H_
 
 #include "ir/ir.h"
 
 namespace P4 {
 
-/// This transform converts identical PathExpression nodes in a DAG
+/// This transform converts identical PathExpression or Member nodes in a DAG
 /// into distinct nodes.
-class ClonePathExpressions : public Transform {
+class CloneExpressions : public Transform {
  public:
-    ClonePathExpressions()
-    { visitDagOnce = false; setName("ClonePathExpressions"); }
-    const IR::Node* postorder(IR::PathExpression* path) override
-    { return new IR::PathExpression(path->path->clone()); }
+    CloneExpressions() {
+        visitDagOnce = false;
+        setName("CloneExpressions");
+    }
+    const IR::Node *postorder(IR::PathExpression *path) override {
+        path->path = path->path->clone();
+        return path;
+    }
 
-    template<typename T>
-    const T* clone(const IR::Node* node)
-    { return node->apply(*this)->to<T>(); }
+    // Clone expressions of the form Member(TypeNameExpression)
+    const IR::Node *postorder(IR::Member *member) override {
+        if (member->expr->is<IR::TypeNameExpression>()) {
+            return new IR::Member(member->expr->clone(), member->member);
+        }
+        return member;
+    }
+
+    template <typename T>
+    const T *clone(const IR::Node *node) {
+        return node->apply(*this)->to<T>();
+    }
 };
 
 }  // namespace P4
 
-#endif /* _FRONTENDS_P4_CLONER_H_ */
+#endif /* FRONTENDS_P4_CLONER_H_ */

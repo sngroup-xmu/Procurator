@@ -14,6 +14,21 @@ enum EthT EthTypes {
     IPv6 = 0x86dd
 }
 
+typedef int<8> I8;
+enum I8 UnrepresentableInt {
+    representable_p = 127,
+    representable_n = -128,
+    unrepresentable_p = 128,
+    unrepresentable_n = -129,
+    explicit_cast = (I8)4 * 4 * 4 * 4
+}
+
+enum bit<4> UnrepresentableBit {
+    unrepresentable_n = -1,
+    representable_p = 15,
+    unrepresentable_p = 16
+}
+
 header Ethernet {
     bit<48>  src;
     bit<48>  dest;
@@ -53,4 +68,3 @@ parser p<H>(packet_in _p, out H h);
 control ctr<H>(inout H h);
 package top<H>(p<H> _p, ctr<H> _c);
 top(prs(), c()) main;
-

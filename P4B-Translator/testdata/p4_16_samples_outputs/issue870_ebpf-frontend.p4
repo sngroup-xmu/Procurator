@@ -44,35 +44,31 @@ parser prs(packet_in p, out Headers_t headers) {
 }
 
 control pipe(inout Headers_t headers, out bool pass) {
-    @noWarn("unused") @name(".NoAction") action NoAction_0() {
+    @noWarn("unused") @name(".NoAction") action NoAction_1() {
     }
-    @name("pipe.Reject") action Reject(IPv4Address add) {
+    @name("pipe.Reject") action Reject(@name("add") IPv4Address add_1) {
         pass = false;
-        headers.ipv4.srcAddr = add[31:16] ++ add[15:0];
+        headers.ipv4.srcAddr = add_1[31:16] ++ add_1[15:0];
     }
     @name("pipe.Check_src_ip") table Check_src_ip_0 {
         key = {
-            headers.ipv4.srcAddr: exact @name("headers.ipv4.srcAddr") ;
+            headers.ipv4.srcAddr: exact @name("headers.ipv4.srcAddr");
         }
         actions = {
             Reject();
-            NoAction_0();
+            NoAction_1();
         }
         implementation = hash_table(32w1024);
-        const default_action = NoAction_0();
+        const default_action = NoAction_1();
     }
     apply {
-        @name("pipe.hasReturned") bool hasReturned = false;
         pass = true;
-        if (!headers.ipv4.isValid()) {
-            pass = false;
-            hasReturned = true;
-        }
-        if (!hasReturned) {
+        if (headers.ipv4.isValid()) {
             Check_src_ip_0.apply();
+        } else {
+            pass = false;
         }
     }
 }
 
 ebpfFilter<Headers_t>(prs(), pipe()) main;
-

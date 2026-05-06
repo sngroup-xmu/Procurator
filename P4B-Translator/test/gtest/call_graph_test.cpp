@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,25 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+#include <gtest/gtest.h>
+
 #include <vector>
 
-#include "gtest/gtest.h"
 #include "frontends/p4/callGraph.h"
 
-namespace Test {
+namespace P4::Test {
 
 template <class T>
 static void sameSet(std::unordered_set<T> &set, std::vector<T> vector) {
     EXPECT_EQ(vector.size(), set.size());
-    for (T v : vector)
-        EXPECT_NEQ(set.end(), set.find(v));
+    for (T v : vector) EXPECT_NEQ(set.end(), set.find(v));
 }
 
 template <class T>
 static void sameSet(std::set<T> &set, std::vector<T> vector) {
     EXPECT_EQ(vector.size(), set.size());
-    for (T v : vector)
-        EXPECT_NEQ(set.end(), set.find(v));
+    for (T v : vector) EXPECT_NEQ(set.end(), set.find(v));
 }
 
 TEST(CallGraph, Acyclic) {
@@ -52,4 +51,4 @@ TEST(CallGraph, Acyclic) {
     EXPECT_EQ('a', sorted.at(2));
 }
 
-}  // namespace Test
+}  // namespace P4::Test

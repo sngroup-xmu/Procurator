@@ -14,36 +14,58 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef P4C_LIB_ERROR_REPORTER_H_
-#define P4C_LIB_ERROR_REPORTER_H_
+#ifndef LIB_ERROR_REPORTER_H_
+#define LIB_ERROR_REPORTER_H_
 
-#include "error_helper.h"
+#include <iostream>
+#include <ostream>
+#include <set>
+#include <type_traits>
+#include <unordered_map>
+
+#include <boost/format.hpp>
+
+#include "absl/strings/str_format.h"
+#include "bug_helper.h"
 #include "error_catalog.h"
+#include "error_helper.h"
 #include "exceptions.h"
+
+namespace P4 {
 
 /// An action to take when a diagnostic message is triggered.
 enum class DiagnosticAction {
     Ignore,  /// Take no action and continue compilation.
+    Info,    /// Print an info message and continue compilation.
     Warn,    /// Print a warning and continue compilation.
     Error    /// Print an error and signal that compilation should be aborted.
 };
-
 
 // Keeps track of compilation errors.
 // Errors are specified using the error() and warning() methods,
 // that use boost::format format strings, i.e.,
 // %1%, %2%, etc (starting at 1, not at 0).
 // Some compatibility for printf-style arguments is also supported.
-class ErrorReporter final {
- private:
-    std::ostream* outputstream;
+class ErrorReporter {
+ protected:
+    unsigned int infoCount;
+    unsigned int warningCount;
+    unsigned int errorCount;
+    unsigned int maxErrorCount;  /// the maximum number of errors that we print before fail
+
+    std::ostream *outputstream;
 
     /// Track errors or warnings that have already been issued for a particular source location
     std::set<std::pair<int, const Util::SourceInfo>> errorTracker;
 
     /// Output the message and flush the stream
-    void emit_message(cstring message) {
-        *outputstream << message;
+    virtual void emit_message(const ErrorMessage &msg) {
+        *outputstream << msg.toString();
+        outputstream->flush();
+    }
+
+    virtual void emit_message(const ParserErrorMessage &msg) {
+        *outputstream << msg.toString();
         outputstream->flush();
     }
 
@@ -52,132 +74,99 @@ class ErrorReporter final {
     /// If the error has been reported, return true. Otherwise, insert add the error to the
     /// list of seen errors, and return false.
     bool error_reported(int err, const Util::SourceInfo source) {
+        if (!source.isValid()) return false;
         auto p = errorTracker.emplace(err, source);
         return !p.second;  // if insertion took place, then we have not seen the error.
     }
 
     /// retrieve the format from the error catalog
-    const char *get_error_name(int errorCode) {
-        return ErrorCatalog::getCatalog().getName(errorCode);
-    }
+    cstring get_error_name(int errorCode) { return ErrorCatalog::getCatalog().getName(errorCode); }
 
  public:
     ErrorReporter()
-        : errorCount(0),
+        : infoCount(0),
           warningCount(0),
+          errorCount(0),
           maxErrorCount(20),
-          defaultWarningDiagnosticAction(DiagnosticAction::Warn)
-    { outputstream = &std::cerr; }
+          defaultInfoDiagnosticAction(DiagnosticAction::Info),
+          defaultWarningDiagnosticAction(DiagnosticAction::Warn) {
+        outputstream = &std::cerr;
+        ErrorCatalog::getCatalog().initReporter(*this);
+    }
+    virtual ~ErrorReporter() = default;
 
     // error message for a bug
-    template <typename... T>
-    std::string bug_message(const char* format, T... args) {
-        try {
-            boost::format fmt(format);
-            return ::bug_helper(fmt, "", "", "", args...);
-        } catch (const std::exception&) {
-            // Defensive fallback: avoid crashing the compiler on a bad format string.
-            return std::string(format ? format : "");
-        }
+    template <typename... Args>
+    std::string bug_message(const char *format, Args &&...args) {
+        boost::format fmt(format);
+        // FIXME: This will implicitly take location of the first argument having
+        // SourceInfo. Not sure if this always desireable or not.
+        return ::P4::bug_helper(fmt, "", "", std::forward<Args>(args)...);
     }
 
-    template <typename... T>
-    std::string format_message(const char* format, T... args) {
-        try {
-            boost::format fmt(format);
-            return ::error_helper(fmt, "", "", "", "", args...);
-        } catch (const std::exception&) {
-            // Defensive fallback: avoid crashing the compiler on a bad format string.
-            return std::string(format ? format : "");
-        }
+    template <typename... Args>
+    std::string format_message(const char *format, Args &&...args) {
+        boost::format fmt(format);
+        return ::P4::error_helper(fmt, std::forward<Args>(args)...).toString();
     }
 
-    template <class T,
-              typename = typename std::enable_if<std::is_base_of<Util::IHasSourceInfo,
-                                                                 T>::value>::type,
-              typename... Args>
+    template <class T, typename = decltype(std::declval<T>()->getSourceInfo()), typename... Args>
     void diagnose(DiagnosticAction action, const int errorCode, const char *format,
-                  const char* suffix, const T *node, Args... args) {
-        if (!error_reported(errorCode, node->getSourceInfo())) {
-            const char *name = get_error_name(errorCode);
-            auto da = getDiagnosticAction(name, action);
-            if (name)
-                diagnose(da, name, format, suffix, node, args...);
-            else
-                diagnose(action, nullptr, format, suffix, node, std::forward<Args>(args)...);
-        }
-    }
+                  const char *suffix, T node, Args &&...args) {
+        if (!node || error_reported(errorCode, node->getSourceInfo())) return;
 
-    template <class T,
-              typename = typename std::enable_if<std::is_base_of<Util::IHasSourceInfo,
-                                                                 T>::value>::type,
-              typename... Args>
-    void diagnose(DiagnosticAction action, const int errorCode, const char *format,
-                  const char* suffix, const T &node, Args... args) {
-        diagnose(action, errorCode, format, suffix, &node, std::forward<Args>(args)...);
+        if (cstring name = get_error_name(errorCode))
+            diagnose(getDiagnosticAction(errorCode, name, action), name.c_str(), format, suffix,
+                     node, std::forward<Args>(args)...);
+        else
+            diagnose(action, nullptr, format, suffix, node, std::forward<Args>(args)...);
     }
 
     template <typename... Args>
     void diagnose(DiagnosticAction action, const int errorCode, const char *format,
-                  const char* suffix, Args... args) {
-        const char *name = get_error_name(errorCode);
-        auto da = getDiagnosticAction(name, action);
-        if (name)
-            diagnose(da, name, format, suffix, args...);
+                  const char *suffix, Args &&...args) {
+        if (cstring name = get_error_name(errorCode))
+            diagnose(getDiagnosticAction(errorCode, name, action), name.c_str(), format, suffix,
+                     std::forward<Args>(args)...);
         else
             diagnose(action, nullptr, format, suffix, std::forward<Args>(args)...);
     }
 
     /// The sink of all the diagnostic functions. Here the error gets printed
     /// or an exception thrown if the error count exceeds maxErrorCount.
-    template <typename... T>
-    void diagnose(DiagnosticAction action, const char* diagnosticName,
-                  const char* format, const char* suffix, T... args) {
+    template <typename... Args>
+    void diagnose(DiagnosticAction action, const char *diagnosticName, const char *format,
+                  const char *suffix, Args &&...args) {
         if (action == DiagnosticAction::Ignore) return;
 
-        std::string prefix;
-        if (action == DiagnosticAction::Warn) {
+        ErrorMessage::MessageType msgType = ErrorMessage::MessageType::None;
+        if (action == DiagnosticAction::Info) {
+            // Avoid burying errors in a pile of info messages:
+            // don't emit any more info messages if we've emitted errors.
+            if (errorCount > 0) return;
+
+            infoCount++;
+            msgType = ErrorMessage::MessageType::Info;
+        } else if (action == DiagnosticAction::Warn) {
             // Avoid burying errors in a pile of warnings: don't emit any more warnings if we've
             // emitted errors.
             if (errorCount > 0) return;
 
             warningCount++;
-            if (diagnosticName != nullptr) {
-                prefix.append("[--Wwarn=");
-                prefix.append(diagnosticName);
-                prefix.append("] warning: ");
-            } else {
-                prefix.append("warning: ");
-            }
+            msgType = ErrorMessage::MessageType::Warning;
         } else if (action == DiagnosticAction::Error) {
             errorCount++;
-            if (diagnosticName != nullptr) {
-                prefix.append("[--Werror=");
-                prefix.append(diagnosticName);
-                prefix.append("] error: ");
-            } else {
-                prefix.append("error: ");
-            }
+            msgType = ErrorMessage::MessageType::Error;
         }
 
-        std::string message;
-        try {
-            boost::format fmt(format);
-            message = ::error_helper(fmt, prefix, "", "", suffix, args...);
-        } catch (const std::exception&) {
-            // Defensive fallback: avoid crashing the compiler on a bad format string.
-            message = prefix;
-            message.append(format ? format : "");
-            if (suffix && suffix[0] != '\0') {
-                message.append(suffix);
-            }
-            message.append("\n");
-        }
-        emit_message(message);
-        if (errorCount >= maxErrorCount)
+        boost::format fmt(format);
+        ErrorMessage msg(msgType, diagnosticName ? diagnosticName : "", suffix);
+        msg = ::P4::error_helper(fmt, msg, std::forward<Args>(args)...);
+        emit_message(msg);
+
+        if (errorCount > maxErrorCount)
             FATAL_ERROR("Number of errors exceeded set maximum of %1%", maxErrorCount);
     }
-
 
     unsigned getErrorCount() const { return errorCount; }
 
@@ -191,21 +180,25 @@ class ErrorReporter final {
 
     unsigned getWarningCount() const { return warningCount; }
 
+    unsigned getInfoCount() const { return infoCount; }
+
     /// @return the number of diagnostics (warnings and errors) encountered
     /// in the current CompileContext.
-    unsigned getDiagnosticCount() const { return errorCount + warningCount; }
+    unsigned getDiagnosticCount() const { return errorCount + warningCount + infoCount; }
 
-    void setOutputStream(std::ostream* stream) { outputstream = stream; }
+    void setOutputStream(std::ostream *stream) { outputstream = stream; }
 
-    std::ostream* getOutputStream() const { return outputstream; }
+    std::ostream *getOutputStream() const { return outputstream; }
 
     /// Reports an error @message at @location. This allows us to use the
     /// position information provided by Bison.
     template <typename T>
-    void parser_error(const Util::SourceInfo& location, const T& message) {
+    void parser_error(const Util::SourceInfo &location, const T &message) {
         errorCount++;
-        *outputstream << location.toPositionString() << ":" << message << std::endl;
-        emit_message(location.toSourceFragment());  // This flushes the stream.
+        std::stringstream ss;
+        ss << message;
+
+        emit_message(ParserErrorMessage(location, ss.str()));
     }
 
     /**
@@ -214,32 +207,34 @@ class ErrorReporter final {
      * generator's C-based Bison parser, which doesn't have location information
      * available.
      */
-    void parser_error(const Util::InputSources* sources, const char *fmt, ...) {
-        va_list args;
-        va_start(args, fmt);
-
+    template <typename... Args>
+    void parser_error(const Util::InputSources *sources, const char *fmt, Args &&...args) {
         errorCount++;
 
         Util::SourcePosition position = sources->getCurrentPosition();
         position--;
-        Util::SourceFileLine fileError =
-                sources->getSourceLine(position.getLineNumber());
-        cstring msg = Util::vprintf_format(fmt, args);
-        *outputstream << fileError.toString() << ":" << msg << std::endl;
-        cstring sourceFragment = sources->getSourceFragment(position);
-        emit_message(sourceFragment);
 
-        va_end(args);
+        // Unfortunately, we cannot go with statically checked format string
+        // here as it would require some changes to yyerror
+        std::string message;
+        if (!absl::FormatUntyped(&message, absl::UntypedFormatSpec(fmt),
+                                 {absl::FormatArg(args)...})) {
+            BUG("Failed to format string %s", fmt);
+        }
+
+        emit_message(ParserErrorMessage(Util::SourceInfo(sources, position), std::move(message)));
     }
 
     /// @return the action to take for the given diagnostic, falling back to the
     /// default action if it wasn't overridden via the command line or a pragma.
-    DiagnosticAction
-    getDiagnosticAction(cstring diagnostic, DiagnosticAction defaultAction) {
+    DiagnosticAction getDiagnosticAction(int errorCode, cstring diagnostic,
+                                         DiagnosticAction defaultAction) {
+        // Actions for errors can never be overridden.
+        if (ErrorCatalog::getCatalog().isError(errorCode)) return DiagnosticAction::Error;
         auto it = diagnosticActions.find(diagnostic);
         if (it != diagnosticActions.end()) return it->second;
         // if we're dealing with warnings and they have been globally modified
-        // (ingnored or turned into errors), then return the global default
+        // (ignored or turned into errors), then return the global default
         if (defaultAction == DiagnosticAction::Warn &&
             defaultWarningDiagnosticAction != DiagnosticAction::Warn)
             return defaultWarningDiagnosticAction;
@@ -247,30 +242,37 @@ class ErrorReporter final {
     }
 
     /// Set the action to take for the given diagnostic.
-    void setDiagnosticAction(cstring diagnostic, DiagnosticAction action) {
-        diagnosticActions[diagnostic] = action;
+    void setDiagnosticAction(std::string_view diagnostic, DiagnosticAction action) {
+        diagnosticActions[cstring(diagnostic)] = action;
     }
 
-    /// @return the default diagnostic action for calls to `::warning()`.
-    DiagnosticAction getDefaultWarningDiagnosticAction() {
-        return defaultWarningDiagnosticAction;
-    }
+    /// @return the default diagnostic action for calls to `::P4::warning()`.
+    DiagnosticAction getDefaultWarningDiagnosticAction() { return defaultWarningDiagnosticAction; }
 
-    /// set the default diagnostic action for calls to `::warning()`.
+    /// set the default diagnostic action for calls to `::P4::warning()`.
     void setDefaultWarningDiagnosticAction(DiagnosticAction action) {
         defaultWarningDiagnosticAction = action;
     }
 
- private:
-    unsigned errorCount;
-    unsigned warningCount;
-    unsigned maxErrorCount;  /// the maximum number of errors that we print before fail
+    /// @return the default diagnostic action for calls to `::P4::info()`.
+    DiagnosticAction getDefaultInfoDiagnosticAction() { return defaultInfoDiagnosticAction; }
 
-    /// The default diagnostic action for calls to `::warning()`.
+    /// set the default diagnostic action for calls to `::P4::info()`.
+    void setDefaultInfoDiagnosticAction(DiagnosticAction action) {
+        defaultInfoDiagnosticAction = action;
+    }
+
+ private:
+    /// The default diagnostic action for calls to `::P4::info()`.
+    DiagnosticAction defaultInfoDiagnosticAction;
+
+    /// The default diagnostic action for calls to `::P4::warning()`.
     DiagnosticAction defaultWarningDiagnosticAction;
 
     /// allow filtering of diagnostic actions
     std::unordered_map<cstring, DiagnosticAction> diagnosticActions;
 };
 
-#endif /* P4C_LIB_ERROR_REPORTER_H_ */
+}  // namespace P4
+
+#endif /* LIB_ERROR_REPORTER_H_ */

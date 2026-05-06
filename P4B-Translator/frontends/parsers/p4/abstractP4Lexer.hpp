@@ -1,5 +1,5 @@
-#ifndef FRONTENDS_P4_ABSTRACTP4LEXER_H_
-#define FRONTENDS_P4_ABSTRACTP4LEXER_H_
+#ifndef FRONTENDS_PARSERS_P4_ABSTRACTP4LEXER_HPP_
+#define FRONTENDS_PARSERS_P4_ABSTRACTP4LEXER_HPP_
 
 #include "frontends/parsers/p4/p4parser.hpp"
 
@@ -10,6 +10,7 @@ class AbstractP4Lexer {
     typedef P4::P4Parser::symbol_type Token;
 
  public:
+    virtual ~AbstractP4Lexer() = default;
     /**
      * Invoked by the parser to advance to the next token in the input stream.
      *
@@ -27,4 +28,4 @@ class AbstractP4Lexer {
 
 }  // namespace P4
 
-#endif  /* FRONTENDS_P4_ABSTRACTP4LEXER_H_ */
+#endif  /* FRONTENDS_PARSERS_P4_ABSTRACTP4LEXER_HPP_ */

@@ -14,13 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "gtest/gtest.h"
+#include "lib/source_file.h"
+
+#include <gtest/gtest.h>
+
+#include "lib/compile_context.h"
 #include "lib/cstring.h"
 #include "lib/exceptions.h"
-#include "lib/source_file.h"
-#include "lib/compile_context.h"
 
-namespace Util {
+namespace P4::Util {
 
 TEST(UtilSourceFile, SourcePosition) {
     SourcePosition invalid;
@@ -29,7 +31,7 @@ TEST(UtilSourceFile, SourcePosition) {
     SourcePosition position(3, 3);
     EXPECT_EQ("3:3", position.toString());
 
-    auto& context = BaseCompileContext::get();
+    auto &context = BaseCompileContext::get();
     cstring str = context.errorReporter().format_message("%1% - %2%", position, position);
     EXPECT_EQ("3:3 - 3:3\n", str);
 
@@ -65,10 +67,10 @@ TEST(UtilSourceFile, InputSources) {
 
     EXPECT_EQ(3u, sources.lineCount());
 
-    cstring fl = sources.getLine(1);
+    auto fl = sources.getLine(1);
     EXPECT_EQ("First line\n", fl);
 
-    cstring sl = sources.getLine(2);
+    auto sl = sources.getLine(2);
     EXPECT_EQ("Second line\n", sl);
 
     SourceFileLine original = sources.getSourceLine(3);
@@ -90,11 +92,11 @@ TEST(UtilSourceFile, SourceInfo) {
     SourceInfo t2 = SourceInfo(&sources, t2_s, t2_e);
 
     SourceInfo span = t1 + t2;
-    cstring str = span.toDebugString();
+    cstring str = span.toString();
     EXPECT_EQ("(1:1)-(2:2)", str);
 
     SourceInfo invalid;
     EXPECT_FALSE(invalid.isValid());
 }
 
-}  // namespace Util
+}  // namespace P4::Util

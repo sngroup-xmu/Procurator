@@ -1,5 +1,5 @@
 /*
-Copyright 2013-present Barefoot Networks, Inc. 
+Copyright 2013-present Barefoot Networks, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,10 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
+
 #include "ir/ir.h"
-#include "ir/visitor.h"
-#include "lib/exceptions.h"
+
+using namespace P4;
+using namespace P4::literals;
 
 TEST(IR, Equiv) {
     auto *t = IR::Type::Bits::get(16);
@@ -43,30 +45,30 @@ TEST(IR, Equiv) {
     EXPECT_FALSE(d1m->equiv(*em));
     EXPECT_FALSE(d1m->equiv(*d1f));
 
-    auto *call1 = new IR::MethodCallExpression(d1m, { a1, d1 });
-    auto *call2 = new IR::MethodCallExpression(d2m, { a2, d2 });
-    auto *call3 = new IR::MethodCallExpression(d1m, { b, d1 });
+    auto *call1 = new IR::MethodCallExpression(d1m, {a1, d1});
+    auto *call2 = new IR::MethodCallExpression(d2m, {a2, d2});
+    auto *call3 = new IR::MethodCallExpression(d1m, {b, d1});
 
     EXPECT_TRUE(call1->equiv(*call2));
     EXPECT_FALSE(call1->equiv(*call3));
 
-    auto *list1 = new IR::ListExpression({ a1, b, d1 });
-    auto *list2 = new IR::ListExpression({ a1, b, d2 });
-    auto *list3 = new IR::ListExpression({ a1, b, e });
+    auto *list1 = new IR::ListExpression({a1, b, d1});
+    auto *list2 = new IR::ListExpression({a1, b, d2});
+    auto *list3 = new IR::ListExpression({a1, b, e});
 
     EXPECT_TRUE(list1->equiv(*list2));
     EXPECT_FALSE(list1->equiv(*list3));
 
     auto *pr1 = new IR::V1Program;
     auto *pr2 = pr1->clone();
-    pr1->add("a", a1);
-    pr1->add("b", b);
-    pr1->add("call", call1);
-    pr2->add("a", a2);
-    pr2->add("b", b);
-    pr2->add("call", call2);
+    pr1->add("a"_cs, a1);
+    pr1->add("b"_cs, b);
+    pr1->add("call"_cs, call1);
+    pr2->add("a"_cs, a2);
+    pr2->add("b"_cs, b);
+    pr2->add("call"_cs, call2);
     EXPECT_TRUE(pr1->equiv(*pr2));
-    pr1->add("lista", list1);
-    pr2->add("listb", list1);
+    pr1->add("lista"_cs, list1);
+    pr2->add("listb"_cs, list1);
     EXPECT_FALSE(pr1->equiv(*pr2));
 }

@@ -16,60 +16,114 @@ limitations under the License.
 
 /* -*-c++-*- */
 
-#ifndef P4C_LIB_STRINGIFY_H_
-#define P4C_LIB_STRINGIFY_H_
+#ifndef LIB_STRINGIFY_H_
+#define LIB_STRINGIFY_H_
 
-#include <stdint.h>
-#include "gmputil.h"
+#include <cstdarg>
+#include <string>
+#include <string_view>
+#include <type_traits>
+
+// FIXME: Replace with big_int_fwd.h with Boost 1.84+
+#include "big_int.h"
 #include "cstring.h"
-#include "stringref.h"
+
+namespace P4 {
+
+class IHasDbPrint {
+ public:
+    virtual void dbprint(std::ostream &out) const = 0;
+    void print() const;  // useful in the debugger
+    virtual ~IHasDbPrint() = default;
+};
+
+inline std::ostream &operator<<(std::ostream &out, const IHasDbPrint &obj) {
+    obj.dbprint(out);
+    return out;
+}
+
+inline std::ostream &operator<<(std::ostream &out, const IHasDbPrint *obj) {
+    if (obj)
+        obj->dbprint(out);
+    else
+        out << "<null>";
+    return out;
+}
+
+/// SFINAE helper to check if given class has a `dbprint` method. Apparently,
+/// not everything are descendants of IHasDbPrint...
+template <class, class = void>
+struct has_dbprint : std::false_type {};
+
+template <class T>
+struct has_dbprint<T,
+                   std::void_t<decltype(std::declval<T>().dbprint(std::declval<std::ostream &>()))>>
+    : std::true_type {};
+
+template <class T>
+inline constexpr bool has_dbprint_v = has_dbprint<T>::value;
+
+template <class, class = void>
+struct has_ostream_operator : std::false_type {};
+
+template <class T>
+struct has_ostream_operator<
+    T, std::void_t<decltype(std::declval<std::ostream &>() << std::declval<T>())>>
+    : std::true_type {};
+
+template <class T>
+inline constexpr bool has_ostream_operator_v = has_ostream_operator<T>::value;
 
 // convert values to cstrings
 namespace Util {
-// Check whether type T has a method with signature
-// cstring toString() const
-template<typename T>
-class HasToString final {
-    template <typename U, cstring (U::*)() const> struct Check;
-    template <typename U> static char func(Check<U, &U::toString> *);
-    template <typename U> static int func(...);
 
- public:
-    typedef HasToString type;
-    enum { value = sizeof(func<T>(0)) == sizeof(char) };
-};
+/// SFINAE helper to check if given class has a `toString` method.
+template <class, class = void>
+struct has_toString : std::false_type {};
 
-template<typename T, typename = decltype(std::to_string((T)0))>
-cstring toString(T value) { return std::to_string(value); }
+template <class T>
+struct has_toString<T, std::void_t<decltype(std::declval<T>().toString())>> : std::true_type {};
 
-template<typename T>
-auto toString(const T& value) -> typename std::enable_if<HasToString<T>::value, cstring>::type
-{ return value.toString(); }
+template <class T>
+inline constexpr bool has_toString_v = has_toString<T>::value;
 
-template<typename T>
-auto toString(T& value) -> typename std::enable_if<HasToString<T>::value, cstring>::type
-{ return value.toString(); }
+template <typename T, typename = decltype(std::to_string(std::declval<T>()))>
+cstring toString(T value) {
+    return cstring(std::to_string(value));
+}
 
-template<typename T>
-auto toString(const T* value) -> typename std::enable_if<HasToString<T>::value, cstring>::type
-{ return value->toString(); }
+template <typename T>
+auto toString(const T &value) -> typename std::enable_if_t<has_toString_v<T>, cstring> {
+    return value.toString();
+}
 
-template<typename T>
-auto toString(T* value) -> typename std::enable_if<HasToString<T>::value, cstring>::type
-{ return value->toString(); }
+template <typename T>
+auto toString(T &value) -> typename std::enable_if_t<has_toString_v<T>, cstring> {
+    return value.toString();
+}
+
+template <typename T>
+auto toString(const T *value) -> typename std::enable_if_t<has_toString_v<T>, cstring> {
+    return value->toString();
+}
+
+template <typename T>
+auto toString(T *value) -> typename std::enable_if_t<has_toString_v<T>, cstring> {
+    return value->toString();
+}
 
 cstring toString(bool value);
-cstring toString(std::string value);
-cstring toString(const char* value);
+cstring toString(const std::string &value);
+cstring toString(const char *value);
 cstring toString(cstring value);
-cstring toString(StringRef value);
+cstring toString(std::string_view value);
 /// A width of zero indicates that no width should be displayed.
-cstring toString(const big_int value, unsigned width, bool sign, unsigned int base = 10);
-cstring toString(const void* value);
+cstring toString(const big_int &value, unsigned width, bool sign, unsigned int base = 10);
+cstring toString(const void *value);
 
-// printf into a string
-cstring printf_format(const char* fmt_str, ...);
-// vprintf into a string
-cstring vprintf_format(const char* fmt_str, va_list ap);
+char DigitToChar(int digit);
+
 }  // namespace Util
-#endif /* P4C_LIB_STRINGIFY_H_ */
+}  // namespace P4
+
+#endif /* LIB_STRINGIFY_H_ */

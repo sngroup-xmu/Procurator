@@ -14,40 +14,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#include "ir/ir.h"
-#include "backend.h"
 #include "header.h"
 
-namespace BMV2 {
+#include "backend.h"
+#include "ir/ir.h"
 
-// TODO(hanw): remove
-Util::JsonArray* HeaderConverter::pushNewArray(Util::JsonArray* parent) {
+namespace P4::BMV2 {
+
+/// TODO(hanw): remove.
+Util::JsonArray *HeaderConverter::pushNewArray(Util::JsonArray *parent) {
     auto result = new Util::JsonArray();
     parent->append(result);
     return result;
 }
 
-HeaderConverter::HeaderConverter(ConversionContext* ctxt, cstring scalarsName)
-        : ctxt(ctxt), scalarsName(scalarsName) {
+HeaderConverter::HeaderConverter(ConversionContext *ctxt, cstring scalarsName)
+    : ctxt(ctxt), scalarsName(scalarsName) {
     setName("HeaderConverter");
     CHECK_NULL(ctxt);
 }
 
-/**
- * Create header type and header instance from a IR::StructLike type
- *
- * @param meta this boolean indicates if the struct is a metadata or header.
- */
-void HeaderConverter::addTypesAndInstances(const IR::Type_StructLike* type, bool meta) {
-    LOG1("Adding " << type);
+/// Create header type and header instance from a IR::StructLike type
+/// @param meta this boolean indicates if the struct is a metadata or header.
+void HeaderConverter::addTypesAndInstances(const IR::Type_StructLike *type, bool meta) {
+    LOG2("Adding " << type);
     for (auto f : type->fields) {
         auto ft = ctxt->typeMap->getType(f, true);
         if (ft->is<IR::Type_StructLike>()) {
             // The headers struct can not contain nested structures.
             if (!meta && ft->is<IR::Type_Struct>()) {
-                ::error(ErrorType::ERR_INVALID,
-                        "%1%: type should only contain headers, header stacks, or header unions",
-                        type);
+                ::P4::error(
+                    ErrorType::ERR_INVALID,
+                    "%1%: type should only contain headers, header stacks, or header unions", type);
                 return;
             }
             auto st = ft->to<IR::Type_StructLike>();
@@ -69,12 +67,11 @@ void HeaderConverter::addTypesAndInstances(const IR::Type_StructLike* type, bool
                     // We have to add separately a header instance for all
                     // headers in the union.  Each instance will be named with
                     // a prefix including the union name, e.g., "u.h"
-                    Util::JsonArray* fields = new Util::JsonArray();
+                    Util::JsonArray *fields = new Util::JsonArray();
                     for (auto uf : ft->to<IR::Type_HeaderUnion>()->fields) {
                         auto uft = ctxt->typeMap->getType(uf, true);
                         auto h_name = header_name + "." + uf->controlPlaneName();
-                        auto h_type = uft->to<IR::Type_StructLike>()
-                                         ->controlPlaneName();
+                        auto h_type = uft->to<IR::Type_StructLike>()->controlPlaneName();
                         unsigned id = ctxt->json->add_header(h_type, h_name);
                         fields->append(id);
                     }
@@ -83,9 +80,9 @@ void HeaderConverter::addTypesAndInstances(const IR::Type_StructLike* type, bool
                     BUG("Unexpected type %1%", ft);
                 }
             }
-        } else if (ft->is<IR::Type_Stack>()) {
+        } else if (ft->is<IR::Type_Array>()) {
             // Done elsewhere
-            LOG1("stack generation done elsewhere");
+            LOG3("stack generation done elsewhere");
             continue;
         } else {
             // Treat this field like a scalar local variable
@@ -126,27 +123,25 @@ void HeaderConverter::addTypesAndInstances(const IR::Type_StructLike* type, bool
     }
 }
 
-Util::JsonArray* HeaderConverter::addHeaderUnionFields(
-    cstring hdrName, const IR::Type_HeaderUnion* type) {
+Util::JsonArray *HeaderConverter::addHeaderUnionFields(cstring hdrName,
+                                                       const IR::Type_HeaderUnion *type) {
     auto result = new Util::JsonArray();
     for (auto uf : type->fields) {
         auto uft = ctxt->typeMap->getType(uf, true);
         auto h_name = hdrName + "." + uf->controlPlaneName();
-        auto h_type = uft->to<IR::Type_StructLike>()
-                      ->controlPlaneName();
+        auto h_type = uft->to<IR::Type_StructLike>()->controlPlaneName();
         unsigned id = ctxt->json->add_header(h_type, h_name);
         result->append(id);
     }
     return result;
 }
 
-void HeaderConverter::addHeaderStacks(const IR::Type_Struct* headersStruct) {
-    LOG1("Creating stack " << headersStruct);
+void HeaderConverter::addHeaderStacks(const IR::Type_Struct *headersStruct) {
+    LOG2("Creating stack " << headersStruct);
     for (auto f : headersStruct->fields) {
         auto ft = ctxt->typeMap->getType(f, true);
-        auto stack = ft->to<IR::Type_Stack>();
-        if (stack == nullptr)
-            continue;
+        auto stack = ft->to<IR::Type_Array>();
+        if (stack == nullptr) continue;
         auto stack_name = f->controlPlaneName();
         auto stack_size = stack->getSize();
         auto type = ctxt->typeMap->getTypeType(stack->elementType, true);
@@ -180,19 +175,19 @@ void HeaderConverter::addHeaderStacks(const IR::Type_Struct* headersStruct) {
     }
 }
 
-bool HeaderConverter::isHeaders(const IR::Type_StructLike* st) {
+bool HeaderConverter::isHeaders(const IR::Type_StructLike *st) {
     bool result = false;
     for (auto f : st->fields) {
-        if (f->type->is<IR::Type_Header>() || f->type->is<IR::Type_Stack>()) {
+        if (f->type->is<IR::Type_Header>() || f->type->is<IR::Type_Array>()) {
             result = true;
         }
     }
     return result;
 }
 
-void HeaderConverter::addHeaderField(const cstring& header, const cstring& name,
-                                    int size, bool is_signed) {
-    Util::JsonArray* field = new Util::JsonArray();
+void HeaderConverter::addHeaderField(const cstring &header, const cstring &name, int size,
+                                     bool is_signed) {
+    Util::JsonArray *field = new Util::JsonArray();
     field->append(name);
     field->append(size);
     field->append(is_signed);
@@ -241,8 +236,8 @@ void HeaderConverter::addHeaderType(const IR::Type_StructLike *st) {
             max_length += type->size;
             field->append("*");
             if (varbitFound)
-                ::error(ErrorType::ERR_UNSUPPORTED,
-                        "%1%: headers with multiple varbit fields not supported", st);
+                ::P4::error(ErrorType::ERR_UNSUPPORTED,
+                            "%1%: headers with multiple varbit fields not supported", st);
             varbitFound = true;
         } else if (ftype->is<IR::Type_Error>()) {
             // treat as bit<32>
@@ -251,7 +246,7 @@ void HeaderConverter::addHeaderType(const IR::Type_StructLike *st) {
             field->append(32);
             field->append(false);
             max_length += 32;
-        } else if (ftype->to<IR::Type_Stack>()) {
+        } else if (ftype->to<IR::Type_Array>()) {
             BUG("%1%: nested stack", st);
         } else {
             BUG("%1%: unexpected type for %2%.%3%", ftype, st, f->name);
@@ -262,11 +257,11 @@ void HeaderConverter::addHeaderType(const IR::Type_StructLike *st) {
     unsigned padding = max_length % 8;
     if (padding != 0) {
         if (st->is<IR::Type_Header>()) {
-            ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
-                    "%1%: Found header with fields totaling %2% bits."
-                    "  BMv2 target only supports headers with fields"
-                    " totaling a multiple of 8 bits.",
-                    st, max_length);
+            ::P4::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
+                        "%1%: Found header with fields totaling %2% bits."
+                        "  BMv2 target only supports headers with fields"
+                        " totaling a multiple of 8 bits.",
+                        st, max_length);
         } else if (st->is<IR::Type_Struct>()) {
             cstring name = ctxt->refMap->newName("_padding");
             auto field = pushNewArray(fields);
@@ -290,45 +285,43 @@ void HeaderConverter::addHeaderType(const IR::Type_StructLike *st) {
     }
     ctxt->json->add_header_type(name, fields, max_length_bytes);
 
-    LOG1("... creating aliases for metadata fields " << st);
+    LOG2("... creating aliases for metadata fields " << st);
     for (auto f : st->fields) {
-        if (auto aliasAnnotation = f->getAnnotation("alias")) {
+        if (auto aliasAnnotation = f->getAnnotation("alias"_cs)) {
             auto container = new Util::JsonArray();
             auto alias = new Util::JsonArray();
-            auto target_name = "";
+            cstring target_name;
             if (BMV2Context::get().options().loadIRFromJson == false) {
-                target_name = aliasAnnotation->expr.front()->to<IR::StringLiteral>()->value;
+                target_name = aliasAnnotation->getExpr().front()->to<IR::StringLiteral>()->value;
             } else {
-                if (aliasAnnotation->body.size() != 0) {
-                    target_name = aliasAnnotation->body.at(0)->text;
+                if (aliasAnnotation->getUnparsed().size() != 0) {
+                    target_name = aliasAnnotation->getUnparsed().at(0)->text;
                 } else {
                     // aliasAnnotation->body is empty or not saved correctly
-                    ::error(ErrorType::ERR_INVALID,
-                            "There is no saved data for aliases target_name.");
+                    ::P4::error(ErrorType::ERR_INVALID,
+                                "There is no saved data for aliases target_name.");
                 }
             }
             LOG2("field alias " << target_name);
             container->append(target_name);  // name on target
             // break down the alias into meta . field
-            alias->append(name);      // metadata name
-            alias->append(f->name);   // field name
+            alias->append(name);     // metadata name
+            alias->append(f->name);  // field name
             container->append(alias);
             ctxt->json->field_aliases->append(container);
         }
     }
 }
 
-/**
- * We synthesize a "header_type" for each local which has a struct type
- * and we pack all the scalar-typed locals into a 'scalar' type
- */
-Visitor::profile_t HeaderConverter::init_apply(const IR::Node* node) {
+/// We synthesize a "header_type" for each local which has a struct type
+/// and we pack all the scalar-typed locals into a 'scalar' type.
+Visitor::profile_t HeaderConverter::init_apply(const IR::Node *node) {
     scalarsTypeName = ctxt->refMap->newName("scalars");
     ctxt->json->add_header_type(scalarsTypeName);
     // bit<n>, bool, error are packed into scalars type,
     // varbit, struct and stack introduce new header types
     for (auto v : ctxt->structure->variables) {
-        LOG1("variable " << v);
+        LOG2("variable " << v);
         auto type = ctxt->typeMap->getType(v, true);
         if (auto st = type->to<IR::Type_StructLike>()) {
             auto metadata_type = st->controlPlaneName();
@@ -343,15 +336,14 @@ Visitor::profile_t HeaderConverter::init_apply(const IR::Node* node) {
                 ctxt->json->add_metadata(metadata_type, v->name);
             }
             addHeaderType(st);
-        } else if (auto stack = type->to<IR::Type_Stack>()) {
+        } else if (auto stack = type->to<IR::Type_Array>()) {
             auto type = ctxt->typeMap->getTypeType(stack->elementType, true);
             if (type->is<IR::Type_Header>()) {
                 auto ht = type->to<IR::Type_Header>();
                 addHeaderType(ht);
-                cstring header_type = stack->elementType->to<IR::Type_Header>()
-                                      ->controlPlaneName();
+                cstring header_type = stack->elementType->to<IR::Type_Header>()->controlPlaneName();
                 std::vector<unsigned> header_ids;
-                for (unsigned i=0; i < stack->getSize(); i++) {
+                for (unsigned i = 0; i < stack->getSize(); i++) {
                     cstring name = v->name + "[" + Util::toString(i) + "]";
                     auto header_id = ctxt->json->add_header(header_type, name);
                     header_ids.push_back(header_id);
@@ -360,16 +352,16 @@ Visitor::profile_t HeaderConverter::init_apply(const IR::Node* node) {
             } else if (auto ut = type->to<IR::Type_HeaderUnion>()) {
                 cstring union_type = ut->controlPlaneName();
                 std::vector<unsigned> union_ids;
-                for (unsigned i=0; i < stack->getSize(); i++) {
-                    Util::JsonArray* result = new Util::JsonArray();
+                for (unsigned i = 0; i < stack->getSize(); i++) {
+                    Util::JsonArray *result = new Util::JsonArray();
                     cstring name = v->name + "[" + Util::toString(i) + "]";
                     auto fields = addHeaderUnionFields(name, ut);
                     result->concatenate(fields);
                     auto union_id = ctxt->json->add_union(union_type, fields, name);
                     union_ids.push_back(union_id);
                 }
-                ctxt->json->add_header_union_stack(
-                    union_type, v->name, stack->getSize(), union_ids);
+                ctxt->json->add_header_union_stack(union_type, v->name, stack->getSize(),
+                                                   union_ids);
             } else {
                 BUG("%1: unexpected stack element type", type);
             }
@@ -385,8 +377,7 @@ Visitor::profile_t HeaderConverter::init_apply(const IR::Node* node) {
             auto hdrType = new IR::Type_Header(headerName, *vec);
             ctxt->typeMap->setType(hdrType, hdrType);
             ctxt->json->add_metadata(headerName, v->name);
-            if (visitedHeaders.find(headerName) != visitedHeaders.end())
-                continue;  // already seen
+            if (visitedHeaders.find(headerName) != visitedHeaders.end()) continue;  // already seen
             visitedHeaders.emplace(headerName);
             addHeaderType(hdrType);
         } else if (type->is<IR::Type_Bits>()) {
@@ -408,16 +399,16 @@ Visitor::profile_t HeaderConverter::init_apply(const IR::Node* node) {
 
     // always-have metadata instance
     ctxt->json->add_metadata(scalarsTypeName, scalarsName);
-    ctxt->json->add_metadata("standard_metadata", "standard_metadata");
+    ctxt->json->add_metadata("standard_metadata"_cs, "standard_metadata"_cs);
     return Inspector::init_apply(node);
 }
 
-void HeaderConverter::end_apply(const IR::Node*) {
+void HeaderConverter::end_apply(const IR::Node *) {
     // pad scalars to byte boundary
     unsigned padding = scalars_width % 8;
     if (padding != 0) {
         cstring name = ctxt->refMap->newName("_padding");
-        addHeaderField(scalarsTypeName, name, 8-padding, false);
+        addHeaderField(scalarsTypeName, name, 8 - padding, false);
     }
 }
 
@@ -441,9 +432,9 @@ void HeaderConverter::end_apply(const IR::Node*) {
  * @pre assumes no nested struct in parameters.
  * @post none
  */
-bool HeaderConverter::preorder(const IR::Parameter* param) {
+bool HeaderConverter::preorder(const IR::Parameter *param) {
     LOG3("convert param " << param);
-    //// keep track of which headers we've already generated the ctxt->json for
+    // keep track of which headers we've already generated in ctxt->json
     auto ft = ctxt->typeMap->getType(param->getNode(), true);
     if (ft->is<IR::Type_Struct>()) {
         auto st = ft->to<IR::Type_Struct>();
@@ -452,7 +443,7 @@ bool HeaderConverter::preorder(const IR::Parameter* param) {
         else
             visitedHeaders.emplace(st->getName());
 
-        if (st->getAnnotation("metadata")) {
+        if (st->getAnnotation("metadata"_cs)) {
             addHeaderType(st);
         } else {
             auto isHeader = isHeaders(st);
@@ -467,4 +458,4 @@ bool HeaderConverter::preorder(const IR::Parameter* param) {
     return false;
 }
 
-}  // namespace BMV2
+}  // namespace P4::BMV2

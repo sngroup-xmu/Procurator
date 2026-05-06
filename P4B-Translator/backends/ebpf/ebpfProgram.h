@@ -14,76 +14,103 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _BACKENDS_EBPF_EBPFPROGRAM_H_
-#define _BACKENDS_EBPF_EBPFPROGRAM_H_
+#ifndef BACKENDS_EBPF_EBPFPROGRAM_H_
+#define BACKENDS_EBPF_EBPFPROGRAM_H_
 
-#include "target.h"
+#include "codeGen.h"
 #include "ebpfModel.h"
 #include "ebpfObject.h"
 #include "ebpfOptions.h"
-#include "ir/ir.h"
-#include "frontends/p4/typeMap.h"
-#include "frontends/p4/evaluator/evaluator.h"
 #include "frontends/common/options.h"
-#include "codeGen.h"
+#include "frontends/p4/evaluator/evaluator.h"
+#include "frontends/p4/typeMap.h"
+#include "ir/ir.h"
+#include "target.h"
 
-namespace EBPF {
+namespace P4::EBPF {
 
 class EBPFProgram;
 class EBPFParser;
 class EBPFControl;
+class EBPFDeparser;
 class EBPFTable;
 class EBPFType;
 
 class EBPFProgram : public EBPFObject {
  public:
-    const EbpfOptions& options;
-    const IR::P4Program* program;
-    const IR::ToplevelBlock*  toplevel;
-    P4::ReferenceMap*    refMap;
-    P4::TypeMap*         typeMap;
-    EBPFParser*          parser;
-    EBPFControl*         control;
-    EBPFModel           &model;
+    // The builder->target defines either TC or XDP target,
+    // while for PSA-eBPF we may use both of them interchangeably.
+    // This field stores the Target object that is unique per eBPF program (pipeline).
+    const Target *progTarget;
+    const EbpfOptions &options;
+    const IR::P4Program *program;
+    const IR::ToplevelBlock *toplevel;
+    P4::ReferenceMap *refMap;
+    P4::TypeMap *typeMap;
+    EBPFParser *parser;
+    EBPFControl *control;
+    EBPFModel &model;
+    /// Deparser may be NULL if not supported (e.g. ebpfFilter package).
+    EBPFDeparser *deparser;
 
-    cstring endLabel, offsetVar, lengthVar;
+    cstring endLabel, offsetVar, lengthVar, headerStartVar;
     cstring zeroKey, functionName, errorVar;
     cstring packetStartVar, packetEndVar, byteVar;
     cstring errorEnum;
-    cstring license = "GPL";  // TODO: this should be a compiler option probably
-    cstring arrayIndexType = "u32";
+    cstring license = "GPL"_cs;  /// TODO: this should be a compiler option probably
+    cstring arrayIndexType = "u32"_cs;
 
-    virtual bool build();  // return 'true' on success
+    virtual bool build();  /// return 'true' on success
 
-    EBPFProgram(const EbpfOptions &options, const IR::P4Program* program,
-                P4::ReferenceMap* refMap, P4::TypeMap* typeMap, const IR::ToplevelBlock* toplevel) :
-            options(options), program(program), toplevel(toplevel),
-            refMap(refMap), typeMap(typeMap),
-            parser(nullptr), control(nullptr), model(EBPFModel::instance) {
-        offsetVar = EBPFModel::reserved("packetOffsetInBits");
-        zeroKey = EBPFModel::reserved("zero");
-        functionName = EBPFModel::reserved("filter");
-        errorVar = EBPFModel::reserved("errorCode");
-        packetStartVar = EBPFModel::reserved("packetStart");
-        packetEndVar = EBPFModel::reserved("packetEnd");
-        byteVar = EBPFModel::reserved("byte");
-        endLabel = EBPFModel::reserved("end");
-        errorEnum = EBPFModel::reserved("errorCodes");
+    EBPFProgram(const EbpfOptions &options, const IR::P4Program *program, P4::ReferenceMap *refMap,
+                P4::TypeMap *typeMap, const IR::ToplevelBlock *toplevel)
+        : progTarget(nullptr),
+          options(options),
+          program(program),
+          toplevel(toplevel),
+          refMap(refMap),
+          typeMap(typeMap),
+          parser(nullptr),
+          control(nullptr),
+          model(EBPFModel::instance),
+          deparser(nullptr) {
+        // NB: offsetVar not used in eBPF backend - uBPF and TC only
+        offsetVar = EBPFModel::reserved("packetOffsetInBits"_cs);
+        zeroKey = EBPFModel::reserved("zero"_cs);
+        functionName = EBPFModel::reserved("filter"_cs);
+        errorVar = EBPFModel::reserved("errorCode"_cs);
+        packetStartVar = EBPFModel::reserved("packetStart"_cs);
+        packetEndVar = EBPFModel::reserved("packetEnd"_cs);
+        headerStartVar = EBPFModel::reserved("headerStart"_cs);
+        lengthVar = EBPFModel::reserved("pkt_len"_cs);
+        byteVar = EBPFModel::reserved("byte"_cs);
+        endLabel = EBPFModel::reserved("end"_cs);
+        errorEnum = EBPFModel::reserved("errorCodes"_cs);
     }
 
  protected:
-    virtual void emitGeneratedComment(CodeBuilder* builder);
-    virtual void emitPreamble(CodeBuilder* builder);
-    virtual void emitTypes(CodeBuilder* builder);
-    virtual void emitHeaderInstances(CodeBuilder* builder);
-    virtual void emitLocalVariables(CodeBuilder* builder);
-    virtual void emitPipeline(CodeBuilder* builder);
+    virtual void emitPreamble(CodeBuilder *builder);
+    virtual void emitTypes(CodeBuilder *builder);
+    virtual void emitHeaderInstances(CodeBuilder *builder);
+    virtual void emitLocalVariables(CodeBuilder *builder);
+    virtual void emitPipeline(CodeBuilder *builder);
+
+    /// Checks whether a method name is considered to be part of the standard library, e.g., defined
+    /// in core.p4 or ebpf_model.p4.
+    /// TODO: Should we also distinguish overloaded methods?
+    virtual bool isLibraryMethod(cstring methodName);
 
  public:
-    virtual void emitH(CodeBuilder* builder, cstring headerFile);  // emits C headers
-    virtual void emitC(CodeBuilder* builder, cstring headerFile);  // emits C program
+    virtual void emitCommonPreamble(CodeBuilder *builder);
+    virtual void emitGeneratedComment(CodeBuilder *builder);
+    virtual void emitH(CodeBuilder *builder,
+                       const std::filesystem::path &headerFile);  // emits C headers
+    virtual void emitC(CodeBuilder *builder,
+                       const std::filesystem::path &headerFile);  // emits C program
+
+    DECLARE_TYPEINFO(EBPFProgram, EBPFObject);
 };
 
-}  // namespace EBPF
+}  // namespace P4::EBPF
 
-#endif /* _BACKENDS_EBPF_EBPFPROGRAM_H_ */
+#endif /* BACKENDS_EBPF_EBPFPROGRAM_H_ */

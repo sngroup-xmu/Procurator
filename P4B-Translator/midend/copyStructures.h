@@ -14,11 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _MIDEND_COPYSTRUCTURES_H_
-#define _MIDEND_COPYSTRUCTURES_H_
+#ifndef MIDEND_COPYSTRUCTURES_H_
+#define MIDEND_COPYSTRUCTURES_H_
 
-#include "ir/ir.h"
 #include "frontends/p4/typeChecking/typeChecker.h"
+#include "ir/ir.h"
 
 namespace P4 {
 
@@ -44,7 +44,8 @@ namespace P4 {
  *
  *   Further, struct initialization is converted to assignment on struct fields
  *
- *   Note, header assignments are not converted in this pass.
+ *   header assignments and tuple assignments are optionally converted in this pass, based
+ *   on constructor argument
  *
  * @pre none
  * @post
@@ -53,17 +54,32 @@ namespace P4 {
  *
  */
 class DoCopyStructures : public Transform {
-    TypeMap* typeMap;
-    /* Specific targets may allow functions or methods to return structs.
-     * Such methods will not be converted in this pass. Setting the
-     * errorOnMethodCall flag will produce an error message if such a
-     * method is encountered. */
+    TypeMap *typeMap;
+    /// Specific targets may allow functions or methods to return structs.
+    /// Such methods will not be converted in this pass. Setting the
+    /// errorOnMethodCall flag will produce an error message if such a
+    ///  method is encountered.
     bool errorOnMethodCall;
+
+    /// Do not only copy normal structures but also perform copy assignments for headers.
+    bool copyHeaders;
+    /// Also split up assignments of tuples
+    bool copyTuples;
+
  public:
-    explicit DoCopyStructures(TypeMap* typeMap, bool errorOnMethodCall) :
-            typeMap(typeMap), errorOnMethodCall(errorOnMethodCall)
-    { CHECK_NULL(typeMap); setName("DoCopyStructures"); }
-    const IR::Node* postorder(IR::AssignmentStatement* statement) override;
+    explicit DoCopyStructures(TypeMap *typeMap, bool errorOnMethodCall, bool copyHeaders = false,
+                              bool copyTuples = true)
+        : typeMap(typeMap),
+          errorOnMethodCall(errorOnMethodCall),
+          copyHeaders(copyHeaders),
+          copyTuples(copyTuples) {
+        CHECK_NULL(typeMap);
+        setName("DoCopyStructures");
+    }
+    // FIXME -- this should be a preorder so we can deal with nested structs directly,
+    // but that fails because we depend on the typeMap which will be out of date after
+    // expanding outer copies.  So we need to repeat this pass in a loop
+    const IR::Node *postorder(IR::AssignmentStatement *statement) override;
 };
 
 /**
@@ -86,38 +102,41 @@ class DoCopyStructures : public Transform {
  * @post no structure assignment refers on the RHS to fields that appear in the LHS.
  */
 class RemoveAliases : public Transform {
-    ReferenceMap* refMap;
-    TypeMap* typeMap;
+    MinimalNameGenerator nameGen;
+    TypeMap *typeMap;
 
     IR::IndexedVector<IR::Declaration> declarations;
+
  public:
-    RemoveAliases(ReferenceMap* refMap, TypeMap* typeMap) :
-            refMap(refMap), typeMap(typeMap) {
-        CHECK_NULL(refMap); CHECK_NULL(typeMap);
+    explicit RemoveAliases(TypeMap *typeMap) : typeMap(typeMap) {
+        CHECK_NULL(typeMap);
         setName("RemoveAliases");
     }
+    Visitor::profile_t init_apply(const IR::Node *node) override {
+        auto rv = Transform::init_apply(node);
+        node->apply(nameGen);
 
-    const IR::Node* postorder(IR::AssignmentStatement* statement) override;
-    const IR::Node* postorder(IR::P4Parser* parser) override;
-    const IR::Node* postorder(IR::P4Control* control) override;
+        return rv;
+    }
+
+    const IR::Node *postorder(IR::AssignmentStatement *statement) override;
+    const IR::Node *postorder(IR::P4Parser *parser) override;
+    const IR::Node *postorder(IR::P4Control *control) override;
 };
 
 class CopyStructures : public PassRepeated {
  public:
-    CopyStructures(ReferenceMap* refMap, TypeMap* typeMap,
-                   bool errorOnMethodCall = true,
-                   TypeChecking* typeChecking = nullptr) :
-            PassManager({}) {
-        CHECK_NULL(refMap); CHECK_NULL(typeMap); setName("CopyStructures");
-        if (!typeChecking)
-            typeChecking = new TypeChecking(refMap, typeMap);
-        passes.emplace_back(typeChecking);
-        passes.emplace_back(new RemoveAliases(refMap, typeMap));
-        passes.emplace_back(typeChecking);
-        passes.emplace_back(new DoCopyStructures(typeMap, errorOnMethodCall));
+    explicit CopyStructures(TypeMap *typeMap, bool errorOnMethodCall = true,
+                            bool copyHeaders = false, bool copyTuples = false,
+                            TypeChecking *typeChecking = nullptr) {
+        CHECK_NULL(typeMap);
+        setName("CopyStructures");
+        if (typeChecking == nullptr) typeChecking = new TypeChecking(nullptr, typeMap);
+        addPasses({typeChecking, new RemoveAliases(typeMap), typeChecking,
+                   new DoCopyStructures(typeMap, errorOnMethodCall, copyHeaders, copyTuples)});
     }
 };
 
 }  // namespace P4
 
-#endif /* _MIDEND_COPYSTRUCTURES_H__ */
+#endif /* MIDEND_COPYSTRUCTURES_H_ */

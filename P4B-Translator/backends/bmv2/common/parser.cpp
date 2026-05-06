@@ -15,43 +15,95 @@ limitations under the License.
 */
 
 #include "parser.h"
+
 #include "JsonObjects.h"
 #include "backend.h"
 #include "extern.h"
+#include "frontends/p4-14/fromv1.0/v1model.h"
 #include "frontends/p4/coreLibrary.h"
-#include "frontends/p4/fromv1.0/v1model.h"
+#include "lib/algorithm.h"
 
-namespace BMV2 {
+namespace P4::BMV2 {
 
-cstring ParserConverter::jsonAssignment(const IR::Type* type, bool inParser) {
-    if (!inParser && type->is<IR::Type_Varbits>())
-        return "assign_VL";
-    if (type->is<IR::Type_HeaderUnion>())
-        return "assign_union";
-    if (type->is<IR::Type_Header>() || type->is<IR::Type_Struct>())
-        return "assign_header";
-    if (auto ts = type->to<IR::Type_Stack>()) {
+cstring ParserConverter::jsonAssignment(const IR::Type *type) {
+    if (type->is<IR::Type_HeaderUnion>()) return "assign_union"_cs;
+    if (type->is<IR::Type_Header>() || type->is<IR::Type_Struct>()) return "assign_header"_cs;
+    if (auto ts = type->to<IR::Type_Array>()) {
         auto et = ts->elementType;
         if (et->is<IR::Type_HeaderUnion>())
-            return "assign_union_stack";
+            return "assign_union_stack"_cs;
         else
-            return "assign_header_stack";
+            return "assign_header_stack"_cs;
     }
-    if (inParser)
-        // Unfortunately set can do some things that assign cannot,
-        // e.g., handle lookahead on the RHS.
-        return "set";
-    else
-        return "assign";
+    // Unfortunately set can do some things that assign cannot, e.g., handle
+    // lookahead on the RHS.
+    return "set"_cs;
 }
 
-Util::IJson* ParserConverter::convertParserStatement(const IR::StatOrDecl* stat) {
+Util::IJson *ParserConverter::convertParserStatement(const IR::StatOrDecl *stat) {
     auto result = new Util::JsonObject();
-    auto params = mkArrayField(result, "parameters");
+    auto params = mkArrayField(result, "parameters"_cs);
+    auto isR = false;
+    IR::MethodCallExpression *mce2 = nullptr;
+    if (stat->is<IR::AssignmentStatement>()) {
+        auto assign = stat->to<IR::AssignmentStatement>();
+        if (assign->right->is<IR::MethodCallExpression>()) {
+            auto mce = assign->right->to<IR::MethodCallExpression>();
+            auto minst = P4::MethodInstance::resolve(mce, ctxt->refMap, ctxt->typeMap);
+            if (minst->is<P4::ExternMethod>()) {
+                auto extmeth = minst->to<P4::ExternMethod>();
+                // PSA backend extern
+                if ((extmeth->method->name.name == "get" ||
+                     extmeth->method->name.name == "get_state") &&
+                    extmeth->originalExternType->name == "InternetChecksum") {
+                    const IR::Expression *l;
+                    l = assign->left;
+                    isR = true;
+                    auto dest = new IR::Argument(l);
+                    auto args = new IR::Vector<IR::Argument>();
+                    args->push_back(dest);  // dest
+                    mce2 = new IR::MethodCallExpression(mce->method, mce->typeArguments);
+                    mce2->arguments = args;
+                    stat = new IR::MethodCallStatement(mce);
+                }
+            }
+        } else if (assign->right->is<IR::Equ>() &&
+                   (assign->right->to<IR::Equ>()->right->is<IR::MethodCallExpression>() ||
+                    assign->right->to<IR::Equ>()->left->is<IR::MethodCallExpression>())) {
+            auto equ = assign->right->to<IR::Equ>();
+            const IR::MethodCallExpression *mce = nullptr;
+            const IR::Expression *l, *r;
+            if (assign->right->to<IR::Equ>()->right->is<IR::MethodCallExpression>()) {
+                mce = equ->right->to<IR::MethodCallExpression>();
+                r = equ->left;
+            } else {
+                mce = equ->left->to<IR::MethodCallExpression>();
+                r = equ->right;
+            }
+            auto minst = P4::MethodInstance::resolve(mce, ctxt->refMap, ctxt->typeMap);
+            if (minst->is<P4::ExternMethod>()) {
+                auto extmeth = minst->to<P4::ExternMethod>();
+                // PSA backend extern
+                if (extmeth->method->name.name == "get" &&
+                    extmeth->originalExternType->name == "InternetChecksum") {
+                    l = assign->left;
+                    isR = true;
+                    auto dest = new IR::Argument(l);
+                    auto equOp = new IR::Argument(r);
+                    auto args = new IR::Vector<IR::Argument>();
+                    args->push_back(dest);  // dest
+                    args->push_back(equOp);
+                    mce2 = new IR::MethodCallExpression(mce->method, mce->typeArguments);
+                    mce2->arguments = args;
+                    stat = new IR::MethodCallStatement(mce);
+                }
+            }
+        }
+    }
     if (stat->is<IR::AssignmentStatement>()) {
         auto assign = stat->to<IR::AssignmentStatement>();
         auto type = ctxt->typeMap->getType(assign->left, true);
-        cstring operation = jsonAssignment(type, true);
+        cstring operation = jsonAssignment(type);
         result->emplace("op", operation);
         auto l = ctxt->conv->convertLeftValue(assign->left);
         bool convertBool = type->is<IR::Type_Boolean>();
@@ -77,32 +129,32 @@ Util::IJson* ParserConverter::convertParserStatement(const IR::StatOrDecl* stat)
             if (extmeth->method->name.name == corelib.packetIn.extract.name) {
                 int argCount = mce->arguments->size();
                 if (argCount < 1 || argCount > 2) {
-                    ::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET,
-                            "%1%: unknown extract method", mce);
+                    ::P4::error(ErrorType::ERR_UNSUPPORTED_ON_TARGET, "%1%: unknown extract method",
+                                mce);
                     return result;
                 }
 
-                cstring ename = argCount == 1 ? "extract" : "extract_VL";
+                cstring ename = argCount == 1 ? "extract"_cs : "extract_VL"_cs;
                 result->emplace("op", ename);
                 auto arg = mce->arguments->at(0);
                 auto argtype = ctxt->typeMap->getType(arg->expression, true);
                 if (!argtype->is<IR::Type_Header>()) {
-                    ::error(ErrorType::ERR_INVALID,
-                            "%1%: extract only accepts arguments with header types, not %2%",
-                            arg, argtype);
+                    ::P4::error(ErrorType::ERR_INVALID,
+                                "%1%: extract only accepts arguments with header types, not %2%",
+                                arg, argtype);
                     return result;
                 }
                 auto param = new Util::JsonObject();
                 params->append(param);
                 cstring type;
-                Util::IJson* j = nullptr;
+                Util::IJson *j = nullptr;
 
                 if (auto mem = arg->expression->to<IR::Member>()) {
                     auto baseType = ctxt->typeMap->getType(mem->expr, true);
-                    if (baseType->is<IR::Type_Stack>()) {
-                        if (mem->member == IR::Type_Stack::next) {
+                    if (baseType->is<IR::Type_Array>()) {
+                        if (mem->member == IR::Type_Array::next) {
                             // stack.next
-                            type = "stack";
+                            type = "stack"_cs;
                             j = ctxt->conv->convert(mem->expr);
                         } else {
                             BUG("%1%: unsupported", mem);
@@ -111,10 +163,10 @@ Util::IJson* ParserConverter::convertParserStatement(const IR::StatOrDecl* stat)
                         auto parent = mem->expr->to<IR::Member>();
                         if (parent != nullptr) {
                             auto parentType = ctxt->typeMap->getType(parent->expr, true);
-                            if (parentType->is<IR::Type_Stack>()) {
+                            if (parentType->is<IR::Type_Array>()) {
                                 // stack.next.unionfield
-                                if (parent->member == IR::Type_Stack::next) {
-                                    type = "union_stack";
+                                if (parent->member == IR::Type_Array::next) {
+                                    type = "union_stack"_cs;
                                     j = ctxt->conv->convert(parent->expr);
                                     Util::JsonArray *a;
                                     if (j->is<Util::JsonArray>()) {
@@ -136,7 +188,7 @@ Util::IJson* ParserConverter::convertParserStatement(const IR::StatOrDecl* stat)
                     }
                 }
                 if (j == nullptr) {
-                    type = "regular";
+                    type = "regular"_cs;
                     j = ctxt->conv->convert(arg->expression);
                 }
                 auto value = j->to<Util::JsonObject>()->get("value");
@@ -161,13 +213,32 @@ Util::IJson* ParserConverter::convertParserStatement(const IR::StatOrDecl* stat)
                 return nullptr;
             } else if (extmeth->method->name.name == corelib.packetIn.advance.name) {
                 if (mce->arguments->size() != 1) {
-                    ::error(ErrorType::ERR_UNSUPPORTED, "%1%: expected 1 argument", mce);
+                    ::P4::error(ErrorType::ERR_UNSUPPORTED, "%1%: expected 1 argument", mce);
                     return result;
                 }
                 auto arg = mce->arguments->at(0);
                 auto jexpr = ctxt->conv->convert(arg->expression, true, false);
                 result->emplace("op", "advance");
                 params->append(jexpr);
+                return result;
+            } else if ((extmeth->originalExternType->name == "InternetChecksum" &&
+                        (extmeth->method->name.name == "clear" ||
+                         extmeth->method->name.name == "add" ||
+                         extmeth->method->name.name == "subtract" ||
+                         extmeth->method->name.name == "get_state" ||
+                         extmeth->method->name.name == "set_state" ||
+                         extmeth->method->name.name == "get"))) {
+                // PSA backend extern
+                Util::IJson *json;
+                if (isR) {
+                    json = ExternConverter::cvtExternObject(ctxt, extmeth, mce2, stat, true);
+                } else {
+                    json = ExternConverter::cvtExternObject(ctxt, extmeth, mce, stat, true);
+                }
+                if (json) {
+                    result->emplace("op", "primitive");
+                    params->append(json);
+                }
                 return result;
             }
         } else if (minst->is<P4::ExternFunction>()) {
@@ -191,21 +262,20 @@ Util::IJson* ParserConverter::convertParserStatement(const IR::StatOrDecl* stat)
                     params->append(jexpr);
                 }
                 return result;
-            } else if (extFuncName == "assert"
-                       || extFuncName == "assume") {
+            } else if (extFuncName == "assert" || extFuncName == "assume") {
                 BUG_CHECK(mce->arguments->size() == 1, "%1%: Expected 1 argument ", mce);
                 result->emplace("op", "primitive");
                 auto paramValue = new Util::JsonObject();
                 params->append(paramValue);
-                auto paramsArray = mkArrayField(paramValue, "parameters");
+                auto paramsArray = mkArrayField(paramValue, "parameters"_cs);
                 auto cond = mce->arguments->at(0);
                 auto expr = ctxt->conv->convert(cond->expression, true, true, true);
                 paramsArray->append(expr);
                 paramValue->emplace("op", extFuncName);
-                paramValue->emplace_non_null("source_info", mce->sourceInfoJsonObj());
+                paramValue->emplace_non_null("source_info"_cs, mce->sourceInfoJsonObj());
             } else if (extFuncName == P4V1::V1Model::instance.log_msg.name) {
                 BUG_CHECK(mce->arguments->size() == 2 || mce->arguments->size() == 1,
-                            "%1%: Expected 1 or 2 arguments", mce);
+                          "%1%: Expected 1 or 2 arguments", mce);
                 result->emplace("op", "primitive");
                 auto ef = minst->to<P4::ExternFunction>();
                 auto ijson = ExternConverter::cvtExternFunction(ctxt, ef, mce, stat, false);
@@ -230,20 +300,20 @@ Util::IJson* ParserConverter::convertParserStatement(const IR::StatOrDecl* stat)
             auto paramsValue = new Util::JsonObject();
             params->append(paramsValue);
 
-            auto pp = mkArrayField(paramsValue, "parameters");
+            auto pp = mkArrayField(paramsValue, "parameters"_cs);
             auto obj = ctxt->conv->convert(bi->appliedTo);
             pp->append(obj);
 
             if (bi->name == IR::Type_Header::setValid) {
-                primitive = "add_header";
+                primitive = "add_header"_cs;
             } else if (bi->name == IR::Type_Header::setInvalid) {
-                primitive = "remove_header";
-            } else if (bi->name == IR::Type_Stack::push_front ||
-                       bi->name == IR::Type_Stack::pop_front) {
-                if (bi->name == IR::Type_Stack::push_front)
-                    primitive = "push";
+                primitive = "remove_header"_cs;
+            } else if (bi->name == IR::Type_Array::push_front ||
+                       bi->name == IR::Type_Array::pop_front) {
+                if (bi->name == IR::Type_Array::push_front)
+                    primitive = "push"_cs;
                 else
-                    primitive = "pop";
+                    primitive = "pop"_cs;
 
                 BUG_CHECK(mce->arguments->size() == 1, "Expected 1 argument for %1%", mce);
                 auto arg = ctxt->conv->convert(mce->arguments->at(0)->expression);
@@ -256,23 +326,23 @@ Util::IJson* ParserConverter::convertParserStatement(const IR::StatOrDecl* stat)
             return result;
         }
     }
-    ::error(ErrorType::ERR_UNSUPPORTED, "%1%: not supported in parser on this target", stat);
+    ::P4::error(ErrorType::ERR_UNSUPPORTED, "%1%: not supported in parser on this target", stat);
     return result;
 }
 
-// Operates on a select keyset
-void ParserConverter::convertSimpleKey(const IR::Expression* keySet,
-                                       big_int& value, big_int& mask) const {
+/// Operates on a select keyset.
+void ParserConverter::convertSimpleKey(const IR::Expression *keySet, big_int &value,
+                                       big_int &mask) const {
     if (keySet->is<IR::Mask>()) {
         auto mk = keySet->to<IR::Mask>();
         if (!mk->left->is<IR::Constant>()) {
-            ::error(ErrorType::ERR_INVALID,
-                    "%1%: must evaluate to a compile-time constant", mk->left);
+            ::P4::error(ErrorType::ERR_INVALID, "%1%: must evaluate to a compile-time constant",
+                        mk->left);
             return;
         }
         if (!mk->right->is<IR::Constant>()) {
-            ::error(ErrorType::ERR_INVALID,
-                    "%1%: must evaluate to a compile-time constant", mk->right);
+            ::P4::error(ErrorType::ERR_INVALID, "%1%: must evaluate to a compile-time constant",
+                        mk->right);
             return;
         }
         value = mk->left->to<IR::Constant>()->value;
@@ -287,17 +357,16 @@ void ParserConverter::convertSimpleKey(const IR::Expression* keySet,
         value = 0;
         mask = 0;
     } else {
-        ::error(ErrorType::ERR_INVALID,
-                "%1%: must evaluate to a compile-time constant", keySet);
+        ::P4::error(ErrorType::ERR_INVALID, "%1%: must evaluate to a compile-time constant",
+                    keySet);
         value = 0;
         mask = 0;
     }
 }
 
-unsigned ParserConverter::combine(const IR::Expression* keySet,
-                                  const IR::ListExpression* select,
-                                  big_int& value, big_int& mask,
-                                  bool& is_vset, cstring& vset_name) const {
+unsigned ParserConverter::combine(const IR::Expression *keySet, const IR::ListExpression *select,
+                                  big_int &value, big_int &mask, bool &is_vset,
+                                  cstring &vset_name) const {
     // From the BMv2 spec: For values and masks, make sure that you
     // use the correct format. They need to be the concatenation (in
     // the right order) of all byte padded fields (padded with 0
@@ -315,13 +384,12 @@ unsigned ParserConverter::combine(const IR::Expression* keySet,
         return totalWidth;
     } else if (keySet->is<IR::ListExpression>()) {
         auto le = keySet->to<IR::ListExpression>();
-        BUG_CHECK(le->components.size() == select->components.size(),
-                  "%1%: mismatched select", select);
+        BUG_CHECK(le->components.size() == select->components.size(), "%1%: mismatched select",
+                  select);
         unsigned index = 0;
 
         bool noMask = true;
-        for (auto it = select->components.begin();
-             it != select->components.end(); ++it) {
+        for (auto it = select->components.begin(); it != select->components.end(); ++it) {
             auto e = *it;
             auto keyElement = le->components.at(index);
 
@@ -346,13 +414,12 @@ unsigned ParserConverter::combine(const IR::Expression* keySet,
                 mask_value = Util::mask(width);
             }
             mask = Util::shift_left(mask, w) + mask_value;
-            LOG3("Shifting " << " into key " << key_value << " &&& " << mask_value <<
-                             " result is " << value << " &&& " << mask);
+            LOG3("Shifting " << " into key " << key_value << " &&& " << mask_value << " result is "
+                             << value << " &&& " << mask);
             index++;
         }
 
-        if (noMask)
-            mask = -1;
+        if (noMask) mask = -1;
         return totalWidth;
     } else if (keySet->is<IR::PathExpression>()) {
         auto pe = keySet->to<IR::PathExpression>();
@@ -371,22 +438,21 @@ unsigned ParserConverter::combine(const IR::Expression* keySet,
     }
 }
 
-Util::IJson* ParserConverter::stateName(IR::ID state) {
+Util::IJson *ParserConverter::stateName(IR::ID state) {
     if (state.name == IR::ParserState::accept) {
         return Util::JsonValue::null;
     } else if (state.name == IR::ParserState::reject) {
-        ::warning(ErrorType::WARN_UNSUPPORTED,
-                  "Explicit transition to %1% not supported on this target",
-                  state);
+        ::P4::warning(ErrorType::WARN_UNSUPPORTED,
+                      "Explicit transition to %1% not supported on this target", state);
         return Util::JsonValue::null;
     } else {
         return new Util::JsonValue(state.name);
     }
 }
 
-std::vector<Util::IJson*>
-ParserConverter::convertSelectExpression(const IR::SelectExpression* expr) {
-    std::vector<Util::IJson*> result;
+std::vector<Util::IJson *> ParserConverter::convertSelectExpression(
+    const IR::SelectExpression *expr) {
+    std::vector<Util::IJson *> result;
     auto se = expr->to<IR::SelectExpression>();
     for (auto sc : se->selectCases) {
         auto trans = new Util::JsonObject();
@@ -420,16 +486,14 @@ ParserConverter::convertSelectExpression(const IR::SelectExpression* expr) {
     return result;
 }
 
-Util::IJson*
-ParserConverter::convertSelectKey(const IR::SelectExpression* expr) {
+Util::IJson *ParserConverter::convertSelectKey(const IR::SelectExpression *expr) {
     auto se = expr->to<IR::SelectExpression>();
     CHECK_NULL(se);
     auto key = ctxt->conv->convert(se->select, false);
     return key;
 }
 
-Util::IJson*
-ParserConverter::convertPathExpression(const IR::PathExpression* pe) {
+Util::IJson *ParserConverter::convertPathExpression(const IR::PathExpression *pe) {
     auto trans = new Util::JsonObject();
     trans->emplace("type", "default");
     trans->emplace("value", Util::JsonValue::null);
@@ -438,8 +502,7 @@ ParserConverter::convertPathExpression(const IR::PathExpression* pe) {
     return trans;
 }
 
-Util::IJson*
-ParserConverter::createDefaultTransition() {
+Util::IJson *ParserConverter::createDefaultTransition() {
     auto trans = new Util::JsonObject();
     trans->emplace("type", "default");
     trans->emplace("value", Util::JsonValue::null);
@@ -448,16 +511,16 @@ ParserConverter::createDefaultTransition() {
     return trans;
 }
 
-void ParserConverter::addValueSets(const IR::P4Parser* parser) {
-    auto isExactMatch = [this](const IR::StructField* sf) {
+void ParserConverter::addValueSets(const IR::P4Parser *parser) {
+    auto isExactMatch = [this](const IR::StructField *sf) {
         auto matchAnnotation = sf->getAnnotation(IR::Annotation::matchAnnotation);
         if (!matchAnnotation) return true;  // default (missing annotation) is exact
-        auto matchPathExpr = matchAnnotation->expr[0]->to<IR::PathExpression>();
+        auto matchPathExpr = matchAnnotation->getExpr(0)->to<IR::PathExpression>();
         CHECK_NULL(matchPathExpr);
-        auto matchTypeDecl = ctxt->refMap->getDeclaration(matchPathExpr->path, true)
-            ->to<IR::Declaration_ID>();
+        auto matchTypeDecl =
+            ctxt->refMap->getDeclaration(matchPathExpr->path, true)->to<IR::Declaration_ID>();
         BUG_CHECK(matchTypeDecl != nullptr, "No declaration for match type '%1%'", matchPathExpr);
-        return (matchTypeDecl->name.name == P4::P4CoreLibrary::instance.exactMatch.name);
+        return (matchTypeDecl->name.name == P4::P4CoreLibrary::instance().exactMatch.name);
     };
 
     for (auto s : parser->parserLocals) {
@@ -469,9 +532,11 @@ void ParserConverter::addValueSets(const IR::P4Parser* parser) {
         if (auto st = etype->to<IR::Type_Struct>()) {
             for (auto f : st->fields) {
                 if (isExactMatch(f)) continue;
-                ::warning(ErrorType::WARN_UNSUPPORTED,
-                          "This backend only supports exact matches in value_sets but the match "
-                          "on '%1%' is not exact; the annotation will be ignored", f);
+                ::P4::warning(
+                    ErrorType::WARN_UNSUPPORTED,
+                    "This backend only supports exact matches in value_sets but the match "
+                    "on '%1%' is not exact; the annotation will be ignored",
+                    f);
             }
         }
 
@@ -483,7 +548,7 @@ void ParserConverter::addValueSets(const IR::P4Parser* parser) {
     }
 }
 
-bool ParserConverter::preorder(const IR::P4Parser* parser) {
+bool ParserConverter::preorder(const IR::P4Parser *parser) {
     auto parser_id = ctxt->json->add_parser(name);
 
     addValueSets(parser);
@@ -497,8 +562,7 @@ bool ParserConverter::preorder(const IR::P4Parser* parser) {
         // convert statements
         for (auto s : state->components) {
             auto op = convertParserStatement(s);
-            if (op)
-                ctxt->json->add_parser_op(state_id, op);
+            if (op) ctxt->json->add_parser_op(state_id, op);
         }
         // convert transitions
         if (state->selectExpression != nullptr) {
@@ -522,7 +586,22 @@ bool ParserConverter::preorder(const IR::P4Parser* parser) {
             ctxt->json->add_parser_transition(state_id, transition);
         }
     }
+    for (auto p : parser->parserLocals) {
+        if (p->is<IR::Declaration_Constant>() || p->is<IR::Declaration_Variable>() ||
+            p->is<IR::P4Action>() || p->is<IR::P4Table>())
+            continue;
+        if (p->is<IR::Declaration_Instance>()) {
+            auto bl = ctxt->structure->resourceMap.at(p);
+            CHECK_NULL(bl);
+            if (bl->is<IR::ExternBlock>()) {
+                auto eb = bl->to<IR::ExternBlock>();
+                ExternConverter::cvtExternInstance(ctxt, p, eb, true);
+                continue;
+            }
+        }
+        // P4C_UNIMPLEMENTED("%1%: not yet handled", c);
+    }
     return false;
 }
 
-}  // namespace BMV2
+}  // namespace P4::BMV2

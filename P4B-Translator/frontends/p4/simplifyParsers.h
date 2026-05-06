@@ -14,12 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-#ifndef _FRONTENDS_P4_SIMPLIFYPARSERS_H_
-#define _FRONTENDS_P4_SIMPLIFYPARSERS_H_
+#ifndef FRONTENDS_P4_SIMPLIFYPARSERS_H_
+#define FRONTENDS_P4_SIMPLIFYPARSERS_H_
 
 #include "ir/ir.h"
-#include "frontends/common/resolveReferences/resolveReferences.h"
-#include "frontends/p4/parserCallGraph.h"
 
 namespace P4 {
 
@@ -31,29 +29,21 @@ namespace P4 {
  *  - there are no other outgoing edges from ```s1```,
  *  - there are no other incoming edges to ```s2```,
  *  - and ```s2``` does not have annotations.
+ *
+ * Note that UniqueNames must run before this pass, so that we won't end up
+ * with same-named state-local variables in the same state.
  */
-class DoSimplifyParsers : public Transform {
-    ReferenceMap *refMap;
+class SimplifyParsers : public Transform {
  public:
-    explicit DoSimplifyParsers(ReferenceMap *refMap) : refMap(refMap) {
-        CHECK_NULL(refMap);
-        setName("DoSimplifyParsers");
-    }
+    SimplifyParsers() { setName("SimplifyParsers"); }
 
-    const IR::Node* preorder(IR::P4Parser* parser) override;
-    const IR::Node* preorder(IR::P4Control* control) override
-    { prune(); return control; }
-};
-
-class SimplifyParsers : public PassManager {
- public:
-    explicit SimplifyParsers(ReferenceMap* refMap) {
-        passes.push_back(new ResolveReferences(refMap));
-        passes.push_back(new DoSimplifyParsers(refMap));
-        setName("SimplifyParsers");
+    const IR::Node *preorder(IR::P4Parser *parser) override;
+    const IR::Node *preorder(IR::P4Control *control) override {
+        prune();
+        return control;
     }
 };
 
 }  // namespace P4
 
-#endif /* _FRONTENDS_P4_SIMPLIFYPARSERS_H_ */
+#endif /* FRONTENDS_P4_SIMPLIFYPARSERS_H_ */

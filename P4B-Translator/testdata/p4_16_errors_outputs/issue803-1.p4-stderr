@@ -1,4 +1,7 @@
-issue803-1.p4(3): [--Werror=type-error] error: package Ingress
+issue803-1.p4(3): [--Wwarn=unused] warning: 'IH' is unused
+package Ingress<IH>();
+                ^^
+issue803-1.p4(3): [--Werror=type-error] error: 'package Ingress'
 package Ingress<IH>();
         ^^^^^^^
   ---- Actual error:
