@@ -29,6 +29,7 @@ UGemCutter-linux/
 .gemini/
 tmp/
 **/build-host/
+P4B-Translator/build-verify-sync/
 
 # P4B-Translator temporary sanitized P4 files (should never be committed).
 Procurator/argo/code/dataset/**/.p4b_sanitized_*.p4
