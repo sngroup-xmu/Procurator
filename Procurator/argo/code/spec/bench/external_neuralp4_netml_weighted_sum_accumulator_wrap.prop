@@ -1,0 +1,116 @@
+// NeuralP4 (NOMS 2025 artifact): weighted-sum accumulator wrap.
+//
+// FUNC_WEIGHTED_SUM_16_TO_32 accumulates fixed-point weighted sums into
+// bit<8> neuron-data registers.  Two valid stimuli in one run can therefore
+// wrap the accumulator even though the mathematical sum is larger than 255.
+
+import ann from "../../dataset/external_neuralp4_noms25/NeuralP4/p4-vm/netml-iot-16x32x2-q4-4/code/ANN.p4";
+
+topology {}
+
+node ann {
+  int processed = 0;
+  assume {
+    MyIngress_tab_expected_stimuli.action_run
+      == MyIngress_tab_expected_stimuli.action.MyIngress_set_expected_stimuli;
+    MyIngress_tab_expected_stimuli.MyIngress_set_expected_stimuli.expected_stimuli_1 == 3;
+
+    MyIngress_tab_agg_func.action_run
+      == MyIngress_tab_agg_func.action.MyIngress_set_agg_func;
+    MyIngress_tab_agg_func.MyIngress_set_agg_func.agg_func_1 == 1; // FUNC_WEIGHTED_SUM_16_TO_32
+
+    MyIngress_tab_n_expected_stimuli.action_run
+      == MyIngress_tab_n_expected_stimuli.action.MyIngress_set_n_expected_stimuli;
+    MyIngress_tab_n_expected_stimuli.MyIngress_set_n_expected_stimuli.n_expected_stimuli_1 == 2;
+
+    MyIngress_tab_neuron_bias_2_neurons.action_run
+      == MyIngress_tab_neuron_bias_2_neurons.action.MyIngress_set_neuron_bias_2_neurons;
+    MyIngress_tab_neuron_bias_2_neurons.MyIngress_set_neuron_bias_2_neurons.neuron_1_bias_3 == 0;
+
+    MyIngress_tab_n2n_weight_16_to_32_neurons.action_run
+      == MyIngress_tab_n2n_weight_16_to_32_neurons.action.MyIngress_set_n2n_weight_16_to_32_neurons;
+    MyIngress_tab_n2n_weight_16_to_32_neurons.MyIngress_set_n2n_weight_16_to_32_neurons.n2n_1_weight_79 == 32;
+
+    MyIngress_tab_neuron_id.action_run
+      == MyIngress_tab_neuron_id.action.MyIngress_set_neuron_id;
+    MyIngress_tab_neuron_id.MyIngress_set_neuron_id.neuron_id_1 == 0;
+
+    MyIngress_tab_activation_func.action_run
+      == MyIngress_tab_activation_func.action.MyIngress_set_activation_func;
+    MyIngress_tab_activation_func.MyIngress_set_activation_func.activation_func_1 == 2; // FUNC_IDENTITY
+
+    MyIngress_ann_forward.action_run == MyIngress_ann_forward.action.MyIngress_mcast;
+    MyIngress_ann_forward.MyIngress_mcast.mgroup_1 == 1;
+  };
+  if (pkt_external && hdr.ann.valid) {
+    processed += 1;
+  }
+}
+
+host io {
+  connect ann;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ann.valid = true;
+    hdr.ethernet.etherType = 34997; // ET_ANN = 0x88B5
+
+    hdr.ann.run_id = 31;
+    hdr.ann.slack = 0;
+    hdr.ann.data_1 = 100;
+
+    if (phase == 0) {
+      hdr.ann.neuron_id = 0;
+      phase = 1;
+    } else {
+      hdr.ann.neuron_id = 1;
+    }
+
+    hdr.ann.data_2 = 0;
+    hdr.ann.data_3 = 0;
+    hdr.ann.data_4 = 0;
+    hdr.ann.data_5 = 0;
+    hdr.ann.data_6 = 0;
+    hdr.ann.data_7 = 0;
+    hdr.ann.data_8 = 0;
+    hdr.ann.data_9 = 0;
+    hdr.ann.data_10 = 0;
+    hdr.ann.data_11 = 0;
+    hdr.ann.data_12 = 0;
+    hdr.ann.data_13 = 0;
+    hdr.ann.data_14 = 0;
+    hdr.ann.data_15 = 0;
+    hdr.ann.data_16 = 0;
+    hdr.ann.data_17 = 0;
+    hdr.ann.data_18 = 0;
+    hdr.ann.data_19 = 0;
+    hdr.ann.data_20 = 0;
+    hdr.ann.data_21 = 0;
+    hdr.ann.data_22 = 0;
+    hdr.ann.data_23 = 0;
+    hdr.ann.data_24 = 0;
+    hdr.ann.data_25 = 0;
+    hdr.ann.data_26 = 0;
+    hdr.ann.data_27 = 0;
+    hdr.ann.data_28 = 0;
+    hdr.ann.data_29 = 0;
+    hdr.ann.data_30 = 0;
+    hdr.ann.data_31 = 0;
+    hdr.ann.data_32 = 0;
+  }
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  env_thread = false;
+  host_eager = true;
+  max_steps = 6;
+
+  int phase = 0;
+
+  assert {
+    (ann_dsl_processed < 2)
+      || !(ann_MyIngress_reg_neuron_1_data__wrote_any
+           && ann_MyIngress_reg_neuron_1_data__last0_value == 144);
+  };
+}

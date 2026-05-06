@@ -1,0 +1,30 @@
+// External candidate: SwitchML (NSDI 2021) TNA aggregation pipeline.
+//
+// Candidate shape:
+//   workers_count is a packed Register<num_workers_pair_t>.  The count action
+//   decrements the active 8-bit field, so a long-running or malformed session
+//   can drive the field to zero.  The assertion is bound to the register-write
+//   mirror and a packed-field slice; an UNSAFE witness must include an actual
+//   register write that stores zero in the active field.
+
+import sw from "../../dataset/external_switchml_nsdi21/switchml/dev_root/p4/switchml.p4";
+
+topology {}
+
+node sw {
+  external_input = true;
+
+  assume {
+    Ingress_workers_counter_count_workers.action_run == Ingress_workers_counter_count_workers.action.Ingress_workers_counter_count_workers_action;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+
+  assert {
+    !(sw_Ingress_workers_counter_workers_count__wrote_any
+      && sw_Ingress_workers_counter_workers_count__last_value[16:8] == 0);
+  };
+}

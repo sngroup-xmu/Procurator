@@ -1,0 +1,83 @@
+// SwitchML (NSDI 2021 artifact): UDP job-number/pool-index state alias.
+//
+// The UDP receiver records hdr.switchml.job_number in metadata, but the
+// bitmap/workers/value state is keyed only by pool_index.  Two jobs that reuse
+// the same pool slot and worker bit can therefore alias: the second job's first
+// contribution is treated as a retransmission because the first job left the
+// shadow bitmap bit set.
+
+import sw from "../../dataset/external_switchml_nsdi21/switchml/dev_root/p4/switchml.p4";
+
+topology {}
+
+node sw {
+  int processed = 0;
+
+  assume {
+    Ingress_udp_receiver_receive_udp.action_run
+      == Ingress_udp_receiver_receive_udp.action.Ingress_udp_receiver_set_bitmap;
+    Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_type_13 == 1; // SWITCHML_UDP
+    Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_id_13 == 0;
+    Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.num_workers_13 == 2;
+    Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_bitmap_13 == 1;
+  };
+
+  if (pkt_external && hdr.switchml.valid) {
+    processed += 1;
+  }
+}
+
+host io {
+  connect sw;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.switchml.valid = true;
+    hdr.exponents.valid = true;
+    hdr.d0.valid = true;
+    hdr.d1.valid = true;
+
+    hdr.ethernet.ether_type = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol = 17;         // UDP
+    hdr.udp.dst_port = 48864;       // UDP_PORT_SWITCHML_BASE = 0xbee0
+    hdr.switchml.size = 1;          // IBV_MTU_256
+    hdr.switchml.msg_type = 0;
+    hdr.switchml.unused = 0;
+    hdr.switchml.pool_index = 0;    // internal pool_index set0/base slot 0
+    hdr.switchml.tsi = 0;
+    hdr.exponents.e0 = 0;
+    hdr.exponents.e1 = 0;
+
+    hdr.d0.d00 = 1;
+    hdr.d1.d00 = 1;
+
+    if (phase == 0) {
+      hdr.switchml.job_number = 1;
+      phase = 1;
+    } else {
+      hdr.switchml.job_number = 2;
+      phase = 2;
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  env_thread = false;
+  host_eager = true;
+  max_steps = 6;
+
+  int phase = 0;
+
+  assert {
+    (sw_dsl_processed < 2)
+      || !(sw_hdr.switchml.job_number == 2
+           && sw_ig_md.switchml_md.map_result != 0
+           && sw_Ingress_workers_counter_count_workers.action_run
+              == sw_Ingress_workers_counter_count_workers.action.Ingress_workers_counter_read_count_workers_action
+           && sw_Ingress_value00_sum.action_run
+              == sw_Ingress_value00_sum.action.Ingress_value00_read1_action);
+  };
+}

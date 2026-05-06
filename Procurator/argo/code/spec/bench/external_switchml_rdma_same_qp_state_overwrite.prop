@@ -1,0 +1,112 @@
+// SwitchML (NSDI 2021 artifact): RDMA receiver same-QP message interleaving.
+//
+// The receiver caches one next-PSN/pool-index pair per QP.  A FIRST packet for
+// a second logical message on the same QP overwrites that cache before a late
+// LAST packet from the first message arrives, so the late packet observes the
+// second message's expected PSN and is dropped as a sequence mismatch.
+
+import sw from "../../dataset/external_switchml_nsdi21/switchml/dev_root/p4/switchml.p4";
+
+topology {}
+
+node sw {
+  int processed = 0;
+
+  if (pkt_external && hdr.ib_bth.valid) {
+    processed += 1;
+  }
+}
+
+host io {
+  connect sw;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.ib_bth.valid = true;
+    hdr.ib_reth.valid = true;
+    hdr.d0.valid = true;
+    hdr.d1.valid = true;
+
+    hdr.ethernet.ether_type = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.ihl = 5;
+    hdr.ipv4.frag_offset = 0;
+    hdr.ipv4.protocol = 17;         // UDP
+    hdr.udp.dst_port = 4791;        // UDP_PORT_ROCEV2
+    hdr.udp.src_port = 1234;
+    hdr.ipv4.src_addr = 167772161;  // 10.0.0.1
+    hdr.ipv4.dst_addr = 167772162;  // switch IP
+    hdr.ib_bth.partition_key = 7;
+    hdr.ib_bth.dst_qp = 8388608;    // 0x800000, worker 0 / QP index 0
+    hdr.ib_reth.addr = 0;
+    hdr.ib_reth.len = 0;
+    hdr.d0.d00 = 1;
+    hdr.d1.d00 = 1;
+
+    if (phase == 0) {
+      hdr.ib_bth.opcode = 38;       // UC_RDMA_WRITE_FIRST
+      hdr.ib_bth.psn = 10;
+      hdr.ib_reth.r_key = 0;
+      assume {
+        sw_Ingress_rdma_receiver_receive_roce.action_run
+          == sw_Ingress_rdma_receiver_receive_roce.action.Ingress_rdma_receiver_first_packet;
+        sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.worker_type_9 == 2;
+        sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.worker_id_9 == 0;
+        sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.num_workers_9 == 2;
+        sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.worker_bitmap_9 == 1;
+        sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.packet_size_8 == 1;
+        sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.mgid_9 == 1;
+      };
+      phase = 1;
+    } else {
+      if (phase == 1) {
+        hdr.ib_bth.opcode = 38;     // UC_RDMA_WRITE_FIRST
+        hdr.ib_bth.psn = 30;
+        hdr.ib_reth.r_key = 2;
+        assume {
+          sw_Ingress_rdma_receiver_receive_roce.action_run
+            == sw_Ingress_rdma_receiver_receive_roce.action.Ingress_rdma_receiver_first_packet;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.worker_type_9 == 2;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.worker_id_9 == 0;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.num_workers_9 == 2;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.worker_bitmap_9 == 1;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.packet_size_8 == 1;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_first_packet.mgid_9 == 1;
+        };
+        phase = 2;
+      } else {
+        hdr.ib_bth.opcode = 40;     // UC_RDMA_WRITE_LAST
+        hdr.ib_bth.psn = 11;
+        hdr.ib_reth.r_key = 0;
+        assume {
+          sw_Ingress_rdma_receiver_receive_roce.action_run
+            == sw_Ingress_rdma_receiver_receive_roce.action.Ingress_rdma_receiver_last_packet;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_last_packet.worker_type_11 == 2;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_last_packet.worker_id_11 == 0;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_last_packet.num_workers_11 == 2;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_last_packet.worker_bitmap_11 == 1;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_last_packet.packet_size_10 == 1;
+          sw_Ingress_rdma_receiver_receive_roce.Ingress_rdma_receiver_last_packet.mgid_11 == 1;
+        };
+        phase = 3;
+      }
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  env_thread = false;
+  host_eager = true;
+  max_steps = 9;
+
+  int phase = 0;
+
+  assert {
+    (sw_dsl_processed < 3)
+      || !(sw_Ingress_rdma_receiver_receive_roce.action_run
+           == sw_Ingress_rdma_receiver_receive_roce.action.Ingress_rdma_receiver_last_packet
+           && sw_ig_dprsr_md.drop_ctl != 0);
+  };
+}

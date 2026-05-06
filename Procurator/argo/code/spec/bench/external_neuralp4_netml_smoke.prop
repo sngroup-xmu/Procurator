@@ -1,0 +1,44 @@
+// NeuralP4 (NOMS 2025 artifact): V1Model ANN pipeline smoke.
+//
+// This spec is intentionally a conversion/harness baseline for the external
+// NeuralP4 program.  Stronger state-machine checks should build on it with
+// explicit host phases and table-action assumptions.
+
+import ann from "../../dataset/external_neuralp4_noms25/NeuralP4/p4-vm/netml-iot-16x32x2-q4-4/code/ANN.p4";
+
+topology {}
+
+node ann {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ann.valid == true;
+
+    hdr.ethernet.etherType == 34997; // ET_ANN = 0x88B5
+    hdr.ann.run_id == 1;
+    hdr.ann.neuron_id == 0;
+
+    MyIngress_tab_expected_stimuli.action_run
+      == MyIngress_tab_expected_stimuli.action.MyIngress_set_expected_stimuli;
+    MyIngress_tab_expected_stimuli.MyIngress_set_expected_stimuli.expected_stimuli_1 == 3;
+
+    MyIngress_tab_agg_func.action_run
+      == MyIngress_tab_agg_func.action.MyIngress_set_agg_func;
+    MyIngress_tab_agg_func.MyIngress_set_agg_func.agg_func_1 == 2; // FUNC_IDENTITY
+
+    MyIngress_tab_n_expected_stimuli.action_run
+      == MyIngress_tab_n_expected_stimuli.action.MyIngress_set_n_expected_stimuli;
+    MyIngress_tab_n_expected_stimuli.MyIngress_set_n_expected_stimuli.n_expected_stimuli_1 == 3;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  max_steps = 2;
+
+  assert {
+    ann_hdr.ann.valid == true;
+  };
+}
