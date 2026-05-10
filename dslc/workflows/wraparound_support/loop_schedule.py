@@ -171,6 +171,9 @@ def _run_schedule_replay_cegar_loop(
     seeded_confirm_log: Optional[Path] = None
     seeded_unroll: Optional[int] = None
     reached_entry_prefix_unroll: Optional[int] = None
+    entry_replay_bpl: Optional[Path] = None
+    entry_replay_log: Optional[Path] = None
+    entry_replay_res: Optional[StageRunResult] = None
 
     try:
         spec_model = parse_model(spec_text)
@@ -652,6 +655,9 @@ def _run_schedule_replay_cegar_loop(
                     entry_bpl = prefix_bpl
                     entry_log = prefix_log
                     reached_entry_prefix_unroll = int(prefix_unroll)
+                    entry_replay_bpl = prefix_bpl
+                    entry_replay_log = prefix_log
+                    entry_replay_res = last_prefix_res
                     artifacts = CegisAttemptArtifacts(
                         entry_bpl=str(entry_bpl),
                         closure_bpl=str(closure_bpl),
@@ -1130,6 +1136,31 @@ def _run_schedule_replay_cegar_loop(
                         f"closure_prefix_effective_steps={prefix_closure_steps}",
                     ]
                 )
+                prefix_entry_bpl, prefix_entry_log, _prefix_entry_steps = _write_prefix_entry_bpl(
+                    stem=stem,
+                    unroll=prefix_unroll,
+                    index_value=int(index_value),
+                    proj_vars=proj_vars,
+                    proj_predicates=proj_predicates,
+                    proj_exprs=proj_exprs,
+                    step_delta=step_delta,
+                    det_period=det_period,
+                )
+                prefix_entry_res = runner.run(
+                    stage=f"entry_check.closure_prefix.unroll{prefix_unroll}",
+                    input_bpl=prefix_entry_bpl,
+                    log_path=prefix_entry_log,
+                    ultimate_home=ultimate_home_root / stem / f"closure_prefix.entry.unroll{prefix_unroll}",
+                    toolchain=toolchain_nowitness,
+                    settings=settings,
+                    timeout_seconds=timeout_seconds,
+                    resource_limits=resource_limits,
+                )
+                prefix_probe_notes.append(
+                    f"closure_prefix_entry_unroll{prefix_unroll}={_stage_status(prefix_entry_res)}"
+                )
+                if not prefix_entry_res.is_unsafe:
+                    continue
                 cfg = replace(cfg, notes=prefix_notes)
                 near_res = prefix_near_res
                 confirm_bpl = prefix_near_bpl
@@ -1137,11 +1168,14 @@ def _run_schedule_replay_cegar_loop(
                 closure_res = prefix_closure_res
                 closure_bpl = prefix_closure_bpl
                 closure_log = prefix_closure_log
+                entry_replay_bpl = prefix_entry_bpl
+                entry_replay_log = prefix_entry_log
+                entry_replay_res = prefix_entry_res
                 artifacts = CegisAttemptArtifacts(
-                    entry_bpl=str(entry_bpl),
+                    entry_bpl=str(prefix_entry_bpl),
                     closure_bpl=str(closure_bpl),
                     confirm_bpl=str(confirm_bpl),
-                    entry_log=str(entry_log),
+                    entry_log=str(prefix_entry_log),
                     closure_log=str(closure_log),
                     confirm_log=str(confirm_log),
                     source_confirm_bpl=str(prefix_near_bpl),
@@ -1151,6 +1185,7 @@ def _run_schedule_replay_cegar_loop(
                     cfg.projection_complete
                     and prefix_near_res.is_unsafe
                     and prefix_closure_res.is_safe
+                    and prefix_entry_res.is_unsafe
                     and not closure_assumes
                 )
                 diagnostic = "certified schedule-replay wraparound bug via prefix closure"
@@ -1162,7 +1197,7 @@ def _run_schedule_replay_cegar_loop(
             attempts[attempt_index],
             cfg=cfg,
             artifacts=artifacts,
-            entry=entry_res,
+            entry=entry_replay_res or entry_res,
             closure=closure_res,
             confirm=near_res,
             near_wrap=near_res,

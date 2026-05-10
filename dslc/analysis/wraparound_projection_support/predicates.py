@@ -109,9 +109,15 @@ def stable_assumption_predicates(
 ) -> Set[str]:
     subst = dict(stable_substitutions or ())
     subst.update(stable_consts)
+    stable_tokens = {tok for tok in subst if str(tok).strip()}
     out: Set[str] = set()
     for rec in records:
         if int(getattr(rec, "depth", 0)) != 0:
+            continue
+        rec_deps = {str(dep).strip() for dep in getattr(rec, "deps", ()) if str(dep).strip()}
+        if rec_deps and not rec_deps.issubset(stable_tokens):
+            # Only treat unguarded assumptions over stable substitutions/constants
+            # as globally stable predicates.
             continue
         expr = normalize_expr(_substitute_tokens(str(getattr(rec, "expr", "")), subst))
         if expr and expr != "true":
@@ -121,18 +127,29 @@ def stable_assumption_predicates(
 
 def stable_predicate_bool(expr: str, stable_predicates: Set[str]) -> bool | None:
     cur = normalize_expr(expr)
+    true_evidence = False
+    false_evidence = False
+
     if cur in stable_predicates:
-        return True
+        true_evidence = True
     complement = _predicate_complement(cur)
     if complement and complement in stable_predicates:
-        return False
+        false_evidence = True
+
     neg_inner = _negated_inner(cur)
     if neg_inner:
         if neg_inner in stable_predicates:
-            return False
+            false_evidence = True
         complement = _predicate_complement(neg_inner)
         if complement and complement in stable_predicates:
-            return True
+            true_evidence = True
+
+    if true_evidence and false_evidence:
+        return None
+    if true_evidence:
+        return True
+    if false_evidence:
+        return False
     return None
 
 

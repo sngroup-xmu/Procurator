@@ -86,6 +86,82 @@ procedure mainProcedure() returns()
         self.assertFalse(dep.complete)
         self.assertIn("missing_deterministic_scheduler", dep.notes)
 
+    def test_dependency_projection_conflicting_stable_assumes_keep_cutpoint_branch_ambiguity(self) -> None:
+        bpl = """\
+var procurator_phase: int;
+var s1_inbox_count: int;
+var dsl_pump_mode: bool;
+var guard_reg: [bv32]bv8;
+var guard_reg__last0_value: bv8;
+var target_reg: [bv32]bv8;
+var target_reg__last0_value: bv8;
+
+procedure main() returns()
+  modifies procurator_phase, s1_inbox_count, dsl_pump_mode, guard_reg, guard_reg__last0_value, target_reg, target_reg__last0_value;
+{
+  // One scheduler step: pick exactly one action.
+  // Scheduler: deterministic round-robin over the action list.
+  if (procurator_phase == 0) {
+    assume(dsl_pump_mode == true);
+    assume(dsl_pump_mode == false);
+    s1_inbox_count := 1;
+  } else if (procurator_phase == 1) {
+    if (s1_inbox_count > 0) {
+      s1_inbox_count := s1_inbox_count - 1;
+      if (dsl_pump_mode == true) {
+        target_reg[0bv32] := add.bv8(target_reg[0bv32], 1bv8);
+        target_reg__last0_value := target_reg[0bv32];
+      } else {
+        target_reg[0bv32] := add.bv8(target_reg[0bv32], 1bv8);
+        target_reg__last0_value := target_reg[0bv32];
+      }
+    }
+  } else {
+    assume false;
+  }
+  if (procurator_phase == 1) {
+    procurator_phase := 0;
+  } else {
+    procurator_phase := procurator_phase + 1;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_phase, s1_inbox_count, dsl_pump_mode, guard_reg, guard_reg__last0_value, target_reg, target_reg__last0_value;
+{
+  s1_inbox_count := 0;
+  guard_reg__last0_value := 1bv8;
+  target_reg__last0_value := 0bv8;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+  }
+}
+"""
+        dep = extract_dependency_projection(
+            bpl_text=bpl,
+            candidate=WraparoundCandidate(
+                pump_reg="target_reg",
+                accel_regs=("target_reg",),
+                index_value=0,
+                index_expr=None,
+                proj_vars=("procurator_phase",),
+                cutpoint_cond="(procurator_phase == 0)",
+                reason="test",
+                step_op="add",
+                step_delta=1,
+                stable_substitutions=(("dsl_pump_mode", "dsl_pump_mode"),),
+            ),
+        )
+        self.assertFalse(dep.complete)
+        pred_text = ",".join(dep.cutpoint_predicates)
+        self.assertIn("dsl_pump_mode", pred_text)
+        self.assertIn("== true", pred_text)
+        self.assertIn("!(", pred_text)
+        alts_text = "\n".join(",".join(alt) for alt in dep.cutpoint_guard_alternatives)
+        self.assertIn("dsl_pump_mode", alts_text)
+        self.assertIn("== true", alts_text)
+
     def test_dependency_projection_uses_mailbox_counts_not_stale_pkt_tags(self) -> None:
         bpl = """\
 var procurator_phase: int;

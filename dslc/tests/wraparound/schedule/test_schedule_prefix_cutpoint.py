@@ -409,6 +409,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 self.snapshots.append((stage, text))
                 if stage in {
                     "entry_check",
+                    "entry_check.closure_prefix.unroll1",
                     "near_wrap",
                     "near_wrap.closure_prefix.unroll1",
                 }:
@@ -464,17 +465,19 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     "closure_check",
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check.prefix.unroll1",
+                    "entry_check.closure_prefix.unroll1",
                 ],
             )
             self.assertTrue(manifest["certified"])
             attempt = manifest["attempts"][0]
             self.assertTrue(attempt["certified"])
-            self.assertEqual(attempt["entry"]["stage"], "entry_check")
+            self.assertEqual(attempt["entry"]["stage"], "entry_check.closure_prefix.unroll1")
             self.assertEqual(attempt["near_wrap"]["stage"], "near_wrap.closure_prefix.unroll1")
             self.assertEqual(attempt["closure"]["stage"], "closure_check.prefix.unroll1")
             self.assertEqual(attempt["diagnostic"], "certified schedule-replay wraparound bug via prefix closure")
             self.assertIn("closure_prefix_unroll=1", attempt["cfg"]["notes"])
-            self.assertTrue(attempt["artifacts"]["entry_bpl"].endswith(".entry_check.bpl"))
+            self.assertIn("closure_prefix_entry_unroll1=UNSAFE", attempt["cfg"]["notes"])
+            self.assertTrue(attempt["artifacts"]["entry_bpl"].endswith(".entry_prefix.unroll1.bpl"))
             self.assertTrue(attempt["artifacts"]["closure_bpl"].endswith(".closure_prefix.unroll1.bpl"))
             self.assertTrue(attempt["artifacts"]["confirm_bpl"].endswith(".near_wrap.prefix1.unroll1.bpl"))
 
@@ -501,6 +504,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 self.snapshots.append((stage, text))
                 if stage in {
                     "entry_check",
+                    "entry_check.closure_prefix.unroll1",
                     "near_wrap",
                     "near_wrap.closure_prefix.unroll1",
                 }:
@@ -559,12 +563,14 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check.prefix.unroll1",
                     "closure_check.prefix.unroll1.suffix2",
+                    "entry_check.closure_prefix.unroll1",
                 ],
             )
             self.assertTrue(manifest["certified"])
             attempt = manifest["attempts"][0]
             self.assertEqual(attempt["closure"]["stage"], "closure_check.prefix.unroll1.suffix2")
             self.assertIn("closure_suffix_unroll=2", attempt["cfg"]["notes"])
+            self.assertIn("closure_prefix_entry_unroll1=UNSAFE", attempt["cfg"]["notes"])
             self.assertTrue(attempt["artifacts"]["closure_bpl"].endswith(".closure_prefix.unroll1.suffix2.bpl"))
 
             one_round = next(text for stage, text in runner.snapshots if stage == "closure_check.prefix.unroll1")
@@ -584,6 +590,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 self.snapshots.append((stage, text))
                 if stage in {
                     "entry_check",
+                    "entry_check.closure_prefix.unroll1",
                     "near_wrap",
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check",
@@ -648,6 +655,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
             self.assertFalse(attempt["certified"])
             self.assertEqual(attempt["closure"]["stage"], "closure_check")
             self.assertEqual(attempt["diagnostic"], "closure counterexample; blocking schedule")
+            self.assertFalse(any(n.startswith("closure_prefix_entry_unroll1=") for n in attempt["cfg"]["notes"]))
             self.assertIn("closure_prefix_unroll1_suffix1=UNSAFE", attempt["cfg"]["notes"])
             self.assertIn("closure_prefix_unroll1_suffix2=UNSAFE", attempt["cfg"]["notes"])
             self.assertIn("closure_prefix_unroll1_suffix3=UNSAFE", attempt["cfg"]["notes"])
@@ -663,6 +671,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 self.snapshots.append((stage, text))
                 if stage in {
                     "entry_check",
+                    "entry_check.closure_prefix.unroll3",
                     "near_wrap",
                     "closure_check",
                     "near_wrap.closure_prefix.unroll1",
@@ -739,13 +748,94 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     "closure_check.prefix.unroll2.suffix3",
                     "near_wrap.closure_prefix.unroll3",
                     "closure_check.prefix.unroll3",
+                    "entry_check.closure_prefix.unroll3",
                 ],
             )
             self.assertTrue(manifest["certified"])
             attempt = manifest["attempts"][0]
+            self.assertEqual(attempt["entry"]["stage"], "entry_check.closure_prefix.unroll3")
             self.assertEqual(attempt["closure"]["stage"], "closure_check.prefix.unroll3")
+            self.assertIn("closure_prefix_entry_unroll3=UNSAFE", attempt["cfg"]["notes"])
             self.assertIn("closure_prefix_auto_cap=3", attempt["cfg"]["notes"])
             self.assertIn("closure_prefix_unroll=3", attempt["cfg"]["notes"])
+
+    def test_schedule_replay_prefix_closure_requires_prefix_entry_reachability(self) -> None:
+        class PrefixEntrySafeRunner(_SequenceRunner):
+            def run(self, *, stage: str, **kwargs):  # type: ignore[no-untyped-def]
+                self.calls.append(stage)
+                input_bpl = Path(kwargs["input_bpl"])
+                log_path = kwargs.get("log_path")
+                text = input_bpl.read_text(encoding="utf-8")
+                self.snapshots.append((stage, text))
+                if stage in {
+                    "entry_check",
+                    "near_wrap",
+                    "near_wrap.closure_prefix.unroll1",
+                }:
+                    result = "UNSAFE"
+                elif stage == "closure_check":
+                    result = "UNSAFE"
+                elif stage == "closure_check.prefix.unroll1":
+                    result = "SAFE"
+                elif stage == "entry_check.closure_prefix.unroll1":
+                    result = "SAFE"
+                else:
+                    raise AssertionError(stage)
+                if log_path is not None:
+                    self._write_log(log_path, input_bpl, f"RESULT: {result}")
+                return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=f"RESULT: {result}")
+
+        runner = PrefixEntrySafeRunner([])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            bpl = _BRANCH_GUARD_BPL.replace("var r: [bv32]bv8;\n", "var s1_inbox_count: int;\nvar r: [bv32]bv8;\n")
+            base_bpl.write_text(bpl, encoding="utf-8")
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=bpl,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=_branch_guard_candidate(),
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                runner.calls,
+                [
+                    "entry_check",
+                    "near_wrap",
+                    "closure_check",
+                    "near_wrap.closure_prefix.unroll1",
+                    "closure_check.prefix.unroll1",
+                    "entry_check.closure_prefix.unroll1",
+                ],
+            )
+            self.assertFalse(manifest["certified"])
+            attempt = manifest["attempts"][0]
+            self.assertFalse(attempt["certified"])
+            self.assertEqual(attempt["entry"]["stage"], "entry_check")
+            self.assertEqual(attempt["near_wrap"]["stage"], "near_wrap")
+            self.assertEqual(attempt["closure"]["stage"], "closure_check")
+            self.assertIn("closure_prefix_entry_unroll1=SAFE", attempt["cfg"]["notes"])
 
     def test_schedule_replay_non_mailbox_closure_prefix_does_not_auto_expand_when_confirm_growth_disabled(self) -> None:
         class NonMailboxRunner(_SequenceRunner):
