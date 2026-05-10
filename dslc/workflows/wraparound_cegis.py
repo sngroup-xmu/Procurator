@@ -8,7 +8,7 @@ import time
 from dataclasses import asdict, dataclass, field, replace
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Protocol, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Protocol, Sequence, Set, Tuple
 
 from dslc.analysis.wraparound_candidates import WraparoundCandidate, infer_wraparound_candidates
 from dslc.analysis.wraparound_projection import extract_dependency_projection
@@ -99,6 +99,8 @@ class WraparoundStopAfter(str, Enum):
 
 _RE_BPL_IDENT = re.compile(r"\b[A-Za-z_][A-Za-z0-9_.]*\b")
 _RE_BPL_CALLEE_IDENT = re.compile(r"\b[A-Za-z_][A-Za-z0-9_.$]*\s*(?=\()")
+_RE_BPL_FUNCTION_DECL = re.compile(r"^\s*function(?:\s+\{[^}]*\})*\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\s*\(")
+_RE_BPL_PROC_HEADER = re.compile(r"^\s*procedure(?:\s+\{[^}]*\})*\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\s*\(")
 
 
 def normalize_wraparound_cegar_mode(value: str) -> str:
@@ -301,6 +303,18 @@ class UltimateStageRunner:
         rc: Optional[int] = None
         killed_early = False
         observed_result_line: Optional[str] = None
+        # Do NOT early-stop on SAFE by default.
+        #
+        # Why:
+        # - We previously sent SIGTERM immediately after observing SAFE in the live tail.
+        # - Some Ultimate pipelines then log synthetic timeout/no-result tails (or teardown
+        #   exceptions) after shutdown is requested, which can blur stage diagnostics and
+        #   make NEAR_WRAP look like SAFE while the final log says no-result.
+        # - For wraparound soundness/debuggability we prefer complete stage logs on SAFE.
+        #
+        # UNSAFE early-stop remains enabled (with witness guard) because it is existential
+        # evidence and keeps long runs practical.
+        allow_safe_early_stop = os.environ.get("PROCURATOR_WRAP_SAFE_EARLY_STOP", "0").strip() == "1"
 
         def _witness_required_on_unsafe(st: str) -> bool:
             # For wraparound CEGIS, we only need a witness to seed closure refinements.
@@ -347,8 +361,9 @@ class UltimateStageRunner:
             tail = _read_tail_text(log_path)
             res_line = ultimate_extract_result_line(tail) if tail else None
             if res_line == "RESULT: SAFE":
-                killed_early = True
-                observed_result_line = res_line
+                if allow_safe_early_stop:
+                    killed_early = True
+                    observed_result_line = res_line
             elif res_line == "RESULT: UNSAFE":
                 if not need_witness:
                     killed_early = True
@@ -523,7 +538,7 @@ def _index_expr_unresolved_value_deps(*, index_expr: Optional[str], base_text: s
     if not expr:
         return []
     without_callees = _RE_BPL_CALLEE_IDENT.sub("", expr)
-    allowed = {"true", "false"}
+    allowed = {"true", "false", "if", "then", "else"}
     unresolved = {
         tok
         for tok in _RE_BPL_IDENT.findall(without_callees)
@@ -531,6 +546,204 @@ def _index_expr_unresolved_value_deps(*, index_expr: Optional[str], base_text: s
     }
     globals_ = set(_index_expr_global_deps(index_expr=index_expr, base_text=base_text))
     return sorted(unresolved - globals_)
+
+
+def _declared_call_symbols_from_bpl(base_text: str) -> Set[str]:
+    """
+    Collect declared function/procedure symbols in the composed Boogie text.
+
+    Wraparound transforms may inject dynamic index/hash expressions and stable-shape
+    assumptions into stage programs. We must guard against stale/unprefixed symbols
+    that are not declared in the composed model, otherwise Ultimate reports a generic
+    "Toolchain returned no result" after type-check failures.
+    """
+
+    out: Set[str] = set()
+    for raw in base_text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("//"):
+            continue
+        m_fun = _RE_BPL_FUNCTION_DECL.match(line)
+        if m_fun:
+            out.add(m_fun.group("name"))
+            continue
+        m_proc = _RE_BPL_PROC_HEADER.match(line)
+        if m_proc:
+            out.add(m_proc.group("name"))
+    return out
+
+
+def _callee_declared_alias(*, callee: str, declared_symbols: Sequence[str]) -> Optional[str]:
+    """
+    Best-effort aliasing from an unqualified callee to a declared symbol.
+
+    Typical case in composed models:
+      - candidate/meta uses `Ingress_idx_calc.get$...`
+      - composed Boogie declares `flowrest_Ingress_idx_calc.get$...`
+
+    We only rewrite when the mapping is unique; otherwise callers keep the
+    original symbol and fallback logic remains in charge.
+    """
+
+    token = str(callee or "").strip()
+    if not token:
+        return None
+    declared = set(declared_symbols)
+    if token in declared:
+        return token
+
+    # 1) Exact node-prefix suffix match: "<node>_<token>"
+    suffix_matches = sorted(d for d in declared if d.endswith("_" + token))
+    if len(suffix_matches) == 1:
+        return suffix_matches[0]
+
+    # 2) If the token is mangled (contains '$'), align by base + signature.
+    if "$" in token:
+        base, sig = token.split("$", 1)
+        pat = "_" + base + "$" + sig
+        sig_matches = sorted(d for d in declared if d.endswith(pat))
+        if len(sig_matches) == 1:
+            return sig_matches[0]
+
+    return None
+
+
+def _rewrite_expr_callees_to_declared(
+    *,
+    expr: Optional[str],
+    declared_symbols: Sequence[str],
+) -> tuple[str, List[Tuple[str, str]]]:
+    """
+    Rewrite callee symbols in `expr` to uniquely matching declared symbols.
+
+    Returns `(rewritten_expr, rewrites)` where `rewrites` contains `(old, new)`
+    pairs for applied substitutions.
+    """
+
+    text = str(expr or "")
+    if not text:
+        return text, []
+
+    allowed = {"if", "then", "else", "old"}
+    rewrites: List[Tuple[str, str]] = []
+
+    def repl(m: re.Match[str]) -> str:
+        raw = m.group(0)
+        stripped = raw.rstrip()
+        suffix = raw[len(stripped) :]
+        callee = stripped
+        if not callee or callee in allowed:
+            return raw
+        alias = _callee_declared_alias(callee=callee, declared_symbols=declared_symbols)
+        if alias is None or alias == callee:
+            return raw
+        rewrites.append((callee, alias))
+        return alias + suffix
+
+    return _RE_BPL_CALLEE_IDENT.sub(repl, text), rewrites
+
+
+def _rewrite_candidate_declared_callees(
+    *,
+    candidate: WraparoundCandidate,
+    base_text: str,
+) -> WraparoundCandidate:
+    """
+    Normalize candidate call symbols to declared names in the composed Boogie model.
+
+    This repairs stale/non-prefixed hash-calculation symbols so stage Boogie files
+    stay type-correct and do not fail with "undeclared function/procedure".
+    """
+
+    declared = _declared_call_symbols_from_bpl(base_text)
+    if not declared:
+        return candidate
+
+    changed = False
+    idx_expr = getattr(candidate, "index_expr", None)
+    idx_new, idx_rw = _rewrite_expr_callees_to_declared(expr=idx_expr, declared_symbols=declared)
+    if idx_rw:
+        changed = True
+
+    substitutions = tuple(getattr(candidate, "stable_substitutions", ()) or ())
+    rewritten_subs: List[Tuple[str, str]] = []
+    for lhs, rhs in substitutions:
+        lhs_s = str(lhs or "").strip()
+        rhs_s = str(rhs or "").strip()
+        lhs_new, lhs_rw = _rewrite_expr_callees_to_declared(expr=lhs_s, declared_symbols=declared)
+        rhs_new, rhs_rw = _rewrite_expr_callees_to_declared(expr=rhs_s, declared_symbols=declared)
+        if lhs_rw or rhs_rw:
+            changed = True
+        rewritten_subs.append((lhs_new.strip(), rhs_new.strip()))
+
+    if not changed:
+        return candidate
+    return replace(
+        candidate,
+        index_expr=idx_new.strip() if idx_new.strip() else None,
+        stable_substitutions=tuple(rewritten_subs),
+    )
+
+
+def _expr_undeclared_callee_deps(*, expr: Optional[str], declared_symbols: Sequence[str]) -> List[str]:
+    """
+    Return callee symbols used in `expr` but missing from `declared_symbols`.
+    """
+
+    text = str(expr or "").strip()
+    if not text:
+        return []
+    declared = set(declared_symbols)
+    allowed = {"if", "then", "else", "old"}
+    out: List[str] = []
+    seen: Set[str] = set()
+    for tok in _RE_BPL_CALLEE_IDENT.findall(text):
+        callee = tok.strip()
+        if not callee or callee in allowed:
+            continue
+        if callee in declared or callee in seen:
+            continue
+        seen.add(callee)
+        out.append(callee)
+    return out
+
+
+def _index_expr_undeclared_callee_deps(*, index_expr: Optional[str], base_text: str) -> List[str]:
+    declared = _declared_call_symbols_from_bpl(base_text)
+    return _expr_undeclared_callee_deps(expr=index_expr, declared_symbols=declared)
+
+
+def _sanitize_candidate_stable_substitutions(
+    *, candidate: WraparoundCandidate, base_text: str
+) -> tuple[WraparoundCandidate, List[str]]:
+    """
+    Drop stable substitutions whose expressions call undeclared symbols.
+    """
+
+    candidate = _rewrite_candidate_declared_callees(candidate=candidate, base_text=base_text)
+    substitutions = tuple(getattr(candidate, "stable_substitutions", ()) or ())
+    if not substitutions:
+        return candidate, []
+
+    declared = _declared_call_symbols_from_bpl(base_text)
+    kept: List[Tuple[str, str]] = []
+    dropped: List[str] = []
+    for lhs, rhs in substitutions:
+        lhs_s = str(lhs or "").strip()
+        rhs_s = str(rhs or "").strip()
+        missing = sorted(
+            set(
+                _expr_undeclared_callee_deps(expr=lhs_s, declared_symbols=declared)
+                + _expr_undeclared_callee_deps(expr=rhs_s, declared_symbols=declared)
+            )
+        )
+        if missing:
+            dropped.append(f"{lhs_s} == {rhs_s} (missing: {', '.join(missing)})")
+            continue
+        kept.append((lhs_s, rhs_s))
+    if len(kept) == len(substitutions):
+        return candidate, []
+    return replace(candidate, stable_substitutions=tuple(kept)), dropped
 
 
 def _dynamic_index_fallback_diagnostic(deps: Sequence[str]) -> str:
@@ -552,6 +765,27 @@ def _unresolved_index_fallback_diagnostic(deps: Sequence[str]) -> str:
         "dynamic index expression contains unresolved pre-loop values"
         + (f" ({shown})" if shown else "")
         + "; falling back to direct verification"
+    )
+
+
+def _undeclared_index_callee_fallback_diagnostic(deps: Sequence[str]) -> str:
+    shown = ", ".join(str(d) for d in deps[:6])
+    if len(deps) > 6:
+        shown += ", ..."
+    return (
+        "dynamic index expression references undeclared call symbols"
+        + (f" ({shown})" if shown else "")
+        + "; falling back to direct verification"
+    )
+
+
+def _dropped_stable_substitutions_note(entries: Sequence[str]) -> str:
+    shown = ", ".join(str(v) for v in entries[:3])
+    if len(entries) > 3:
+        shown += ", ..."
+    return (
+        "dropped candidate stable substitutions with undeclared call symbols"
+        + (f" ({shown})" if shown else "")
     )
 
 
@@ -1044,10 +1278,14 @@ def run_wraparound_cegis_multi(
                 ultimate_xmx_gb=int(ultimate_xmx_gb),
             )
         else:
-            # Legacy mode mines CONFIRM witnesses aggressively for closure-only
-            # refinements, so preserve the old integrated behavior there.
-            stage_toolchain = tc_wit_def
-            stage_settings = st_wit_def
+            # Legacy mode still needs witness artifacts for refinement/certification,
+            # but running all CONFIRM queries with witnessprinter enabled is brittle:
+            # Ultimate can throw witnessprinter exceptions on SAFE outcomes, which
+            # then surface as "Toolchain returned no result" and mask the true stage
+            # result. Keep stage execution on the no-witness fast path and re-run
+            # witness collection only when the loop explicitly asks for it.
+            stage_toolchain = tc_nowit_def
+            stage_settings = st_nowit_def
             closure_settings = st_cl_def
         loop_kwargs = dict(
             spec_path=spec_path,

@@ -931,7 +931,7 @@ procedure mainProcedure() returns()
             self.assertEqual(captured["settings"], allinline.resolve())
             self.assertEqual(captured["closure_settings"], allinline.resolve())
 
-    def test_multi_legacy_keeps_witness_stage_toolchain(self) -> None:
+    def test_multi_legacy_uses_nowitness_stage_toolchain(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             spec = root / "x.prop"
@@ -989,8 +989,8 @@ procedure mainProcedure() returns()
                 wraparound_cegis._run_cegis_loop = old_legacy_loop  # type: ignore[assignment]
 
             self.assertEqual(len(manifests), 1)
-            self.assertEqual(captured["toolchain_nowitness"], tc_wit)
-            self.assertEqual(captured["settings"], st_wit)
+            self.assertEqual(captured["toolchain_nowitness"], tc_nowit)
+            self.assertEqual(captured["settings"], st_nowit)
             self.assertEqual(captured["toolchain_witness"], tc_wit)
             self.assertEqual(captured["witness_settings"], st_wit)
 
