@@ -62,6 +62,51 @@ procedure mainProcedure() returns()
 }
 """
 
+_STABLE_SHAPE_WITH_DECLARED_HASH_BPL = """\
+var procurator_phase: int;
+var procurator_step: int;
+var s1_hdr.ipv4.dscp: bv6;
+var s1_meta.flow_id: bv32;
+var r: [bv32]bv8;
+var r__last0_value: bv8;
+function {:inline true} s1_flow_hash.get$bv32$bv6(v:bv6) returns (bv32);
+
+procedure main() returns()
+  modifies procurator_phase, r, r__last0_value, s1_meta.flow_id;
+{
+  // One scheduler step: pick exactly one action.
+  // Scheduler: deterministic round-robin over the action list.
+  if (procurator_phase == 0) {
+    // env inject -> s1
+  } else if (procurator_phase == 1) {
+    // node pass -> s1
+    if (s1_hdr.ipv4.dscp == 32bv6) {
+      s1_meta.flow_id := s1_flow_hash.get$bv32$bv6(s1_hdr.ipv4.dscp);
+      r[0bv32] := add.bv8(r[0bv32], 1bv8);
+      r__last0_value := r[0bv32];
+    }
+  } else {
+    assume false;
+  }
+  if (procurator_phase == 1) {
+    procurator_phase := 0;
+  } else {
+    procurator_phase := procurator_phase + 1;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_phase, procurator_step, s1_hdr.ipv4.dscp, s1_meta.flow_id, r, r__last0_value;
+{
+  procurator_step := 0;
+  procurator_phase := 0;
+  while (true) {
+    call main();
+    procurator_step := procurator_step + 1;
+  }
+}
+"""
+
 
 def _stable_shape_candidate() -> WraparoundCandidate:
     return WraparoundCandidate(
@@ -189,6 +234,162 @@ class StableProjectionTests(unittest.TestCase):
 
         manifest["attempts"][0]["cfg"]["env_shape_assumes"] = ["s1_hdr.ipv4.dscp == 32bv6", "x == 1bv1"]
         self.assertFalse(_manifest_certified_unsafe_data(manifest))
+
+    def test_schedule_replay_drops_undeclared_stable_substitution(self) -> None:
+        runner = _SequenceRunner(["SAFE"])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_STABLE_SHAPE_BPL, encoding="utf-8")
+
+            cand = WraparoundCandidate(
+                pump_reg="r",
+                accel_regs=("r",),
+                index_value=0,
+                index_expr=None,
+                proj_vars=("procurator_phase",),
+                cutpoint_cond="(procurator_phase == 0)",
+                reason="stable_shape_drop_test",
+                step_op="add",
+                step_delta=1,
+                stable_substitutions=(
+                    ("s1_hdr.ipv4.dscp", "32bv6"),
+                    ("s1_meta.flow_id", "Ingress_flow_id_calc.get$bv32$bv6(32bv6)"),
+                ),
+            )
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_STABLE_SHAPE_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=cand,
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            attempt = manifest["attempts"][0]
+            self.assertEqual(attempt["cfg"]["env_shape_assumes"], ["s1_hdr.ipv4.dscp == 32bv6"])
+            self.assertIn("dropped_stable_env_shape=1", attempt["cfg"]["notes"])
+
+    def test_schedule_replay_keeps_declared_stable_substitution_without_literal_pin(self) -> None:
+        runner = _SequenceRunner(["SAFE"])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_STABLE_SHAPE_WITH_DECLARED_HASH_BPL, encoding="utf-8")
+
+            cand = WraparoundCandidate(
+                pump_reg="r",
+                accel_regs=("r",),
+                index_value=0,
+                index_expr=None,
+                proj_vars=("procurator_phase",),
+                cutpoint_cond="(procurator_phase == 0)",
+                reason="stable_shape_keep_test",
+                step_op="add",
+                step_delta=1,
+                stable_substitutions=(("s1_meta.flow_id", "s1_flow_hash.get$bv32$bv6(32bv6)"),),
+            )
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_STABLE_SHAPE_WITH_DECLARED_HASH_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=cand,
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            attempt = manifest["attempts"][0]
+            self.assertIn("s1_meta.flow_id == s1_flow_hash.get$bv32$bv6(32bv6)", attempt["cfg"]["env_shape_assumes"])
+            notes = attempt["cfg"]["notes"]
+            self.assertNotIn("dropped_stable_env_shape=1", notes)
+
+    def test_schedule_replay_prefers_literal_stable_substitution_when_present(self) -> None:
+        runner = _SequenceRunner(["SAFE"])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_STABLE_SHAPE_WITH_DECLARED_HASH_BPL, encoding="utf-8")
+
+            cand = WraparoundCandidate(
+                pump_reg="r",
+                accel_regs=("r",),
+                index_value=0,
+                index_expr=None,
+                proj_vars=("procurator_phase",),
+                cutpoint_cond="(procurator_phase == 0)",
+                reason="stable_shape_literal_prefer_test",
+                step_op="add",
+                step_delta=1,
+                stable_substitutions=(
+                    ("s1_hdr.ipv4.dscp", "32bv6"),
+                    ("s1_meta.flow_id", "s1_flow_hash.get$bv32$bv6(32bv6)"),
+                ),
+            )
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_STABLE_SHAPE_WITH_DECLARED_HASH_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=cand,
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            attempt = manifest["attempts"][0]
+            self.assertEqual(attempt["cfg"]["env_shape_assumes"], ["s1_hdr.ipv4.dscp == 32bv6"])
 
 
 if __name__ == "__main__":

@@ -4,6 +4,185 @@ from dslc.analysis.wraparound_candidates import infer_wraparound_candidates
 
 
 class TestWraparoundCandidateGating(unittest.TestCase):
+    def test_meta_hash_call_is_rewritten_to_declared_lowered_expression(self) -> None:
+        """
+        Regression: meta deterministic definitions may still use high-level
+        hash-call symbols (`*_calc.get$...`) that are not declared after P4B
+        lowering. Candidate inference must rewrite to the declared lowered RHS
+        instead of carrying undeclared call symbols into wraparound transforms.
+        """
+
+        spec_text = """
+import flowrest from "flowrest.p4";
+topology {}
+global {
+  assert { flowrest_meta.pkt_count != 1; };
+}
+"""
+
+        bpl_text = "\n".join(
+            [
+                "var flowrest_meta.register_index: bv16;",
+                "var flowrest_meta.hdr_srcport: bv16;",
+                "var flowrest_meta.hdr_dstport: bv16;",
+                "var flowrest_hdr.ipv4.src_addr: bv32;",
+                "var flowrest_hdr.ipv4.dst_addr: bv32;",
+                "var flowrest_hdr.ipv4.protocol: bv8;",
+                "var flowrest_meta.pkt_count: bv8;",
+                "var flowrest___ra_ret_Ingress_read_pkt_count: bv8;",
+                "var flowrest_Ingress_reg_pkt_count: [bv16]bv8;",
+                "var io_hdr.ipv4.src_addr: bv32;",
+                "var io_hdr.ipv4.dst_addr: bv32;",
+                "var io_hdr.ipv4.protocol: bv8;",
+                "var io_hdr.tcp.src_port: bv16;",
+                "var io_hdr.tcp.dst_port: bv16;",
+                "assume (io_hdr.ipv4.src_addr == 167772161bv32);",
+                "assume (io_hdr.ipv4.dst_addr == 167772162bv32);",
+                "assume (io_hdr.tcp.src_port == 1234bv16);",
+                "assume (io_hdr.tcp.dst_port == 443bv16);",
+                "assume (io_hdr.ipv4.protocol == 6bv8);",
+                "function {:inline true} flowrest___p4b_crc16_bmv2_byte(flowrest_crc:bv16, flowrest_byte:bv8) returns(bv16);",
+                "procedure flowrest_Ingress() {",
+                "  flowrest_meta.pkt_count := flowrest___ra_ret_Ingress_read_pkt_count;",
+                "}",
+                "procedure flowrest_Ingress_get_register_index()",
+                "  modifies flowrest_meta.register_index;",
+                "{",
+                "  flowrest_meta.register_index := flowrest___p4b_crc16_bmv2_byte(0bv16, 1bv8);",
+                "}",
+                "procedure mainProcedure() {",
+                "  flowrest_hdr.ipv4.src_addr := io_hdr.ipv4.src_addr;",
+                "  flowrest_hdr.ipv4.dst_addr := io_hdr.ipv4.dst_addr;",
+                "  flowrest_hdr.ipv4.protocol := io_hdr.ipv4.protocol;",
+                "  flowrest_meta.hdr_srcport := io_hdr.tcp.src_port;",
+                "  flowrest_meta.hdr_dstport := io_hdr.tcp.dst_port;",
+                "}",
+            ]
+        )
+
+        meta_by_node = {
+            "flowrest": {
+                "wraparound": {
+                    "updates": [
+                        {
+                            "reg": "Ingress_reg_pkt_count",
+                            "value_var": "__ra_ret_Ingress_read_pkt_count",
+                            "op": "add",
+                            "delta_is_const": True,
+                            "delta_const": 1,
+                            "idx_expr": "meta.register_index",
+                        }
+                    ],
+                    "index_definitions": [
+                        {
+                            "target_var": "meta.register_index",
+                            "expr": "Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8(hdr.ipv4.src_addr, hdr.ipv4.dst_addr, meta.hdr_srcport, meta.hdr_dstport, hdr.ipv4.protocol)",
+                            "deps": [
+                                "hdr.ipv4.src_addr",
+                                "hdr.ipv4.dst_addr",
+                                "meta.hdr_srcport",
+                                "meta.hdr_dstport",
+                                "hdr.ipv4.protocol",
+                            ],
+                            "context": "Ingress_get_register_index",
+                            "ambiguous": False,
+                        }
+                    ],
+                    "deterministic_definitions": [
+                        {"target_var": "meta.hdr_srcport", "expr": "1234bv16", "deps": [], "context": "Ingress", "ambiguous": False},
+                        {"target_var": "meta.hdr_dstport", "expr": "443bv16", "deps": [], "context": "Ingress", "ambiguous": False},
+                    ],
+                }
+            }
+        }
+
+        cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=bpl_text, meta_by_node=meta_by_node)
+        self.assertTrue(cands)
+        # Rewritten lowered hash formula over env literals may fold to a constant.
+        self.assertEqual(cands[0].index_value, 49345)
+        self.assertIsNone(cands[0].index_expr)
+
+    def test_meta_hash_rewrite_expands_lowered_temp_aliases(self) -> None:
+        """
+        Regression: lowered hash RHS may use local temps (e.g., `srcPort_1`).
+        Rewriting from high-level `*_idx_calc.get$...` must inline those temps
+        using in-procedure aliases, otherwise the expression is not pre-loop pure.
+        """
+
+        from dslc.analysis.wraparound_bpl_index import (
+            _derive_index_expr_from_meta_definition,
+            _residual_noncallee_identifiers,
+        )
+        from dslc.transform.wraparound_analyze import _parse_global_var_types
+
+        bpl_text = "\n".join(
+            [
+                "var flowrest_meta.register_index: bv16;",
+                "var flowrest_meta.hdr_srcport: bv16;",
+                "var flowrest_meta.hdr_dstport: bv16;",
+                "var flowrest_hdr.ipv4.src_addr: bv32;",
+                "var flowrest_hdr.ipv4.dst_addr: bv32;",
+                "var flowrest_hdr.ipv4.protocol: bv8;",
+                "var flowrest_srcPort_1: bv16;",
+                "var flowrest_dstPort_1: bv16;",
+                "function {:inline true} flowrest___p4b_crc16_bmv2_byte(flowrest_crc:bv16, flowrest_byte:bv8) returns(bv16);",
+                "assume (flowrest_hdr.ipv4.src_addr == 167772161bv32);",
+                "assume (flowrest_hdr.ipv4.dst_addr == 167772162bv32);",
+                "assume (flowrest_hdr.ipv4.protocol == 6bv8);",
+                "assume (flowrest_meta.hdr_srcport == 1234bv16);",
+                "assume (flowrest_meta.hdr_dstport == 443bv16);",
+                "procedure {:inline 1} flowrest_Ingress_get_register_index()",
+                "  modifies flowrest_dstPort_1, flowrest_meta.register_index, flowrest_srcPort_1;",
+                "{",
+                "  flowrest_srcPort_1 := flowrest_meta.hdr_srcport;",
+                "  flowrest_dstPort_1 := flowrest_meta.hdr_dstport;",
+                "  flowrest_meta.register_index := flowrest___p4b_crc16_bmv2_byte(",
+                "    flowrest___p4b_crc16_bmv2_byte(0bv16, (flowrest_hdr.ipv4.src_addr++flowrest_hdr.ipv4.dst_addr++flowrest_srcPort_1++flowrest_dstPort_1++flowrest_hdr.ipv4.protocol)[104:96]),",
+                "    (flowrest_hdr.ipv4.src_addr++flowrest_hdr.ipv4.dst_addr++flowrest_srcPort_1++flowrest_dstPort_1++flowrest_hdr.ipv4.protocol)[96:88]);",
+                "}",
+            ]
+        )
+
+        meta = {
+            "wraparound": {
+                "index_definitions": [
+                    {
+                        "target_var": "meta.register_index",
+                        "expr": (
+                            "Ingress_idx_calc.get$bv32$bv32$bv16$bv16$bv8("
+                            "hdr.ipv4.src_addr, hdr.ipv4.dst_addr, "
+                            "meta.hdr_srcport, meta.hdr_dstport, hdr.ipv4.protocol)"
+                        ),
+                        "deps": [
+                            "hdr.ipv4.src_addr",
+                            "hdr.ipv4.dst_addr",
+                            "meta.hdr_srcport",
+                            "meta.hdr_dstport",
+                            "hdr.ipv4.protocol",
+                        ],
+                        "context": "Ingress_get_register_index",
+                        "ambiguous": False,
+                    }
+                ]
+            }
+        }
+
+        var_types = _parse_global_var_types(bpl_text.splitlines())
+        expr = _derive_index_expr_from_meta_definition(
+            "meta.register_index",
+            node="flowrest",
+            meta=meta,
+            bpl_text=bpl_text,
+            var_types=var_types,
+        )
+        self.assertIsNotNone(expr)
+        assert expr is not None
+        self.assertNotIn("flowrest_srcPort_1", expr)
+        self.assertNotIn("flowrest_dstPort_1", expr)
+        self.assertIn("1234bv16", expr)
+        self.assertIn("443bv16", expr)
+        self.assertEqual(_residual_noncallee_identifiers(expr), [])
+
     def test_require_meta_step_filters_global_assert_candidates(self) -> None:
         # Minimal spec: global assert references a reg slot, so the "global_asserts" inference triggers.
         spec_text = """
@@ -272,6 +451,115 @@ global {
         )
         self.assertNotIn("flowrest_meta.register_index", cand.proj_vars)
 
+    def test_structured_index_ignores_parser_branch_assume_literals(self) -> None:
+        """
+        Parser branch guards are path conditions, not global env constants.
+
+        NetBeacon has TCP and UDP definitions for the same `ig_md.src_port`.
+        A UDP reject branch may contain `assume udp.src_port == 68`; using that
+        as a global constant makes the TCP hash input ambiguous and prevents a
+        stable symbolic index from being recovered.
+        """
+
+        spec_text = """
+import nb from "netbeacon.p4";
+topology {}
+global {
+  assert {
+    !(nb_SwitchIngress_Register_total_pkts__wrote_any
+      && nb_SwitchIngress_Register_total_pkts__last_value == 0);
+  };
+}
+"""
+
+        bpl_text = "\n".join(
+            [
+                "var nb_hdr.ipv4.src_addr: bv32;",
+                "var nb_hdr.ipv4.dst_addr: bv32;",
+                "var nb_hdr.ipv4.protocol: bv8;",
+                "var nb_hdr.tcp.src_port: bv16;",
+                "var nb_hdr.tcp.dst_port: bv16;",
+                "var nb_hdr.udp.src_port: bv16;",
+                "var nb_hdr.udp.dst_port: bv16;",
+                "var nb_ig_md.src_port: bv16;",
+                "var nb_ig_md.dst_port: bv16;",
+                "var nb_ig_md.flow_hash: bv32;",
+                "var nb_ig_md.flow_index: bv16;",
+                "var nb___ra_ret_SwitchIngress_Update_Register_total_pkts: bv16;",
+                "var nb_SwitchIngress_Register_total_pkts: [bv16]bv16;",
+                "var nb_SwitchIngress_Register_total_pkts__wrote_any: bool;",
+                "var nb_SwitchIngress_Register_total_pkts__last_value: bv16;",
+                "function nb_SwitchIngress_my_symmetric_hash.get$alg_t_CRC32$bv32$bv32$bv16$bv16$bv8(",
+                "  nb_a:bv32, nb_b:bv32, nb_c:bv16, nb_d:bv16, nb_e:bv8",
+                ") returns(bv32);",
+                "procedure main() {",
+                "  assume (nb_hdr.ipv4.src_addr == 167772161bv32);",
+                "  assume (nb_hdr.ipv4.dst_addr == 167772162bv32);",
+                "  assume (nb_hdr.ipv4.protocol == 6bv8);",
+                "  assume (nb_hdr.tcp.src_port == 1234bv16);",
+                "  assume (nb_hdr.tcp.dst_port == 443bv16);",
+                "}",
+                "procedure nb_SwitchIngressParser() {",
+                "  assume (nb_hdr.udp.src_port == 68bv16);",
+                "}",
+                "procedure nb_SwitchIngress() {",
+                "  nb_ig_md.flow_hash := nb_SwitchIngress_my_symmetric_hash.get$alg_t_CRC32$bv32$bv32$bv16$bv16$bv8(",
+                "    nb_hdr.ipv4.src_addr, nb_hdr.ipv4.dst_addr, nb_ig_md.src_port, nb_ig_md.dst_port, nb_hdr.ipv4.protocol);",
+                "  nb_ig_md.flow_index := nb_ig_md.flow_hash[16:0];",
+                "}",
+            ]
+        )
+
+        meta_by_node = {
+            "nb": {
+                "wraparound": {
+                    "deterministic_definitions": [
+                        {"target_var": "ig_md.src_port", "expr": "hdr.tcp.src_port", "context": "parse_tcp"},
+                        {"target_var": "ig_md.dst_port", "expr": "hdr.tcp.dst_port", "context": "parse_tcp"},
+                        {"target_var": "ig_md.src_port", "expr": "hdr.udp.src_port", "context": "parse_udp"},
+                        {"target_var": "ig_md.dst_port", "expr": "hdr.udp.dst_port", "context": "parse_udp"},
+                        {
+                            "target_var": "ig_md.flow_hash",
+                            "expr": (
+                                "SwitchIngress_my_symmetric_hash.get$bv32$bv32$bv16$bv16$bv8("
+                                "hdr.ipv4.src_addr, hdr.ipv4.dst_addr, "
+                                "ig_md.src_port, ig_md.dst_port, hdr.ipv4.protocol)"
+                            ),
+                            "context": "SwitchIngress",
+                        },
+                        {"target_var": "ig_md.flow_index", "expr": "ig_md.flow_hash[15:0]", "context": "SwitchIngress"},
+                    ],
+                    "index_definitions": [
+                        {"target_var": "ig_md.flow_index", "expr": "ig_md.flow_hash[15:0]", "context": "SwitchIngress"}
+                    ],
+                    "updates": [
+                        {
+                            "reg": "SwitchIngress_Register_total_pkts",
+                            "value_var": "__ra_ret_SwitchIngress_Update_Register_total_pkts",
+                            "op": "add",
+                            "delta_is_const": True,
+                            "delta_const": 1,
+                            "idx_expr": "ig_md.flow_index",
+                        }
+                    ],
+                }
+            }
+        }
+
+        cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=bpl_text, meta_by_node=meta_by_node)
+        self.assertTrue(cands)
+        cand = cands[0]
+        self.assertIsNone(cand.index_value)
+        self.assertEqual(
+            cand.index_expr,
+            (
+                "nb_SwitchIngress_my_symmetric_hash.get$alg_t_CRC32$bv32$bv32$bv16$bv16$bv8("
+                "167772161bv32, 167772162bv32, 1234bv16, 443bv16, 6bv8)[16:0]"
+            ),
+        )
+        self.assertNotIn("68bv16", cand.index_expr or "")
+        self.assertNotIn("nb_ig_md.flow_index", cand.proj_vars)
+
     def test_meta_index_definition_matches_prefixed_suffixed_name(self) -> None:
         """
         P4B may export local aliases like counter_pos while Boogie globals are
@@ -318,6 +606,61 @@ global {
             expr,
             "flowdos_hash__crc16$bv32$bv32$bv32(0bv32, 167772161bv32, 4096bv32)",
         )
+
+    def test_precise_crc_meta_index_definition_folds_to_constant_slot(self) -> None:
+        """FlowDoS BMv2 CRC meta over env literals should become a constant index."""
+
+        spec_text = """
+import flowdos from "flowdos.p4";
+topology {}
+global {
+  assert { flowdos_counter_val != 0; };
+}
+"""
+        bpl_text = "\n".join(
+            [
+                "var flowdos_counter_pos: bv32;",
+                "var flowdos_counter_val: bv8;",
+                "var flowdos_MyIngress_counter_filter: [bv32]bv8;",
+                "function flowdos___p4b_crc16_bmv2_byte(flowdos_crc:bv16, flowdos_byte:bv8) returns(bv16);",
+                "function add.bv32(flowdos_a:bv32, flowdos_b:bv32) returns(bv32);",
+                "function urem.bv32(flowdos_a:bv32, flowdos_b:bv32) returns(bv32);",
+                "procedure flowdos_MyIngress() {",
+                "  flowdos_counter_val := flowdos_MyIngress_counter_filter[flowdos_counter_pos];",
+                "}",
+            ]
+        )
+        crc_index = (
+            "(if 4096bv32 == 0bv32 then 0bv32 else add.bv32(0bv32, urem.bv32("
+            "0bv16++(__p4b_crc16_bmv2_byte(__p4b_crc16_bmv2_byte("
+            "__p4b_crc16_bmv2_byte(__p4b_crc16_bmv2_byte(0bv16, "
+            "(167772161bv32)[32:24]), (167772161bv32)[24:16]), "
+            "(167772161bv32)[16:8]), (167772161bv32)[8:0])), 4096bv32)))"
+        )
+        meta_by_node = {
+            "flowdos": {
+                "wraparound": {
+                    "index_definitions": [
+                        {"target_var": "counter_pos", "expr": crc_index, "deps": ["hdr.ipv4.srcAddr"]}
+                    ],
+                    "updates": [
+                        {
+                            "reg": "MyIngress_counter_filter",
+                            "value_var": "counter_val",
+                            "op": "add",
+                            "delta_is_const": True,
+                            "delta_const": 1,
+                            "idx_expr": "counter_pos",
+                        }
+                    ],
+                }
+            }
+        }
+
+        cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=bpl_text, meta_by_node=meta_by_node)
+        self.assertTrue(cands)
+        self.assertEqual(cands[0].index_value, 2242)
+        self.assertIsNone(cands[0].index_expr)
 
     def test_ambiguous_meta_index_definition_is_not_used_for_fast_forward(self) -> None:
         from dslc.analysis.wraparound_bpl_index import _derive_index_expr_from_meta_definition
@@ -421,6 +764,62 @@ global {
         self.assertEqual(cands[0].pump_reg, "flowrest_Ingress_reg_pkt_len_total")
         self.assertEqual(cands[0].index_value, 0)
         self.assertIsNone(cands[0].index_expr)
+        self.assertEqual(cands[0].step_delta, 32768)
+
+    def test_meta_update_delta_recovers_zero_extended_env_fixed_header_value(self) -> None:
+        spec_text = """
+import nb from "netbeacon.p4";
+topology {}
+global {
+  assert {
+    !(nb_SwitchIngress_Register_total_bytes__wrote_any
+      && nb_SwitchIngress_Register_total_bytes__last_value == 0);
+  };
+}
+"""
+
+        bpl_text = "\n".join(
+            [
+                "var nb_hdr.ipv4.total_len: bv16;",
+                "var nb_ig_md.flow_index: bv16;",
+                "var nb___ra_ret_SwitchIngress_Update_Register_total_bytes: bv32;",
+                "var nb_SwitchIngress_Register_total_bytes: [bv16]bv32;",
+                "var nb_SwitchIngress_Register_total_bytes__wrote_any: bool;",
+                "var nb_SwitchIngress_Register_total_bytes__last_value: bv32;",
+                "assume (nb_hdr.ipv4.total_len == 32768bv16);",
+                "procedure {:inline 1} nb_SwitchIngress_Update_Register_total_bytes.apply(nb_value_in:bv32, nb_read_value_in:bv32) returns (nb_value_out:bv32, nb_read_value_out:bv32)",
+                "{",
+                "  var nb_value:bv32;",
+                "  nb_value := nb_value_in;",
+                "  nb_value := add.bv32(nb_value, 0bv16++nb_hdr.ipv4.total_len);",
+                "  nb_value_out := nb_value;",
+                "}",
+            ]
+        )
+
+        meta_by_node = {
+            "nb": {
+                "wraparound": {
+                    "updates": [
+                        {
+                            "reg": "SwitchIngress_Register_total_bytes",
+                            "value_var": "__ra_ret_SwitchIngress_Update_Register_total_bytes",
+                            "op": "add",
+                            "delta_is_const": False,
+                            "delta_const": "",
+                            "idx_const": 0,
+                            "context": "SwitchIngress_Update_Register_total_bytes",
+                            "value_width": 32,
+                        }
+                    ]
+                }
+            }
+        }
+
+        cands = infer_wraparound_candidates(spec_text=spec_text, bpl_text=bpl_text, meta_by_node=meta_by_node)
+        self.assertTrue(cands, "should infer NetBeacon total-bytes candidate with zero-extended env delta")
+        self.assertEqual(cands[0].pump_reg, "nb_SwitchIngress_Register_total_bytes")
+        self.assertEqual(cands[0].index_value, 0)
         self.assertEqual(cands[0].step_delta, 32768)
 
     def test_meta_index_expr_not_derived_when_constant_source_has_unknown_write(self) -> None:

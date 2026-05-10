@@ -6,7 +6,12 @@ import unittest
 from pathlib import Path
 
 from dslc.analysis.wraparound_candidates import WraparoundCandidate
-from dslc.workflows.wraparound_cegis import StageRunResult, _confirm_unroll_schedule, _run_cegis_loop
+from dslc.workflows.wraparound_cegis import (
+    StageRunResult,
+    WraparoundStopAfter,
+    _confirm_unroll_schedule,
+    _run_cegis_loop,
+)
 
 
 class _FakeRunner:
@@ -127,6 +132,67 @@ class WraparoundCegisOrderTests(unittest.TestCase):
                     for a in mf["attempts"]
                 )
             )
+
+    def test_stop_after_entry_does_not_run_confirm(self) -> None:
+        cand = WraparoundCandidate(
+            pump_reg="r",
+            accel_regs=("r",),
+            index_value=0,
+            index_expr=None,
+            proj_vars=("procurator_phase",),
+            cutpoint_cond="(procurator_phase == 0)",
+            reason="test",
+            step_op="add",
+            step_delta=1,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_MIN_BPL, encoding="utf-8")
+            runner = _FakeRunner(
+                results={
+                    "entry_check": StageRunResult(
+                        stage="entry_check",
+                        returncode=0,
+                        wall_time_s=0.0,
+                        result_line="RESULT: Ultimate proved your program to be incorrect!",
+                    )
+                }
+            )
+
+            _run_cegis_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_MIN_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=cand,
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+                stage_order="entry_confirm_closure",
+                stop_after=WraparoundStopAfter.ENTRY.value,
+            )
+
+            self.assertEqual(runner.calls, ["entry_check"])
+            mf = json.loads((out_dir / "wraparound.cegis.manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(mf["attempts"]), 1)
+            self.assertIsNone(mf["attempts"][0].get("confirm"))
+            self.assertIsNone(mf["attempts"][0].get("closure"))
 
     def test_entry_closure_confirm_runs_confirm_only_after_safe_closure(self) -> None:
         cand = WraparoundCandidate(

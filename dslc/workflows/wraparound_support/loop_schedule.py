@@ -18,10 +18,16 @@ from dslc.workflows.wraparound_cegis import (
     WraparoundCegarMode,
     WraparoundStopAfter,
     _confirm_unroll_schedule,
+    _dynamic_index_fallback_diagnostic,
+    _dropped_stable_substitutions_note,
     _effective_scalar_projection_vars,
+    _index_expr_undeclared_callee_deps,
     _index_expr_global_deps,
     _index_expr_unresolved_value_deps,
     _refine_proj_vars_greedy,
+    _sanitize_candidate_stable_substitutions,
+    _undeclared_index_callee_fallback_diagnostic,
+    _unresolved_index_fallback_diagnostic,
     _write_manifest,
     normalize_wraparound_stop_after,
 )
@@ -98,6 +104,7 @@ def _run_schedule_replay_cegar_loop(
     del partition_ports, confirm_settings_fallback, stage_order
 
     cand = candidate
+    cand, dropped_stable_substitutions = _sanitize_candidate_stable_substitutions(candidate=cand, base_text=base_text)
     stop_after = normalize_wraparound_stop_after(stop_after)
     allow_diagnostic_refinement = bool(enable_env_completion_refinement)
     attempts: List[CegisAttemptRecord] = []
@@ -116,6 +123,11 @@ def _run_schedule_replay_cegar_loop(
     if unresolved_index_deps:
         index_projection_complete = False
         index_projection_notes.append("dynamic_index_unresolved_values=" + ",".join(unresolved_index_deps))
+        index_projection_notes.append("dependency_projection_incomplete")
+    undeclared_callee_deps = _index_expr_undeclared_callee_deps(index_expr=cand.index_expr, base_text=base_text)
+    if undeclared_callee_deps:
+        index_projection_complete = False
+        index_projection_notes.append("dynamic_index_undeclared_callees=" + ",".join(undeclared_callee_deps))
         index_projection_notes.append("dependency_projection_incomplete")
     closure_assumes: List[str] = []
     witness_profile_done = False
@@ -383,7 +395,14 @@ def _run_schedule_replay_cegar_loop(
         base_bpl_sha256=base_hash,
     )
     if static_schedule is None:
-        diagnostic = "candidate missing deterministic schedule metadata; falling back to direct verification"
+        if index_deps:
+            diagnostic = _dynamic_index_fallback_diagnostic(index_deps)
+        elif unresolved_index_deps:
+            diagnostic = _unresolved_index_fallback_diagnostic(unresolved_index_deps)
+        elif undeclared_callee_deps:
+            diagnostic = _undeclared_index_callee_fallback_diagnostic(undeclared_callee_deps)
+        else:
+            diagnostic = "candidate missing deterministic schedule metadata; falling back to direct verification"
         return _write_manifest(
             out_dir=out_dir,
             spec_path=spec_path,
@@ -472,6 +491,9 @@ def _run_schedule_replay_cegar_loop(
             notes.append("dependency_projection_branch_cutpoint=" + effective_cutpoint_cond)
         if env_shape_assumes:
             notes.append("candidate_stable_env_shape=" + str(len(env_shape_assumes)))
+        if dropped_stable_substitutions:
+            notes.append("dropped_stable_env_shape=" + str(len(dropped_stable_substitutions)))
+            notes.append(_dropped_stable_substitutions_note(dropped_stable_substitutions))
         if proj_predicates:
             notes.append("proj_predicates=" + ";".join(proj_predicates))
         if proj_exprs:
@@ -832,8 +854,6 @@ def _run_schedule_replay_cegar_loop(
                 if reached_entry_prefix_unroll is not None:
                     focused_paths = _write_focused_near_wrap_bpl(confirm_bpl, confirm_log)
                 if focused_paths is not None:
-                    source_confirm_bpl = confirm_bpl
-                    source_confirm_log = confirm_log
                     focused_bpl, focused_log = focused_paths
                     focused_res = runner.run(
                         stage="near_wrap.focused",
@@ -846,9 +866,13 @@ def _run_schedule_replay_cegar_loop(
                         resource_limits=resource_limits,
                     )
                     if focused_res.is_unsafe:
-                        confirm_bpl = focused_bpl
-                        confirm_log = focused_log
-                        near_res = focused_res
+                        attempts[attempt_index] = replace(
+                            attempts[attempt_index],
+                            diagnostic=(
+                                "focused near-wrap reached diagnostic goal; "
+                                "running original confirm for certification"
+                            ),
+                        )
                         artifacts = CegisAttemptArtifacts(
                             entry_bpl=str(entry_bpl),
                             closure_bpl=str(closure_bpl),
@@ -856,10 +880,7 @@ def _run_schedule_replay_cegar_loop(
                             entry_log=str(entry_log),
                             closure_log=str(closure_log),
                             confirm_log=str(confirm_log),
-                            source_confirm_bpl=str(source_confirm_bpl),
-                            source_confirm_log=str(source_confirm_log),
                         )
-                        break
 
                 near_res = runner.run(
                     stage="near_wrap",
@@ -1016,34 +1037,6 @@ def _run_schedule_replay_cegar_loop(
                 if suffix_unroll not in closure_suffix_schedule:
                     closure_suffix_schedule.append(int(suffix_unroll))
             for prefix_unroll in prefix_schedule:
-                prefix_entry_bpl, prefix_entry_log, prefix_entry_steps = _write_prefix_entry_bpl(
-                    stem=stem,
-                    unroll=prefix_unroll,
-                    index_value=int(index_value),
-                    proj_vars=proj_vars,
-                    proj_predicates=proj_predicates,
-                    proj_exprs=proj_exprs,
-                    step_delta=step_delta,
-                    det_period=det_period,
-                )
-                prefix_entry_res = runner.run(
-                    stage=f"entry_check.closure_prefix.unroll{prefix_unroll}",
-                    input_bpl=prefix_entry_bpl,
-                    log_path=prefix_entry_log,
-                    ultimate_home=ultimate_home_root / stem / f"closure_prefix.entry.unroll{prefix_unroll}",
-                    toolchain=toolchain_nowitness,
-                    settings=settings,
-                    timeout_seconds=timeout_seconds,
-                    resource_limits=resource_limits,
-                )
-                if not prefix_entry_res.is_unsafe:
-                    prefix_probe_notes.append(
-                        f"closure_prefix_entry_unroll{prefix_unroll}={_stage_status(prefix_entry_res)}"
-                    )
-                    if prefix_entry_res.is_unknown:
-                        break
-                    continue
-
                 prefix_near_bpl, prefix_near_log = _write_near_wrap_bpl(
                     stem=stem,
                     unroll=unroll,
@@ -1134,14 +1127,10 @@ def _run_schedule_replay_cegar_loop(
                         *cfg.notes,
                         f"closure_prefix_unroll={prefix_unroll}",
                         f"closure_suffix_unroll={selected_suffix_unroll or 1}",
-                        f"closure_prefix_entry_effective_steps={prefix_entry_steps}",
                         f"closure_prefix_effective_steps={prefix_closure_steps}",
                     ]
                 )
                 cfg = replace(cfg, notes=prefix_notes)
-                entry_res = prefix_entry_res
-                entry_bpl = prefix_entry_bpl
-                entry_log = prefix_entry_log
                 near_res = prefix_near_res
                 confirm_bpl = prefix_near_bpl
                 confirm_log = prefix_near_log
@@ -1160,7 +1149,6 @@ def _run_schedule_replay_cegar_loop(
                 )
                 certified = bool(
                     cfg.projection_complete
-                    and prefix_entry_res.is_unsafe
                     and prefix_near_res.is_unsafe
                     and prefix_closure_res.is_safe
                     and not closure_assumes

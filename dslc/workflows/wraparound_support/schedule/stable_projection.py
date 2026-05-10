@@ -34,10 +34,18 @@ def stable_substitution_env_shape_assumes(
         return ()
 
     out: List[str] = []
+    # Keep env-shape assumptions lightweight and solver-friendly:
+    # - preserve literal/equality pins,
+    # - skip call-heavy equalities (e.g. hash/get$...) that are already reflected
+    #   by concrete constant substitutions in modern candidates and can make
+    #   prefix ENTRY much harder without adding useful pruning.
+    has_concrete_pin = any(_looks_like_concrete_pin(rhs) for _lhs, rhs in substitutions)
     for lhs, rhs in substitutions:
         lhs = str(lhs or "").strip()
         rhs = normalize_expr(str(rhs or "").strip())
         if not lhs or not rhs:
+            continue
+        if has_concrete_pin and _expr_has_call(rhs):
             continue
         out.append(f"{lhs} == {rhs}")
     return tuple(_unique(out))
@@ -76,6 +84,21 @@ def _vars_in_expr(expr: str) -> set[str]:
             continue
         out.add(tok)
     return out
+
+
+def _expr_has_call(expr: str) -> bool:
+    return bool(_RE_FUNC_CALL.search(str(expr or "")))
+
+
+def _looks_like_concrete_pin(expr: str) -> bool:
+    s = normalize_expr(str(expr or "").strip())
+    if not s:
+        return False
+    if _RE_BV_LIT.match(s):
+        return True
+    if s in {"true", "false"}:
+        return True
+    return False
 
 
 def _unique(values: Iterable[str]) -> List[str]:

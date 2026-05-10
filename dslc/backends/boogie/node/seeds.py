@@ -15,15 +15,19 @@ _DBG_IDX0_SUFFIXES = {
     "__dbg0",
     "__wrote_index0",
     "__wrote_index0__dbg",
+    "__last0_old_value",
+    "__last0_old_value__dbg",
     "__last0_value",
     "__last0_value__dbg",
 }
 _DBG_ANY_SUFFIXES = {
     "__last_index",
     "__last_value",
+    "__last_old_value",
     "__wrote_any",
     "__last_index__dbg",
     "__last_value__dbg",
+    "__last_old_value__dbg",
     "__wrote_any__dbg",
 }
 

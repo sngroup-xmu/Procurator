@@ -7,7 +7,6 @@ from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from dslc.analysis.wraparound_candidates import WraparoundCandidate
 from dslc.analysis.wraparound_projection_exprs import (
     array_assignment_index_expr as _array_assignment_index_expr,
-    array_selects_in_expr as _array_selects_in_expr,
     array_index_width as _array_index_width,
     deps_in_expr as _deps_in_expr,
     dynamic_slot_deps as _dynamic_slot_deps,
@@ -15,7 +14,6 @@ from dslc.analysis.wraparound_projection_exprs import (
     dynamic_slot_projection_exprs as _dynamic_slot_projection_exprs,
     extract_cond_text as _extract_cond_text,
     is_packet_slot_var as _is_packet_slot_var,
-    manifest_array_selects_are_stable as _manifest_array_selects_are_stable,
     _is_stateful_register_array,
     is_stable_cutpoint_var as _is_stable_cutpoint_var,
     is_stable_projection_predicate_text,
@@ -32,6 +30,21 @@ from dslc.analysis.wraparound_projection_exprs import (
 from dslc.analysis.wraparound_projection_bool import constant_bool_expr as _constant_bool_expr
 from dslc.analysis.wraparound_projection_cutpoint import cutpoint_entry_constants as _cutpoint_entry_constants
 from dslc.transform.wraparound_analyze import _extract_main_phase_bodies, _infer_deterministic_scheduler_period
+from dslc.analysis.wraparound_projection_support.state import (
+    excluded_target_state as _excluded_target_state,
+    is_snapshot_scalar as _is_snapshot_scalar,
+    target_observation_vars as _target_observation_vars,
+)
+from dslc.analysis.wraparound_projection_support.predicates import (
+    is_cutpoint_shape_predicate as _is_cutpoint_shape_predicate,
+    is_stable_projection_predicate as _is_stable_projection_predicate,
+    predicate_mentions_target_slots as _predicate_mentions_target_slots,
+    stable_assumption_predicates as _stable_assumption_predicates,
+    stable_predicate_bool as _stable_predicate_bool,
+)
+from dslc.analysis.wraparound_projection_support.tables import (
+    select_p4b_table_apply_body as _select_p4b_table_apply_body,
+)
 
 
 _RE_VAR_DECL = re.compile(r"^\s*var\s+(?P<name>\S+)\s*:\s*(?P<type>[^;]+);\s*$")
@@ -46,7 +59,6 @@ _RE_PROC = re.compile(
 )
 _RE_MODIFIES = re.compile(r"^\s*modifies\s+(?P<vars>[^;]+)\s*;\s*$")
 _RE_WRITE_CALL = re.compile(r"^(?P<reg>[A-Za-z_][A-Za-z0-9_.]*)\.write$")
-_RE_BRACKET_INDEX = re.compile(r"\[([^\[\]]+)\]")
 @dataclass(frozen=True)
 class DependencyProjectionResult:
     proj_vars: Tuple[str, ...]
@@ -145,10 +157,13 @@ def extract_dependency_projection(
         )
 
     procs = _parse_procedures(lines)
+    cutpoint_consts = _cutpoint_entry_constants(bpl_text, var_types=var_types, candidate=candidate)
+    stable_exprs = dict(cutpoint_consts)
+    stable_exprs.update(dict(getattr(candidate, "stable_substitutions", ()) or ()))
     state = _State(
         deps={v: {v} for v in var_types},
         exprs={v: v for v in var_types},
-        stable_exprs=dict(getattr(candidate, "stable_substitutions", ()) or ()),
+        stable_exprs=stable_exprs,
     )
     for body in phase_bodies:
         _process_lines(
@@ -173,7 +188,11 @@ def extract_dependency_projection(
     # otherwise become spurious projection state.
 
     excluded = _excluded_target_state(candidate, var_types)
-    cutpoint_consts = _cutpoint_entry_constants(bpl_text, var_types=var_types, candidate=candidate)
+    stable_predicates = _stable_assumption_predicates(
+        state.assume_records,
+        stable_substitutions=getattr(candidate, "stable_substitutions", ()) or (),
+        stable_consts=cutpoint_consts,
+    )
     predicate_exprs = _projection_predicates_for_live_deps(
         state.assume_records,
         live_deps=live_deps,
@@ -190,6 +209,7 @@ def extract_dependency_projection(
         var_types=var_types,
         candidate=candidate,
         stable_consts=cutpoint_consts,
+        stable_predicates=stable_predicates,
     )
     cutpoint_guard_alternatives = _cutpoint_guard_alternatives_for_target_guards(
         state.guard_record_groups_by_var,
@@ -200,6 +220,7 @@ def extract_dependency_projection(
         var_types=var_types,
         candidate=candidate,
         stable_consts=cutpoint_consts,
+        stable_predicates=stable_predicates,
     )
     ambiguous_cutpoint_predicates = _ambiguous_predicate_pairs(cutpoint_predicates)
     cutpoint_predicates_for_projection = [
@@ -686,8 +707,10 @@ def _process_call(
             reg,
             f"{reg}__last_index",
             f"{reg}__last_value",
+            f"{reg}__last_old_value",
             f"{reg}__wrote_any",
             f"{reg}__wrote_index0",
+            f"{reg}__last0_old_value",
             f"{reg}__last0_value",
         ):
             if v in var_types:
@@ -705,6 +728,26 @@ def _process_call(
 
     proc_obj = procs.get(proc)
     if proc_obj is not None and inline_depth < max_inline_depth:
+        table_body = _select_p4b_table_apply_body(
+            proc_name=proc,
+            body=proc_obj.body,
+            stable_exprs=state.stable_exprs,
+            current_exprs=state.exprs,
+        )
+        if table_body is not None:
+            _process_lines(
+                table_body,
+                state=state,
+                var_types=var_types,
+                procs=procs,
+                inline_depth=inline_depth + 1,
+                max_inline_depth=max_inline_depth,
+                initial_bindings=None,
+                inherited_guard_deps=set(guard_deps),
+                inherited_guard_records=guard_records,
+                inherited_guard_present=bool(guard_deps),
+            )
+            return
         if lhs:
             lhs_vars = _split_args(lhs)
             if (
@@ -990,6 +1033,7 @@ def _cutpoint_predicates_for_target_guards(
     var_types: Dict[str, str],
     candidate: WraparoundCandidate,
     stable_consts: Dict[str, str],
+    stable_predicates: Set[str],
 ) -> Tuple[List[str], int]:
     wanted = set(live_deps).difference(default_state).difference(excluded)
     target_arrays = {v for v in target_vars if "[" in str(var_types.get(v, ""))}
@@ -1007,6 +1051,8 @@ def _cutpoint_predicates_for_target_guards(
                 stable_consts=stable_consts,
             )
             const_val = _constant_bool_expr(expr)
+            if const_val is None:
+                const_val = _stable_predicate_bool(expr, stable_predicates)
             if const_val is True:
                 continue
             if const_val is False:
@@ -1043,6 +1089,7 @@ def _cutpoint_guard_alternatives_for_target_guards(
     var_types: Dict[str, str],
     candidate: WraparoundCandidate,
     stable_consts: Dict[str, str],
+    stable_predicates: Set[str],
 ) -> List[Tuple[str, ...]]:
     """
     Preserve cutpoint guard predicates grouped by the write site that produced
@@ -1072,6 +1119,8 @@ def _cutpoint_guard_alternatives_for_target_guards(
                     stable_consts=stable_consts,
                 )
                 const_val = _constant_bool_expr(expr)
+                if const_val is None:
+                    const_val = _stable_predicate_bool(expr, stable_predicates)
                 if const_val is True:
                     continue
                 if const_val is False:
@@ -1205,131 +1254,3 @@ def _candidate_projection_index_expr(candidate: WraparoundCandidate, *, var_type
     if width is None:
         return None
     return f"{int(candidate.index_value)}bv{width}"
-
-
-def _predicate_mentions_target_slots(expr: str, *, candidate: WraparoundCandidate) -> bool:
-    """
-    Predicates over the accelerated target slot are cutpoint/branch conditions,
-    not replay-shape invariants.
-
-    A closure step intentionally updates `pump_reg[index]` by `step_delta`, so
-    requiring target-slot predicates to stay equal across the step can reject a
-    valid replay schedule.  We still keep these predicates in
-    `cutpoint_predicates` / branch alternatives; this helper only filters what is
-    copied into `proj_predicates` (the closure equality projection).
-    """
-
-    target_arrays = set(_unique([candidate.pump_reg, *candidate.accel_regs]))
-    if not target_arrays:
-        return False
-    for sel in _array_selects_in_expr(_normalize_expr(str(expr))):
-        if sel.array in target_arrays:
-            return True
-    return False
-
-
-def _is_cutpoint_shape_predicate(
-    expr: str,
-    *,
-    var_types: Dict[str, str],
-    default_state: Set[str],
-    excluded: Set[str],
-    target_arrays: Set[str],
-    stable_indices: Iterable[str] = (),
-) -> bool:
-    normalized_expr = _normalize_expr(expr)
-    stable_index_set = {_normalize_expr(v) for v in stable_indices if str(v).strip()}
-    manifest_stable_arrays = _manifest_array_selects_are_stable(normalized_expr, ignored=("true", "false", "old"))
-    allowed_array_selects: Set[str] = set()
-    array_index_tokens: Set[str] = set()
-    for sel in _array_selects_in_expr(normalized_expr):
-        if sel.array in excluded and sel.array not in target_arrays:
-            return False
-        if stable_index_set and _normalize_expr(sel.index) not in stable_index_set:
-            continue
-        allowed_array_selects.add(sel.array)
-        array_index_tokens.update(_RE_IDENT.findall(sel.index))
-    for m in _RE_BRACKET_INDEX.finditer(normalized_expr):
-        array_index_tokens.update(_RE_IDENT.findall(m.group(1)))
-    state_vars = {tok for tok in _RE_IDENT.findall(expr) if tok in var_types}
-    if not state_vars:
-        return False
-    for v in state_vars:
-        if v in excluded and v not in target_arrays:
-            return False
-        if v in array_index_tokens:
-            continue
-        typ = var_types.get(v, "")
-        if "[" in typ or "]" in typ:
-            if v in target_arrays:
-                if not stable_index_set or v in allowed_array_selects:
-                    continue
-                return False
-            if manifest_stable_arrays and v in allowed_array_selects:
-                continue
-            if _is_stateful_register_array(v, var_types):
-                continue
-            return False
-        if v in default_state:
-            continue
-        if _is_stable_cutpoint_var(v):
-            continue
-        # Guard predicates may mention packet-derived scalars only when the
-        # expression itself substitutes them away to stable register slots.  A
-        # residual transient scalar would make the cutpoint depend on per-pass
-        # packet scratch state, so keep that out of certified projections.
-        return False
-    return True
-
-
-def _is_stable_projection_predicate(
-    expr: str,
-    *,
-    var_types: Dict[str, str],
-    default_state: Set[str],
-    excluded: Set[str],
-) -> bool:
-    state_vars = {tok for tok in _RE_IDENT.findall(expr) if tok in var_types}
-    if not state_vars:
-        return False
-    for v in state_vars:
-        if v in excluded:
-            return False
-        if not _is_snapshot_scalar(v, var_types):
-            return False
-        if v in default_state:
-            continue
-        if not _is_stable_cutpoint_var(v):
-            return False
-    return True
-
-
-def _target_observation_vars(candidate: WraparoundCandidate, var_types: Dict[str, str]) -> List[str]:
-    out: List[str] = []
-    for reg in _unique([candidate.pump_reg, *candidate.accel_regs]):
-        if candidate.index_expr is None and candidate.index_value == 0 and f"{reg}__last0_value" in var_types:
-            out.append(f"{reg}__last0_value")
-            continue
-        for v in (reg, f"{reg}__last_value", f"{reg}__last0_value"):
-            if v in var_types:
-                out.append(v)
-                break
-    return out
-
-
-def _excluded_target_state(candidate: WraparoundCandidate, var_types: Dict[str, str]) -> Set[str]:
-    out: Set[str] = set()
-    for reg in _unique([candidate.pump_reg, *candidate.accel_regs]):
-        for name in var_types:
-            if name == reg or name.startswith(f"{reg}__"):
-                out.add(name)
-    return out
-
-
-def _is_snapshot_scalar(name: str, var_types: Dict[str, str]) -> bool:
-    typ = var_types.get(name)
-    if not typ:
-        return False
-    if "[" in typ or "]" in typ:
-        return False
-    return True

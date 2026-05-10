@@ -11,6 +11,9 @@ from dslc.workflows.wraparound_cegis import StageRunResult, _run_schedule_replay
 from dslc.workflows.wraparound_support.schedule.certification import (
     projection_complete_for_certification as _projection_complete_for_certification,
 )
+from dslc.workflows.wraparound_support.schedule.prefix_cutpoint import (
+    branch_projection_resolves_only_ambiguity as _branch_projection_resolves_only_ambiguity,
+)
 
 from dslc.tests.wraparound.schedule.fixtures import (
     _BRANCH_GUARD_BPL,
@@ -20,6 +23,35 @@ from dslc.tests.wraparound.schedule.fixtures import (
 
 
 class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
+    def test_branch_projection_allows_soft_cutpoint_guard_noise(self) -> None:
+        dep = SimpleNamespace(
+            notes=(
+                "dependency_projection_period=2",
+                "dependency_projection_live_deps=3",
+                "dependency_projection_cutpoint_predicates=2",
+                "dependency_projection_cutpoint_guard_alternatives=2",
+                "dependency_projection_ambiguous_cutpoint_predicates=flow_reg[0bv32] == 7bv32",
+                "dependency_projection_incomplete",
+                "dependency_projection_unstable_cutpoint_guards=2",
+                "dependency_projection_incomplete",
+                "dependency_projection_dynamic_slot_exprs=time_reg[0bv32]",
+            )
+        )
+
+        self.assertTrue(
+            _branch_projection_resolves_only_ambiguity(
+                dep,
+                ("!(flow_reg[0bv32] == 7bv32)",),
+            )
+        )
+        self.assertFalse(
+            _branch_projection_resolves_only_ambiguity(
+                dep,
+                ("flow_reg[0bv32] == 7bv32", "!(flow_reg[0bv32] == 7bv32)"),
+            )
+        )
+        self.assertFalse(_branch_projection_resolves_only_ambiguity(dep, ()))
+
     def test_projection_certification_rejects_hard_notes_even_if_extractor_says_complete(self) -> None:
         soft = SimpleNamespace(
             complete=True,
@@ -142,7 +174,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     self.snapshots.append((stage, text))
                     result = "UNSAFE" if stage.startswith("entry_check.prefix.") else "SAFE"
                     if log_path is not None:
-                        Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                        self._write_log(log_path, input_bpl, f"RESULT: {result}")
                     return StageRunResult(
                         stage=stage,
                         returncode=0,
@@ -198,8 +230,9 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
             near_text = next(text for stage, text in runner.snapshots if stage == "near_wrap")
             self.assertLess(
                 initial_entry.index("call __wraparound_entry_error();"),
-                initial_entry.index("while (true)"),
+                initial_entry.index("return;"),
             )
+            self.assertNotIn("while (true)", initial_entry)
             self.assertIn("// UNROLLED 2 steps (wraparound)", prefix_entry)
             self.assertLess(
                 prefix_entry.index("// UNROLLED 2 steps (wraparound)"),
@@ -231,7 +264,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     self.snapshots.append((stage, text))
                     result = "UNSAFE" if stage.startswith("entry_check.prefix.") else "SAFE"
                     if log_path is not None:
-                        Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                        self._write_log(log_path, input_bpl, f"RESULT: {result}")
                     return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=f"RESULT: {result}")
                 if stage == "near_wrap.focused":
                     self.calls.append(stage)
@@ -240,10 +273,8 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     text = input_bpl.read_text(encoding="utf-8")
                     self.snapshots.append((stage, text))
                     if log_path is not None:
-                        Path(log_path).write_text(f"{input_bpl.name}\nRESULT: UNSAFE\n", encoding="utf-8")
+                        self._write_log(log_path, input_bpl, "RESULT: UNSAFE")
                     return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line="RESULT: UNSAFE")
-                if stage == "near_wrap":
-                    raise AssertionError("focused UNSAFE should skip the normal near-wrap query")
                 return super().run(stage=stage, **kwargs)
 
         bpl = self._branch_guard_bpl_with_write_mirror()
@@ -281,7 +312,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(
                 runner.calls,
-                ["entry_check", "entry_check.prefix.unroll1", "near_wrap.focused", "closure_check"],
+                ["entry_check", "entry_check.prefix.unroll1", "near_wrap.focused", "near_wrap", "closure_check"],
             )
             focused_text = next(text for stage, text in runner.snapshots if stage == "near_wrap.focused")
             self.assertIn("WRAPAROUND_NEAR_FOCUSED_ASSERT", focused_text)
@@ -291,10 +322,10 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
             self.assertIn("r__last_value == 0bv8", focused_text)
             attempt = manifest["attempts"][0]
             self.assertTrue(attempt["certified"])
-            self.assertEqual(attempt["near_wrap"]["stage"], "near_wrap.focused")
-            self.assertTrue(attempt["artifacts"]["confirm_bpl"].endswith(".focused.bpl"))
-            self.assertTrue(attempt["artifacts"]["source_confirm_bpl"].endswith(".near_wrap.prefix1.unroll1.bpl"))
-            self.assertTrue(attempt["artifacts"]["source_confirm_log"].endswith(".near_wrap.unroll1.log"))
+            self.assertEqual(attempt["near_wrap"]["stage"], "near_wrap")
+            self.assertFalse(attempt["artifacts"]["confirm_bpl"].endswith(".focused.bpl"))
+            self.assertEqual(attempt["artifacts"]["source_confirm_bpl"], "")
+            self.assertEqual(attempt["artifacts"]["source_confirm_log"], "")
             ok, msg = validate_wraparound_manifest(manifest_path)
             self.assertTrue(ok, msg)
 
@@ -309,7 +340,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     self.snapshots.append((stage, text))
                     result = "UNSAFE" if stage.startswith("entry_check.prefix.") else "SAFE"
                     if log_path is not None:
-                        Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                        self._write_log(log_path, input_bpl, f"RESULT: {result}")
                     return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=f"RESULT: {result}")
                 if stage == "near_wrap.focused":
                     self.calls.append(stage)
@@ -318,7 +349,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     text = input_bpl.read_text(encoding="utf-8")
                     self.snapshots.append((stage, text))
                     if log_path is not None:
-                        Path(log_path).write_text(f"{input_bpl.name}\nRESULT: SAFE\n", encoding="utf-8")
+                        self._write_log(log_path, input_bpl, "RESULT: SAFE")
                     return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line="RESULT: SAFE")
                 return super().run(stage=stage, **kwargs)
 
@@ -379,7 +410,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 if stage in {
                     "entry_check",
                     "near_wrap",
-                    "entry_check.closure_prefix.unroll1",
                     "near_wrap.closure_prefix.unroll1",
                 }:
                     result = "UNSAFE"
@@ -390,7 +420,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 else:
                     raise AssertionError(stage)
                 if log_path is not None:
-                    Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                    self._write_log(log_path, input_bpl, f"RESULT: {result}")
                 return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=f"RESULT: {result}")
 
         runner = PrefixClosureRunner([])
@@ -432,7 +462,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     "entry_check",
                     "near_wrap",
                     "closure_check",
-                    "entry_check.closure_prefix.unroll1",
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check.prefix.unroll1",
                 ],
@@ -440,12 +469,12 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
             self.assertTrue(manifest["certified"])
             attempt = manifest["attempts"][0]
             self.assertTrue(attempt["certified"])
-            self.assertEqual(attempt["entry"]["stage"], "entry_check.closure_prefix.unroll1")
+            self.assertEqual(attempt["entry"]["stage"], "entry_check")
             self.assertEqual(attempt["near_wrap"]["stage"], "near_wrap.closure_prefix.unroll1")
             self.assertEqual(attempt["closure"]["stage"], "closure_check.prefix.unroll1")
             self.assertEqual(attempt["diagnostic"], "certified schedule-replay wraparound bug via prefix closure")
             self.assertIn("closure_prefix_unroll=1", attempt["cfg"]["notes"])
-            self.assertTrue(attempt["artifacts"]["entry_bpl"].endswith(".entry_prefix.unroll1.bpl"))
+            self.assertTrue(attempt["artifacts"]["entry_bpl"].endswith(".entry_check.bpl"))
             self.assertTrue(attempt["artifacts"]["closure_bpl"].endswith(".closure_prefix.unroll1.bpl"))
             self.assertTrue(attempt["artifacts"]["confirm_bpl"].endswith(".near_wrap.prefix1.unroll1.bpl"))
 
@@ -473,7 +502,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 if stage in {
                     "entry_check",
                     "near_wrap",
-                    "entry_check.closure_prefix.unroll1",
                     "near_wrap.closure_prefix.unroll1",
                 }:
                     result = "UNSAFE"
@@ -486,7 +514,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 else:
                     raise AssertionError(stage)
                 if log_path is not None:
-                    Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                    self._write_log(log_path, input_bpl, f"RESULT: {result}")
                 return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=f"RESULT: {result}")
 
         runner = MacroClosureRunner([])
@@ -528,7 +556,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     "entry_check",
                     "near_wrap",
                     "closure_check",
-                    "entry_check.closure_prefix.unroll1",
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check.prefix.unroll1",
                     "closure_check.prefix.unroll1.suffix2",
@@ -558,7 +585,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 if stage in {
                     "entry_check",
                     "near_wrap",
-                    "entry_check.closure_prefix.unroll1",
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check",
                     "closure_check.prefix.unroll1",
@@ -569,7 +595,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 else:
                     raise AssertionError(stage)
                 if log_path is not None:
-                    Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                    self._write_log(log_path, input_bpl, f"RESULT: {result}")
                 return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=f"RESULT: {result}")
 
         runner = FailedMacroClosureRunner([])
@@ -611,7 +637,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     "entry_check",
                     "near_wrap",
                     "closure_check",
-                    "entry_check.closure_prefix.unroll1",
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check.prefix.unroll1",
                     "closure_check.prefix.unroll1.suffix2",
@@ -640,7 +665,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     "entry_check",
                     "near_wrap",
                     "closure_check",
-                    "entry_check.closure_prefix.unroll1",
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check.prefix.unroll1",
                     "closure_check.prefix.unroll1.suffix2",
@@ -648,7 +672,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 }:
                     result = "UNSAFE"
                 elif stage in {
-                    "entry_check.closure_prefix.unroll2",
                     "near_wrap.closure_prefix.unroll2",
                     "closure_check.prefix.unroll2",
                     "closure_check.prefix.unroll2.suffix2",
@@ -656,7 +679,6 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 }:
                     result = "UNSAFE"
                 elif stage in {
-                    "entry_check.closure_prefix.unroll3",
                     "near_wrap.closure_prefix.unroll3",
                 }:
                     result = "UNSAFE"
@@ -665,7 +687,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 else:
                     raise AssertionError(stage)
                 if log_path is not None:
-                    Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                    self._write_log(log_path, input_bpl, f"RESULT: {result}")
                 return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=f"RESULT: {result}")
 
         runner = PrefixSweepRunner([])
@@ -707,17 +729,14 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                     "entry_check",
                     "near_wrap",
                     "closure_check",
-                    "entry_check.closure_prefix.unroll1",
                     "near_wrap.closure_prefix.unroll1",
                     "closure_check.prefix.unroll1",
                     "closure_check.prefix.unroll1.suffix2",
                     "closure_check.prefix.unroll1.suffix3",
-                    "entry_check.closure_prefix.unroll2",
                     "near_wrap.closure_prefix.unroll2",
                     "closure_check.prefix.unroll2",
                     "closure_check.prefix.unroll2.suffix2",
                     "closure_check.prefix.unroll2.suffix3",
-                    "entry_check.closure_prefix.unroll3",
                     "near_wrap.closure_prefix.unroll3",
                     "closure_check.prefix.unroll3",
                 ],
@@ -743,7 +762,7 @@ class WraparoundSchedulePrefixCutpointTests(unittest.TestCase):
                 else:
                     raise AssertionError(stage)
                 if log_path is not None:
-                    Path(log_path).write_text(f"{input_bpl.name}\nRESULT: {result}\n", encoding="utf-8")
+                    self._write_log(log_path, input_bpl, f"RESULT: {result}")
                 return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=f"RESULT: {result}")
 
         runner = NonMailboxRunner([])

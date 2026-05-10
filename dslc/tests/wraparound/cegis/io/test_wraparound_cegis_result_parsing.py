@@ -53,6 +53,19 @@ class TestWraparoundCegisResultParsing(unittest.TestCase):
             "RESULT: SAFE",
         )
 
+    def test_timeout_result_is_not_safe(self) -> None:
+        from dslc.workflows.wraparound_cegis import StageRunResult
+
+        r = StageRunResult(
+            stage="near_wrap",
+            returncode=0,
+            wall_time_s=1.0,
+            result_line="RESULT: Ultimate could not prove your program: Timeout",
+        )
+        self.assertFalse(r.is_safe)
+        self.assertFalse(r.is_unsafe)
+        self.assertTrue(r.is_unknown)
+
 
 if __name__ == "__main__":
     unittest.main()
