@@ -2,6 +2,12 @@
 # 注意（最高优先级）：1、需要每次修改完之后对于之前能找到的bug，之前翻译正确的p4程序，都依旧能够正常工作。这需要设计并运行回归测试。 2、运行完单个spec的实验之后，需要在AGENTS.md中记录完成情况，包括spec，时间，完成进度，是否有实现错误导致的坑，是否修复并沉淀为冒烟测试这几项
 1. **Procurator（分布式 P4 状态化验证）设计文档（可直接丢进 agent 工具作为执行规范）**——各小节均给出参考依据与引用。
 
+## 当前执行准则（2026-05-08 补充）
+
+- 对单个 case 的推进顺序先看生成的 Boogie/harness 是否正确。如果转出的 BPL 或 harness 语义不对，应继续修 P4B/DSLC 的转换和建模，不用把时间花在错误模型上跑 solver。
+- 如果确认 BPL/harness 形状和语义都对，则可以把 Ultimate/GemCutter 时间放开跑。不要因为短时间跑不出来就判断 case 不存在；不是所有 case 都能在 10 分钟内完成。
+- `SAFE/UNSAFE/TIMEOUT/UNKNOWN` 的解释必须跟阶段语义绑定：短 timeout 或未认证 SAFE 不代表 bug 不存在；closure 未证明只说明当前 proof 没跑完或模型/投影还需分析。
+
 
 ---
 
@@ -5650,3 +5656,861 @@ NetSMC 对“简化模型会漏掉仅在交错下出现的违例”有明确说�
   - `wsl.exe --cd /mnt/e/p4-verify/P4B-Translator/build-host -- bash -lc "make -j16 p4c-translator"` -> PASS.
   - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc ".venv-wsl/bin/python -m unittest -v dslc.tests.bench.test_p4b_semantic_audit dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_ubpf_three_arg_hash_lowers_to_deterministic_assignment dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_psa_identity_hash_extern_lowers_to_precise_slice"` -> PASS (`20 tests`).
   - Follow-up process check found no residual Ultimate/java/z3 solver process.
+
+## 2026-05-07 BMv2/PSA/PNA CRC hash semantic refinement
+
+- **Spec/Samples**:
+  - Raw P4B sample: `P4B-Translator/testdata/p4_16_samples/flowlet_switching-bmv2.p4`
+  - Raw P4B sample: `P4B-Translator/testdata/p4_16_samples/psa-hash-04.p4`
+  - Regression specs: `Procurator/argo/code/spec/bench/gecko_bug2_concurrency.prop` and `Procurator/argo/code/spec/bench/netlock_release_counter_underflow_bug.prop`
+- **Time**: 2026-05-07 09:20-09:50 Asia/Shanghai
+- **Goal/Progress**: Strengthen the earlier hash-model audit: default BMv2/PSA/PNA CRC16/CRC32 hashes are now modeled with byte-level deterministic CRC expressions when the hash data tuple can be flattened and byte-aligned. v1model 5-argument `hash(result, algorithm, base, data, max)` now assigns the ranged value `base + crc(data) % max`, with the `max == 0` case returning `base`. TNA generic `HashAlgorithm_t.CRC*` still stays deterministic-uninterpreted unless the architecture name is clearly BMv2/PSA/PNA-compatible.
+- **Result**:
+  - P4B translator rebuild:
+    - `wsl.exe --cd /mnt/e/p4-verify/P4B-Translator/build-host -- bash -lc 'cmake --build . --target p4c-translator -j4'` -> PASS.
+  - Focused regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_flowdos_hash dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_psa_identity_hash_extern_lowers_to_precise_slice dslc.tests.bench.test_p4b_semantic_audit'` -> PASS (`23 tests`).
+  - Generated-Boogie audit on `flowlet_switching-bmv2.p4`:
+    - BPL contains `// p4b_hash_model: builtin algorithm=HashAlgorithm.crc16 model=crc16_bmv2 precision=precise`.
+    - BPL contains inline helpers `__p4b_crc16_bmv2_bit` and `__p4b_crc16_bmv2_byte`.
+    - BPL contains `function {:bvbuiltin "bvurem"} urem.bv14(...)`.
+    - The ECMP assignment has the expected shape: `if 0bv12++ecmp_count == 0bv14 then 0bv2++ecmp_base else add.bv14(0bv2++ecmp_base, urem.bv14(..., 0bv12++ecmp_count))`.
+  - Regression spec compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/gecko_bug2_concurrency.prop --out /tmp/gecko_bug2_concurrency.check.bpl --boogie-harness sequential --no-two-stage --no-reg-debug && ./bin/procurator smoke --bpl /tmp/gecko_bug2_concurrency.check.bpl --harness sequential` -> PASS.
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/netlock_release_counter_underflow_bug.prop --out /tmp/netlock_release_counter_underflow_bug.check.bpl --boogie-harness sequential --no-two-stage --no-reg-debug && ./bin/procurator smoke --bpl /tmp/netlock_release_counter_underflow_bug.check.bpl --harness sequential` -> PASS.
+- **Pitfalls/Fixes**:
+  - The first refinement attempted to assign raw CRC for v1model 5-argument hash and mark it as `precision=precise_unranged`; this was incomplete because v1model semantics include `base` and `max`. Fixed by assigning the ranged expression before marking the model precise.
+  - PowerShell-to-WSL quoting around grep pipelines produced noisy probe failures; these were command-shape issues only. The generated Boogie was rechecked with a WSL Python subprocess to avoid shell metacharacter ambiguity.
+  - CRC precision is deliberately architecture-scoped. Vendor-generic TNA CRC names are not silently treated as BMv2 CRCs.
+- **Smoke/regression**:
+  - Regression tests updated:
+    - `dslc/tests/p4b/test_p4b_flowdos_hash.py`: mixed-width v1model hash now requires precise ranged CRC and `bvurem`.
+    - `dslc/tests/p4b/test_p4b_translator_regressions.py`: PSA CRC16 hash extern expects precise CRC lowering while identity remains precise slicing.
+    - `dslc/tests/p4b/test_p4b_translator_slicing_selftest.py`: TNA generic CRC hash externs remain deterministic UF but now require algorithm-isolated function names plus all data fields.
+  - Full quick regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.boogie.backend.test_boogie_slicing_seeds dslc.tests.p4b.test_p4b_translator_slicing_selftest dslc.tests.wraparound.schedule.test_wraparound_workflow_smoke dslc.tests.frontend.test_spec_regressions'` -> PASS (`65 tests`).
+  - No Ultimate/GemCutter job was started in this step; no residual solver process was present before the run.
+
+## 2026-05-07 Flow-INT focused-direct guard audit
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop`
+- **Time**: 2026-05-07 10:06-10:46 Asia/Shanghai
+- **Goal/Progress**: Continue the semantic-gap cleanup for the Flow-INT counter candidate. The immediate goal was to keep focused-direct acceleration UNSAFE-only and prevent the textual bounded shortcut from reporting a zero-write witness through an unknown guarded reset path.
+- **Result**:
+  - Compile refreshed on the current tree:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop --out /tmp/external_int_flowdos_counter_wraparound_current.bpl --work-dir /tmp/external_int_flowdos_counter_wraparound_current.work --boogie-harness sequential --no-two-stage --no-reg-debug --no-slicing-control-seeds` -> PASS, `WALL=6.86s`.
+  - Smoke refreshed:
+    - `./bin/procurator smoke --bpl /tmp/external_int_flowdos_counter_wraparound_current.bpl --harness sequential` -> PASS, `WALL=3.01s`.
+  - Focused-index transform still folds the dynamic hash index to a concrete slot:
+    - `changed=True`, reason `focused flowdos_MyIngress_counter_filter at flowdos_counter_pos == 2242bv32`, assert lines `(359, 373)`.
+  - Guard-aware textual replay correctly rejects the current Flow-INT bounded variants:
+    - bounded `32`, `64`, `128`, and `256` all returned `textual=False`; no textual `.unsafe.json` marker is accepted for this shape.
+  - A prior direct run in `.tmp/procurator/verify/external_int_flowdos_counter_wraparound/20260507-100641-c3f9/` was interrupted by the outer wrapper after generating focused bounded artifacts. This is recorded as partial evidence only, not as bug absence.
+- **Pitfalls/Fixes**:
+  - The old textual replay treated guarded code too sequentially. A Flow-INT-like body could increment a register and then contain `if (counter_val >= 128) { write 0 }`; accepting the later zero write without proving the guard would be a false positive.
+  - Fixed in `dslc/workflows/focused_direct.py`: bounded textual replay now interprets simple `if/else` guards only when the Boolean condition is deterministically evaluable from tracked bitvector/Boolean facts. Unknown guards fail closed and fall back to the normal solver-backed focused/original verification path.
+  - BPL audit shows the current assertion is broad: it is attached to the register write helper and therefore covers both `counter_filter.write(counter_pos, counter_val + 1)` and the later reset `counter_filter.write(counter_pos, 0)`. A precise overflow validation should target the increment-write site or add an old-value/path guard so the intended wrap mechanism is not conflated with reset behavior.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc ".venv-wsl/bin/python -m unittest -v dslc.tests.workflows.test_focused_direct_workflow dslc.tests.transform.test_focused_direct dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.p4b.test_p4b_flowdos_hash"` -> PASS (`55` tests).
+  - Added regression coverage includes `test_textual_bounded_latch_rejects_unknown_guarded_reset`.
+  - Solver jobs were not run concurrently; after the interrupted run, residual Ultimate/java/procurator processes were checked and killed before continuing.
+
+## 2026-05-07 Flow-INT old/new focused-direct refinement
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop`
+- **Time**: 2026-05-07 16:20-17:10 Asia/Shanghai
+- **Goal/Progress**: Continue semantic-gap cleanup for the Flow-INT counter candidate by separating a broad zero-write check from the precise old/new increment-wrap check. The property now targets the increment write itself:
+  - `counter_filter__last_old_value == 255`
+  - `counter_filter__last_value == 0`
+  - This avoids counting the threshold-reset write as an overflow-style witness.
+- **Result**:
+  - Focused workflow regression on Windows Python:
+    - `py -3 -m unittest -v dslc.tests.workflows.test_focused_direct_workflow` -> PASS (`19` tests).
+  - WSL focused/hash/register regression:
+    - `.venv-wsl/bin/python -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.workflows.test_focused_direct_workflow dslc.tests.p4b.test_p4b_flowdos_hash dslc.tests.boogie.backend.test_boogie_registers_typedef_index0` -> PASS (`46` tests).
+  - Compile/smoke on the current old/new property:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop --out /tmp/external_int_flowdos_oldnew_check.bpl --work-dir /tmp/external_int_flowdos_oldnew_check.work --boogie-harness sequential --no-two-stage --no-reg-debug --no-slicing-control-seeds --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl /tmp/external_int_flowdos_oldnew_check.bpl --harness sequential` -> PASS.
+  - Generated-BPL audit confirmed the property is emitted as the old/new condition:
+    - `flowdos_MyIngress_counter_filter__last_old_value == 255bv8`
+    - `flowdos_MyIngress_counter_filter__last_value == 0bv8`
+  - Focused/direct solver attempt:
+    - Run directory: `.tmp/procurator/verify/external_int_flowdos_counter_wraparound/20260507-163223-0537/`
+    - Command shape: `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop --boogie-harness sequential --no-two-stage --no-reg-debug --no-slicing-control-seeds --skip-duplicated-fail-fast-global-asserts --focused-direct auto --wraparound off --ultimate-timeout-seconds 180 --no-witness-rerun`
+    - Result: outer run was interrupted after focused and bounded focused artifacts were generated. This is recorded as `TIMEOUT/partial`, not as `SAFE` or bug absence.
+  - Focused bounded BPL audit:
+    - `external_int_flowdos_counter_wraparound.focused-index0.bounded256.bpl` now latches only the concrete old/new bad condition, not an unconditional `assert false`.
+    - No textual `.unsafe.json` marker was accepted for this guarded-reset shape.
+  - Meta audit:
+    - `work/flowdos.meta.json` lists `MyIngress_counter_filter` as a wraparound-sized register, but `wraparound.updates` is empty for this reset-interrupted counter. This is expected: the counter is not a steady affine pump candidate.
+- **Pitfalls/Fixes**:
+  - A broad property on `last_value == 0` conflated the threshold-reset write with the intended old/new increment wrap. The spec was narrowed to the old/new write condition using the P4B old-value mirror.
+  - The focused bounded latch used to be able to rewrite a focused `assert false` into an unconditional latch in textual replay. This could accept a shortcut that did not re-check the target condition. Fixed in `dslc/workflows/focused_direct.py` by reconstructing the concrete focused bad condition when building the latch.
+  - The textual shortcut remains UNSAFE-only and fail-closed. `SAFE`, `UNKNOWN`, `TIMEOUT`, or unsupported replay paths fall back to solver-backed focused/original verification.
+  - Source audit shows the program writes `counter_val + 1` and then resets the same slot when the old `counter_val >= REPORT_FREQ`. Therefore the precise old/new `255 -> 0` condition needs a separate reachability argument; it must not be certified by the normal steady wraparound pump.
+- **Smoke/regression**:
+  - Added regression coverage in `dslc/tests/workflows/test_focused_direct_workflow.py`:
+    - `test_textual_bounded_latch_witness_short_circuits_solver`
+    - `test_textual_bounded_latch_rejects_oldnew_guarded_reset`
+  - After the partial focused/direct run, residual Ultimate/java/procurator processes for the same run were checked and stopped before continuing.
+
+## 2026-05-07 Flow-INT site-qualified register write refinement
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop`
+- **Time**: 2026-05-07 17:20-20:12 Asia/Shanghai
+- **Goal/Progress**: Finish the Flow-INT semantic disambiguation by making register write mirrors site-qualified. The property now targets only the increment write site:
+  - `flowdos_MyIngress_counter_filter__last_write_site == 1`
+  - `flowdos_MyIngress_counter_filter__last_old_value == 255`
+  - `flowdos_MyIngress_counter_filter__last_value == 0`
+  This prevents the later threshold reset write from being counted as the intended increment-wrap witness.
+- **Result**:
+  - P4B translator rebuild:
+    - `wsl.exe --cd /mnt/e/p4-verify/P4B-Translator/build-host -- bash -lc 'cmake --build . --target p4c-translator -j4'` exceeded the outer tool timeout at 604s, but the WSL build process continued and produced an updated `P4B-Translator/build-host/backends/verify/p4c-translator` at `2026-05-07 19:50:22`.
+    - Follow-up narrow target: `wsl.exe --cd /mnt/e/p4-verify/P4B-Translator/build-host -- bash -lc 'cmake --build . --target verifybackend -j2'` -> PASS.
+  - Targeted register/site regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_flowdos_hash.TestP4BFlowDoSHash.test_flowdos_counter_write_sites_disambiguate_increment_from_reset dslc.tests.boogie.backend.test_boogie_registers_typedef_index0 dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_exact_register_mirror_assert_enables_p4b_fail_fast dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_legacy_bpl_native_register_mirrors_are_not_reinstrumented_after_prefixing dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_legacy_bpl_backfill_repairs_write_body_and_modifies dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_p4b_generated_nodes_accept_complete_native_register_mirrors dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_p4b_generated_nodes_reject_incomplete_mirror_modifies'` -> PASS (`11` tests).
+  - Compile/smoke on the site-qualified property:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop --out /tmp/external_int_flowdos_site_check.bpl --work-dir /tmp/external_int_flowdos_site_check.work --boogie-harness sequential --no-two-stage --no-reg-debug --no-slicing-control-seeds --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl /tmp/external_int_flowdos_site_check.bpl --harness sequential` -> PASS.
+    - Default slicing path also passed after the site-mirror keep-list change:
+      - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop --out /tmp/external_int_flowdos_site_default.bpl --work-dir /tmp/external_int_flowdos_site_default.work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+      - `./bin/procurator smoke --bpl /tmp/external_int_flowdos_site_default.bpl --harness sequential` -> PASS.
+  - Generated-BPL audit:
+    - increment write site: `flowdos_MyIngress_counter_filter__next_write_site := 1;`
+    - reset write site: `flowdos_MyIngress_counter_filter__next_write_site := 2;`
+    - helper latch: `flowdos_MyIngress_counter_filter__last_write_site := flowdos_MyIngress_counter_filter__next_write_site;`
+    - fail-fast guard: `last_old_value == 255bv8 && last_value == 0bv8 && last_write_site == 1`.
+  - Meta audit:
+    - `flowdos.meta.json` still lists `MyIngress_counter_filter` as an 8-bit register.
+    - `wraparound.updates` has no `MyIngress_counter_filter` steady affine update, which is expected for this reset-interrupted counter.
+    - `counter_pos` index definition is precise CRC16/`urem.bv32` over `hdr.ipv4.srcAddr`.
+  - Focused/direct probe:
+    - Command shape: `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop --boogie-harness sequential --no-two-stage --no-reg-debug --no-slicing-control-seeds --skip-duplicated-fail-fast-global-asserts --focused-direct auto --wraparound off --ultimate-timeout-seconds 180 --no-witness-rerun`
+    - Run directory: `.tmp/procurator/verify/external_int_flowdos_counter_wraparound/20260507-200647-425d/`
+    - Result: outer tool timeout at 304s. `gemcutter.log` shows Ultimate launched, parsed, inlined, and entered preprocessing; no witness/result was produced. This is recorded as `TIMEOUT/partial`, not `SAFE` and not bug absence.
+- **Pitfalls/Fixes**:
+  - Initial write-site numbering used one global counter across all registers. In Flow-INT, an unrelated register write consumed site `1`, so `counter_filter` increment/reset were not stable as `1/2`. Fixed in P4B by changing write-site IDs to per-register counters.
+  - Slicing had to keep `__next_write_site` and `__last_write_site` alongside the existing register mirrors; otherwise a site-qualified property could compile in unsliced mode but lose the site mirror under slicing.
+  - The write helper reads `__next_write_site`, but it is set by each callsite. Therefore the helper `modifies` contains `__last_write_site`, while enclosing procedures also modify `__next_write_site`.
+  - Windows process inspection after the outer timeout showed Java processes from the Cursor Java extension, not Ultimate. The interrupted run remains partial until a WSL-side process check is available in that sandbox.
+- **Smoke/regression**:
+  - Broader focused/register/hash regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.workflows.test_focused_direct_workflow dslc.tests.p4b.test_p4b_flowdos_hash dslc.tests.boogie.backend.test_boogie_registers_typedef_index0 dslc.tests.boogie.backend.test_boogie_backend_smoke'` -> PASS (`73` tests).
+  - Post-split focused regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.boogie.backend.test_boogie_register_mirror_ownership dslc.tests.boogie.backend.test_boogie_registers_typedef_index0 dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_bounded_direct_check_preserves_accumulated_fallback_for_other_asserts dslc.tests.boogie.backend.test_boogie_backend_smoke.TestBoogieBackendSmoke.test_dslc_owns_control_seeds_for_p4b_slicing dslc.tests.p4b.test_p4b_flowdos_hash.TestP4BFlowDoSHash.test_flowdos_counter_write_sites_disambiguate_increment_from_reset'` -> PASS (`14` tests).
+  - Post-interruption grouped regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.boogie.backend.test_boogie_register_mirror_ownership dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.p4b.test_p4b_flowdos_hash'` -> PASS (`30` tests).
+  - Added regression coverage:
+    - `dslc/tests/p4b/test_p4b_flowdos_hash.py::TestP4BFlowDoSHash.test_flowdos_counter_write_sites_disambiguate_increment_from_reset`
+    - register mirror fixture updates in `dslc/tests/boogie/backend/test_boogie_registers_typedef_index0.py`.
+    - `dslc/tests/boogie/backend/test_boogie_register_mirror_ownership.py` owns legacy-BPL backfill and strict P4B-generated register mirror contract tests; `test_boogie_backend_smoke.py` was reduced to `939` lines.
+
+## 2026-05-08 NetChain wraparound current-tree revalidation
+
+- **Spec**: `Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop`
+- **Time**: 2026-05-08 10:05-10:13 Asia/Shanghai
+- **Goal/Progress**: Revalidate the known schedule-replay wraparound path on the current tree after the Flow-INT write-site and hash semantic refinements. This specifically checks that the prior `NEAR_WRAP=SAFE` false-negative path does not regress while keeping the run staged.
+- **Result**:
+  - Short staged run:
+    - Command shape: `./bin/procurator verify --spec Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop --boogie-harness sequential --no-two-stage --no-reg-debug --ultimate-xmx-gb 8 --wraparound auto --wraparound-cegar-mode schedule_replay --wraparound-stage-order entry_confirm_closure --wraparound-stop-after near_wrap --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --ultimate-timeout-seconds 300`
+    - Run directory: `.tmp/procurator/verify/netchain_wraparound_bug/20260508-100552-6521/`
+    - `ENTRY_CHECK`: `UNSAFE`, wall≈59.7s.
+    - `NEAR_WRAP`: `UNSAFE`, wall≈60.9s.
+    - This is a short-stage regression only; it is not a complete certificate because it intentionally stopped before `CLOSURE_CHECK`.
+  - Full certification run:
+    - Command shape: `./bin/procurator verify --spec Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop --boogie-harness sequential --no-two-stage --no-reg-debug --ultimate-xmx-gb 8 --wraparound auto --wraparound-cegar-mode schedule_replay --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --ultimate-timeout-seconds 900`
+    - Run directory: `.tmp/procurator/verify/netchain_wraparound_bug/20260508-100945-7e73/`
+    - Manifest: `.tmp/procurator/verify/netchain_wraparound_bug/20260508-100945-7e73/wraparound/target.00.s1_sequence_reg/wraparound.cegis.manifest.json`
+    - `ENTRY_CHECK`: `UNSAFE`, wall≈17.8s.
+    - `NEAR_WRAP`: `UNSAFE`, wall≈37.8s.
+    - `CLOSURE_CHECK`: `SAFE`, wall≈84.1s.
+    - Total stage time≈139.7s, comfortably below the 8-minute target.
+    - Validator: `python3 -m dslc.bench.validate_counterexample --wraparound-manifest .tmp/procurator/verify/netchain_wraparound_bug/20260508-100945-7e73/wraparound/target.00.s1_sequence_reg/wraparound.cegis.manifest.json` -> `[OK] certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+- **Pitfalls/Fixes**:
+  - The integrated CLI returns a nonzero exit code when it successfully finds/certifies an unsafe counterexample. This was classified from the `[WRAP] CERTIFIED UNSAFE` and validator output, not treated as command failure.
+  - A small manifest-audit helper failed because PowerShell/WSL quoting stripped Python string quotes. This was a command-shape issue only; the result was rechecked with the official validator.
+  - WSL process checks after the runs found no residual Ultimate/procurator process; the only output was the benign WSL screen-size warning.
+- **Smoke/regression**:
+  - This entry is solver-level revalidation of the existing wraparound certificate path. It builds on the same current-tree compile path used by `procurator verify`; no separate source edit was made in this step.
+
+## 2026-05-08 NetBeacon closure simplification probe
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_netbeacon_total_pkts_wraparound.prop`
+- **Time**: 2026-05-08 14:14-14:45 Asia/Shanghai
+- **Goal/Progress**: Continue the NetBeacon wraparound candidate after the current-tree wraparound fixes. The target remained `nb_SwitchIngress_Register_total_pkts`; the run used staged ENTRY/NEAR/CLOSURE so that each phase could be inspected independently.
+- **Implementation changes**:
+  - Added closure-only table action branch specialization in `dslc/transform/boogie/closure_simplify.py`. When the closure profile fixes a table `action_run`, infeasible `.apply()` branches are pruned in the closure proof task only.
+  - Added closure-only identity RegisterAction writeback simplification. Pure readback RegisterAction calls no longer emit the redundant array writeback, while preserving register write mirrors such as `__last_old_value`, `__last_index`, `__last_value`, `__last_write_site`, `__wrote_any`, and index-0 mirrors.
+  - Added deterministic closure harness branch folding for straight-line mailbox/phase branches in `mainProcedure`. The pass clears facts across calls and does not fold clone/recirculation flags through modular calls.
+- **Result**:
+  - Focused transform regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.wraparound.transform.test_closure_harness_simplify dslc.tests.wraparound.transform.test_closure_registeraction_simplify dslc.tests.wraparound.transform.test_closure_table_specialization dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.transform.test_wraparound_entry_check'` -> PASS (`39` tests).
+  - Projection/schedule regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_projection_table_apply dslc.tests.wraparound.schedule.test_wraparound_projection dslc.tests.wraparound.schedule.test_wraparound_schedule'` -> PASS (`43` tests).
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_netbeacon_total_pkts_wraparound.prop --out /tmp/external_netbeacon_total_pkts_wraparound.sliced.current.bpl --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl /tmp/external_netbeacon_total_pkts_wraparound.sliced.current.bpl --harness sequential` -> PASS.
+    - Closure BPL smoke on the generated staged artifact -> PASS.
+  - Short staged verification:
+    - Command shape: `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_netbeacon_total_pkts_wraparound.prop --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-cegar-mode schedule_replay --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --wraparound-stop-after closure --ultimate-timeout-seconds 120 --ultimate-xmx-gb 8 --no-witness-rerun`
+    - Run directory: `.tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-144205-7c57/`
+    - `ENTRY_CHECK`: `UNSAFE`, wall approx `17.2s`.
+    - `NEAR_WRAP`: `UNSAFE`, wall approx `46.3s`.
+    - `CLOSURE_CHECK`: `TIMEOUT`, wall approx `139.4s`; closure log reports `CFG has 1 procedures, 91 locations, 120 edges, 1 error locations`, `OverallTime` approx `110.4s`, and `OverallIterations` `21`.
+    - This is **not certified** yet. It is not a SAFE result and not evidence that the property is absent.
+- **Pitfalls/Fixes**:
+  - A tempting optimization would have folded clone/recirculation flags through `call nb_mainProcedure()`. That is unsound under modular Boogie calls because the callee may modify globals through its `modifies` set. The final pass clears known constants at calls and leaves those branches intact unless a future sound modifies/body analysis proves otherwise.
+  - A 300s closure probe was interrupted by the outer driver and residual solver processes were stopped before continuing. It is recorded as partial/timeout evidence only.
+  - A PowerShell/WSL quoting issue affected one ad hoc manifest-reading command; the generated artifacts and solver logs were inspected through normal paths afterward.
+- **Smoke/regression**:
+  - New focused tests cover table specialization, mirror-preserving RegisterAction simplification, and deterministic closure harness folding.
+  - Regression commands above were run before the staged solver probe. No concurrent Ultimate/GemCutter jobs were launched.
+
+## 2026-05-08 NetBeacon closure harness proof-cost follow-up
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_netbeacon_total_pkts_wraparound.prop`
+- **Time**: 2026-05-08 15:09-16:04 Asia/Shanghai
+- **Goal/Progress**: Continue the NetBeacon wraparound candidate after the first closure simplification probe. The immediate check followed the current guideline: first validate whether the generated closure Boogie/harness shape is structurally correct; only if the shape is correct should long solver time be treated as proof cost rather than a conversion bug.
+- **Implementation changes**:
+  - `dslc/transform/boogie/closure_simplify.py`: added a sound, narrow event-flag post-call summary for closure harness folding. The pass uses callee `modifies` sets and only summarizes straight-line bodies that force clone/recirculation flags to `false`; it does not assume calls preserve globals when the `modifies` set says otherwise.
+  - `dslc/transform/wraparound_stages.py`: deduplicated closure assertion conjuncts when a final cutpoint conjunct is already represented as a projection predicate equality. This keeps the proof obligation equivalent but avoids re-asserting hash-slot/full-flow predicates twice.
+- **Result**:
+  - Focused transform regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.wraparound.transform.test_closure_harness_simplify dslc.tests.wraparound.transform.test_closure_registeraction_simplify dslc.tests.wraparound.transform.test_closure_table_specialization dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.transform.test_wraparound_entry_check'` -> PASS (`40` tests).
+  - Python compile checks:
+    - `python3 -m py_compile dslc/transform/boogie/closure_simplify.py` -> PASS.
+    - `python3 -m py_compile dslc/transform/wraparound_stages.py` -> PASS.
+  - Closure BPL smoke:
+    - `./bin/procurator smoke --bpl .tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-151635-3c2b/wraparound/target.00.nb_SwitchIngress_Register_total_pkts/external_netbeacon_total_pkts_wraparound.schedule.00.closure_check.bpl --harness sequential` -> PASS.
+  - Short staged verification after event-flag folding:
+    - Run directory: `.tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-150912-05a4/`
+    - `ENTRY_CHECK`: `UNSAFE`, wall approx `19.2s`.
+    - `NEAR_WRAP`: `UNSAFE`, wall approx `39.5s`.
+    - `CLOSURE_CHECK`: `TIMEOUT`, wall approx `73.9s`.
+    - Closure CFG reduced to `83` locations and `108` edges.
+  - Short staged verification after closure-assert deduplication:
+    - Run directory: `.tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-151635-3c2b/`
+    - `ENTRY_CHECK`: `UNSAFE`, wall approx `15.6s`.
+    - `NEAR_WRAP`: `UNSAFE`, wall approx `40.4s`.
+    - `CLOSURE_CHECK`: `TIMEOUT`, wall approx `78.1s`.
+    - Closure CFG stayed at `83` locations and `108` edges, but the final closure assertion no longer repeats the projection-covered cutpoint predicates.
+  - 900s full staged run plus fallback:
+    - Run directory: `.tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-152015-5f28/`
+    - Manifest: `.tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-152015-5f28/wraparound/target.00.nb_SwitchIngress_Register_total_pkts/wraparound.cegis.manifest.json`
+    - Manifest classification: `certified=false`, diagnostic `closure unknown/timeout; falling back`.
+    - `ENTRY_CHECK`: `RESULT: UNSAFE`.
+    - `NEAR_WRAP`: `RESULT: UNSAFE`.
+    - `CLOSURE_CHECK`: `RESULT: Ultimate could not prove your program: Timeout`; closure log reports `CFG has 1 procedures, 83 locations, 108 edges`, `OverallTime: 845.4s`, `OverallIterations: 17`.
+    - Fallback direct verification also timed out: `RESULT: Ultimate could not prove your program: Timeout`, `OverallTime: 858.9s`, `OverallIterations: 29`.
+    - This remains **inconclusive**, not `SAFE`, not certified, and not evidence that the NetBeacon property is absent.
+- **Pitfalls/Fixes**:
+  - A previous monitoring command outlived the solver run and matched its own grep pattern, which made process status noisy. It was identified as a monitor shell rather than Ultimate/Z3 and stopped before continuing.
+  - PowerShell-to-WSL quoting around ad hoc `grep`/Python snippets produced noisy command failures. These were command-shape issues only; the manifest and logs were rechecked through direct WSL reads.
+  - Closure log now suggests the remaining bottleneck is proof cost around array/bitvector predicates and interpolation, not an immediately visible malformed harness: the closure BPL passes structural smoke, ENTRY/NEAR are reachable, and the closure timeout occurs inside TraceAbstraction/refinement rather than parsing or Boogie preprocessing.
+- **Smoke/regression**:
+  - No solver jobs were left running after the run; a WSL process check after cleanup showed no active Ultimate/java/z3/procurator verifier process.
+  - Current classification for this candidate: BPL/harness shape appears structurally correct, but the certificate is not complete until `CLOSURE_CHECK` proves `SAFE`.
+
+## 2026-05-08 NetBeacon schedule-replay certificate and consumer hardening
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_netbeacon_total_pkts_wraparound.prop`
+- **Time**: 2026-05-08 16:33-21:05 Asia/Shanghai
+- **Goal/Progress**: Finish the NetBeacon `total_pkts` wraparound candidate after the prior closure timeouts, and harden the downstream certificate consumer so that a schedule-replay certificate is accepted only when the solver artifacts, manifest, candidate, schedule, projection, and stage logs agree.
+- **Implementation changes**:
+  - `dslc/transform/wraparound_stages.py`: closure target proof now prefers complete last-write mirrors (`__wrote_any`, `__last_index`, `__last_value`) when available. The closure obligation proves that the accelerated step actually writes the target slot and that the last written value equals the expected step update, avoiding a heavier array read where the mirror is precise.
+  - `dslc/bench/validate_counterexample.py`: schedule-replay manifest validation no longer goes through the generic `_manifest_certified_unsafe_data` gate. It now recomputes the deterministic schedule, validates candidate/cfg consistency, requires dependency-projection sources to be explicit and certifiable, rejects closure assumptions and event-level conditions for this certificate mode, checks exact stage log `-i <bpl>` bindings, requires final stage results rather than intermediate Ultimate registration lines, and validates each stage BPL against expected instrumentation and cfg/projection/env-shape content.
+  - `dslc/cli/gemcutter.py`: integrated wraparound result handling now calls the artifact-backed validator for `cegar_mode=schedule_replay` and fails closed on validator exceptions. Generic manifest-only certification is kept only for non-schedule-replay legacy manifests.
+  - Added/updated regressions in `dslc/tests/toolchain/test_validate_counterexample.py`, `dslc/tests/toolchain/test_validate_wraparound_manifest.py`, `dslc/tests/toolchain/wraparound_manifest_fixtures.py`, and `dslc/tests/cli/test_gemcutter_result_rc.py` for dependency-projection predicates, explicit predicate provenance, projection expressions, malformed numeric schedule fields, raw stage BPLs, unreadable log artifacts, stage-shaped-but-wrong cfg artifacts, final timeout overriding intermediate SAFE/UNSAFE registration, exact `-i` path prefix rejection, and CLI generic-only fallback rejection.
+- **Result**:
+  - Certified NetBeacon run:
+    - Command shape: `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_netbeacon_total_pkts_wraparound.prop --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-cegar-mode schedule_replay --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --ultimate-timeout-seconds 300 --ultimate-xmx-gb 8 --no-witness-rerun`
+    - Run directory: `.tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-172922-195c/`
+    - Manifest: `.tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-172922-195c/wraparound/target.00.nb_SwitchIngress_Register_total_pkts/wraparound.cegis.manifest.json`
+    - `ENTRY_CHECK`: `RESULT: UNSAFE`, wall approx `42.49s`.
+    - `NEAR_WRAP`: `RESULT: UNSAFE`, wall approx `44.24s`.
+    - `CLOSURE_CHECK`: `RESULT: SAFE`, wall approx `184.36s`.
+    - Manifest classification: `certified=true`, diagnostic `certified schedule-replay wraparound bug`.
+    - CLI result handling printed `[WRAP] CERTIFIED UNSAFE` and `[CEX] certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`; the nonzero exit code is expected for a found/certified unsafe counterexample.
+  - Artifact validator on the real manifest:
+    - `python3 -m dslc.bench.validate_counterexample --wraparound-manifest .tmp/procurator/verify/external_netbeacon_total_pkts_wraparound/20260508-172922-195c/wraparound/target.00.nb_SwitchIngress_Register_total_pkts/wraparound.cegis.manifest.json` -> `[OK] certified: ENTRY+NEAR_WRAP UNSAFE and CLOSURE SAFE for one schedule_id`.
+- **Pitfalls/Fixes**:
+  - Stop-after-closure manifests are useful stage evidence but are not the same as the integrated CLI's final certified-unsafe path. The final result above uses a full integrated run that exits immediately on the certified wraparound artifact instead of falling through to base direct checking.
+  - The old generic manifest helper is intentionally narrower and rejects some dependency-projection predicates. For schedule replay, the correct consumer path is artifact-backed validation plus schedule/projection recomputation, not weakening the generic helper.
+  - Accepting `Registering result SAFE/UNSAFE` from the middle of an Ultimate log is unsound when the final result is timeout/unknown. The validator now requires a final explicit `RESULT:` line for each stage artifact.
+  - Stage markers and exact log path checks are necessary but not sufficient: a wrong stage-shaped BPL can still contain those markers. The validator now also binds stage BPLs to the candidate target register, projection variables, env-shape assumes, near/entry projection predicates, closure predicate/expr snapshot assignments, closure predicate/expr equality obligations, and closure projection snapshots. Dynamic-index closure aliases are accepted as the normalized form of the same obligation.
+  - A substring check for log `-i <bpl>` would accept neighboring names such as `entry.bpl.old`; path matching now uses token boundaries and quoted/unquoted variants.
+  - `proj_exprs` manifest labels such as `expr:0` are synthetic certificate labels, not Boogie symbols. The validator now binds their RHS expression in the stage BPL instead of requiring the label text to occur in Boogie.
+  - The added schedule-replay tests pushed `dslc/tests/toolchain/test_validate_counterexample.py` over the 1300-line Python file target. Shared stage artifact fixtures were split into `dslc/tests/toolchain/wraparound_manifest_fixtures.py`, and artifact-specific regressions live in `dslc/tests/toolchain/test_validate_wraparound_manifest.py`. Current line counts are: `test_validate_counterexample.py` 1232 lines, `test_validate_wraparound_manifest.py` 172 lines, and `wraparound_manifest_fixtures.py` 106 lines.
+  - Subagent review found that non-empty `proj_predicates` could still pass with omitted/empty `proj_predicate_sources` because the validator defaulted them to `dependency_projection`. Added a red-green regression (`test_validate_schedule_replay_rejects_predicates_without_explicit_sources`) and tightened the validator to require source-list length equality whenever predicates are present.
+- **Smoke/regression**:
+  - Focused consumer regression:
+    - Red test before the fix: `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.toolchain.test_validate_wraparound_manifest.TestValidateWraparoundManifestArtifacts.test_validate_schedule_replay_rejects_predicates_without_explicit_sources'` failed because the manifest was incorrectly certified.
+    - Same targeted test after the fix -> PASS.
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.toolchain.test_validate_counterexample dslc.tests.toolchain.test_validate_wraparound_manifest dslc.tests.cli.test_gemcutter_result_rc'` -> PASS (`25` tests).
+  - Broader wraparound transform/closure regression:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.toolchain.test_validate_counterexample dslc.tests.toolchain.test_validate_wraparound_manifest dslc.tests.cli.test_gemcutter_result_rc dslc.tests.wraparound.transform.closure.test_closure_target_asserts dslc.tests.wraparound.transform.closure.test_closure_harness_simplify dslc.tests.wraparound.transform.closure.test_closure_registeraction_simplify dslc.tests.wraparound.transform.closure.test_closure_table_specialization dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.transform.test_wraparound_entry_check'` -> PASS (`67` tests).
+  - Python compile:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m py_compile dslc/bench/validate_counterexample.py dslc/cli/gemcutter.py dslc/tests/toolchain/test_validate_counterexample.py dslc/tests/toolchain/test_validate_wraparound_manifest.py dslc/tests/toolchain/wraparound_manifest_fixtures.py dslc/tests/cli/test_gemcutter_result_rc.py'` -> PASS.
+
+## 2026-05-08 NetBeacon total_bytes wraparound candidate recovery
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_netbeacon_total_bytes_wraparound.prop`
+- **Time**: 2026-05-08 22:08-22:39 Asia/Shanghai
+- **Goal/Progress**: Continue the external NetBeacon wraparound mining loop on `Register_total_bytes`, which previously had only a bounded direct timeout. First checked whether the generated BPL/harness is correct, then fixed the candidate inference gap that prevented the wraparound pipeline from even trying the staged proof.
+- **Result**:
+  - Current compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_netbeacon_total_bytes_wraparound.prop --out .tmp/procurator/manual/netbeacon_bytes/current.bpl --work-dir .tmp/procurator/manual/netbeacon_bytes/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/netbeacon_bytes/current.bpl --harness sequential` -> PASS.
+    - Generated BPL has 1217 lines; the assertion is over `nb_SwitchIngress_Register_total_bytes__wrote_any` and `nb_SwitchIngress_Register_total_bytes__last_value == 0bv32`.
+  - Candidate inference after the fix recovers:
+    - `pump_reg=nb_SwitchIngress_Register_total_bytes`
+    - `step_delta=32768`
+    - dynamic stable index expression `nb_SwitchIngress_my_symmetric_hash.get$alg_t_CRC32$bv32$bv32$bv16$bv16$bv8(167772161bv32, 167772162bv32, 1234bv16, 443bv16, 6bv8)[16:0]`
+    - stable env-shape substitutions for `flow_hash`, `flow_index`, ports, `flow_size`, and `udp_length`.
+  - Staged wraparound run with 300s cap:
+    - Run directory: `.tmp/procurator/verify/external_netbeacon_total_bytes_wraparound/20260508-221416-86cc/`
+    - `ENTRY_CHECK=UNSAFE`, wall≈44.8s.
+    - `NEAR_WRAP=TIMEOUT`, wall≈322.3s.
+  - Staged wraparound run with 900s cap:
+    - Run directory: `.tmp/procurator/verify/external_netbeacon_total_bytes_wraparound/20260508-222309-0547/`
+    - `ENTRY_CHECK=UNSAFE`, wall≈14.5s.
+    - `NEAR_WRAP=TIMEOUT`, wall≈914.5s.
+  - Classification: model/harness and candidate inference are now correct enough to attempt wraparound, but the near-wrap suffix remains solver-timeout/inconclusive. This is not `SAFE` and not evidence that the candidate is absent.
+- **Pitfalls/Fixes**:
+  - P4B meta reported the additive RegisterAction update but with `delta_is_const=false`, because the P4 expression is `hdr.ipv4.total_len`. In the composed Boogie harness, node assumptions fix `nb_hdr.ipv4.total_len == 32768bv16`.
+  - The existing delta recovery handled direct literals such as `32768bv16`, but missed zero-extended literals such as `0bv16++nb_hdr.ipv4.total_len`. After constant propagation this becomes `0bv16++32768bv16`; `_literal_int` now folds literal bit-vector concatenations and recovers `32768`.
+  - The near-wrap BPL fast-forwards the target slot to `4294934528bv32` (`2^32 - 32768`) and unrolls two scheduler steps. The generated shape is consistent with the intended non-unit step, so the remaining blocker is proof/search cost, not an obvious conversion bug.
+- **Smoke/regression**:
+  - Red-green regression added in `dslc/tests/wraparound/test_wraparound_candidate_gating.py`:
+    - `test_meta_update_delta_recovers_zero_extended_env_fixed_header_value` failed before the fix because no candidate was inferred.
+    - The same targeted test passes after the fix.
+  - Focused regression batch:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.wraparound.test_wraparound_candidate_gating.TestWraparoundCandidateGating.test_meta_update_delta_recovers_env_fixed_header_value dslc.tests.wraparound.test_wraparound_candidate_gating.TestWraparoundCandidateGating.test_meta_update_delta_recovers_zero_extended_env_fixed_header_value dslc.tests.toolchain.test_validate_counterexample dslc.tests.toolchain.test_validate_wraparound_manifest dslc.tests.cli.test_gemcutter_result_rc'` -> PASS (`27` tests).
+  - Python compile:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m py_compile dslc/analysis/wraparound_candidates.py dslc/tests/wraparound/test_wraparound_candidate_gating.py dslc/bench/validate_counterexample.py dslc/tests/toolchain/test_validate_counterexample.py dslc/tests/toolchain/test_validate_wraparound_manifest.py'` -> PASS.
+  - File-size check after this change: `wraparound_candidates.py` 969 lines, `test_wraparound_candidate_gating.py` 1167 lines, `validate_counterexample.py` 820 lines, `test_validate_counterexample.py` 1232 lines, `test_validate_wraparound_manifest.py` 172 lines.
+
+## 2026-05-08 SwitchML workers_count focused-direct replay
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_switchml_workers_count_zero_direct.prop`
+- **Time**: 2026-05-08 22:40-22:43 Asia/Shanghai
+- **Goal/Progress**: Re-run an external SwitchML candidate on the current tree instead of relying on the older 2026-05-06 main-solver log. The aim was to determine whether the prior no-witness candidate is now an auditable direct witness.
+- **Result**:
+  - Command:
+    - `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_switchml_workers_count_zero_direct.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound off --ultimate-timeout-seconds 600 --ultimate-xmx-gb 8 --use-spec-max-steps`
+  - Run directory: `.tmp/procurator/verify/external_switchml_workers_count_zero_direct/20260508-224036-7fb0/`
+  - Result: focused direct prepass returned `UNSAFE`; original full run was skipped after the under-approximation witness.
+  - Marker: `.tmp/procurator/verify/external_switchml_workers_count_zero_direct/20260508-224036-7fb0/external_switchml_workers_count_zero_direct.focused-index0.unsafe.json`
+  - Marker binding:
+    - `target_reg=sw_Ingress_workers_counter_workers_count`
+    - `idx_var=sw_ig_md.switchml_md.pool_index`
+    - `zero=0bv15`
+    - `target_slice=[16, 8]`
+    - `target_value=0bv8`
+    - `assert_lines=[2302]`
+  - Ultimate log: `CounterExampleResult [Line: 2302]: assertion can be violated`, followed by `RESULT: Ultimate proved your program to be incorrect!`
+  - `dslc.bench.validate_counterexample --out-dir` accepted the run as `focused_under_approx`.
+- **Pitfalls/Fixes**:
+  - This is a direct under-approximation witness, not a wraparound closure certificate. It is sound as a bug witness because the focused BPL fixes `pool_index == 0bv15` and the marker hashes bind the source BPL, focused BPL, target register, target slice, and accepted assertion line.
+  - No implementation change was required in this replay; it uses the focused-direct and register-mirror hardening already present in the current tree.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_switchml_workers_count_zero_direct/20260508-224036-7fb0'` -> `[OK] focused_under_approx: focused under-approximation witness (external_switchml_workers_count_zero_direct.focused-index0.unsafe.json)`.
+
+## 2026-05-08 SwitchML value00 first-field focused-direct replay
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_switchml_value00_first_zero_direct.prop`
+- **Time**: 2026-05-08 22:43-22:45 Asia/Shanghai
+- **Goal/Progress**: Re-run the first-field `value00.values` candidate on the current tree. The older 2026-05-06 evidence had a witness for the second 32-bit field; this run checks the first 32-bit field under the current focused-direct implementation.
+- **Result**:
+  - Command:
+    - `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_switchml_value00_first_zero_direct.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound off --ultimate-timeout-seconds 600 --ultimate-xmx-gb 8 --use-spec-max-steps`
+  - Run directory: `.tmp/procurator/verify/external_switchml_value00_first_zero_direct/20260508-224308-6699/`
+  - Result: focused direct prepass returned `UNSAFE`; original full run was skipped after the under-approximation witness.
+  - Marker: `.tmp/procurator/verify/external_switchml_value00_first_zero_direct/20260508-224308-6699/external_switchml_value00_first_zero_direct.focused-index0.unsafe.json`
+  - Marker binding:
+    - `target_reg=sw_Ingress_value00_values`
+    - `idx_var=sw_ig_md.switchml_md.pool_index`
+    - `zero=0bv15`
+    - `target_slice=[64, 32]`
+    - `target_value=0bv32`
+    - `assert_lines=[2464]`
+  - Ultimate log: `CounterExampleResult [Line: 2464]: assertion can be violated`, followed by `RESULT: Ultimate proved your program to be incorrect!`
+  - `dslc.bench.validate_counterexample --out-dir` accepted the run as `focused_under_approx`.
+- **Pitfalls/Fixes**:
+  - This is a direct under-approximation witness, not a closure certificate. It is distinct from the second-field value00 replay because it binds the first 32-bit slice `[64:32]` of the packed `value_pair_t` register.
+  - No implementation change was required in this replay.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_switchml_value00_first_zero_direct/20260508-224308-6699'` -> `[OK] focused_under_approx: focused under-approximation witness (external_switchml_value00_first_zero_direct.focused-index0.unsafe.json)`.
+
+## 2026-05-08 SwitchML cross-job interleaving replay
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_switchml_cross_job_worker_mix_completion.prop`
+- **Time**: 2026-05-08 22:45-22:48 Asia/Shanghai
+- **Goal/Progress**: Re-run the SwitchML cross-job worker-state mixing property on the current tree, because this is a stronger interleaving-style property than the focused zero-field witnesses. The property checks whether job 2 can reuse pool-index state left by job 1 and be treated as complete after only one job-2 worker contribution.
+- **Result**:
+  - Command:
+    - `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_switchml_cross_job_worker_mix_completion.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound off --ultimate-timeout-seconds 600 --ultimate-xmx-gb 8 --use-spec-max-steps`
+  - Run directory: `.tmp/procurator/verify/external_switchml_cross_job_worker_mix_completion/20260508-224528-0354/`
+  - Main run: `RESULT: UNSAFE`; Ultimate reported `CounterExampleResult [Line: 3199]: assertion can be violated`, `OverallTime≈44.0s`.
+  - Witness rerun: `RESULT: UNSAFE`; same assertion line 3199, `OverallTime≈45.0s`.
+  - Witness artifacts:
+    - `.tmp/procurator/verify/external_switchml_cross_job_worker_mix_completion/20260508-224528-0354/external_switchml_cross_job_worker_mix_completion.bpl-witness.graphml`
+    - `.tmp/procurator/verify/external_switchml_cross_job_worker_mix_completion/20260508-224528-0354/external_switchml_cross_job_worker_mix_completion.bpl-witness.yml`
+  - `dslc.bench.validate_counterexample --out-dir` accepted the run as `dsl_assert`.
+- **Pitfalls/Fixes**:
+  - This is a full direct-check DSL assertion witness, not a focused under-approximation and not a wraparound closure certificate.
+  - The relevant assertion requires two processed packets and the second packet's job-2/worker-1 state to observe `worker_bitmap_before == 1`, `map_result == 0`, `first_last_flag == 1`, `workers_counter_count_workers_action`, and `value00_sum_read1_action`.
+  - No implementation change was required in this replay.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_switchml_cross_job_worker_mix_completion/20260508-224528-0354'` -> `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_switchml_cross_job_worker_mix_completion.bpl-witness.graphml)`.
+
+## 2026-05-08 NeuralP4 run-state interleaving replay
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_neuralp4_netml_run_interleaving.prop`
+- **Time**: 2026-05-08 22:49-22:53 Asia/Shanghai
+- **Goal/Progress**: Re-run a machine-learning P4 artifact candidate on the current tree. The property checks that interleaving packets from two ANN runs can reset the single-slot run-progress registers, so run 1 loses its earlier stimulus state after run 2 passes through.
+- **Result**:
+  - Command:
+    - `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_neuralp4_netml_run_interleaving.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound off --ultimate-timeout-seconds 600 --ultimate-xmx-gb 8 --use-spec-max-steps`
+  - Run directory: `.tmp/procurator/verify/external_neuralp4_netml_run_interleaving/20260508-224932-2baf/`
+  - Main run: `RESULT: UNSAFE`; Ultimate reported `CounterExampleResult [Line: 948]: assertion can be violated`, `OverallTime≈58.9s`.
+  - Witness rerun: `RESULT: UNSAFE`; same assertion line 948, `OverallTime≈56.5s`.
+  - Witness artifacts:
+    - `.tmp/procurator/verify/external_neuralp4_netml_run_interleaving/20260508-224932-2baf/external_neuralp4_netml_run_interleaving.bpl-witness.graphml`
+    - `.tmp/procurator/verify/external_neuralp4_netml_run_interleaving/20260508-224932-2baf/external_neuralp4_netml_run_interleaving.bpl-witness.yml`
+  - `dslc.bench.validate_counterexample --out-dir` accepted the run as `dsl_assert`.
+- **Pitfalls/Fixes**:
+  - This is a full direct-check interleaving witness, not a wraparound certificate. It shows the bounded three-packet run sequence reaches the DSL assertion violation under the generated harness.
+  - No implementation change was required in this replay.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_neuralp4_netml_run_interleaving/20260508-224932-2baf'` -> `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_neuralp4_netml_run_interleaving.bpl-witness.graphml)`.
+
+## 2026-05-08/09 P4DB slicing control-call and schedule-replay certificate hardening
+
+- **Spec/Regression anchor**:
+  - P4B direct regression: `dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_p4db_damper_table_set_default_not_lost_under_slicing`
+  - Certificate regressions: `dslc.tests.toolchain.test_validate_wraparound_manifest`
+- **Time**: 2026-05-08 23:10 - 2026-05-09 00:10 Asia/Shanghai
+- **Goal/Progress**: Before running more external-system solver jobs, re-established a fast P4B/DSLC regression baseline. The first batch found a real P4DB slicing regression: under `--slicing-vars=damper_register`, the generated Boogie kept only a declaration for `damper_1.apply(arg0:headers, arg1:metadata, arg2:standard_metadata_t)` and lost the reachable `damper_tbl_1.apply()` body and `table_set_default` parameter writes.
+- **Implementation changes**:
+  - `P4B-Translator/backends/verify/slicing/slicer_internal.h` / `slicer.cpp`: the slicer now collects P4 control declarations and, when a kept call reaches a nested control instance such as the P4_14 macro-generated `damper_1`, recursively records the nested control body's table/action/RegisterAction callees. This keeps the actual table statements, not only the outer control call.
+  - `P4B-Translator/backends/verify/translate/translate.h`, `impl/core/translate.cpp`, `impl/lowering/translate_program.cpp`, and `impl/lowering/translate_statement.cpp`: translator records `Declaration_Instance` names for control instances and rewrites `control_instance.apply(...)` to call the already generated control procedure when available. This fixes the P4_14 lowering shape where the receiver type is `Unknown type` but the instance name still identifies the control.
+  - `dslc/bench/validate_counterexample.py`: schedule-replay manifest validation now rejects focused near-wrap artifacts as certified CONFIRM evidence, and closure artifacts must prove scalar projection variables by both snapshot assignment and final equality.
+  - `dslc/tests/toolchain/test_validate_wraparound_manifest.py` and `dslc/tests/toolchain/wraparound_manifest_fixtures.py`: added red-green regressions for the two certificate soundness gaps found by reviewer: missing scalar projection equality and focused near-wrap being used as certified confirm.
+- **Result**:
+  - P4DB red regression before the fix:
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_p4db_damper_table_set_default_not_lost_under_slicing'` -> FAIL because `procedure {:inline 1} damper_tbl_1.apply()` was absent.
+  - P4DB after the fix:
+    - Same targeted test -> PASS.
+    - Debug output shape now includes `procedure {:inline 1} damper_1()`, `call damper_tbl_1.apply();`, `procedure {:inline 1} damper_tbl_1.apply()`, `damper_tbl_1.action_run := damper_tbl_1.action.set_damper;`, and the ingress call lowered to `call damper_1();`.
+  - Certificate red regressions before the fix:
+    - `test_validate_schedule_replay_rejects_scalar_projection_without_closure_equality` and `test_validate_schedule_replay_rejects_focused_near_wrap_as_certified_confirm` both failed because the validator accepted the corrupted artifacts.
+  - Certificate after the fix:
+    - The same two tests -> PASS.
+- **Pitfalls/Fixes**:
+  - The initial slicer-only fix made `keep tables=3` for `damper_tbl_1`, `break_1`, and `damper_end_tbl_1`, but the final Boogie still did not print table apply procedures because `damper_1.apply(...)` was an unresolved external-style call and table procedures were unreachable from `mainProcedure`. The durable fix needed both the slicer interprocedural closure and translator control-instance call lowering.
+  - The P4C frontend gives `Unknown type` for the P4_14 macro receiver at the call site, so relying on `Type_Name` was not enough. The translator now records the declaration-instance-to-control-type relation when declarations are available.
+  - Focused near-wrap remains useful diagnostic evidence, but it is an under-approximation goal and cannot by itself satisfy the certified schedule-replay `near_wrap` stage for a full bug certificate.
+- **Smoke/regression**:
+  - Build: `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'cd P4B-Translator/build-host && cmake --build . --target p4c-translator -j2'` -> PASS.
+  - Focused validator tests: `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.toolchain.test_validate_counterexample dslc.tests.toolchain.test_validate_wraparound_manifest dslc.tests.cli.test_gemcutter_result_rc'` -> PASS (`27` tests).
+  - Medium regression batch: `wsl.exe --cd /mnt/e/p4-verify -- bash -lc '.venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_flowdos_hash dslc.tests.p4b.test_p4b_translator_regressions dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.toolchain.test_validate_counterexample dslc.tests.toolchain.test_validate_wraparound_manifest dslc.tests.cli.test_gemcutter_result_rc'` -> PASS (`66` tests).
+
+## 2026-05-08/09 NeuralP4 completion-reopen interleaving current-tree witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_neuralp4_netml_completion_reopen_interleaving.prop`
+- **Time**: 2026-05-08 23:51-23:54 Asia/Shanghai
+- **Goal/Progress**: Re-run a NeuralP4 machine-learning P4 candidate on the current tree after the P4B control-call and certificate hardening. First checked model shape with compile/smoke, then ran direct checking.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_neuralp4_netml_completion_reopen_interleaving.prop --out .tmp/procurator/manual/external_neuralp4_netml_completion_reopen_interleaving/current/current.bpl --work-dir .tmp/procurator/manual/external_neuralp4_netml_completion_reopen_interleaving/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_neuralp4_netml_completion_reopen_interleaving/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 698 lines.
+  - Direct verification:
+    - Run directory: `.tmp/procurator/verify/external_neuralp4_netml_completion_reopen_interleaving/20260508-235219-a4c6/`
+    - Main run: `RESULT: UNSAFE`.
+    - Witness rerun: `RESULT: UNSAFE`.
+    - Witness artifacts:
+      - `.tmp/procurator/verify/external_neuralp4_netml_completion_reopen_interleaving/20260508-235219-a4c6/external_neuralp4_netml_completion_reopen_interleaving.bpl-witness.graphml`
+      - `.tmp/procurator/verify/external_neuralp4_netml_completion_reopen_interleaving/20260508-235219-a4c6/external_neuralp4_netml_completion_reopen_interleaving.bpl-witness.yml`
+    - Validator: `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_neuralp4_netml_completion_reopen_interleaving.bpl-witness.graphml)`.
+- **Pitfalls/Fixes**:
+  - An initial shell command used `$(basename ...)` inside a PowerShell-interpreted string and failed before invoking the toolchain correctly. Re-ran using explicit paths in WSL; the model and verifier run were unaffected.
+  - No implementation change was required for this spec after the earlier P4B/validator fixes.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_neuralp4_netml_completion_reopen_interleaving/20260508-235219-a4c6'` -> PASS.
+
+## 2026-05-08/09 NeuralP4 run-id alias interleaving current-tree witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_neuralp4_netml_run_id_alias_drop.prop`
+- **Time**: 2026-05-08 23:54-23:57 Asia/Shanghai
+- **Goal/Progress**: Re-run the NeuralP4 run-id alias property on the current tree, distinguishing model correctness from solver behavior before classifying the candidate.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_neuralp4_netml_run_id_alias_drop.prop --out .tmp/procurator/manual/external_neuralp4_netml_run_id_alias_drop/current/current.bpl --work-dir .tmp/procurator/manual/external_neuralp4_netml_run_id_alias_drop/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_neuralp4_netml_run_id_alias_drop/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 674 lines.
+  - Direct verification:
+    - Run directory: `.tmp/procurator/verify/external_neuralp4_netml_run_id_alias_drop/20260508-235455-ccd1/`
+    - Main run: `RESULT: UNSAFE`.
+    - Witness rerun: `RESULT: UNSAFE`.
+    - Witness artifacts:
+      - `.tmp/procurator/verify/external_neuralp4_netml_run_id_alias_drop/20260508-235455-ccd1/external_neuralp4_netml_run_id_alias_drop.bpl-witness.graphml`
+      - `.tmp/procurator/verify/external_neuralp4_netml_run_id_alias_drop/20260508-235455-ccd1/external_neuralp4_netml_run_id_alias_drop.bpl-witness.yml`
+    - Validator: `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_neuralp4_netml_run_id_alias_drop.bpl-witness.graphml)`.
+- **Pitfalls/Fixes**:
+  - No implementation change was required for this spec; compile/smoke confirmed the BPL/harness shape first.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_neuralp4_netml_run_id_alias_drop/20260508-235455-ccd1'` -> PASS.
+
+## 2026-05-08/09 NeuralP4 argmax winner-loss current-tree witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_neuralp4_netml_argmax_winner_loss.prop`
+- **Time**: 2026-05-08 23:57 - 2026-05-09 00:02 Asia/Shanghai
+- **Goal/Progress**: Re-run the NeuralP4 argmax winner-loss property on the current tree. This candidate has a larger generated BPL, so compile/smoke was checked before running Ultimate.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_neuralp4_netml_argmax_winner_loss.prop --out .tmp/procurator/manual/external_neuralp4_netml_argmax_winner_loss/current/current.bpl --work-dir .tmp/procurator/manual/external_neuralp4_netml_argmax_winner_loss/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_neuralp4_netml_argmax_winner_loss/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 1707 lines.
+  - Direct verification:
+    - Run directory: `.tmp/procurator/verify/external_neuralp4_netml_argmax_winner_loss/20260508-235744-471c/`
+    - Main run: `RESULT: UNSAFE`.
+    - Witness rerun: `RESULT: UNSAFE`.
+    - Witness artifacts:
+      - `.tmp/procurator/verify/external_neuralp4_netml_argmax_winner_loss/20260508-235744-471c/external_neuralp4_netml_argmax_winner_loss.bpl-witness.graphml`
+      - `.tmp/procurator/verify/external_neuralp4_netml_argmax_winner_loss/20260508-235744-471c/external_neuralp4_netml_argmax_winner_loss.bpl-witness.yml`
+    - Validator: `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_neuralp4_netml_argmax_winner_loss.bpl-witness.graphml)`.
+- **Pitfalls/Fixes**:
+  - No implementation change was required for this spec. The direct check completed within the 600s per-candidate cap.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_neuralp4_netml_argmax_winner_loss/20260508-235744-471c'` -> PASS.
+
+## 2026-05-08/09 NeuralP4 argmax new-winner-loss current-tree witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_neuralp4_netml_argmax_new_winner_loss.prop`
+- **Time**: 2026-05-09 00:04-00:09 Asia/Shanghai
+- **Goal/Progress**: Re-run the paired NeuralP4 argmax new-winner property on the current tree after the first argmax witness, again checking generated BPL/harness shape before solver time.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_neuralp4_netml_argmax_new_winner_loss.prop --out .tmp/procurator/manual/external_neuralp4_netml_argmax_new_winner_loss/current/current.bpl --work-dir .tmp/procurator/manual/external_neuralp4_netml_argmax_new_winner_loss/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_neuralp4_netml_argmax_new_winner_loss/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 1707 lines.
+  - Direct verification:
+    - Run directory: `.tmp/procurator/verify/external_neuralp4_netml_argmax_new_winner_loss/20260509-000413-c874/`
+    - Main run: `RESULT: UNSAFE`.
+    - Witness rerun: `RESULT: UNSAFE`.
+    - Witness artifacts:
+      - `.tmp/procurator/verify/external_neuralp4_netml_argmax_new_winner_loss/20260509-000413-c874/external_neuralp4_netml_argmax_new_winner_loss.bpl-witness.graphml`
+      - `.tmp/procurator/verify/external_neuralp4_netml_argmax_new_winner_loss/20260509-000413-c874/external_neuralp4_netml_argmax_new_winner_loss.bpl-witness.yml`
+    - Validator: `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_neuralp4_netml_argmax_new_winner_loss.bpl-witness.graphml)`.
+- **Pitfalls/Fixes**:
+  - No implementation change was required for this spec. The result is a full direct-check DSL assertion witness, not a focused under-approximation and not a wraparound certificate.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_neuralp4_netml_argmax_new_winner_loss/20260509-000413-c874'` -> PASS.
+
+## 2026-05-09 SwitchML job-pool alias current-tree witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_switchml_job_pool_alias_drop.prop`
+- **Time**: 2026-05-09 00:12-00:15 Asia/Shanghai
+- **Goal/Progress**: Continue the external-system interleaving mining loop on SwitchML candidates that had older run artifacts, using the current tree after the P4B/validator fixes. Checked generated BPL/harness first, then ran direct verification.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_switchml_job_pool_alias_drop.prop --out .tmp/procurator/manual/external_switchml_job_pool_alias_drop/current/current.bpl --work-dir .tmp/procurator/manual/external_switchml_job_pool_alias_drop/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_switchml_job_pool_alias_drop/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 2744 lines.
+  - Direct verification:
+    - Run directory: `.tmp/procurator/verify/external_switchml_job_pool_alias_drop/20260509-001205-85c1/`
+    - Main run: `RESULT: UNSAFE`.
+    - Witness rerun: `RESULT: UNSAFE`.
+    - Witness artifacts:
+      - `.tmp/procurator/verify/external_switchml_job_pool_alias_drop/20260509-001205-85c1/external_switchml_job_pool_alias_drop.bpl-witness.graphml`
+      - `.tmp/procurator/verify/external_switchml_job_pool_alias_drop/20260509-001205-85c1/external_switchml_job_pool_alias_drop.bpl-witness.yml`
+    - Validator: `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_switchml_job_pool_alias_drop.bpl-witness.graphml)`.
+- **Pitfalls/Fixes**:
+  - No implementation change was required for this spec after the earlier P4B control-call and certificate hardening.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_switchml_job_pool_alias_drop/20260509-001205-85c1'` -> PASS.
+
+## 2026-05-09 SwitchML RDMA same-QP assign current-tree witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_switchml_rdma_same_qp_state_overwrite_assign.prop`
+- **Time**: 2026-05-09 00:16-00:19 Asia/Shanghai
+- **Goal/Progress**: Re-run the SwitchML RDMA same-QP state overwrite property on the current tree, with compile/smoke before solver time.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_switchml_rdma_same_qp_state_overwrite_assign.prop --out .tmp/procurator/manual/external_switchml_rdma_same_qp_state_overwrite_assign/current/current.bpl --work-dir .tmp/procurator/manual/external_switchml_rdma_same_qp_state_overwrite_assign/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_switchml_rdma_same_qp_state_overwrite_assign/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 2743 lines.
+  - Direct verification:
+    - Run directory: `.tmp/procurator/verify/external_switchml_rdma_same_qp_state_overwrite_assign/20260509-001604-852d/`
+    - Main run: `RESULT: UNSAFE`.
+    - Witness rerun: `RESULT: UNSAFE`.
+    - Witness artifacts:
+      - `.tmp/procurator/verify/external_switchml_rdma_same_qp_state_overwrite_assign/20260509-001604-852d/external_switchml_rdma_same_qp_state_overwrite_assign.bpl-witness.graphml`
+      - `.tmp/procurator/verify/external_switchml_rdma_same_qp_state_overwrite_assign/20260509-001604-852d/external_switchml_rdma_same_qp_state_overwrite_assign.bpl-witness.yml`
+    - Validator: `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_switchml_rdma_same_qp_state_overwrite_assign.bpl-witness.graphml)`.
+- **Pitfalls/Fixes**:
+  - No implementation change was required for this spec. The result is a full direct-check DSL assertion witness.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_switchml_rdma_same_qp_state_overwrite_assign/20260509-001604-852d'` -> PASS.
+
+## 2026-05-09 SwitchML shadow-bitmap duplicate-count current-tree witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_switchml_shadow_bitmap_duplicate_count.prop`
+- **Time**: 2026-05-09 00:22-00:25 Asia/Shanghai
+- **Goal/Progress**: Re-run the SwitchML shadow-bitmap duplicate-count property on the current tree, again separating model generation checks from solver evidence.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_switchml_shadow_bitmap_duplicate_count.prop --out .tmp/procurator/manual/external_switchml_shadow_bitmap_duplicate_count/current/current.bpl --work-dir .tmp/procurator/manual/external_switchml_shadow_bitmap_duplicate_count/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_switchml_shadow_bitmap_duplicate_count/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 2749 lines.
+  - Direct verification:
+    - Run directory: `.tmp/procurator/verify/external_switchml_shadow_bitmap_duplicate_count/20260509-002212-1de4/`
+    - Main run: `RESULT: UNSAFE`.
+    - Witness rerun: `RESULT: UNSAFE`.
+    - Witness artifacts:
+      - `.tmp/procurator/verify/external_switchml_shadow_bitmap_duplicate_count/20260509-002212-1de4/external_switchml_shadow_bitmap_duplicate_count.bpl-witness.graphml`
+      - `.tmp/procurator/verify/external_switchml_shadow_bitmap_duplicate_count/20260509-002212-1de4/external_switchml_shadow_bitmap_duplicate_count.bpl-witness.yml`
+    - Validator: `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_switchml_shadow_bitmap_duplicate_count.bpl-witness.graphml)`.
+- **Pitfalls/Fixes**:
+  - No implementation change was required for this spec. A WSL process check after this batch showed no active Ultimate/java/z3/procurator verifier process.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_switchml_shadow_bitmap_duplicate_count/20260509-002212-1de4'` -> PASS.
+
+## 2026-05-09 NeuralP4 weighted-sum accumulator wrap current-tree witness
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_neuralp4_netml_weighted_sum_accumulator_wrap.prop`
+- **Time**: 2026-05-09 00:41-00:45 Asia/Shanghai
+- **Goal/Progress**: Continue the external-system mining loop on a NeuralP4 machine-learning P4 artifact candidate that had not yet been recorded in this batch. The property targets the `FUNC_WEIGHTED_SUM_16_TO_32` path: two valid stimuli update the bit<8> neuron-data accumulator, so the generated model should expose the arithmetic wrap to value `144`.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_neuralp4_netml_weighted_sum_accumulator_wrap.prop --out .tmp/procurator/manual/external_neuralp4_netml_weighted_sum_accumulator_wrap/current/current.bpl --work-dir .tmp/procurator/manual/external_neuralp4_netml_weighted_sum_accumulator_wrap/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_neuralp4_netml_weighted_sum_accumulator_wrap/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 2130 lines.
+  - Direct verification:
+    - Command:
+      - `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_neuralp4_netml_weighted_sum_accumulator_wrap.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound off --ultimate-timeout-seconds 600 --ultimate-xmx-gb 8 --use-spec-max-steps --skip-duplicated-fail-fast-global-asserts`
+    - Run directory: `.tmp/procurator/verify/external_neuralp4_netml_weighted_sum_accumulator_wrap/20260509-004102-a575/`
+    - Main run: `RESULT: UNSAFE`.
+    - Witness rerun: `RESULT: UNSAFE`.
+    - Witness artifacts:
+      - `.tmp/procurator/verify/external_neuralp4_netml_weighted_sum_accumulator_wrap/20260509-004102-a575/external_neuralp4_netml_weighted_sum_accumulator_wrap.bpl-witness.graphml`
+      - `.tmp/procurator/verify/external_neuralp4_netml_weighted_sum_accumulator_wrap/20260509-004102-a575/external_neuralp4_netml_weighted_sum_accumulator_wrap.bpl-witness.yml`
+    - Validator: `[OK] dsl_assert: DSL global assertion violated (accumulator flag set; external_neuralp4_netml_weighted_sum_accumulator_wrap.bpl-witness.graphml)`.
+- **Pitfalls/Fixes**:
+  - The first compile command in this session used bash variables inside a PowerShell-wrapped string and failed before invoking the compiler (`--spec` was seen without an argument). Re-ran using explicit WSL paths; the toolchain/model was unaffected.
+  - No implementation change was required for this spec after the earlier P4B control-call and certificate hardening.
+- **Smoke/regression**:
+  - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 -m dslc.bench.validate_counterexample --out-dir .tmp/procurator/verify/external_neuralp4_netml_weighted_sum_accumulator_wrap/20260509-004102-a575'` -> PASS.
+
+## 2026-05-09 SwitchML RDMA same-QP overwrite bounded check
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_switchml_rdma_same_qp_state_overwrite.prop`
+- **Time**: 2026-05-09 00:46-00:48 Asia/Shanghai
+- **Goal/Progress**: Distinguish the non-assign same-QP overwrite assertion from the already validated `external_switchml_rdma_same_qp_state_overwrite_assign.prop` witness. Checked the generated BPL/harness first, then ran the bounded direct verifier with the spec's `max_steps`.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_switchml_rdma_same_qp_state_overwrite.prop --out .tmp/procurator/manual/external_switchml_rdma_same_qp_state_overwrite/current/current.bpl --work-dir .tmp/procurator/manual/external_switchml_rdma_same_qp_state_overwrite/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_switchml_rdma_same_qp_state_overwrite/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 2743 lines.
+  - Direct verification:
+    - Command:
+      - `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_switchml_rdma_same_qp_state_overwrite.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound off --ultimate-timeout-seconds 600 --ultimate-xmx-gb 8 --use-spec-max-steps --skip-duplicated-fail-fast-global-asserts`
+    - Run directory: `.tmp/procurator/verify/external_switchml_rdma_same_qp_state_overwrite/20260509-004638-60c4/`
+    - Result: `RESULT: Ultimate proved your program to be correct!`
+- **Pitfalls/Fixes**:
+  - This is not counted as a newly found bug. The run only establishes that this particular bounded assertion did not produce a counterexample under the generated model and spec bound; it does not invalidate the related `*_assign` witness, which asserts a different observable state overwrite.
+  - No implementation change was required.
+- **Smoke/regression**:
+  - Compile and structural smoke passed as listed above. No counterexample validator was run because the result was `SAFE`, not a witness-producing run.
+
+## 2026-05-09 NetBeacon bin2 direct wrap bounded attempt
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_netbeacon_bin2_wraparound_direct.prop`
+- **Time**: 2026-05-09 00:50-01:01 Asia/Shanghai
+- **Goal/Progress**: Try the NetBeacon `Register_bin2` 8-bit feature-bin wrap candidate under a bounded direct check. This is distinct from the certified `Register_total_pkts` schedule-replay wraparound and from the still-open `Register_total_bytes` target.
+- **Result**:
+  - Compile/smoke:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_netbeacon_bin2_wraparound_direct.prop --out .tmp/procurator/manual/external_netbeacon_bin2_wraparound_direct/current/current.bpl --work-dir .tmp/procurator/manual/external_netbeacon_bin2_wraparound_direct/current/work --boogie-harness sequential --no-two-stage --no-reg-debug --skip-duplicated-fail-fast-global-asserts` -> PASS.
+    - `./bin/procurator smoke --bpl .tmp/procurator/manual/external_netbeacon_bin2_wraparound_direct/current/current.bpl --harness sequential` -> PASS.
+    - BPL size: 1997 lines.
+  - Direct verification:
+    - Command:
+      - `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_netbeacon_bin2_wraparound_direct.prop --boogie-harness sequential --no-two-stage --no-reg-debug --wraparound off --ultimate-timeout-seconds 600 --ultimate-xmx-gb 8 --use-spec-max-steps --skip-duplicated-fail-fast-global-asserts`
+    - Run directory: `.tmp/procurator/verify/external_netbeacon_bin2_wraparound_direct/20260509-005031-34f5/`
+    - Result: `RESULT: Ultimate could not prove your program: Timeout`.
+- **Pitfalls/Fixes**:
+  - This run is intentionally recorded as `TIMEOUT`, not as absence of the candidate. The generated model passed structural checks, but the bounded direct checker did not produce a witness within 600s.
+  - No implementation change was made from this attempt. A later staged wraparound attempt should use the write mirror and table guard already present in the assertion.
+- **Smoke/regression**:
+  - Compile and structural smoke passed as listed above. No counterexample validator was run because no witness was produced.
+
+## 2026-05-09 UA 饱和算术语义修复与回归（翻译样例）
+
+- **Spec**: `P4B-Translator/testdata/p4_16_samples/saturated-bmv2.p4`
+- **Time**: 2026-05-09 11:10-11:24 Asia/Shanghai
+- **目标/进度**: 修复 `--ua`（bv2int）路径下 `|+| / |-|` 饱和算术未生效的问题，确保与非 UA 路径一致保持饱和语义。
+- **结果**:
+  - 代码修复：
+    - `P4B-Translator/backends/verify/translate/impl/lowering/translate_bitblast.cpp`
+      - 在 `translateUA(const IR::Operation_Binary*)` 中为 `AddSat` 增加显式分支，并放在 `Add` 前。
+      - 保持 `SubSat` 在 `Sub` 前，避免被普通模加/模减分支吞掉。
+  - 回归：
+    - `python3 -m unittest -v dslc.tests.p4b.translator.test_frontend_io.TestP4BVerifyFrontendIo.test_saturated_ops_ua_mode_keep_saturating_guards` -> PASS。
+    - `python3 -m unittest -v dslc.tests.p4b.translator.test_frontend_io` -> PASS。
+- **坑（实现错误导致）**:
+  - 根因是 UA lowering 分支顺序不正确，`AddSat` 在控制流上被 `Add` 覆盖，导致输出退化为模运算。
+- **修复/沉淀为冒烟测试**:
+  - 已有回归测试 `test_saturated_ops_ua_mode_keep_saturating_guards` 覆盖该路径，修复后稳定通过。
+  - 同步回归：`dslc.tests.p4b.test_p4b_flowdos_hash`、`dslc.tests.p4b.test_p4b_translator_regressions`、`dslc.tests.toolchain.test_validate_wraparound_manifest`、`dslc.tests.wraparound.schedule.test_schedule_prefix_cutpoint` 均通过。
+
+## 2026-05-09 SwitchML 指数复用交错 bug 复验（当前树）
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_switchml_exponent_cross_job_reuse.prop`
+- **Time**: 2026-05-09 11:22-11:27 Asia/Shanghai
+- **目标/进度**: 在最新实现上复验 SwitchML 指数复用交错 bug；按准则先确认生成 BPL/harness 语义，再运行 direct check。
+- **结果**:
+  - Compile:
+    - `./bin/procurator compile --spec Procurator/argo/code/spec/bench/external_switchml_exponent_cross_job_reuse.prop --boogie-harness sequential --no-two-stage --out .tmp/manual/external_switchml_exponent_cross_job_reuse.bpl` -> PASS。
+  - Smoke:
+    - `./bin/procurator smoke --bpl .tmp/manual/external_switchml_exponent_cross_job_reuse.bpl --harness sequential` -> PASS。
+  - Direct verify:
+    - `./bin/procurator verify --spec Procurator/argo/code/spec/bench/external_switchml_exponent_cross_job_reuse.prop --boogie-harness sequential --no-two-stage --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --ultimate-timeout-seconds 900`
+    - 结果：`RESULT: UNSAFE`，witness rerun `UNSAFE`，并命中 `dsl_assert`。
+    - Run dir: `.tmp/procurator/verify/external_switchml_exponent_cross_job_reuse/20260509-112357-982d/`
+- **坑（实现错误导致）**:
+  - 首次 smoke 使用 `/tmp/...` 路径时出现 “not found” 误报（路径与入口解析不一致）；切换为仓库相对路径并在 WSL 内直接调用 smoke 后通过。
+  - 不属于语义实现错误，翻译与验证链路无需代码修复。
+- **修复/沉淀为冒烟测试**:
+  - 固化操作：对该类 case 统一使用仓库内路径执行 `procurator smoke`，避免跨环境路径歧义。
+  - 该 spec 产出完整 witness，可作为后续烟测样本。
+
+## 2026-05-09 TNA Hash extern 精化 + 语义审计收敛
+
+- **Spec**:
+  - `Procurator/argo/code/dataset/external_etc_noms2024/noms_20_5_4.p4`
+  - `Procurator/argo/code/dataset/external_flowrest_per_flow/unsw_per_flow_16_classes.p4`
+  - `Procurator/argo/code/dataset/external_netbeacon_sec23/NetBeacon/switch/data_plane/switch.p4`
+- **Time**: 2026-05-09 11:42-12:08 Asia/Shanghai
+- **目标/进度**: 修复 semantic-audit 中 `hash_extern=WEAK`（CRC16/CRC32 退化为 UF）的问题，提升 TNA Hash extern 到精确模型。
+- **结果**:
+  - 代码修复：
+    - `P4B-Translator/backends/verify/translate/impl/lowering/translate_method.cpp`
+      - 放宽 `hashAlgorithmUsesBmv2DefaultCrc(...)` 对 `HashAlgorithm_t` 的过滤，使 TNA `HashAlgorithm_t.CRC16/CRC32` 也进入精确 CRC 降低路径。
+  - 新增回归：
+    - `dslc/tests/p4b/test_p4b_translator_regressions.py`
+      - `test_tna_crc_hash_extern_lowers_to_precise_crc_model`（验证 `model=crc{16,32}_bmv2 precision=precise` + CRC helper 出现）。
+  - 语义审计复跑（with slicing）：
+    - `external_etc_noms2024`：`semantic=OK`（由 WEAK 收敛到 OK）。
+    - `external_flowrest_per_flow`：`semantic=OK`（由 WEAK 收敛到 OK）。
+    - `external_netbeacon_sec23`：`semantic=OK`（由 WEAK 收敛到 OK）。
+- **坑（实现错误导致）**:
+  - 根因是哈希算法类型名判定过严（将 `HashAlgorithm_t` 的 CRC16/CRC32 排除在精确路径外），导致不必要的 UF 退化。
+- **修复/沉淀为冒烟测试**:
+  - 新增 `test_tna_crc_hash_extern_lowers_to_precise_crc_model` 并通过。
+  - 回归集：
+    - `python3 -m unittest -v dslc.tests.p4b.translator.test_frontend_io dslc.tests.p4b.test_p4b_flowdos_hash dslc.tests.p4b.test_p4b_translator_regressions dslc.tests.toolchain.test_validate_wraparound_manifest dslc.tests.wraparound.schedule.test_schedule_prefix_cutpoint dslc.tests.bench.test_p4b_semantic_audit` -> 全部 PASS（65 tests）。
+
+## 2026-05-09 NeuralP4 大模型编译耗时分流（非语义缺陷）
+
+- **Spec**:
+  - `Procurator/argo/code/dataset/external_neuralp4_noms25/NeuralP4/p4-vm/app-iden-27x27x7-q12-12/code/ANN.p4`（以及同目录同族样本）
+- **Time**: 2026-05-09 11:50-13:30 Asia/Shanghai
+- **目标/进度**: 区分 “之前审计超时” 是语义缺陷还是编译耗时阈值过低导致。
+- **结果**:
+  - 单例验证（`--no-slicing`）可成功编译，后端 CPU 时间约 322s，程序总 CPU 时间约 344s。
+  - 批量 semantic-audit 将 `timeout-seconds` 提升后复跑：
+    - `external_neuralp4_noms25` 前 12 个样本均 `semantic=OK`（此前 60s 配置下大量 `timeout` 为配置限制，并非语义错误）。
+- **坑（实现错误导致）**:
+  - 非实现错误；主要是审计脚本默认超时（60s）与 NeuralP4 规模不匹配。
+- **修复/沉淀为冒烟测试**:
+  - 运行策略沉淀：NeuralP4 审计使用更高超时（例如 360s 或 480s），避免把 `timeout` 误判为语义不支持。
+  - 该结论已记录在本条，后续可直接复用参数。
+
+## 2026-05-09 Mousika 数据集失败归因（输入不完整）
+
+- **Spec**: `Procurator/argo/code/dataset/external_mousika_infocom22/Mousika/P4/flowcontrol.p4`
+- **Time**: 2026-05-09 11:48-11:55 Asia/Shanghai
+- **目标/进度**: 明确 `scan_p4b_coverage` 中 `FAIL include` 是后端能力缺失还是数据集输入不完整。
+- **结果**:
+  - 复现命令显示编译失败为：
+    - `fatal error: common/headers.p4: No such file or directory`
+  - 当前数据集目录中确实不存在 `P4/common/headers.p4` 及对应 `common/*` 依赖文件。
+- **坑（实现错误导致）**:
+  - 非实现错误；是输入程序依赖缺失。
+- **修复/沉淀为冒烟测试**:
+  - 暂不通过修改 dataset 规避；保持真实失败分类为 include 缺失。
+  - 后续若补齐 upstream `common/*` 文件，再进入语义支持验证闭环。
+
+## 2026-05-10 Flowrest dynamic-index 主路径修复（非 fallback 兜底）
+
+- **Spec**: `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+- **Time**: 2026-05-09 16:06 - 2026-05-10 03:57 Asia/Shanghai
+- **目标/进度**: 修复 wraparound 动态索引的主路径语法/表达式恢复问题（而非仅 fallback），消除此前 `Toolchain returned no result` 对应的阶段 BPL 不可用风险，并验证已知基线 case 回归。
+- **结果**:
+  - 代码修复：
+    - `dslc/analysis/wraparound_bpl_index.py`
+      - 在 `_rewrite_hash_model_expr_to_declared(...)` 中新增同过程局部别名展开 `_expand_rhs_with_local_aliases(...)`。
+      - 对 lowered hash RHS 中的临时变量（如 `flowrest_srcPort_1` / `flowrest_dstPort_1`）进行受限展开，替换为稳定依赖后再参与 purity 判定。
+  - 新增/更新回归：
+    - `dslc/tests/wraparound/test_wraparound_candidate_gating.py`
+      - 新增 `test_meta_hash_rewrite_expands_lowered_temp_aliases`，覆盖“lowered hash + 局部别名”路径。
+    - 回归批次：
+      - `python -m unittest -v dslc.tests.wraparound.test_wraparound_candidate_gating dslc.tests.wraparound.cegis.core.test_wraparound_cegis_dynamic_index dslc.tests.wraparound.schedule.certification.test_schedule_stable_projection`
+      - 结果：`31 tests OK`。
+  - Flowrest 定向验证证据：
+    - Run dir: `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260509-164423-fd1a/`
+    - `wraparound.cegis.manifest.json` 证据：
+      - `candidate.index_expr = null`
+      - `candidate.index_value = 1885`
+      - 非早退，已进入阶段化尝试（ENTRY + CONFIRM unroll1/2/3）。
+      - `stable_substitutions` 含 `flowrest_meta.register_index == 1885bv16`。
+    - 本 run 目录检索无 `"Toolchain returned no result"`。
+  - 基线回归（防止改坏已有路径）：
+    - `python3 ./bin/procurator compile --spec Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop --out /mnt/e/p4-verify/.tmp/manual/netchain_wraparound_bug.regress.bpl --boogie-harness sequential --no-two-stage` -> PASS。
+    - `python3 ./bin/procurator smoke --bpl .tmp/manual/netchain_wraparound_bug.regress.bpl --harness sequential` -> PASS。
+- **坑（实现错误导致）**:
+  - 根因是高层 `*_idx_calc.get$...` 虽被改写到 lowered CRC 表达式，但其中过程内临时量未被继续消解，导致 index purity 判定失败，进而误走 fallback/早退路径。
+- **修复/沉淀为冒烟测试**:
+  - 已通过新增单测和 31 项回归锁定该路径。
+  - 已补充 Netchain compile+smoke 回归，确认本次修复未破坏历史 wraparound 基线建模。
+
+## 2026-05-10 Wraparound near_wrap `Toolchain returned no result` 根因修复（Flowrest + ETC）
+- **Spec**:
+  - `Procurator/argo/code/spec/bench/external_flowrest_per_flow_pkt_count_wraparound.prop`
+  - `Procurator/argo/code/spec/bench/external_etc_noms2024_pkt_count_wraparound.prop`
+- **Time**: 2026-05-10 09:44-10:15 Asia/Shanghai
+- **目标/进度**: 区分“实现/工具链问题”与“bug 不存在”，修复 legacy near-wrap 中 `Toolchain returned no result` 的错误来源，并按阶段重跑验证。
+- **结果**:
+  - 复现根因（修复前）：
+    - Flowrest legacy near-wrap 运行 `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260510-095804-f4b6/`
+    - `ENTRY_CHECK=UNSAFE`，但 `confirm.unroll1/2/3` 都是 `Toolchain returned no result`
+    - 日志定位到 `witnessprinter` 在 SAFE 结果路径崩溃：
+      - `NullPointerException ... mStringProvider is null`
+  - 实现修复：
+    - `dslc/workflows/wraparound_cegis.py`
+      - `legacy_closure_assumes` 模式的阶段求解从 witness toolchain 切换到 no-witness toolchain（`ReachSafety.xml` + no-witness settings）。
+      - witness 仅在流程显式需要时单独 rerun（不再让 SAFE confirm 被 witness printer 崩溃覆盖）。
+    - `dslc/tests/wraparound/schedule/test_wraparound_schedule.py`
+      - 更新回归期望为 `test_multi_legacy_uses_nowitness_stage_toolchain`。
+  - 修复后证据：
+    - Flowrest legacy near-wrap 重跑 `.tmp/procurator/verify/external_flowrest_per_flow_pkt_count_wraparound/20260510-100624-058d/`
+      - `ENTRY_CHECK=UNSAFE`
+      - `confirm.unroll1/2/3 => RESULT: Ultimate proved your program to be correct!`
+      - 日志无 `Toolchain returned no result`、无 witness-printer NPE。
+    - ETC legacy near-wrap 对照重跑 `.tmp/procurator/verify/external_etc_noms2024_pkt_count_wraparound/20260510-101130-f209/`
+      - `ENTRY_CHECK=UNSAFE`
+      - `confirm.unroll1/2/3 => RESULT: Ultimate proved your program to be correct!`
+      - 同样无 `Toolchain returned no result`、无 witness-printer NPE。
+  - 同时完成 schedule-replay 分阶段核查（Flowrest）：
+    - `entry`/`near_wrap` 停在 `entry_prefix.unroll1` timeout（求解耗时问题），不再出现 undeclared callee/no-result 语法错误。
+- **坑（实现错误导致）**:
+  - legacy 模式此前把 CONFIRM 阶段也绑定到 witness toolchain，导致 SAFE 路径触发 witnessprinter NPE，误报 `Toolchain returned no result`，掩盖真实阶段结论。
+- **修复并沉淀为冒烟测试**:
+  - 单测回归：
+    - `.venv\Scripts\python.exe -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.cegis.core.test_wraparound_cegis_order dslc.tests.wraparound.cegis.core.test_wraparound_cegis_dynamic_index dslc.tests.wraparound.cegis.io.test_wraparound_cegis_result_parsing`
+    - `Ran 45 tests ... OK`
+  - 基线冒烟（防回归）：
+    - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 ./bin/procurator compile --spec Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop --out /tmp/netchain_wraparound_bug.regress.20260510.bpl --boogie-harness sequential --no-two-stage --no-reg-debug && python3 ./bin/procurator smoke --bpl /tmp/netchain_wraparound_bug.regress.20260510.bpl --harness sequential'`
+    - compile/smoke 均 PASS。
