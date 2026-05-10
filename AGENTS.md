@@ -6514,3 +6514,12 @@ NetSMC 对“简化模型会漏掉仅在交错下出现的违例”有明确说�
   - 基线冒烟（防回归）：
     - `wsl.exe --cd /mnt/e/p4-verify -- bash -lc 'python3 ./bin/procurator compile --spec Procurator/argo/code/spec/bench/netchain_wraparound_bug.prop --out /tmp/netchain_wraparound_bug.regress.20260510.bpl --boogie-harness sequential --no-two-stage --no-reg-debug && python3 ./bin/procurator smoke --bpl /tmp/netchain_wraparound_bug.regress.20260510.bpl --harness sequential'`
     - compile/smoke 均 PASS。
+
+## 2026-05-10 执行规则补充（Git / 提交 / 推送）
+
+- **规则**: `git status / add / commit / push / fetch / pull` 等 Git 操作统一在 **WSL** 中执行。
+- **原因**: 当前仓库在 Windows PowerShell 下存在 SSH/路径/工具链不稳定因素，容易导致提交或推送失败。
+- **执行模板**:
+  - `wsl bash -lc "cd /mnt/e/p4-verify && git status --short"`
+  - `wsl bash -lc "cd /mnt/e/p4-verify && git add <files> && git commit -m '<msg>'"`
+  - `wsl bash -lc "cd /mnt/e/p4-verify && git push origin main"`
