@@ -7068,3 +7068,74 @@ un_e2e_ablations.py 因此把 rc=1 分类为 ERROR。
     - `wsl --cd /mnt/e/p4-verify/P4B-Translator/build-host make -j16 p4c-translator` -> PASS。
     - `wsl --cd /mnt/e/p4-verify .venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_cross_pass_payload_slicing` -> PASS（2 tests）。
     - `wsl --cd /mnt/e/p4-verify .venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_cross_pass_payload_slicing dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_netchain_seq_seed_slicing dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_recirc_meta_flow_cross_stage_slicing` -> PASS（4 tests）。
+
+## 2026-05-13 camera-ready alignment: P4B coverage audit reporting
+
+- **Spec/Test target**: `dslc.tests.bench.test_p4b_semantic_audit` and `dslc.tests.bench.test_scan_p4b_coverage`
+- **Time**: 2026-05-13 21:40-22:00 Asia/Shanghai
+- **Target/progress**: Make the PSA/eBPF/uBPF/PNA/TNA coverage evidence more auditable, so camera-ready claims can distinguish discovery-only inventory from executable semantic-audit evidence. This feature does not claim that a list-only scan proves semantic readiness.
+- **Result**:
+  - Completed commit `1005324e` (`feat: harden P4B coverage audit reporting`).
+  - `scan_p4b_coverage.py` now handles quoted include dependency skips before translation, sanitizes paths with spaces, and reports `SKIP` separately in generated markdown instead of blending skips with failures.
+  - `p4b_semantic_audit.py` accepts expected `target_helper` hash summaries, so backend-specific helper summaries are recorded as auditable support rather than false failures.
+- **Pitfalls**:
+  - Coverage reports can look stronger than they are if `--list-only` output is read as semantic validation. The reporting path now keeps skip/failure/audit distinctions explicit.
+  - Paths with spaces previously made reproducibility fragile for external sample roots.
+- **Fixes / smoke tests**:
+  - Regression command: `.venv\Scripts\python.exe -m unittest -v dslc.tests.bench.test_p4b_semantic_audit dslc.tests.bench.test_scan_p4b_coverage`
+  - Result: `Ran 33 tests ... OK`.
+
+## 2026-05-13 camera-ready alignment: P4B semantic lowering coverage
+
+- **Spec/Test target**: `dslc.tests.p4b.test_p4b_flowdos_hash`, `dslc.tests.p4b.test_p4b_translator_regressions`, and selected P4B slicing selftests
+- **Time**: 2026-05-13 22:00-22:30 Asia/Shanghai
+- **Target/progress**: Close translator semantic gaps that matter for PSA/PNA/TNA/uBPF-style samples and wraparound candidate extraction, while keeping P4-local semantics in P4B and DSLC responsible for distributed harness/proof orchestration.
+- **Result**:
+  - Completed commit `17c6b219` (`feat: strengthen P4B semantic lowering coverage`).
+  - Added precise BMv2 CRC16/CRC32 hash lowering and hash index definitions.
+  - Added target-helper summaries for uBPF lookup3 and PNA/DPDK RSS-style Toeplitz helpers.
+  - Improved PSA/PNA/TNA architecture/package/control handling and P4_14 register builtin support.
+  - Strengthened register write-site/old-new mirror emission, control call retention closure, table may/must-def handling, NetBeacon guard retention, and monotonic analysis so reset/multiple-write counters are not exported as steady wraparound pumps.
+- **Pitfalls**:
+  - Hash helper summaries must remain explicit evidence; they are not interchangeable with fully bit-precise lowering unless the helper is actually lowered.
+  - Monotonic summaries are used by wraparound acceleration, so exporting a reset-prone counter as a pump candidate would be unsound. The regression now checks that FlowDoS reset counters are not exported as wraparound metadata.
+- **Fixes / smoke tests**:
+  - Build command: `wsl --cd /mnt/e/p4-verify/P4B-Translator/build-host make -j16 p4c-translator`
+  - Result: PASS.
+  - Regression command: `wsl --cd /mnt/e/p4-verify .venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_flowdos_hash dslc.tests.p4b.test_p4b_translator_regressions dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_external_int_flowdos_reset_counter_not_exported_as_wraparound_meta dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_external_int_flowdos_hash_index_dependency_slicing dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_external_netbeacon_total_pkts_keeps_result_guard_defs dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_external_etc_noms2024_tna_hash_get_uses_data_fields`
+  - Result: `Ran 32 tests ... OK`.
+
+## 2026-05-13 camera-ready alignment: register old-new/write-site mirrors
+
+- **Spec/Test target**: `dslc.tests.boogie.backend.test_boogie_backend_smoke`, `dslc.tests.boogie.backend.test_boogie_registers_typedef_index0`, and `dslc.tests.boogie.backend.test_boogie_register_mirror_ownership`
+- **Time**: 2026-05-13 22:30-22:48 Asia/Shanghai
+- **Target/progress**: Make register mirror ownership explicit and support old/new/write-site assertions used by focused wraparound checks. P4B-generated nodes must emit complete native mirrors; DSLC only backfills legacy imported BPL.
+- **Result**:
+  - Completed commit `855da5ed` (`feat: track register old-new write mirrors`).
+  - Added `__last_old_value`, `__last0_old_value`, `__next_write_site`, and `__last_write_site` mirror support through harness state, trace state, direct assertion inference, and legacy BPL compatibility repair.
+  - Added fail-fast modes for old/new and write-site constrained assertions (`oldnew`, `anysite`, `oldnewsite`).
+  - Moved register mirror ownership regressions into `test_boogie_register_mirror_ownership.py`.
+- **Pitfalls**:
+  - Windows-side P4B-dependent backend smoke can fail with `WinError 1920` when it tries to access the Linux P4B build path. The feature regression was therefore run under WSL.
+  - `git commit` under WSL `/mnt/e` hung while holding `.git/index.lock`; the stuck process was killed, the stale lock removed, and the same staged content was committed with Windows git.
+- **Fixes / smoke tests**:
+  - Regression command: `wsl --cd /mnt/e/p4-verify .venv-wsl/bin/python -m unittest -v dslc.tests.boogie.backend.test_boogie_backend_smoke dslc.tests.boogie.backend.test_boogie_registers_typedef_index0 dslc.tests.boogie.backend.test_boogie_register_mirror_ownership`
+  - Result: `Ran 30 tests ... OK`.
+
+## 2026-05-13 camera-ready alignment: focused wraparound closure replay
+
+- **Spec/Test target**: `Procurator/argo/code/spec/bench/external_int_flowdos_counter_wraparound.prop` plus focused-direct, closure-transform, schedule-replay, and manifest-validator unit tests
+- **Time**: 2026-05-13 22:48-23:05 Asia/Shanghai
+- **Target/progress**: Strengthen the NEAR_WRAP/closure verification chain so focused near-wrap attempts are useful as diagnostics but cannot be certified as proof unless ENTRY/NEAR/CLOSURE evidence is explicit and stable. Unknown/timeout remains fail-closed fallback, not bug absence.
+- **Result**:
+  - Completed commit `7d754486` (`feat: focus wraparound closure replay`).
+  - Added Boogie-level closure simplification helpers for constant BV assignments, deterministic harness branches, fixed table action branches, and identity RegisterAction writebacks while preserving mirror semantics.
+  - Extended focused-direct handling for old/new fail-fast sites, constant hash slots, refreshed assertion lines, and scalarization constraints.
+  - Strengthened schedule replay and manifest validation so focused near-wrap BPL/log artifacts are not accepted as certified confirm/closure evidence unless closure equality/projection-source requirements are met.
+- **Pitfalls**:
+  - A focused `NEAR_WRAP` result is only a diagnostic/acceleration aid. Certification still requires the paper-stage chain and stable projection evidence; the validator now rejects focused-near artifacts when they are misused as certified confirm evidence.
+  - Closure projection can be unsound if scalar projection variables or predicates lack explicit closure equality/source evidence. This is now covered by manifest validator tests.
+  - `dslc/transform/boogie/__init__.py` initially had a blank line at EOF; `git diff --check` caught it before commit.
+- **Fixes / smoke tests**:
+  - Regression command: `.venv\Scripts\python.exe -m unittest -v dslc.tests.transform.test_focused_direct dslc.tests.wraparound.transform.test_wraparound_transform dslc.tests.wraparound.transform.test_wraparound_entry_check dslc.tests.wraparound.transform.closure.test_closure_harness_simplify dslc.tests.wraparound.transform.closure.test_closure_registeraction_simplify dslc.tests.wraparound.transform.closure.test_closure_table_specialization dslc.tests.wraparound.transform.closure.test_closure_target_asserts dslc.tests.wraparound.schedule.test_wraparound_schedule dslc.tests.wraparound.schedule.test_schedule_prefix_cutpoint dslc.tests.wraparound.schedule.certification.test_schedule_manifest_certification dslc.tests.toolchain.test_validate_wraparound_manifest`
+  - Result: `Ran 109 tests ... OK`.
