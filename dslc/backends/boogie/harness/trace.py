@@ -29,12 +29,20 @@ class BoogieHarnessTraceMixin:
         return f"trace_{reg_name}__wrote_any"
 
     @staticmethod
+    def _trace_reg_last_old_value_name(reg_name: str) -> str:
+        return f"trace_{reg_name}__last_old_value"
+
+    @staticmethod
     def _trace_reg_wrote_index0_name(reg_name: str) -> str:
         return f"trace_{reg_name}__wrote_index0"
 
     @staticmethod
     def _trace_reg_last0_value_name(reg_name: str) -> str:
         return f"trace_{reg_name}__last0_value"
+
+    @staticmethod
+    def _trace_reg_last0_old_value_name(reg_name: str) -> str:
+        return f"trace_{reg_name}__last0_old_value"
 
     def _trace_registers(self):
         for regs in self._node_register_arrays.values():
@@ -89,7 +97,9 @@ class BoogieHarnessTraceMixin:
         for name, (_, elem_type) in self._trace_registers():
             out.append(f"var {self._trace_reg_dbg0_name(name)}: [int]{elem_type};\n")
             out.append(f"var {self._trace_reg_wrote_any_name(name)}: [int]bool;\n")
+            out.append(f"var {self._trace_reg_last_old_value_name(name)}: [int]{elem_type};\n")
             out.append(f"var {self._trace_reg_wrote_index0_name(name)}: [int]bool;\n")
+            out.append(f"var {self._trace_reg_last0_old_value_name(name)}: [int]{elem_type};\n")
             out.append(f"var {self._trace_reg_last0_value_name(name)}: [int]{elem_type};\n")
         for link in self._spec.links:
             types = self._trace_field_types(link.src)
@@ -142,10 +152,18 @@ class BoogieHarnessTraceMixin:
                 idx_zero = self._render_index_zero(idx_type)
                 out.append(f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {name}[{idx_zero}];\n")
                 out.append(
+                    f"{indent}{self._trace_reg_last_old_value_name(name)}[procurator_step] := {self._register_last_old_value_name(name)};\n"
+                )
+                out.append(
+                    f"{indent}{self._trace_reg_last0_old_value_name(name)}[procurator_step] := {self._register_last0_old_value_name(name)};\n"
+                )
+                out.append(
                     f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {self._register_last0_value_name(name)};\n"
                 )
                 continue
             out.append(f"{indent}{self._trace_reg_dbg0_name(name)}[procurator_step] := {zero};\n")
+            out.append(f"{indent}{self._trace_reg_last_old_value_name(name)}[procurator_step] := {zero};\n")
+            out.append(f"{indent}{self._trace_reg_last0_old_value_name(name)}[procurator_step] := {zero};\n")
             out.append(f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {zero};\n")
         for link in self._spec.links:
             out.append(
@@ -197,7 +215,13 @@ class BoogieHarnessTraceMixin:
                 f"{indent}{self._trace_reg_wrote_any_name(name)}[procurator_step] := {self._register_wrote_any_name(name)};\n"
             )
             out.append(
+                f"{indent}{self._trace_reg_last_old_value_name(name)}[procurator_step] := {self._register_last_old_value_name(name)};\n"
+            )
+            out.append(
                 f"{indent}{self._trace_reg_wrote_index0_name(name)}[procurator_step] := {self._register_wrote_index0_name(name)};\n"
+            )
+            out.append(
+                f"{indent}{self._trace_reg_last0_old_value_name(name)}[procurator_step] := {self._register_last0_old_value_name(name)};\n"
             )
             out.append(
                 f"{indent}{self._trace_reg_last0_value_name(name)}[procurator_step] := {self._register_last0_value_name(name)};\n"

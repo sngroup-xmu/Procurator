@@ -80,9 +80,13 @@ def backfill_legacy_register_write_mirrors(
         decls = [
             (f"{reg_name}__last_index", idx_type),
             (f"{reg_name}__last_value", elem_type),
+            (f"{reg_name}__last_old_value", elem_type),
             (f"{reg_name}__wrote_any", "bool"),
             (f"{reg_name}__wrote_index0", "bool"),
+            (f"{reg_name}__last0_old_value", elem_type),
             (f"{reg_name}__last0_value", elem_type),
+            (f"{reg_name}__next_write_site", "int"),
+            (f"{reg_name}__last_write_site", "int"),
         ]
         return "".join(f"{indent}var {name}: {typ};\n" for name, typ in decls if name not in existing_var_names)
 
@@ -115,9 +119,12 @@ def backfill_legacy_register_write_mirrors(
                 extras = [
                     f"{reg_name}__last_index",
                     f"{reg_name}__last_value",
+                    f"{reg_name}__last_old_value",
                     f"{reg_name}__wrote_any",
                     f"{reg_name}__wrote_index0",
+                    f"{reg_name}__last0_old_value",
                     f"{reg_name}__last0_value",
+                    f"{reg_name}__last_write_site",
                 ]
                 for extra in extras:
                     if extra not in items_set:
@@ -148,16 +155,22 @@ def backfill_legacy_register_write_mirrors(
         val_expr = m.group("val").strip()
         idx_zero = _render_zero_literal(idx_type, type_aliases=type_aliases)
         extra_lines: list[str] = []
+        if re.search(rf"\b{re.escape(reg_name)}__last_old_value\s*:=", body) is None:
+            extra_lines.append(f"{indent}{reg_name}__last_old_value := {reg_name}[{idx_expr}];")
         if re.search(rf"\b{re.escape(reg_name)}__last_index\s*:=", body) is None:
             extra_lines.append(f"{indent}{reg_name}__last_index := {idx_expr};")
         if re.search(rf"\b{re.escape(reg_name)}__last_value\s*:=", body) is None:
             extra_lines.append(f"{indent}{reg_name}__last_value := {val_expr};")
+        if re.search(rf"\b{re.escape(reg_name)}__last_write_site\s*:=", body) is None:
+            extra_lines.append(f"{indent}{reg_name}__last_write_site := {reg_name}__next_write_site;")
         if re.search(rf"\b{re.escape(reg_name)}__wrote_any\s*:=\s*true\s*;", body) is None:
             extra_lines.append(f"{indent}{reg_name}__wrote_any := true;")
 
         index0_lines: list[str] = []
         if re.search(rf"\b{re.escape(reg_name)}__wrote_index0\s*:=\s*true\s*;", body) is None:
             index0_lines.append(f"{indent}  {reg_name}__wrote_index0 := true;")
+        if re.search(rf"\b{re.escape(reg_name)}__last0_old_value\s*:=", body) is None:
+            index0_lines.append(f"{indent}  {reg_name}__last0_old_value := {reg_name}__last_old_value;")
         if re.search(rf"\b{re.escape(reg_name)}__last0_value\s*:=", body) is None:
             index0_lines.append(f"{indent}  {reg_name}__last0_value := {val_expr};")
         if index0_lines:
@@ -263,14 +276,21 @@ def _has_complete_register_mirrors(bpl: str, reg_name: str, var_names: set[str])
     required = {
         f"{reg_name}__last_index",
         f"{reg_name}__last_value",
+        f"{reg_name}__last_old_value",
         f"{reg_name}__wrote_any",
         f"{reg_name}__wrote_index0",
+        f"{reg_name}__last0_old_value",
         f"{reg_name}__last0_value",
+        f"{reg_name}__next_write_site",
+        f"{reg_name}__last_write_site",
     }
     if not required.issubset(var_names):
         return False
 
-    if not _procedure_modifies_all(bpl, f"{reg_name}.write", required):
+    write_modifies = set(required)
+    # The write helper reads `__next_write_site`, but each callsite sets it.
+    write_modifies.discard(f"{reg_name}__next_write_site")
+    if not _procedure_modifies_all(bpl, f"{reg_name}.write", write_modifies):
         return False
 
     span = _find_procedure_body_span(bpl, f"{reg_name}.write")
@@ -280,8 +300,11 @@ def _has_complete_register_mirrors(bpl: str, reg_name: str, var_names: set[str])
     required_updates = [
         rf"\b{re.escape(reg_name)}__last_index\s*:=",
         rf"\b{re.escape(reg_name)}__last_value\s*:=",
+        rf"\b{re.escape(reg_name)}__last_old_value\s*:=",
+        rf"\b{re.escape(reg_name)}__last_write_site\s*:=",
         rf"\b{re.escape(reg_name)}__wrote_any\s*:=\s*true\s*;",
         rf"\b{re.escape(reg_name)}__wrote_index0\s*:=\s*true\s*;",
+        rf"\b{re.escape(reg_name)}__last0_old_value\s*:=",
         rf"\b{re.escape(reg_name)}__last0_value\s*:=",
     ]
     return all(re.search(pattern, body) is not None for pattern in required_updates)

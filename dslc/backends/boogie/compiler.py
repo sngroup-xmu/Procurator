@@ -519,6 +519,9 @@ def _infer_fail_fast_register_asserts(spec: SpecModel, alias: str) -> List[str]:
     in the harness:
       !(alias_Reg__wrote_any && alias_Reg__last_value == C)
       !(alias_Reg__wrote_index0 && alias_Reg__last0_value == C)
+      !(alias_Reg__wrote_any && alias_Reg__last_old_value == OLD && alias_Reg__last_value == NEW)
+      !(alias_Reg__wrote_any && alias_Reg__last_old_value == OLD && alias_Reg__last_value == NEW
+        && alias_Reg__last_write_site == SITE)
     """
 
     out: List[str] = []
@@ -574,18 +577,26 @@ def _infer_fail_fast_register_assert_pairs(spec: SpecModel, alias: str) -> List[
 
 def _prefix_fail_fast_register_assert_item(alias: str, item: str) -> str:
     parts = item.split(":")
-    if len(parts) != 3:
+    if len(parts) not in {3, 4, 5}:
         return item
-    reg, mode, const_value = parts
-    return f"{alias}_{reg}:{mode}:{const_value}"
+    reg = parts[0]
+    return ":".join([f"{alias}_{reg}", *parts[1:]])
 
 
 def _raw_bpl_has_fail_fast_register_assert(raw_text: str, item: str) -> bool:
     parts = item.split(":")
-    if len(parts) != 3:
+    if len(parts) not in {3, 4, 5}:
         return False
-    reg, mode, const_value = parts
-    if not reg or mode not in {"any", "slot0"}:
+    reg, mode = parts[0], parts[1]
+    if not reg or mode not in {"any", "slot0", "oldnew", "anysite", "oldnewsite"}:
+        return False
+    if mode == "oldnew" and len(parts) != 4:
+        return False
+    if mode == "oldnewsite" and len(parts) != 5:
+        return False
+    if mode == "anysite" and len(parts) != 4:
+        return False
+    if mode in {"any", "slot0"} and len(parts) != 3:
         return False
     proc_sig = f"procedure {{:inline 1}} {reg}.write("
     start = raw_text.find(proc_sig)
@@ -596,22 +607,44 @@ def _raw_bpl_has_fail_fast_register_assert(raw_text: str, item: str) -> bool:
         return False
     next_proc = raw_text.find("\nprocedure", start + len(proc_sig))
     body = raw_text[start:] if next_proc < 0 else raw_text[start:next_proc]
-    const_patterns = {const_value}
-    if const_value.isdigit():
-        const_patterns.update({f"{const_value}bv8", f"{const_value}bv16", f"{const_value}bv32", f"{const_value}bv64"})
-    if mode == "any":
-        return (
+    def const_patterns(const_value: str) -> set[str]:
+        pats = {const_value}
+        if const_value.isdigit():
+            pats.update({f"{const_value}bv8", f"{const_value}bv16", f"{const_value}bv32", f"{const_value}bv64"})
+        return pats
+
+    if mode in {"any", "anysite"}:
+        value_patterns = const_patterns(parts[2])
+        ok = (
             "assert false;" in body
             and f"{reg}__wrote_any" in body
             and f"{reg}__last_value" in body
-            and any(f"{reg}__last_value == {pat}" in body for pat in const_patterns)
+            and any(f"{reg}__last_value == {pat}" in body for pat in value_patterns)
         )
-    return (
+        if mode == "anysite":
+            ok = ok and f"{reg}__last_write_site == {parts[3]}" in body
+        return ok
+    if mode == "slot0":
+        value_patterns = const_patterns(parts[2])
+        return (
+            "assert false;" in body
+            and f"{reg}__wrote_index0" in body
+            and f"{reg}__last0_value" in body
+            and any(f"{reg}__last0_value == {pat}" in body for pat in value_patterns)
+        )
+    old_patterns = const_patterns(parts[2])
+    new_patterns = const_patterns(parts[3])
+    ok = (
         "assert false;" in body
-        and f"{reg}__wrote_index0" in body
-        and f"{reg}__last0_value" in body
-        and any(f"{reg}__last0_value == {pat}" in body for pat in const_patterns)
+        and f"{reg}__wrote_any" in body
+        and f"{reg}__last_old_value" in body
+        and f"{reg}__last_value" in body
+        and any(f"{reg}__last_old_value == {pat}" in body for pat in old_patterns)
+        and any(f"{reg}__last_value == {pat}" in body for pat in new_patterns)
     )
+    if mode == "oldnewsite":
+        ok = ok and f"{reg}__last_write_site == {parts[4]}" in body
+    return ok
 
 
 def _match_fail_fast_expr(expr: Tree) -> Optional[tuple[str, str, str]]:
@@ -621,11 +654,11 @@ def _match_fail_fast_expr(expr: Tree) -> Optional[tuple[str, str, str]]:
     if len(children) != 1 or str(children[0].data) != "and_op":
         return None
     terms = [c for c in children[0].children if isinstance(c, Tree)]
-    if len(terms) != 2:
+    if len(terms) not in {2, 3, 4}:
         return None
 
     bool_var: Optional[str] = None
-    eq_info: Optional[tuple[str, str]] = None
+    eq_infos: List[tuple[str, str]] = []
     for term in terms:
         var_name = _expr_dotted_var(term)
         if var_name is not None:
@@ -633,19 +666,39 @@ def _match_fail_fast_expr(expr: Tree) -> Optional[tuple[str, str, str]]:
             continue
         maybe_eq = _expr_eq_var_number(term)
         if maybe_eq is not None:
-            eq_info = maybe_eq
+            eq_infos.append(maybe_eq)
             continue
         return None
 
-    if bool_var is None or eq_info is None:
+    if bool_var is None or not eq_infos:
         return None
-    value_var, const_value = eq_info
-    if bool_var.endswith("__wrote_any") and value_var.endswith("__last_value"):
+    eq_map = {var: const for var, const in eq_infos}
+    if len(eq_map) != len(eq_infos):
+        return None
+    site_const: Optional[str] = None
+    if bool_var.endswith("__wrote_any"):
+        reg_for_site = bool_var[: -len("__wrote_any")]
+        site_const = eq_map.get(f"{reg_for_site}__last_write_site")
+
+    if len(terms) in {3, 4} and bool_var.endswith("__wrote_any"):
+        reg = bool_var[: -len("__wrote_any")]
+        old_const = eq_map.get(f"{reg}__last_old_value")
+        new_const = eq_map.get(f"{reg}__last_value")
+        if old_const is not None and new_const is not None and len(eq_infos) == (3 if site_const is not None else 2):
+            if site_const is not None:
+                return reg, "oldnewsite", f"{old_const}:{new_const}:{site_const}"
+            return reg, "oldnew", f"{old_const}:{new_const}"
+    if len(eq_infos) not in {1, 2}:
+        return None
+    if bool_var.endswith("__wrote_any"):
         reg_a = bool_var[: -len("__wrote_any")]
-        reg_b = value_var[: -len("__last_value")]
-        if reg_a == reg_b:
+        const_value = eq_map.get(f"{reg_a}__last_value")
+        if const_value is not None and len(eq_infos) == (2 if site_const is not None else 1):
+            if site_const is not None and len(eq_infos) == 2:
+                return reg_a, "anysite", f"{const_value}:{site_const}"
             return reg_a, "any", const_value
-    if bool_var.endswith("__wrote_index0") and value_var.endswith("__last0_value"):
+    if bool_var.endswith("__wrote_index0") and len(eq_infos) == 1:
+        value_var, const_value = eq_infos[0]
         reg_a = bool_var[: -len("__wrote_index0")]
         reg_b = value_var[: -len("__last0_value")]
         if reg_a == reg_b:

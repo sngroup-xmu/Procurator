@@ -95,6 +95,22 @@ class BoogieHarnessDslMixin:
                 if t in {"eq", "neq", "less", "less_eq", "greater", "greater_eq"}:
                     if (
                         isinstance(ul, Tree)
+                        and str(ul.data) == "dotted_var"
+                        and isinstance(ur, Tree)
+                        and str(ur.data) == "number"
+                        and self._dotted_var_to_str(ul).endswith("__last_write_site")
+                    ):
+                        return f"({lhs_render} {op_map[t]} {rhs_render})"
+                    if (
+                        isinstance(ur, Tree)
+                        and str(ur.data) == "dotted_var"
+                        and isinstance(ul, Tree)
+                        and str(ul.data) == "number"
+                        and self._dotted_var_to_str(ur).endswith("__last_write_site")
+                    ):
+                        return f"({lhs_render} {op_map[t]} {rhs_render})"
+                    if (
+                        isinstance(ul, Tree)
                         and str(ul.data) == "bit_slice"
                         and isinstance(ur, Tree)
                         and str(ur.data) == "number"

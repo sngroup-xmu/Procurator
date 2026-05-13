@@ -182,7 +182,9 @@ class BoogieHarnessStartMixin:
                 for name in regs.keys():
                     mods.add(self._trace_reg_dbg0_name(name))
                     mods.add(self._trace_reg_wrote_any_name(name))
+                    mods.add(self._trace_reg_last_old_value_name(name))
                     mods.add(self._trace_reg_wrote_index0_name(name))
+                    mods.add(self._trace_reg_last0_old_value_name(name))
                     mods.add(self._trace_reg_last0_value_name(name))
             for link in self._spec.links:
                 mods.add(self._trace_enqueue_exec_name(link.src, link.dst))

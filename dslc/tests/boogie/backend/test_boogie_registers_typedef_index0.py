@@ -37,19 +37,26 @@ class TestBoogieRegistersTypedefIndex0(unittest.TestCase):
                 "var reg:[sw_lid_t]bv8;",
                 "var reg__last_index: sw_lid_t;",
                 "var reg__last_value: bv8;",
+                "var reg__last_old_value: bv8;",
                 "var reg__wrote_any: bool;",
                 "var reg__wrote_index0: bool;",
+                "var reg__last0_old_value: bv8;",
                 "var reg__last0_value: bv8;",
+                "var reg__next_write_site: int;",
+                "var reg__last_write_site: int;",
                 "",
                 "procedure {:inline 1} reg.write(index:sw_lid_t, value:bv8)",
-                "  modifies reg, reg__last_index, reg__last_value, reg__wrote_any, reg__wrote_index0, reg__last0_value;",
+                "  modifies reg, reg__last_index, reg__last_value, reg__last_old_value, reg__wrote_any, reg__wrote_index0, reg__last0_old_value, reg__last0_value, reg__last_write_site;",
                 "{",
+                "  reg__last_old_value := reg[index];",
                 "  reg[index] := value;",
                 "  reg__last_index := index;",
                 "  reg__last_value := value;",
+                "  reg__last_write_site := reg__next_write_site;",
                 "  reg__wrote_any := true;",
                 "  if (index == 0bv32) {",
                 "    reg__wrote_index0 := true;",
+                "    reg__last0_old_value := reg__last_old_value;",
                 "    reg__last0_value := value;",
                 "  }",
                 "}",
@@ -69,8 +76,10 @@ class TestBoogieRegistersTypedefIndex0(unittest.TestCase):
                 "var reg:[sw_lid_t]bv8;",
                 "var reg__last_index: sw_lid_t;",
                 "var reg__last_value: bv8;",
+                "var reg__last_old_value: bv8;",
                 "var reg__wrote_any: bool;",
                 "var reg__wrote_index0: bool;",
+                "var reg__last0_old_value: bv8;",
                 "var reg__last0_value: bv8;",
                 "",
                 "procedure {:inline 1} reg.write(sw_index:sw_lid_t, sw_value:bv8)",
@@ -86,9 +95,13 @@ class TestBoogieRegistersTypedefIndex0(unittest.TestCase):
         out = instrument_register_writes(bpl, reg_types)
         self.assertEqual(out.count("var reg__last_index"), 1)
         self.assertIn("reg__last_index := sw_index;", out)
+        self.assertIn("reg__last_old_value := reg[sw_index];", out)
         self.assertIn("reg__last0_value := sw_value;", out)
+        self.assertIn("var reg__next_write_site: int;", out)
+        self.assertIn("var reg__last_write_site: int;", out)
+        self.assertIn("reg__last_write_site := reg__next_write_site;", out)
         self.assertIn(
-            "modifies reg, reg__last_index, reg__last_value, reg__wrote_any, reg__wrote_index0, reg__last0_value;",
+            "modifies reg, reg__last_index, reg__last_value, reg__last_old_value, reg__wrote_any, reg__wrote_index0, reg__last0_old_value, reg__last0_value, reg__last_write_site;",
             out,
         )
 
@@ -100,8 +113,10 @@ class TestBoogieRegistersTypedefIndex0(unittest.TestCase):
                 "var reg:[sw_lid_t]bv8;",
                 "var reg__last_index: sw_lid_t;",
                 "var reg__last_value: bv8;",
+                "var reg__last_old_value: bv8;",
                 "var reg__wrote_any: bool;",
                 "var reg__wrote_index0: bool;",
+                "var reg__last0_old_value: bv8;",
                 "var reg__last0_value: bv8;",
                 "",
                 "procedure {:inline 1} reg.write(index:sw_lid_t, value:bv8)",
@@ -123,10 +138,13 @@ class TestBoogieRegistersTypedefIndex0(unittest.TestCase):
         reg_types = collect_register_arrays(bpl, alias="sw")
         out = instrument_register_writes(bpl, reg_types)
         self.assertIn(
-            "modifies reg, reg__last_index, reg__last_value, reg__wrote_any, reg__wrote_index0, reg__last0_value;",
+            "modifies reg, reg__last_index, reg__last_value, reg__last_old_value, reg__wrote_any, reg__wrote_index0, reg__last0_old_value, reg__last0_value, reg__last_write_site;",
             out,
         )
         self.assertEqual(out.count("reg__last_index := index;"), 1)
+        self.assertEqual(out.count("reg__last_old_value := reg[index];"), 1)
+        self.assertEqual(out.count("reg__last_write_site := reg__next_write_site;"), 1)
+        self.assertEqual(out.count("reg__last0_old_value := reg__last_old_value;"), 1)
         self.assertEqual(out.count("reg__last0_value := value;"), 1)
 
     def test_mirror_checker_reports_incomplete_registers_without_patching(self) -> None:

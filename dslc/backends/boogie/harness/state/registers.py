@@ -17,6 +17,10 @@ class BoogieHarnessRegistersMixin:
         return f"{reg_name}__last_value"
 
     @staticmethod
+    def _register_last_old_value_name(reg_name: str) -> str:
+        return f"{reg_name}__last_old_value"
+
+    @staticmethod
     def _register_wrote_any_name(reg_name: str) -> str:
         return f"{reg_name}__wrote_any"
 
@@ -29,12 +33,28 @@ class BoogieHarnessRegistersMixin:
         return f"{reg_name}__last0_value"
 
     @staticmethod
+    def _register_last0_old_value_name(reg_name: str) -> str:
+        return f"{reg_name}__last0_old_value"
+
+    @staticmethod
+    def _register_next_write_site_name(reg_name: str) -> str:
+        return f"{reg_name}__next_write_site"
+
+    @staticmethod
+    def _register_last_write_site_name(reg_name: str) -> str:
+        return f"{reg_name}__last_write_site"
+
+    @staticmethod
     def _register_last_index_dbg_name(reg_name: str) -> str:
         return f"{reg_name}__last_index__dbg"
 
     @staticmethod
     def _register_last_value_dbg_name(reg_name: str) -> str:
         return f"{reg_name}__last_value__dbg"
+
+    @staticmethod
+    def _register_last_old_value_dbg_name(reg_name: str) -> str:
+        return f"{reg_name}__last_old_value__dbg"
 
     @staticmethod
     def _register_wrote_any_dbg_name(reg_name: str) -> str:
@@ -49,6 +69,10 @@ class BoogieHarnessRegistersMixin:
         return f"{reg_name}__last0_value__dbg"
 
     @staticmethod
+    def _register_last0_old_value_dbg_name(reg_name: str) -> str:
+        return f"{reg_name}__last0_old_value__dbg"
+
+    @staticmethod
     def _register_type_is_ref_like(elem_type: str) -> bool:
         elem_type = elem_type.strip()
         return elem_type == "Ref" or elem_type.endswith("Ref")
@@ -61,9 +85,13 @@ class BoogieHarnessRegistersMixin:
         return {
             self._register_last_index_name(reg_name),
             self._register_last_value_name(reg_name),
+            self._register_last_old_value_name(reg_name),
             self._register_wrote_any_name(reg_name),
             self._register_wrote_index0_name(reg_name),
+            self._register_last0_old_value_name(reg_name),
             self._register_last0_value_name(reg_name),
+            self._register_next_write_site_name(reg_name),
+            self._register_last_write_site_name(reg_name),
         }
 
     def _register_debug_var_names(self, reg_name: str) -> Set[str]:
@@ -71,8 +99,10 @@ class BoogieHarnessRegistersMixin:
             self._register_debug_var_name(reg_name),
             self._register_last_index_dbg_name(reg_name),
             self._register_last_value_dbg_name(reg_name),
+            self._register_last_old_value_dbg_name(reg_name),
             self._register_wrote_any_dbg_name(reg_name),
             self._register_wrote_index0_dbg_name(reg_name),
+            self._register_last0_old_value_dbg_name(reg_name),
             self._register_last0_value_dbg_name(reg_name),
         }
 
@@ -161,8 +191,10 @@ class BoogieHarnessRegistersMixin:
                 out.append(f"var {dbg}: {elem_type};\n")
                 out.append(f"var {self._register_last_index_dbg_name(name)}: {idx_type};\n")
                 out.append(f"var {self._register_last_value_dbg_name(name)}: {elem_type};\n")
+                out.append(f"var {self._register_last_old_value_dbg_name(name)}: {elem_type};\n")
                 out.append(f"var {self._register_wrote_any_dbg_name(name)}: bool;\n")
                 out.append(f"var {self._register_wrote_index0_dbg_name(name)}: bool;\n")
+                out.append(f"var {self._register_last0_old_value_dbg_name(name)}: {elem_type};\n")
                 out.append(f"var {self._register_last0_value_dbg_name(name)}: {elem_type};\n")
         return "".join(out)
 
@@ -184,10 +216,16 @@ class BoogieHarnessRegistersMixin:
                     f"{indent}{self._register_last_value_dbg_name(name)} := {self._register_last_value_name(name)};\n"
                 )
                 out.append(
+                    f"{indent}{self._register_last_old_value_dbg_name(name)} := {self._register_last_old_value_name(name)};\n"
+                )
+                out.append(
                     f"{indent}{self._register_wrote_any_dbg_name(name)} := {self._register_wrote_any_name(name)};\n"
                 )
                 out.append(
                     f"{indent}{self._register_wrote_index0_dbg_name(name)} := {self._register_wrote_index0_name(name)};\n"
+                )
+                out.append(
+                    f"{indent}{self._register_last0_old_value_dbg_name(name)} := {self._register_last0_old_value_name(name)};\n"
                 )
                 out.append(
                     f"{indent}{self._register_last0_value_dbg_name(name)} := {self._register_last0_value_name(name)};\n"
@@ -203,13 +241,19 @@ class BoogieHarnessRegistersMixin:
                 out.append(f"  {self._register_last_index_name(name)} := {idx_zero};\n")
                 if self._register_type_is_ref_like(elem_type):
                     out.append(f"  assume {self._register_last_value_name(name)} == {name}[{idx_zero}];\n")
+                    out.append(f"  assume {self._register_last_old_value_name(name)} == {name}[{idx_zero}];\n")
                 else:
                     val_zero = self._render_value_zero(elem_type)
                     out.append(f"  {self._register_last_value_name(name)} := {val_zero};\n")
+                    out.append(f"  {self._register_last_old_value_name(name)} := {val_zero};\n")
                 out.append(f"  {self._register_wrote_any_name(name)} := false;\n")
                 out.append(f"  {self._register_wrote_index0_name(name)} := false;\n")
+                out.append(f"  {self._register_next_write_site_name(name)} := 0;\n")
+                out.append(f"  {self._register_last_write_site_name(name)} := 0;\n")
                 if self._register_type_is_ref_like(elem_type):
+                    out.append(f"  assume {self._register_last0_old_value_name(name)} == {name}[{idx_zero}];\n")
                     out.append(f"  assume {self._register_last0_value_name(name)} == {name}[{idx_zero}];\n")
                 else:
+                    out.append(f"  {self._register_last0_old_value_name(name)} := {val_zero};\n")
                     out.append(f"  {self._register_last0_value_name(name)} := {val_zero};\n")
         return "".join(out)
