@@ -6523,3 +6523,487 @@ NetSMC 对“简化模型会漏掉仅在交错下出现的违例”有明确说�
   - `wsl bash -lc "cd /mnt/e/p4-verify && git status --short"`
   - `wsl bash -lc "cd /mnt/e/p4-verify && git add <files> && git commit -m '<msg>'"`
   - `wsl bash -lc "cd /mnt/e/p4-verify && git push origin main"`
+
+## 2026-05-13 DistCache CM3/CM4 write wiring 当前树复跑与 P4B helper 保留修复
+
+- **Spec**: `Procurator/argo/code/spec/bench/distcache_cm34_write_bug.prop`
+- **Time**: 2026-05-13 00:47-01:09 Asia/Shanghai
+- **目标/进度**: 作为已知理论 bug 当前树复跑的短 case，验证 slicing + `--no-reg-debug` 路径仍可生成正确 Boogie/harness、跑出 `UNSAFE`，并留存 witness。
+- **结果**:
+  - 修复前首轮复跑：runner 记录 `ERROR`，run dir `.tmp/procurator/verify/distcache_cm34_write_bug/20260513-004749-4943/` 只生成 `work/leaf.raw.bpl` 与 meta，未进入 Ultimate。
+  - 修复后复跑：`UNSAFE`，run_id `20260513-010742-a37f`。
+  - 产物：`.tmp/procurator/verify/distcache_cm34_write_bug/20260513-010742-a37f/`
+  - witness：`.tmp/procurator/verify/distcache_cm34_write_bug/20260513-010742-a37f/distcache_cm34_write_bug.bpl-witness.graphml`
+  - 本轮结果 JSON：`.tmp/procurator/e2e_ablations_20260513_current.json`
+- **坑（实现错误导致）**:
+  - P4B slicing 保留了 `netcacheEgress_cm3_reg/cm4_reg` 的 register/mirror 全局变量，meta 也记录这些寄存器有 writes，但最终 Boogie 输出过滤只保留从 `mainProcedure` 可达的过程，导致对应 `netcacheEgress_cm3_reg.read/write`、`netcacheEgress_cm4_reg.read/write` helper procedures 被删掉。
+  - DSLC 的新边界检查正确拒绝该 raw BPL：`P4B output is missing complete register write mirrors for: leaf_netcacheEgress_cm3_reg, leaf_netcacheEgress_cm4_reg`。这是 P4B 输出一致性问题，不应通过 DSLC backfill 绕过。
+- **修复**:
+  - `P4B-Translator/backends/verify/translate/impl/core/translate.cpp`: 在 slicing reachable-procedure 过滤中，对被保留的 register state 自动保留其 `.read/.write` helper procedures，使 register/mirror globals 与 accessor procedures 保持一致。
+- **沉淀为冒烟/回归测试**:
+  - 新增 `dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_distcache_kept_registers_keep_write_helpers`。
+  - 红灯证据：修复前该测试失败，原因是 `netcacheEgress_cm3_reg.read/write` 不在输出 BPL。
+  - 绿灯证据：
+    - `cd P4B-Translator/build-host && make -j16 p4c-translator` -> PASS。
+    - `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_distcache_kept_registers_keep_write_helpers` -> PASS。
+    - `PYTHONPATH=. python3 dslc/bench/run_e2e_ablations.py --only slicing --bench distcache_cm34 --results-json .tmp/procurator/e2e_ablations_20260513_current.json --ultimate-xmx-gb 4` -> `UNSAFE` + witness rerun `UNSAFE`。
+
+## 2026-05-13 FRR bug1 unexpected mirror 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/frr_bug1_unexpected_mirror.prop`
+- **Time**: 2026-05-13 01:10-01:12 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑，确认 slicing + `--use-spec-max-steps --no-slicing-control-seeds` 路径仍能跑出 witness。
+- **结果**:
+  - slicing: `UNSAFE`，run_id `20260513-011041-70cb`。
+  - 产物：`.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260513-011041-70cb/`
+  - witness：`.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260513-011041-70cb/frr_bug1_unexpected_mirror.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case 的 slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；生成 BPL 与 Ultimate 主跑/witness rerun 都正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复用当前回归基线：P4B translator 已在本轮重编通过；FRR bug1 结果由 `run_e2e_ablations.py` 保存 run_id、日志与 witness。
+
+## 2026-05-13 Gecko bug3 timer init 当前树复跑与 opt profile 固化
+
+- **Spec**: `Procurator/argo/code/spec/bench/gecko_bug3_timer_init.prop`
+- **Time**: 2026-05-13 01:13-01:21 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑，确认 Gecko bug3 在 slicing + `--no-reg-debug` 路径仍能跑出 `UNSAFE`，并避免把低内存 profile 的 OOM 误解释为 bug 不存在。
+- **结果**:
+  - 首轮使用默认 2GB Z3 profile：run_id `20260513-011301-f59b`，Ultimate 结果为 `Toolchain returned no result`，runner 细化为 `OOM`；未产出 witness。
+  - 日志证据：`.tmp/procurator/verify/gecko_bug3_timer_init/20260513-011301-f59b/gemcutter.log` 中 Z3 报 `(error "out of memory")`，发生在 RCFG 构造阶段。
+  - 修正参数后复跑：`UNSAFE`，run_id `20260513-011824-fb22`。
+  - 产物：`.tmp/procurator/verify/gecko_bug3_timer_init/20260513-011824-fb22/`
+  - witness：`.tmp/procurator/verify/gecko_bug3_timer_init/20260513-011824-fb22/gecko_bug3_timer_init.bpl-witness.graphml`
+- **坑（实现/配置导致）**:
+  - P4B 当前正确保留 register helper procedures 后，Gecko bug3 sliced BPL 在默认 `ReachSafety-32bit-GemCutter-ALL.epf` 下会触发 Z3 `-memory:2024` OOM。该结果是求解配置不足，不是 `SAFE`，也不能解释为 bug 不存在。
+- **修复/沉淀为冒烟测试**:
+  - `dslc/bench/run_e2e_ablations.py`: 增加 `opt_settings` per-case 配置，并把 Gecko bug3 slicing 侧固定到 `dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf`。
+  - `dslc/tests/bench/test_run_e2e_ablations_classify.py`: 新增 `test_gecko_bug3_dry_run_uses_opt_smallblocks_profile`，防止 runner 退回低内存 profile。
+  - 回归执行：
+    - `python3 -m unittest -v dslc.tests.bench.test_run_e2e_ablations_classify.TestRunE2EAblationsClassify.test_gecko_bug3_dry_run_uses_opt_smallblocks_profile` -> PASS。
+    - `PYTHONPATH=. python3 dslc/bench/run_e2e_ablations.py --only slicing --bench gecko_bug3 --results-json .tmp/procurator/e2e_ablations_20260513_current.json --ultimate-xmx-gb 4` -> `UNSAFE` + witness rerun `UNSAFE`。
+
+## 2026-05-13 P4DB router TTL expiry 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/p4db_router_ttl_expiry_bug.prop`
+- **Time**: 2026-05-13 01:22-01:23 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑，确认 slicing + `--max-steps 3 --no-slicing-control-seeds --no-reg-debug` 路径仍能跑出可审计 witness。
+- **结果**:
+  - slicing: `UNSAFE`，run_id `20260513-012219-f8a6`。
+  - 产物：`.tmp/procurator/verify/p4db_router_ttl_expiry_bug/20260513-012219-f8a6/`
+  - witness：`.tmp/procurator/verify/p4db_router_ttl_expiry_bug/20260513-012219-f8a6/p4db_router_ttl_expiry_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；BPL 生成、Ultimate 主跑和 witness rerun 均正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化并保存 run_id、日志与 witness。
+
+## 2026-05-13 P4DB damper threshold off-by-one 当前树复跑与 P4_14 register builtin 修复
+
+- **Spec**: `Procurator/argo/code/spec/bench/p4db_damper_threshold_off_by_one_bug.prop`
+- **Time**: 2026-05-13 01:24-03:27 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；先检查生成的 Boogie/harness 语义，再决定是否接受 solver 结果。目标是消除此前 `SAFE` 假阴性，恢复 P4DB damper 的真实寄存器读写路径，并留存可审计 witness。
+- **结果**:
+  - 修复前首轮复跑：`SAFE`，run_id `20260513-012413-c397`；该结果被判定为假阴性，不接受为 bug 不存在。
+  - 假阴性证据：`.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260513-012413-c397/p4db_damper_threshold_off_by_one_bug.bpl` 中 `sw_ingress()` 为空，最终断言只检查初始化后的 `sw_damper_register__last0_value == 0`。
+  - 中间修复后复跑：`ERROR`，run_id `20260513-031221-344b`；BPL typecheck 发现 `call lhs := reg.read(...)` 与整数 `0` 未转成 `0bv16`，属于翻译实现错误，不解释为 bug 不存在。
+  - 最终复跑：`UNSAFE`，run_id `20260513-032601-8a9e`。
+  - 产物：`.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260513-032601-8a9e/`
+  - witness：`.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260513-032601-8a9e/p4db_damper_threshold_off_by_one_bug.bpl-witness.graphml`
+  - witness rerun：`UNSAFE`；`gemcutter.witness.log` 记录 `Counterexample is feasible`、`Registering result UNSAFE`、witness graphml/yml 写出，以及 `RESULT: Ultimate proved your program to be incorrect!`。
+  - BPL 语义证据：最终 BPL 中保留了 `call sw_damper_register.write(sw_index, 0bv16);`，`sw_set_damper(...)` 中保留 `sw_damper_register.read(...)` 和递增后的 `sw_damper_register.write(...)`，最终断言为 `assert !procurator_bad;`。
+- **坑（实现错误导致）**:
+  - P4_14 builtins/macros 在 IR 中呈现混合形态：打印为 `damper_register.read/write(...)`，但 `member->member.originalName` 为 `register_read/register_write`。旧 slicer 未把这些 builtin 建模为寄存器 use/def，导致 action/table 不再定义 seed。
+  - slicer 保留了内层 `damper_1` control body，却没有保留外层 control call chain，导致 `ingress()` 仍可被切空。
+  - translator 将 `register_read/write` 当成未建模 extern procedure，而不是 P4B 寄存器镜像语义；初版修复还把 function read 写成 `call lhs := ...`，并把 `register_write(..., 0)` 的值类型错误生成为 int `0`。
+- **修复**:
+  - `P4B-Translator/backends/verify/slicing/slicer_internal.h`: 新增 `collectDirectRegisterBuiltinUsesDefs(...)`，识别 receiver 形态与无 receiver 形态的 P4_14 direct/register builtin 调用。
+  - `P4B-Translator/backends/verify/slicing/slicer.cpp`: 增加 control call retention closure；当 control body 含 kept statements 时，保留调用该 control 的 call sites 与前驱链，并修正 CFG node id 与 IR statement id 的比较。
+  - `P4B-Translator/backends/verify/translate/impl/lowering/translate_method.cpp`: 基于 `originalName` 降低 `register_read/register_write`，把 read 降成普通赋值表达式、write 降成真实 register write 并更新 mirrors/modifies，同时按寄存器值类型渲染常量。
+  - `P4B-Translator/backends/verify/translate/impl/lowering/translate_statement.cpp`: 对返回赋值字符串的 method-call expression 作为普通 Boogie statement 输出，避免错误的 `call lhs := ...`。
+  - `P4B-Translator/backends/verify/translate/impl/lowering/translate_program.cpp` 与 `P4B-Translator/backends/verify/translate/translate.h`: 记录并使用 `registerValueTypes`。
+- **沉淀为冒烟/回归测试**:
+  - `dslc/tests/p4b/test_p4b_translator_regressions.py`: 新增 `test_p4db_damper_indexed_register_seed_keeps_ingress_write_path`，检查 `ingress()` 调 `damper_1()`、`damper_1()` 调 `damper_tbl_1.apply()`，以及 `set_damper(...)` 保留 `damper_register.write`。
+  - `cd P4B-Translator/build-host && make -j16 p4c-translator` -> PASS。
+  - `python3 -m unittest -v dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_p4db_damper_table_set_default_not_lost_under_slicing dslc.tests.p4b.test_p4b_translator_regressions.TestP4BTranslatorRegressions.test_p4db_damper_indexed_register_seed_keeps_ingress_write_path` -> PASS。
+  - `PYTHONPATH=. python3 dslc/bench/run_e2e_ablations.py --only slicing --bench p4db_damper --results-json .tmp/procurator/e2e_ablations_20260513_current.json --ultimate-xmx-gb 4` -> `UNSAFE` + witness rerun `UNSAFE`。
+
+## 2026-05-13 NetLock pkt_type domain 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/netlock_pkt_type_bug.prop`
+- **Time**: 2026-05-13 03:40-03:46 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；先生成并检查 sliced Boogie/harness，再运行 Ultimate，确认 `pkt_type` 域性质仍能产出可审计 witness。
+- **结果**:
+  - 预检生成：`.tmp/manual/netlock_pkt_type_bug.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：`sw_SwitchIngressParser()`、`sw_SwitchIngress()`、`sw_SwitchIngressDeparser()` 均在节点过程被调用；最终断言保留为 `assert ((sw_ig_md.pkt_type == 0bv8) || (sw_ig_md.pkt_type == 1bv8));`。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-034430-8ea2`。
+  - 产物：`.tmp/procurator/verify/netlock_pkt_type_bug/20260513-034430-8ea2/`
+  - witness：`.tmp/procurator/verify/netlock_pkt_type_bug/20260513-034430-8ea2/netlock_pkt_type_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；预检显示 harness 非空且目标断言仍连接到 ingress 语义，Ultimate 主跑与 witness rerun 均正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --no-slicing-control-seeds`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 ATP count mismatch 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/atp_count_mismatch_bug.prop`
+- **Time**: 2026-05-13 04:10-04:12 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；使用 spec 中的 bounded steps，检查 aggregation register/bitmap 路径是否仍在 sliced Boogie 中，再运行 Ultimate 并留存 witness。
+- **结果**:
+  - 预检生成：`.tmp/manual/atp_count_mismatch_bug.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `s1_appID_and_Seq`、`s1_bitmap`、`s1_MyIngress()`，以及 `p4ml_agtr_index.agtr == 0` 下的寄存器 read/write 约束；spec 的 `max_steps = 6` 已通过 `--use-spec-max-steps` 生效。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-041058-1e97`。
+  - 产物：`.tmp/procurator/verify/atp_count_mismatch_bug/20260513-041058-1e97/`
+  - witness：`.tmp/procurator/verify/atp_count_mismatch_bug/20260513-041058-1e97/atp_count_mismatch_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；模型预检未发现聚合寄存器/断言路径丢失，Ultimate 主跑与 witness rerun 均正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --use-spec-max-steps --no-slicing-control-seeds`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 P4NIS bug2 tunnel state leakage 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/p4nis_bug2_tunnel_state_leakage.prop`
+- **Time**: 2026-05-13 04:13-04:15 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；检查 tunnel header 构造与泄露断言是否仍在 sliced Boogie 中，再运行 Ultimate 并留存 witness。
+- **结果**:
+  - 预检生成：`.tmp/manual/p4nis_bug2_tunnel_state_leakage.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `s1_MyIngress_creatmytunnel()`、`s1_hdr.ipv4_tunnel.srcAddr := s1_hdr.ipv4.srcAddr` 的泄露路径，以及 spec 中“tunnel 外层 src 不应等于内层 src”的断言。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-041418-4d6f`。
+  - 产物：`.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260513-041418-4d6f/`
+  - witness：`.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260513-041418-4d6f/p4nis_bug2_tunnel_state_leakage.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；模型预检未发现 tunnel 构造或断言路径丢失，Ultimate 主跑与 witness rerun 均正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --use-spec-max-steps`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 P4NIS bug1 forwarding sequence desync 当前树复跑与 witness sanity 修复
+
+- **Spec**: `Procurator/argo/code/spec/bench/p4nis_bug1_forwarding_sequence_desync.prop`
+- **Time**: 2026-05-13 04:16-04:31 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；检查 seeded `count == 3` 导致的 forwarding sequence desync 是否仍在 sliced Boogie 中，并确保 witness sanity 工具不会把可审计 P4 assertion witness 误判为失败。
+- **结果**:
+  - 预检生成：`.tmp/manual/p4nis_bug1_forwarding_sequence_desync.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `s1_count[0bv32] == 3bv32` 初始化、`s1_MyIngress_do_read_count()`、三条 forwarding branch 对 `egress_spec` 的选择，以及程序内 `assert (((s1_standard_metadata.egress_spec == 1bv9)) || ((s1_standard_metadata.egress_spec == 2bv9))) || ((s1_standard_metadata.egress_spec == 3bv9));`。
+  - 首轮 solver/witness 复跑：`UNSAFE`，run_id `20260513-041813-ecf6`，但 runner sanity 误报 `FAIL(dsl_assert)`；该 warning 被暂停接受并定位。
+  - 修复 sanity checker 后最终复跑：`UNSAFE`，run_id `20260513-043031-45c9`。
+  - 产物：`.tmp/procurator/verify/p4nis_bug1_forwarding_sequence_desync/20260513-043031-45c9/`
+  - witness：`.tmp/procurator/verify/p4nis_bug1_forwarding_sequence_desync/20260513-043031-45c9/p4nis_bug1_forwarding_sequence_desync.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`，且不再带 `opt sanity=FAIL(...)`。
+- **坑（实现错误导致）**:
+  - 不是 P4B/DSLC 模型错误；BPL 与 witness 均指向程序内 forwarding assertion。问题在审计工具：GraphML witness 的 assumption/state snapshot 会包含 `procurator_bad == false`，sourcecode 也会包含初始化 `procurator_bad := false;`，旧 `summarize_witness(...)` 只要在 witness 文本中看到 `procurator_bad` 就进入 DSL-accumulator 分支，随后因为没有 `procurator_bad := true` 而误报 `FAIL(dsl_assert)`。
+- **修复/沉淀为冒烟测试**:
+  - `dslc/bench/validate_counterexample.py`: 新增 `_extract_witness_sourcecode_text(...)`，并将 DSL accumulator 命中条件收紧为 witness sourcecode 中实际出现 `procurator_bad := true` 或 `assert !procurator_bad`；初始化与 assumption snapshot 不再触发该分支。
+  - `dslc/tests/toolchain/test_validate_counterexample.py`: 新增 `test_summarize_witness_accepts_direct_assert_when_assumption_mentions_procurator_bad`，覆盖 P4NIS bug1 这种“direct P4 assertion + assumption 中提到 procurator_bad=false”的 witness 形态。
+  - 回归执行：
+    - `python3 -m unittest -v dslc.tests.toolchain.test_validate_counterexample.TestValidateCounterexample.test_summarize_witness_accepts_direct_assert_when_assumption_mentions_procurator_bad dslc.tests.toolchain.test_validate_counterexample.TestValidateCounterexample.test_summarize_witness_accepts_normalized_procurator_bad_assignment dslc.tests.toolchain.test_validate_counterexample.TestValidateCounterexample.test_summarize_witness_accepts_direct_global_assert` -> PASS。
+    - `PYTHONPATH=. python3 dslc/bench/run_e2e_ablations.py --only slicing --bench p4nis_bug1 --results-json .tmp/procurator/e2e_ablations_20260513_current.json --ultimate-xmx-gb 4` -> `UNSAFE` + witness rerun `UNSAFE`，sanity clean。
+
+## 2026-05-13 FRR bug2 state inconsistency 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/frr_bug2_state_inconsistency.prop`
+- **Time**: 2026-05-13 04:32-04:36 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；该 case 曾暴露 slicer 对 `pkt_par.write(...)` 的过度裁剪问题，因此先检查 sliced BPL 是否仍保留 `pkt_par` stateful 写路径，再运行 Ultimate 并留存 witness。
+- **结果**:
+  - 预检生成：`.tmp/manual/frr_bug2_state_inconsistency.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `s1_pkt_par` register、parser 中 `s1_pkt_par.read(...)`、`s1_set_par_to_ingress()`/`s1_set_parent_out()` 中的 `s1_pkt_par.write(...)`，以及 in-program/DSL mirrored assertion `out_port < 5 || out_port == pkt_par`。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-043413-2b29`。
+  - 产物：`.tmp/procurator/verify/frr_bug2_state_inconsistency/20260513-043413-2b29/`
+  - witness：`.tmp/procurator/verify/frr_bug2_state_inconsistency/20260513-043413-2b29/frr_bug2_state_inconsistency.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；预检确认此前沉淀的 `pkt_par.write(...)` action-level slicing 修复仍在当前树生效，没有再次出现 sliced BPL 状态丢失。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复用已沉淀的 `frr_pkt_par_write` slicing selftest；本轮由 `run_e2e_ablations.py` 保存 run_id、日志和 witness。
+
+## 2026-05-13 DDOSD window label collision 当前树复跑阶段记录（未完成）
+
+- **Spec**: `Procurator/argo/code/spec/bench/ddosd_window_label_collision_bug.prop`
+- **Time**: 2026-05-13 04:37-05:13 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；先检查 sliced Boogie/harness 是否保留 observation-window label collision 语义，再运行 Ultimate。当前阶段尚未获得 witness，不能解释为 bug 不存在。
+- **结果**:
+  - 预检生成：`.tmp/manual/ddosd_window_label_collision_bug.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `s1_ingress_ow_counter`、`s1_ingress_src_cs1` / `s1_ingress_src_cs1_ow` 等 CountSketch/窗口标签寄存器，保留对 `_ow` 低 8 位标签的写入，以及最终 `assert !procurator_bad;`。spec 断言为 `s1_ingress_src_cs1[0] <= 1`。
+  - 默认 2GB Z3 profile 复跑：`OOM`/`Toolchain returned no result`，run_id `20260513-043852-821f`，无 witness。
+  - 日志证据：`.tmp/procurator/verify/ddosd_window_label_collision_bug/20260513-043852-821f/gemcutter.log` 中 TraceAbstraction 已多次 `Found error trace`，随后 Z3 报 `(error "out of memory")`，不是 `SAFE`。
+  - 修正为 8GB small-blocks profile 后复跑：`TIMEOUT`，run_id `20260513-045658-0c3d`，无 witness。
+  - 日志证据：`.tmp/procurator/verify/ddosd_window_label_collision_bug/20260513-045658-0c3d/gemcutter.log` 使用 `z3 ... -memory:8192`，TraceAbstraction 运行约 890s、25 次 CEGAR 迭代，反复 `Found error trace`，最后在 line 2118 注册 `TIMEOUT`。
+- **坑（实现/配置导致）**:
+  - 首轮失败是低内存 profile 导致的 solver OOM，不是模型证明 `SAFE`。
+  - 8GB small-blocks 消除了 OOM，但仍在 TraceAbstraction 中超时；该 timeout 只能说明当前配置未跑完，不能解释为 bug 不存在。
+- **修复/沉淀为冒烟测试**:
+  - `dslc/bench/run_e2e_ablations.py`: 将 DDOSD slicing 侧也固定到 `ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf`，避免退回 2GB profile 后再次 OOM。
+  - `dslc/tests/bench/test_run_e2e_ablations_classify.py`: 新增并修正 `test_ddosd_dry_run_uses_opt_smallblocks_profile`，明确检查 `[DRY]` 的 slicing 命令行而不是表格中的 base 命令。
+  - 回归执行：`python3 -m unittest -v dslc.tests.bench.test_run_e2e_ablations_classify.TestRunE2EAblationsClassify.test_ddosd_dry_run_uses_opt_smallblocks_profile dslc.tests.bench.test_run_e2e_ablations_classify.TestRunE2EAblationsClassify.test_gecko_bug3_dry_run_uses_opt_smallblocks_profile` -> PASS。
+  - 下一步：继续从模型缩减/参数调优方向推进 DDOSD；当前 `TIMEOUT` 不进入已跑出 witness 的已知 bug 清单。
+
+## 2026-05-13 NetLock push_back length_in_server underflow 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/netlock_pushback_length_in_server_underflow_bug.prop`
+- **Time**: 2026-05-13 03:47-03:51 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；先检查 sliced Boogie/harness 是否保留 `length_in_server` 相关语义，再运行 Ultimate 并留存 witness。
+- **结果**:
+  - 预检生成：`.tmp/manual/netlock_pushback_length_in_server_underflow_bug.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `sw_ig_md.length_in_server`、`sw_SwitchIngress_acquire_lock_dec_empty_slots_action()` 中对 `length_in_server` 的更新，以及最终 `assert !procurator_bad;`。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-034932-2f8b`。
+  - 产物：`.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260513-034932-2f8b/`
+  - witness：`.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260513-034932-2f8b/netlock_pushback_length_in_server_underflow_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；模型预检未发现空 harness 或目标断言丢失，Ultimate 主跑与 witness rerun 均正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --max-steps 3 --no-slicing-control-seeds`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 Gecko bug1 timer loss 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/gecko_bug1_timer_loss.prop`
+- **Time**: 2026-05-13 05:24-05:36 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；沿用历史上对 Gecko 较稳定的 `--no-reg-debug` + 8GB small-blocks profile，先由 runner 生成 sliced BPL，再运行 Ultimate 并留存 witness。
+- **结果**:
+  - slicing 复跑：`UNSAFE`，run_id `20260513-052413-d380`。
+  - 产物：`.tmp/procurator/verify/gecko_bug1_timer_loss/20260513-052413-d380/`
+  - witness：`.tmp/procurator/verify/gecko_bug1_timer_loss/20260513-052413-d380/gecko_bug1_timer_loss.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`，wall≈683.3s。
+- **坑（实现/配置导致）**:
+  - 本轮无新实现错误；继续使用 `--no-reg-debug` 与 `ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf`，避免退回历史上容易 OOM/timeout 的低内存 profile。该配置选择不把 timeout/unknown 解释为 bug 不存在。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --use-spec-max-steps --no-reg-debug --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 Gecko bug2 limited concurrency 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/gecko_bug2_concurrency.prop`
+- **Time**: 2026-05-13 05:36-05:48 Asia/Shanghai
+- **目标/进度**: 已知理论 interleaving bug 当前树复跑；先按 runner 原配置尝试 slicing，再根据日志定位求解配置问题并复跑留存 witness。
+- **结果**:
+  - 首次 slicing 尝试：`OOM`/`Toolchain returned no result`，run_id `20260513-053650-5a8a`，日志显示 Z3 以 `-memory:2024` 在 RCFG construction 阶段报 `(error "out of memory")`。该结果不算 bug absence。
+  - 修复配置后 slicing 复跑：`UNSAFE`，run_id `20260513-054230-48fc`。
+  - 产物：`.tmp/procurator/verify/gecko_bug2_concurrency/20260513-054230-48fc/`
+  - witness：`.tmp/procurator/verify/gecko_bug2_concurrency/20260513-054230-48fc/gecko_bug2_concurrency.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`，wall≈338.0s。
+- **坑（实现/配置导致）**:
+  - runner 原先只给 Gecko bug1/bug3 pin 了高内存 small-blocks profile，Gecko bug2 slicing 仍回落到默认 2GB Z3 profile，导致 RCFG 阶段 OOM。该 OOM 只能说明后端配置不足，不能解释为 bug 不存在。
+- **修复/沉淀为冒烟测试**:
+  - `dslc/bench/run_e2e_ablations.py`: 对 Gecko bug2 slicing 侧新增 `opt_settings=ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf`。
+  - `dslc/tests/bench/test_run_e2e_ablations_classify.py`: 新增 `test_gecko_bug2_dry_run_uses_opt_smallblocks_profile`，并先确认该测试在修复前失败、修复后通过。
+  - 回归执行：`python3 -m unittest -v dslc.tests.bench.test_run_e2e_ablations_classify.TestRunE2EAblationsClassify.test_gecko_bug2_dry_run_uses_opt_smallblocks_profile dslc.tests.bench.test_run_e2e_ablations_classify.TestRunE2EAblationsClassify.test_gecko_bug3_dry_run_uses_opt_smallblocks_profile dslc.tests.bench.test_run_e2e_ablations_classify.TestRunE2EAblationsClassify.test_ddosd_dry_run_uses_opt_smallblocks_profile`（PASS）。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --use-spec-max-steps --no-reg-debug --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 P4xos drop_flag 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/p4xos_dropflag_bug.prop`
+- **Time**: 2026-05-13 05:48-05:51 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；检查 forwarding/drop_flag 相关路径在 sliced 模型中仍可达，并运行 Ultimate 留存 witness。
+- **结果**:
+  - slicing 复跑：`UNSAFE`，run_id `20260513-054859-9529`。
+  - 产物：`.tmp/procurator/verify/p4xos_dropflag_bug/20260513-054859-9529/`
+  - witness：`.tmp/procurator/verify/p4xos_dropflag_bug/20260513-054859-9529/p4xos_dropflag_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`，wall≈105.5s。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；`--no-reg-debug` 仅去掉 per-pass 寄存器快照变量，不改变该 forwarding/drop_flag 性质语义。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --use-spec-max-steps --no-reg-debug`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 P4xos majority quorum 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/p4xos_majority_quorum_bug.prop`
+- **Time**: 2026-05-13 05:51-06:16 Asia/Shanghai
+- **目标/进度**: 已知理论 interleaving bug 当前树复跑；该 case 历史上 sliced solver 成本较高，因此按阶段语义等待 Ultimate 完成主跑与 witness rerun，不用短 timeout 解释为 bug 不存在。
+- **结果**:
+  - slicing 复跑：`UNSAFE`，run_id `20260513-055133-2598`。
+  - 产物：`.tmp/procurator/verify/p4xos_majority_quorum_bug/20260513-055133-2598/`
+  - witness：`.tmp/procurator/verify/p4xos_majority_quorum_bug/20260513-055133-2598/p4xos_majority_quorum_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`，wall≈1479.1s。
+- **坑（实现/配置导致）**:
+  - 本轮无新实现错误；耗时主要来自 Ultimate/GemCutter refinement 成本。该 case 不能用短时 `UNKNOWN/TIMEOUT` 作为 bug absence 证据。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --use-spec-max-steps`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 NetLock release empty_slots overflow 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/netlock_release_empty_slots_overflow_bug.prop`
+- **Time**: 2026-05-13 04:01-04:05 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；该 case 历史上对求解配置较敏感，因此先检查 sliced BPL，再使用 runner 固化的 `--no-reg-debug` + 8GB small-blocks profile 运行 Ultimate。
+- **结果**:
+  - 预检生成：`.tmp/manual/netlock_release_empty_slots_overflow_bug.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `sw_slots_two_sides_register`、`sw_SwitchIngress_release_lock_inc_empty_slots_action()` 的寄存器读写，以及最终 `assert !procurator_bad;`。spec 中 guarded assertion 为第一轮 RELEASE 后 `sw_slots_two_sides_register[0] == 38654705664`。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-040140-3634`。
+  - 产物：`.tmp/procurator/verify/netlock_release_empty_slots_overflow_bug/20260513-040140-3634/`
+  - witness：`.tmp/procurator/verify/netlock_release_empty_slots_overflow_bug/20260513-040140-3634/netlock_release_empty_slots_overflow_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现/配置导致）**:
+  - 本轮无新实现错误；按历史沉淀继续使用 `--no-reg-debug` 与 `ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf`，避免退回容易 timeout/OOM 的低内存 profile。该策略是求解配置选择，不是把 timeout/unknown 解释为 bug 不存在。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 ATP bound bug 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/atp_bug.prop`
+- **Time**: 2026-05-13 04:07-04:09 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；先检查 sliced Boogie/harness 是否保留 ATP ingress 与目标断言，再运行 Ultimate 并留存 witness。
+- **结果**:
+  - 预检生成：`.tmp/manual/atp_bug.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `s1_SwitchIngressParser()`、`s1_MyIngress()` 与目标断言 `assert ((s1_meta.isMyAppIDandMyCurrentSeq != 1bv1) || (s1_meta.isAggregate == 0bv32) || (s1_meta.need_send_out != 0bv8));`。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-040806-fcdf`。
+  - 产物：`.tmp/procurator/verify/atp_bug/20260513-040806-fcdf/`
+  - witness：`.tmp/procurator/verify/atp_bug/20260513-040806-fcdf/atp_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；模型预检未发现 ingress/目标断言丢失，Ultimate 主跑与 witness rerun 均正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --no-slicing-control-seeds`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 NetLock release empty-queue head corruption 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/netlock_release_empty_queue_head_bug.prop`
+- **Time**: 2026-05-13 03:56-04:00 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；检查空队列 RELEASE 路径是否仍能更新/污染 `head_register`，再运行 Ultimate 并留存 witness。
+- **结果**:
+  - 预检生成：`.tmp/manual/netlock_release_empty_queue_head_bug.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `sw_head_register`、`sw_SwitchIngress_release_lock_inc_empty_slots_table.apply()`、`sw_SwitchIngress_release_lock_update_head_table.apply()` 以及最终 `assert !procurator_bad;`。spec 中 guarded assertion 为第一轮 RELEASE 后 `sw_head_register[0] == 0`。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-035732-ed97`。
+  - 产物：`.tmp/procurator/verify/netlock_release_empty_queue_head_bug/20260513-035732-ed97/`
+  - witness：`.tmp/procurator/verify/netlock_release_empty_queue_head_bug/20260513-035732-ed97/netlock_release_empty_queue_head_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；模型预检未发现空 harness、release 路径丢失或断言丢失，Ultimate 主跑与 witness rerun 均正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --max-steps 3 --no-slicing-control-seeds`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13 NetLock release counter underflow 当前树复跑
+
+- **Spec**: `Procurator/argo/code/spec/bench/netlock_release_counter_underflow_bug.prop`
+- **Time**: 2026-05-13 03:52-03:56 Asia/Shanghai
+- **目标/进度**: 已知理论 bug 当前树复跑；检查 RELEASE 路径对共享/独占计数寄存器的读写是否保留，再运行 Ultimate 并留存 witness。
+- **结果**:
+  - 预检生成：`.tmp/manual/netlock_release_counter_underflow_bug.20260513.slicing.bpl`
+  - `procurator smoke`：`SMOKE-OK`，sequential harness 结构正常。
+  - BPL 语义检查：保留 `sw_shared_and_exclusive_count_register`、`sw_SwitchIngress_release_lock_update_lock_action()`、`release_lock_update_lock_alu.apply(...)` 以及最终 `assert !procurator_bad;`。spec 中 guarded assertion 为第一轮 RELEASE 后 `sw_shared_and_exclusive_count_register[0] == 0`。
+  - slicing 复跑：`UNSAFE`，run_id `20260513-035321-0f93`。
+  - 产物：`.tmp/procurator/verify/netlock_release_counter_underflow_bug/20260513-035321-0f93/`
+  - witness：`.tmp/procurator/verify/netlock_release_counter_underflow_bug/20260513-035321-0f93/netlock_release_counter_underflow_bug.bpl-witness.graphml`
+  - runner 结果：`.tmp/procurator/e2e_ablations_20260513_current.json` 中该 case slicing 记录为 `UNSAFE`，witness rerun 也为 `UNSAFE`。
+- **坑（实现错误导致）**:
+  - 本轮无新实现错误；模型预检未发现寄存器 helper/断言路径丢失，Ultimate 主跑与 witness rerun 均正常。
+- **修复/沉淀为冒烟测试**:
+  - 本轮未新增代码修复。
+  - 复跑命令由 `run_e2e_ablations.py` 固化为 `--wraparound off --max-steps 3 --no-slicing-control-seeds`；run_id、日志和 witness 已由 runner 保存。
+
+## 2026-05-13
+
+- **Spec**: Procurator/argo/code/spec/bench/cheetah_slot_index_collision_bug.prop
+- **时间**: 2026-05-13 12:02 CST
+- **目标/进度**: 重跑已知理论 bug（Cheetah slot index collision），确认生成的 sequential/no-two-stage BPL 与 harness 可形成可审计 UNSAFE，而不是把此前 no-result/ERROR 当作 bug 不存在。
+- **结果**:
+  - slicing: UNSAFE，run_id 20260513-120238-5fb3，产物目录 .tmp/procurator/verify/cheetah_slot_index_collision_bug/20260513-120238-5fb3/。
+  - 证据: cheetah_slot_index_collision_bug.bounded-dsl-replay.unsafe.json + cheetah_slot_index_collision_bug.bounded-dsl-replay.textual.log；CLI stdout 明确打印 [RESULT] RESULT: UNSAFE 与 [CEX] bounded_dsl_replay_under_approx。
+- **坑（实现/流程导致）**:
+  - 旧 run 有 ERROR/no RESULT（例如 20260513-061704-2485、20260513-065442-7385），但生成 BPL/harness 中 guard 可由 deterministic bounded DSL replay 触发；不能把 no-result 当成 bug absence。
+  - 初版 bounded replay 已能写 marker，但 procurator verify 没有打印 [RESULT] RESULT: UNSAFE，
+un_e2e_ablations.py 因此把 rc=1 分类为 ERROR。
+- **修复/沉淀**:
+  - dslc/workflows/focused_direct.py: bounded replay 在未知寄存器写时忘记该寄存器/镜像的已知状态；若遇到未知尾部控制流，只在 final procurator_bad guard 当前已确定为 false 时接受 UNSAFE，否则 fail-closed fallback。
+  - dslc/cli/gemcutter.py: bounded replay 命中时打印 [RESULT] RESULT: UNSAFE 和 synthetic replay log 路径。
+  - dslc/bench/run_e2e_ablations.py: 识别 focused/bounded [CEX] marker，避免把有审计证据的 UNSAFE 记成 ERROR。
+- **沉淀为冒烟/回归测试**:
+  - dslc.tests.workflows.test_focused_direct_workflow: 覆盖未知尾部 final guard、未知寄存器写 forget/fallback、cwd-relative marker、synthetic log marker。
+  - dslc.tests.bench.test_run_e2e_ablations_classify: 覆盖 bounded replay [CEX] 分类。
+  - 回归执行: python3 -m unittest -v dslc.tests.workflows.test_focused_direct_workflow dslc.tests.toolchain.test_validate_counterexample dslc.tests.bench.test_run_e2e_ablations_classify，Ran 63 tests ... OK。
+
+## 2026-05-13
+
+- **Spec**: Procurator/argo/code/spec/bench/ddosd_window_label_collision_bug.prop
+- **时间**: 2026-05-13 12:03 CST
+- **目标/进度**: 重跑已知理论 bug（DDOSD window label collision），补齐此前 slicing TIMEOUT/manual BPL 证据之后的主 ablation 入口结果。
+- **结果**:
+  - slicing: UNSAFE，run_id 20260513-120339-f0e7，产物目录 .tmp/procurator/verify/ddosd_window_label_collision_bug/20260513-120339-f0e7/。
+  - 证据: ddosd_window_label_collision_bug.bounded-dsl-replay.unsafe.json + ddosd_window_label_collision_bug.bounded-dsl-replay.textual.log；最终 guard s1_ingress_src_cs1__last0_value <= 1 在 replay 中被确定违反。
+- **坑（实现/流程导致）**:
+  - 旧 run 20260513-045658-0c3d 为 TIMEOUT，不能解释为 bug absence。
+  - replay 初版在 bug 相关计数已经增长到 2 后，被后续报警/entropy 计算中的未知控制流挡住；这是尾部无关路径建模不足，不是性质不存在。
+- **修复/沉淀**:
+  - bounded replay 增加 final procurator_bad guard early witness：只有当 guard 当前已确定为 false 时才提前接受 UNSAFE；guard 未知、外部未知或目标寄存器未知时仍 fallback。
+  - ablation 配置继续固定 --no-reg-debug + ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf，避免回退到此前不稳定 profile。
+- **沉淀为冒烟/回归测试**:
+  - dslc.tests.workflows.test_focused_direct_workflow.test_bounded_dsl_replay_accepts_final_guard_before_unknown_tail
+  - dslc.tests.workflows.test_focused_direct_workflow.test_bounded_dsl_replay_rejects_unknown_tail_when_final_guard_is_unknown
+  - dslc.tests.bench.test_run_e2e_ablations_classify.test_ddosd_dry_run_uses_opt_smallblocks_profile
+
+## 2026-05-13
+
+- **Spec**: Procurator/argo/code/spec/bench/distcache_leaf_pktloss_clone_drop_bug.prop
+- **时间**: 2026-05-13 12:04 CST
+- **目标/进度**: 重跑已知理论 bug（DistCache leaf pktloss clone/drop），补齐当前 results JSON 缺失项并留存可审计证据。
+- **结果**:
+  - slicing: UNSAFE，run_id 20260513-120447-c9d6，产物目录 .tmp/procurator/verify/distcache_leaf_pktloss_clone_drop_bug/20260513-120447-c9d6/。
+  - 证据: distcache_leaf_pktloss_clone_drop_bug.bounded-dsl-replay.unsafe.json + distcache_leaf_pktloss_clone_drop_bug.bounded-dsl-replay.textual.log；ablation 表记录 opt result UNSAFE。
+- **坑（实现/流程导致）**:
+  - 该 case 之前在当前 JSON 中缺失，不能以“未跑/未记录”替代已知理论 bug 的重验证。
+  - 若 replay 或 solver 后续返回 unsupported/timeout/no-result，策略仍是 fallback/重跑，不解释为 bug absence。
+- **修复/沉淀**:
+  - 复用 bounded DSL replay 的 UNSAFE-only marker 与 CLI [RESULT] RESULT: UNSAFE 输出，保证 ablation 分类和 sanity 能接住证据。
+- **沉淀为冒烟/回归测试**:
+  - dslc.tests.toolchain.test_validate_counterexample.test_summarize_witness_accepts_bounded_dsl_replay_marker
+  - dslc.tests.bench.test_run_e2e_ablations_classify.test_sanity_check_accepts_bounded_dsl_replay_marker
+
+## 2026-05-13
+
+- **Spec**: Procurator/argo/code/spec/bench/distcache_spine_cache_frequency_idx_bug.prop
+- **时间**: 2026-05-13 12:06-12:08 CST
+- **目标/进度**: 重跑已知理论 bug（DistCache spine cache_frequency idx），补齐当前 results JSON 缺失项，并通过 witness rerun 留存可审计证据。
+- **结果**:
+  - slicing: UNSAFE，run_id 20260513-120630-b8a4，产物目录 .tmp/procurator/verify/distcache_spine_cache_frequency_idx_bug/20260513-120630-b8a4/。
+  - 证据: gemcutter.log 主 run UNSAFE，gemcutter.witness.log witness rerun UNSAFE，witness 文件 distcache_spine_cache_frequency_idx_bug.bpl-witness.graphml。
+- **坑（实现/流程导致）**:
+  - 该 case 之前在当前 JSON 中缺失，不能将“未重跑”当作 bug absence。
+  - 本 case 走 Ultimate/GemCutter 正常 witness 路径，耗时约 119.3s；短 timeout/unknown 仍不能作为不存在证据。
+- **修复/沉淀**:
+  - 本轮未新增 case-specific 建模修复；使用 runner 当前命令 `verify --wraparound off --use-spec-max-steps` 重新跑出主 UNSAFE 和 witness rerun UNSAFE。
+- **沉淀为冒烟/回归测试**:
+  - 由 run_e2e_ablations.py 保存 run_id、log_path、witness 和 sanity，后续 report-only / resume 会复用当前 JSON 证据。
+
+## 2026-05-13
+
+- **Spec**: bounded DSL replay / focused-direct prepass infrastructure (multi-spec regression support)
+- **时间**: 2026-05-13 11:30-12:10 CST
+- **目标/进度**: 修复已知理论 bug 重跑中的 “有确定 guard 违反但 solver/后半段未知导致 no-result/ERROR” 链路，保证 UNSAFE-only under-approx 证据能被 CLI、ablation 分类、sanity 和 witness summary 全链路识别。
+- **结果**:
+  - 新增/修复 bounded DSL replay marker `*.bounded-dsl-replay.unsafe.json`，synthetic log `*.bounded-dsl-replay.textual.log`，kind 为 `bounded_dsl_replay_under_approx`。
+  - Cheetah、DDOSD、DistCache leaf 均通过该链路重新跑出 `UNSAFE` 且 sanity `OK`；DistCache spine 通过正常 Ultimate + witness rerun 路径 `UNSAFE`。
+  - `.tmp/procurator/e2e_ablations_20260513_current.json` 当前 23 条 recorded runs 均为 `UNSAFE`，无 non-UNSAFE / sanity 异常记录。
+- **坑（实现/流程导致）**:
+  - `procurator verify` 初版 bounded replay 命中时只返回 rc=1 和 `[CEX]`，没有 `[RESULT] RESULT: UNSAFE`；`run_e2e_ablations.py` 因此把有 marker 的结果记成 `ERROR`。
+  - bounded replay 初版把未知寄存器写和未知尾部控制流直接当 unsupported；对已经能由最终 `procurator_bad` guard 判定违反的路径过于保守，导致真实 bug 证据丢失。
+  - marker 校验初版把 cwd-relative BPL path 当成 marker-dir-relative path，导致真实 `.tmp/...` marker 无法被 `bounded_dsl_replay_marker_for_bpl` 接受。
+- **修复/沉淀**:
+  - 未知寄存器写：忘记该寄存器数组与镜像的已知值；若最终 guard 依赖它，会继续未知并 fallback。
+  - 未知尾部控制流：仅当 final `procurator_bad` guard 当前已确定为 false 时提前接受 UNSAFE；guard 未知、外部过程未知、assert 未知均 fail-closed fallback。
+  - CLI 输出：bounded replay 命中时打印 `[RESULT] RESULT: UNSAFE` 和 replay textual log 的 `[LOG]`。
+  - ablation 分类：识别 focused/bounded `[CEX]` marker 作为 UNSAFE 兜底，避免 rc=1 被错误归为 ERROR。
+- **沉淀为冒烟/回归测试**:
+  - `python3 -m unittest -v dslc.tests.workflows.test_focused_direct_workflow dslc.tests.toolchain.test_validate_counterexample dslc.tests.bench.test_run_e2e_ablations_classify`
+  - 结果：`Ran 63 tests ... OK`。
