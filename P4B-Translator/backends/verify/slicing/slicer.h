@@ -39,6 +39,8 @@ struct SliceResult {
     bool filterTables = false;
     std::map<cstring, int> regMaxIndex;
     std::set<cstring> regHasNonConst;
+    // Compatibility name: true means a cross-pass event was detected
+    // (recirculate/resubmit/clone/mirror), not only recirculation.
     bool hasRecirculation = false;
     std::vector<cstring> rwReads;
     std::vector<cstring> rwWrites;

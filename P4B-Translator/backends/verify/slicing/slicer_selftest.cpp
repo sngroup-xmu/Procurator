@@ -33,7 +33,9 @@ int runSlicingSelftest(cstring selftestCase,
 
     if (caseName != "netchain_seq" && caseName != "netchain_pop_front" &&
         caseName != "distcache_reg_alias" && caseName != "distcache_parser_select" &&
-        caseName != "recirc_meta_flow" && caseName != "frr_pkt_par_write" &&
+        caseName != "recirc_meta_flow" && caseName != "recirc_payload_flow" &&
+        caseName != "clone_payload_flow" &&
+        caseName != "frr_pkt_par_write" &&
         caseName != "netlock_pushback_underflow" && caseName != "etc_pkt_len_target_prefix" &&
         caseName != "flowrest_flow_duration_target_prefix" &&
         caseName != "flowdos_hash_index_dependency") {
@@ -176,6 +178,147 @@ int runSlicingSelftest(cstring selftestCase,
             slicedProgram->apply(finder);
             expect(finder.foundAssign,
                    "expected sliced IR retains at least one assignment to meta.do_recirculate in MyIngress");
+        }
+    } else if (caseName == "recirc_payload_flow") {
+        // Cross-pass payload regression: Ingress updates an on-packet field before
+        // Egress recirculates the packet. The next pass uses that field to choose
+        // the forwarding output. Slicing for the forwarding output must retain the
+        // payload update; otherwise each pass is modeled as an unrelated fresh packet.
+        expect(_setContains(sres.keepVarNames, "hdr.fanout.pass"),
+               "expected keepVarNames contains hdr.fanout.pass");
+        expect(_setContains(sres.keepVarNames, "p4b_recirculate"),
+               "expected keepVarNames contains p4b_recirculate");
+
+        if (slicedProgram) {
+            class RecircPayloadFinder : public Inspector {
+             public:
+                bool inIngress = false;
+                bool inEgress = false;
+                bool foundPassAssign = false;
+                bool foundRecirculate = false;
+
+                bool preorder(const IR::P4Control* ctrl) override {
+                    inIngress = (ctrl && ctrl->name.name == "MyIngress");
+                    inEgress = (ctrl && ctrl->name.name == "MyEgress");
+                    return inIngress || inEgress;
+                }
+
+                void postorder(const IR::P4Control*) override {
+                    inIngress = false;
+                    inEgress = false;
+                }
+
+                bool preorder(const IR::AssignmentStatement* stmt) override {
+                    if (!inIngress || !stmt || !stmt->left) {
+                        return false;
+                    }
+                    auto member = stmt->left->to<IR::Member>();
+                    if (!member || member->member.name != "pass") {
+                        return false;
+                    }
+                    auto fanout = member->expr->to<IR::Member>();
+                    if (!fanout || fanout->member.name != "fanout") {
+                        return false;
+                    }
+                    auto base = fanout->expr->to<IR::PathExpression>();
+                    if (base && base->path && base->path->name.name == "hdr") {
+                        foundPassAssign = true;
+                    }
+                    return false;
+                }
+
+                bool preorder(const IR::MethodCallExpression* call) override {
+                    if (!inEgress || !call || !call->method) {
+                        return true;
+                    }
+                    std::string name = call->method->toString().c_str();
+                    std::string lower;
+                    lower.reserve(name.size());
+                    for (char c : name) {
+                        lower.push_back(static_cast<char>(::tolower(c)));
+                    }
+                    if (lower.find("recirculate") != std::string::npos ||
+                        lower.find("resubmit") != std::string::npos) {
+                        foundRecirculate = true;
+                    }
+                    return true;
+                }
+            };
+
+            RecircPayloadFinder finder;
+            slicedProgram->apply(finder);
+            expect(finder.foundPassAssign,
+                   "expected sliced IR retains hdr.fanout.pass assignment before recirculation");
+            expect(finder.foundRecirculate,
+                   "expected sliced IR retains recirculate/resubmit call in MyEgress");
+        }
+    } else if (caseName == "clone_payload_flow") {
+        // Cross-pass clone/mirror payload regression: the payload field update
+        // must survive slicing when the clone event is the slicing root.
+        expect(_setContains(sres.keepVarNames, "hdr.fanout.pass"),
+               "expected keepVarNames contains hdr.fanout.pass");
+        expect(_setContains(sres.keepVarNames, "p4b_clone_i2e"),
+               "expected keepVarNames contains p4b_clone_i2e");
+
+        if (slicedProgram) {
+            class ClonePayloadFinder : public Inspector {
+             public:
+                bool inIngress = false;
+                bool foundPassAssign = false;
+                bool foundClone = false;
+
+                bool preorder(const IR::P4Control* ctrl) override {
+                    inIngress = (ctrl && ctrl->name.name == "MyIngress");
+                    return inIngress;
+                }
+
+                void postorder(const IR::P4Control*) override {
+                    inIngress = false;
+                }
+
+                bool preorder(const IR::AssignmentStatement* stmt) override {
+                    if (!inIngress || !stmt || !stmt->left) {
+                        return false;
+                    }
+                    auto member = stmt->left->to<IR::Member>();
+                    if (!member || member->member.name != "pass") {
+                        return false;
+                    }
+                    auto fanout = member->expr->to<IR::Member>();
+                    if (!fanout || fanout->member.name != "fanout") {
+                        return false;
+                    }
+                    auto base = fanout->expr->to<IR::PathExpression>();
+                    if (base && base->path && base->path->name.name == "hdr") {
+                        foundPassAssign = true;
+                    }
+                    return false;
+                }
+
+                bool preorder(const IR::MethodCallExpression* call) override {
+                    if (!inIngress || !call || !call->method) {
+                        return true;
+                    }
+                    std::string name = call->method->toString().c_str();
+                    std::string lower;
+                    lower.reserve(name.size());
+                    for (char c : name) {
+                        lower.push_back(static_cast<char>(::tolower(c)));
+                    }
+                    if (lower.find("clone") != std::string::npos ||
+                        lower.find("mirror") != std::string::npos) {
+                        foundClone = true;
+                    }
+                    return true;
+                }
+            };
+
+            ClonePayloadFinder finder;
+            slicedProgram->apply(finder);
+            expect(finder.foundPassAssign,
+                   "expected sliced IR retains hdr.fanout.pass assignment before clone/mirror");
+            expect(finder.foundClone,
+                   "expected sliced IR retains clone/mirror call in MyIngress");
         }
     } else if (caseName == "netchain_pop_front") {
         // Header-stack slicing regression: preserve hdr.overlay.pop_front(1) when
