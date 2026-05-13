@@ -23,6 +23,49 @@ from dslc.tests.wraparound.schedule.fixtures import (
 
 
 class WraparoundScheduleManifestTests(unittest.TestCase):
+    def test_schedule_manifest_exposes_paper_stage_names(self) -> None:
+        runner = _SequenceRunner(["SAFE"])
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            base_bpl = out_dir / "base.bpl"
+            base_bpl.write_text(_MIN_BPL, encoding="utf-8")
+
+            manifest_path = _run_schedule_replay_cegar_loop(
+                spec_path=out_dir / "x.prop",
+                spec_text="",
+                base_bpl=base_bpl,
+                base_text=_MIN_BPL,
+                out_dir=out_dir,
+                work_dir=out_dir / "work",
+                candidate=_candidate(),
+                partition_ports={},
+                timeout_seconds=1,
+                closure_timeout_cap_seconds=1,
+                resource_limits=False,
+                confirm_unroll=1,
+                max_confirm_unroll=1,
+                max_iters=1,
+                enable_env_completion_refinement=False,
+                runner=runner,
+                toolchain_nowitness=Path("tc.xml"),
+                toolchain_witness=Path("tc_w.xml"),
+                witness_settings=Path("s_w.epf"),
+                closure_toolchain=Path("tc_cl.xml"),
+                settings=Path("s.epf"),
+                closure_settings=Path("s_cl.epf"),
+            )
+
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            manifest["paper_stages"],
+            {
+                "stage1": "ENTRY_CHECK",
+                "stage2": "NEAR_WRAP",
+                "stage3": "CLOSURE_CHECK",
+            },
+        )
+
     def test_schedule_manifest_requires_hash_and_certified_flag(self) -> None:
         sched_manifest = _dependency_schedule_manifest()
         manifest = {

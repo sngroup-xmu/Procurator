@@ -8,6 +8,17 @@ from dslc.workflows.wraparound_schedule import (
 )
 
 
+PAPER_STAGE_NAMES = {
+    "stage1": "ENTRY_CHECK",
+    "stage2": "NEAR_WRAP",
+    "stage3": "CLOSURE_CHECK",
+}
+
+
+def paper_stage_names() -> dict[str, str]:
+    return dict(PAPER_STAGE_NAMES)
+
+
 def _stage_result_is(res: object, what: str) -> bool:
     if not isinstance(res, dict):
         return False

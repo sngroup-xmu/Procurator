@@ -46,6 +46,7 @@ from dslc.workflows.wraparound_support.distcache import (
 )
 from dslc.workflows.wraparound_support.certification.manifest import (
     manifest_certified_unsafe_data as _manifest_certified_unsafe_data,
+    paper_stage_names,
 )
 from dslc.workflows.wraparound_support.refinement import (
     _find_latest_graphml_witness_since,
@@ -211,6 +212,7 @@ class CegisManifest:
     # Keep `candidate_reason` as a human-readable summary for grep-friendly manifests.
     candidate: dict
     candidate_reason: str
+    paper_stages: dict
     attempts: List[CegisAttemptRecord]
     blockers: List[dict] = field(default_factory=list)
     certified: bool = False
@@ -246,6 +248,7 @@ def _write_manifest(
         base_bpl_sha256=base_bpl_sha256,
         candidate=asdict(cand),
         candidate_reason=cand.reason,
+        paper_stages=paper_stage_names(),
         attempts=attempts,
         blockers=[b.to_manifest() for b in blockers],
         certified=bool(certified),
