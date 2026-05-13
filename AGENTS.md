@@ -7007,3 +7007,64 @@ un_e2e_ablations.py 因此把 rc=1 分类为 ERROR。
 - **沉淀为冒烟/回归测试**:
   - `python3 -m unittest -v dslc.tests.workflows.test_focused_direct_workflow dslc.tests.toolchain.test_validate_counterexample dslc.tests.bench.test_run_e2e_ablations_classify`
   - 结果：`Ran 63 tests ... OK`。
+
+## 2026-05-13 camera-ready 对齐：Input Inference 审计证据
+
+- **Spec/Test target**: `dslc.tests.boogie.backend.test_boogie_input_inference_evidence`
+- **时间**: 2026-05-13 17:10-17:40 Asia/Shanghai
+- **目标/进度**: 对齐论文里的 Input Inference / `Keep[v]` / `Havoc[v]` 可审计性；不改变 pruning 语义，把当前 DSLC 已经计算的 slicing seeds、P4B keep vars、required packet vars、raw/havoc/pruned input vars、force-kept inputs、skipped control outputs 写入 backend profile。
+- **结果**:
+  - 完成 commit `6a4830d4` (`feat: record input inference evidence`)。
+  - 每个 node profile 新增 `input_inference` 字段，用于解释字段为什么被保留、havoc、剪掉或从外部输入中跳过。
+  - `standard_metadata.egress_spec` 等转发控制输出被记录在 `skipped_control_outputs`，不再只能从生成的 Boogie 里反推。
+- **坑（实现错误导致）**:
+  - required packet var declaration 检查原来没有处理 P4B 生成的 `_0` 变体；容易把已经存在的变量误判为缺失，或诱导错误的 ghost declaration 思路。
+  - Windows 侧直接跑 P4B-dependent smoke 会因 Linux P4B binary 路径不可执行失败；这不是本 feature 语义回归，P4B-dependent 测试应在 WSL 下跑。
+- **修复/沉淀为冒烟测试**:
+  - `dslc/backends/boogie/core/bpl.py`: 新增 `collect_skipped_input_vars`，并修正 required var 声明检查的 `_0` 解析。
+  - `dslc/backends/boogie/compiler.py`: 写入 `input_inference` profile。
+  - `dslc/tests/boogie/backend/test_boogie_input_inference_evidence.py`: 覆盖 Keep/Havoc profile、assume-only required vars、skipped control outputs。
+  - 回归执行：
+    - Windows: `.venv\Scripts\python.exe -m unittest -v dslc.tests.boogie.backend.test_boogie_input_inference_evidence dslc.tests.boogie.backend.test_boogie_no_ghost_packet_vars dslc.tests.boogie.backend.test_boogie_bpl_missing_var_decls dslc.tests.boogie.backend.test_boogie_slicing_seeds` -> PASS。
+    - WSL: `.venv-wsl/bin/python -m unittest -v dslc.tests.boogie.backend.test_boogie_input_inference_evidence dslc.tests.boogie.backend.test_boogie_no_ghost_packet_vars dslc.tests.boogie.backend.test_boogie_bpl_missing_var_decls dslc.tests.boogie.backend.test_boogie_slicing_seeds` -> PASS。
+
+## 2026-05-13 camera-ready 对齐：wraparound 论文阶段命名
+
+- **Spec/Test target**: `dslc.tests.wraparound.schedule.certification.test_schedule_manifest_certification`
+- **时间**: 2026-05-13 17:40-18:00 Asia/Shanghai
+- **目标/进度**: 对齐论文的三阶段表述，使 manifest 直接暴露 `ENTRY_CHECK` / `NEAR_WRAP` / `CLOSURE_CHECK`，避免 camera-ready 审计时只看到内部兼容名。
+- **结果**:
+  - 完成 commit `e0a1d907` (`feat: expose wraparound paper stages`)。
+  - `CegisManifest` 输出新增 `paper_stages`，映射为 `stage1=ENTRY_CHECK`、`stage2=NEAR_WRAP`、`stage3=CLOSURE_CHECK`。
+  - 该 feature 只增加命名/manifest 审计字段，不改变认证规则；`UNKNOWN/TIMEOUT/未认证 SAFE` 仍不能解释为 bug absence。
+- **坑（实现错误导致）**:
+  - 本轮无新语义实现错误；主要风险是把内部 `CONFIRM` 等兼容名字和论文 `NEAR_WRAP` 表述混在一起，导致审计材料不可读。
+- **修复/沉淀为冒烟测试**:
+  - `dslc/workflows/wraparound_support/certification/manifest.py`: 新增 `PAPER_STAGE_NAMES` 与 `paper_stage_names()`。
+  - `dslc/workflows/wraparound_cegis.py`: manifest 写入 `paper_stages`。
+  - `dslc/tests/wraparound/schedule/certification/test_schedule_manifest_certification.py`: 新增 manifest stage-name 回归。
+  - 回归执行：
+    - `.venv\Scripts\python.exe -m unittest -v dslc.tests.wraparound.schedule.certification.test_schedule_manifest_certification` -> PASS。
+    - `.venv\Scripts\python.exe -m unittest -v dslc.tests.wraparound.schedule.test_wraparound_schedule` -> PASS。
+
+## 2026-05-13 camera-ready 对齐：cross-pass / pipeline payload slicing 审计
+
+- **Spec/Test target**: `dslc.tests.p4b.test_p4b_cross_pass_payload_slicing`
+- **时间**: 2026-05-13 18:00-18:30 Asia/Shanghai
+- **目标/进度**: 对齐论文 CrossPass/Pipeline 数据依赖描述；不是重写 slicer，而是用 P4B selftest 证明现有 cross-pass augmentation 对 recirculate/resubmit 与 clone/mirror 的 packet payload 依赖保留正确。
+- **结果**:
+  - 完成 commit `901750cb` (`test: audit cross-pass payload slicing`)。
+  - 新增 `recirc_payload_flow` selftest：Ingress 写 `hdr.fanout.pass`，Egress recirculate 后下一 pass 依赖该 payload 字段；slicing for forwarding output 必须保留 payload write 与 recirculate trigger。
+  - 新增 `clone_payload_flow` selftest 与最小 `clone_fanout` fixture：Ingress 写 `hdr.fanout.pass` 后 I2E clone；slicing for clone event 必须保留 payload write 与 clone/mirror call。
+  - `SliceResult.hasRecirculation` 增加兼容命名注释，说明该字段现在表示 cross-pass event detected（recirculate/resubmit/clone/mirror），不是只限 recirculation。
+- **坑（实现错误导致）**:
+  - 本轮没有发现 cross-pass 算法失效；新增测试是审计/回归证据。
+  - 工作树中存在其它未提交 slicing selftest 实验 hunk，提交时必须只纳入 cross-pass payload 相关改动，避免把未验证 feature 混入。
+- **修复/沉淀为冒烟测试**:
+  - `P4B-Translator/backends/verify/slicing/slicer_selftest.cpp`: 新增 `recirc_payload_flow` 与 `clone_payload_flow` 检查，直接检查 `keepVarNames` 和 sliced IR 中的 payload assignment / event call。
+  - `dslc/tests/p4b/test_p4b_cross_pass_payload_slicing.py`: 新增 WSL/P4B translator 端到端 selftest wrapper。
+  - `Procurator/argo/code/dataset/clone_fanout/switch.p4`: 新增最小 clone/mirror payload dependency fixture。
+  - 回归执行：
+    - `wsl --cd /mnt/e/p4-verify/P4B-Translator/build-host make -j16 p4c-translator` -> PASS。
+    - `wsl --cd /mnt/e/p4-verify .venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_cross_pass_payload_slicing` -> PASS（2 tests）。
+    - `wsl --cd /mnt/e/p4-verify .venv-wsl/bin/python -m unittest -v dslc.tests.p4b.test_p4b_cross_pass_payload_slicing dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_netchain_seq_seed_slicing dslc.tests.p4b.test_p4b_translator_slicing_selftest.TestP4BTranslatorSlicingSelftest.test_recirc_meta_flow_cross_stage_slicing` -> PASS（4 tests）。
