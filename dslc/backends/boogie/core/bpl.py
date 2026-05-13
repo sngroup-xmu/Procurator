@@ -158,6 +158,15 @@ def collect_input_vars_and_egress_type(
     return dedup, egress_type, declared_vars, var_types, egress_var, type_defs
 
 
+def collect_skipped_input_vars(raw_bpl: str) -> List[str]:
+    skipped: List[str] = []
+    for m in _BPL_VAR_DECL_RE.finditer(raw_bpl):
+        name = m.group(1)
+        if is_skipped_input_var(name):
+            skipped.append(name)
+    return sorted(set(skipped))
+
+
 def filter_input_vars_by_usage(
     raw_bpl: str,
     input_vars: Sequence[str],
@@ -184,6 +193,23 @@ _P4_VAR_REF_RE = re.compile(
     r"(?![A-Za-z0-9_\.\$])"
 )
 
+
+def _required_var_resolves_declared(declared: set[str], name: str) -> bool:
+    base_name = name
+    suffix = ""
+    if "[" in name:
+        base_name, rest = name.split("[", 1)
+        suffix = "[" + rest
+
+    candidates = [base_name]
+    if base_name.endswith("_0"):
+        candidates.append(base_name[:-2])
+    else:
+        candidates.append(base_name + "_0")
+
+    return any((cand + suffix) in declared for cand in candidates if cand)
+
+
 def find_missing_var_decls(
     raw_bpl: str,
     *,
@@ -198,7 +224,9 @@ def find_missing_var_decls(
     declared.update(m.group(1) for m in const_decl_re.finditer(raw_bpl))
     referenced = {m.group(0) for m in _P4_VAR_REF_RE.finditer(raw_bpl)}
     required = {v for v in (required_vars or []) if is_packet_var(v) and not is_skipped_input_var(v)}
-    missing = sorted((referenced | required) - declared)
+    missing_referenced = referenced - declared
+    missing_required = {v for v in required if not _required_var_resolves_declared(declared, v)}
+    missing = sorted(missing_referenced | missing_required)
     return missing
 
 

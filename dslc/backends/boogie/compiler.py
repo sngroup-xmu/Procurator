@@ -12,6 +12,7 @@ from ...speclang.model import SpecModel
 from .core.bpl import (
     assert_no_missing_var_decls,
     assert_no_missing_type_decls,
+    collect_skipped_input_vars,
     collect_input_vars_and_egress_type,
     filter_input_vars_by_usage,
     looks_like_bpl,
@@ -299,6 +300,8 @@ class BoogieBackend:
             input_vars, egress_t, declared, var_types, egress_var, type_defs = collect_input_vars_and_egress_type(
                 raw_text
             )
+            raw_input_vars_before_prune = list(input_vars)
+            force_keep: set[str] = set()
 
             # Correctness: any packet var referenced by the spec must resolve to an existing
             # declared Boogie global (possibly via `_0` suffix). Otherwise we'd end up
@@ -341,6 +344,17 @@ class BoogieBackend:
                     force_keep=sorted(force_keep),
                 )
                 node_prof["env_input_prune_s"] = prof.elapsed_since(t_env_prune)
+
+            node_prof["input_inference"] = {
+                "slicing_vars": sorted(set(effective_slicing_vars)),
+                "slicing_keep_vars": sorted(set(p4b_keep_vars)),
+                "required_packet_vars": sorted(set(slicing_plan.required_packet_vars.get(alias, []))),
+                "raw_input_vars": sorted(set(raw_input_vars_before_prune)),
+                "force_keep_input_vars": sorted(force_keep),
+                "havoc_input_vars": sorted(set(input_vars)),
+                "pruned_input_vars": sorted(set(raw_input_vars_before_prune) - set(input_vars)),
+                "skipped_control_outputs": collect_skipped_input_vars(raw_text),
+            }
 
             node_info[alias] = _BoogieNodeInfo(
                 raw_bpl=raw_text,
