@@ -1127,6 +1127,41 @@ procedure main()
             self.assertTrue(s.ok)
             self.assertEqual(s.kind, "focused_under_approx")
 
+    def test_summarize_witness_accepts_bounded_dsl_replay_marker(self) -> None:
+        import hashlib
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from dslc.bench.validate_counterexample import summarize_witness
+
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            bpl = out_dir / "toy.bpl"
+            bpl.write_text("procedure mainProcedure() returns() { assert !procurator_bad; }\n", encoding="utf-8")
+            log = out_dir / "toy.bounded-dsl-replay.textual.log"
+            log.write_text("RESULT: UNSAFE\nCounterExampleResult [Line: 1]\n", encoding="utf-8")
+            marker = out_dir / "toy.bounded-dsl-replay.unsafe.json"
+            marker.write_text(
+                json.dumps(
+                    {
+                        "kind": "bounded_dsl_replay_under_approx",
+                        "result_line": "RESULT: UNSAFE",
+                        "source_bpl": str(bpl),
+                        "bpl": str(bpl),
+                        "log": str(log),
+                        "source_bpl_sha256": hashlib.sha256(bpl.read_bytes()).hexdigest(),
+                        "focused_bpl_sha256": hashlib.sha256(bpl.read_bytes()).hexdigest(),
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            s = summarize_witness(out_dir=out_dir)
+            self.assertTrue(s.ok)
+            self.assertEqual(s.kind, "bounded_dsl_replay_under_approx")
+
     def test_summarize_witness_accepts_direct_global_assert(self) -> None:
         import tempfile
         from pathlib import Path
@@ -1154,6 +1189,45 @@ procedure main()
             s = summarize_witness(out_dir=out_dir)
             self.assertTrue(s.ok)
             self.assertEqual(s.kind, "dsl_assert")
+
+    def test_summarize_witness_accepts_direct_assert_when_assumption_mentions_procurator_bad(
+        self,
+    ) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from dslc.bench.validate_counterexample import summarize_witness
+
+        bpl = "\n".join(
+            [
+                "procedure p4_ingress(){",
+                "  assert (egress_spec == 1bv9 || egress_spec == 2bv9);",
+                "}",
+                "procedure main(){",
+                "  var procurator_bad: bool;",
+                "  // Global assertions (accumulated into procurator_bad)",
+                "  if (!((egress_spec == 1bv9 || egress_spec == 2bv9))) { procurator_bad := true; }",
+                "  assert !procurator_bad;",
+                "}",
+            ]
+        )
+        witness = (
+            "<graphml><graph>"
+            "<node><data key=\"violation\">true</data></node>"
+            "<edge><data key=\"sourcecode\">procurator_bad := false;</data></edge>"
+            "<edge><data key=\"assumption\">procurator_bad == false</data></edge>"
+            "<edge><data key=\"sourcecode\">assert egress_spec == 1bv9 || egress_spec == 2bv9;</data></edge>"
+            "</graph></graphml>"
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            out_dir = Path(td)
+            (out_dir / "toy.bpl").write_text(bpl, encoding="utf-8")
+            (out_dir / "toy.bpl-witness.graphml").write_text(witness, encoding="utf-8")
+
+            s = summarize_witness(out_dir=out_dir)
+            self.assertTrue(s.ok, msg=s.details)
+            self.assertEqual(s.kind, "internal_assert")
 
     def test_summarize_witness_accepts_wraparound_assert_call(self) -> None:
         import tempfile

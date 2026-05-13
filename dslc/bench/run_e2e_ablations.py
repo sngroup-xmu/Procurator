@@ -51,6 +51,10 @@ class Bench:
     use_spec_max_steps: bool
     extra_args: list[str]
     notes: str
+    # Optional override for the optimized/slicing run.
+    # Some large sliced programs still need the high-memory/small-block Z3
+    # profile after P4B keeps complete register helper procedures.
+    opt_settings: str = ""
     # Optional override for the base (`--no-slicing --no-env-prune`) run.
     # This is useful when the default low-memory Z3 profile (2GB) OOMs on
     # very large unsliced programs during CFG/RCFG construction.
@@ -115,6 +119,8 @@ def _classify(stdout: str, rc: int) -> str:
             return "UNKNOWN"
         return "UNKNOWN"
 
+    if "[CEX] bounded_dsl_replay_under_approx:" in stdout or "[CEX] focused_under_approx:" in stdout:
+        return "UNSAFE"
     if "out of memory" in stdout.lower():
         return "OOM"
     if rc != 0:
@@ -281,7 +287,11 @@ def _sanity_check(*, root: Path, out_dir: str) -> str:
       - wraparound: manifest must be certified (entry unsafe, confirm unsafe, closure safe)
     """
     od = Path(out_dir)
-    focused = sorted(od.glob("*.focused-index0.unsafe.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    focused = sorted(
+        list(od.glob("*.focused-index0.unsafe.json")) + list(od.glob("*.bounded-dsl-replay.unsafe.json")),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     if focused:
         s = summarize_witness(out_dir=od)
         return "OK" if s.ok else f"FAIL({s.kind})"
@@ -553,6 +563,9 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=True,
             extra_args=["--no-reg-debug"],
             notes="",
+            # Sliced side can hit Z3 -memory:2024 OOM during TraceAbstraction after
+            # finding error traces; use the same high-memory small-block profile.
+            opt_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
             # Base run can OOM under the low-memory Z3 profiles; use the 8GB small-block profile.
             base_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
@@ -628,6 +641,10 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=True,
             extra_args=["--no-reg-debug"],
             notes="",
+            # The sliced side can OOM in Z3 RCFG construction under the
+            # default 2GB profile; use the same stable profile as the other
+            # large Gecko cases.
+            opt_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
         Bench(
             name="Gecko bug3: Improper Timer Initialization (NSDI)",
@@ -639,6 +656,11 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=True,
             extra_args=["--no-reg-debug"],
             notes="",
+            # After P4B keeps complete register helper procedures, the sliced
+            # model can OOM in Z3 RCFG construction under the default 2GB
+            # profile. Use the same high-memory small-blocks profile already
+            # required for larger Gecko runs.
+            opt_settings="dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
         Bench(
             name="P4xos: register access safety (NSDI)",
@@ -877,6 +899,8 @@ def main(argv: list[str]) -> int:
             parts += ["--no-slicing", "--no-env-prune"]
             if b.base_settings:
                 parts += ["--settings", b.base_settings]
+        elif b.opt_settings:
+            parts += ["--settings", b.opt_settings]
         return " ".join(parts)
 
     def _find_latest_witness(p: Path) -> Optional[Path]:
@@ -945,6 +969,8 @@ def main(argv: list[str]) -> int:
         ]
         if cfg.name == "noslicing" and b.base_settings:
             cmd += ["--settings", b.base_settings]
+        if cfg.name == "slicing" and b.opt_settings:
+            cmd += ["--settings", b.opt_settings]
         cmd += list(b.extra_args) + ["--spec", b.spec]
         if b.use_spec_max_steps:
             cmd.insert(len(cfg.args), "--use-spec-max-steps")

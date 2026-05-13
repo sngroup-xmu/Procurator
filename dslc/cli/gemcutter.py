@@ -18,7 +18,12 @@ from dslc.toolchain.ultimate_paths import (
 )
 from dslc.transform.wraparound_stages import _rewrite_forall_bv32_array_inits
 from dslc.utils.repo import repo_root
-from dslc.workflows.focused_direct import focused_unsafe_marker_for_bpl, run_focused_direct_prepass
+from dslc.workflows.focused_direct import (
+    bounded_dsl_replay_marker_for_bpl,
+    focused_unsafe_marker_for_bpl,
+    run_bounded_dsl_replay_prepass,
+    run_focused_direct_prepass,
+)
 from dslc.workflows.wraparound_cegis import (
     _manifest_certified_unsafe_data,
     run_wraparound_cegis_multi,
@@ -150,6 +155,14 @@ def _wraparound_manifest_certified_unsafe(manifest_path: Path) -> bool:
         data = json.loads(manifest_path.read_text(encoding="utf-8"))
     except Exception:
         return False
+    if str(data.get("cegar_mode") or "legacy_closure_assumes") == "schedule_replay":
+        try:
+            from dslc.bench.validate_counterexample import validate_wraparound_manifest
+
+            ok, _msg = validate_wraparound_manifest(manifest_path)
+            return ok
+        except Exception:
+            return False
     return _manifest_certified_unsafe_data(data)
 
 
@@ -160,6 +173,20 @@ def _toolchain_includes_witnessprinter(toolchain: Path) -> bool:
     except Exception:
         return False
     return "de.uni_freiburg.informatik.ultimate.witnessprinter" in txt
+
+
+def _marker_log_path(marker: Path) -> Optional[Path]:
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    raw = data.get("log")
+    if not isinstance(raw, str) or not raw:
+        return None
+    path = Path(raw)
+    if not path.is_absolute():
+        path = marker.parent / path
+    return path
 
 
 def _run_one(
@@ -218,6 +245,18 @@ def _run_one(
         return 0
 
     if focused_direct == "auto":
+        bounded_replay_rc = run_bounded_dsl_replay_prepass(
+            bpl_path=job.out_bpl,
+            log_dir=job.log_path.parent,
+        )
+        if bounded_replay_rc == 1:
+            marker = bounded_dsl_replay_marker_for_bpl(out_dir=job.log_path.parent, bpl_path=job.out_bpl)
+            print("[RESULT] RESULT: UNSAFE")
+            if marker is not None:
+                log_path = _marker_log_path(marker)
+                if log_path is not None:
+                    print(f"[LOG] {log_path}")
+            return 1
         focused_rc = run_focused_direct_prepass(
             bpl_path=job.out_bpl,
             log_dir=job.log_path.parent,
@@ -231,6 +270,7 @@ def _run_one(
             optimize_bpl=_optimize_bpl_for_ultimate,
         )
         if focused_rc == 1:
+            print("[RESULT] RESULT: UNSAFE")
             return 1
 
     # Give Ultimate a bit more time to shut down cleanly after the toolchain timeout.
@@ -776,6 +816,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if marker is not None:
                 print(f"[CEX] focused_under_approx: {marker}")
             else:
+                marker = bounded_dsl_replay_marker_for_bpl(out_dir=job.log_path.parent, bpl_path=job.out_bpl)
+                if marker is not None:
+                    print(f"[CEX] bounded_dsl_replay_under_approx: {marker}")
+                    return rc
                 try:
                     from dslc.bench.validate_counterexample import summarize_witness
 
