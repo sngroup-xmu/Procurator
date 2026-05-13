@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -124,9 +126,9 @@ def _resolve_scan_roots(root: Path, scan_roots: Iterable[str]) -> list[Path]:
 
 def _rel_to_root(root: Path, path: Path) -> str:
     try:
-        return str(path.relative_to(root))
+        return path.relative_to(root).as_posix()
     except ValueError:
-        return str(path)
+        return path.as_posix()
 
 
 def discover_candidates(root: Path, scan_roots: Iterable[Path], *, include_sanitized: bool, include_modules: bool) -> list[P4Candidate]:
@@ -212,6 +214,58 @@ def _include_paths(root: Path, p4: Path) -> list[Path]:
     return dedup
 
 
+def _missing_quoted_includes(p4: Path, include_paths: Iterable[Path]) -> list[str]:
+    try:
+        text = _read(p4)
+    except OSError:
+        return []
+    missing: list[str] = []
+    for match in re.finditer(r'^\s*#\s*include\s+"([^"]+)"', text, re.M):
+        include = match.group(1)
+        found = False
+        for inc in include_paths:
+            if (inc / include).is_file():
+                found = True
+                break
+        if not found:
+            missing.append(include)
+    return sorted(set(missing))
+
+
+def _prepare_p4c_input(root: Path, p4: Path, out_dir: Path) -> Path:
+    if " " not in str(p4):
+        return p4
+    digest = hashlib.sha1(str(p4).encode("utf-8")).hexdigest()[:12]
+    prepared_dir = out_dir / "_prepared_inputs" / digest
+    if prepared_dir.exists():
+        shutil.rmtree(prepared_dir)
+    shutil.copytree(p4.parent, prepared_dir, ignore=shutil.ignore_patterns(".git", "__pycache__"))
+    return prepared_dir / p4.name
+
+
+def _include_paths_for_prepared_input(original: Path, prepared: Path, include_paths: Iterable[Path]) -> list[Path]:
+    if prepared == original:
+        return list(include_paths)
+    original_parent = original.parent.resolve()
+    prepared_parent = prepared.parent.resolve()
+    out: list[Path] = []
+    seen: set[Path] = set()
+    for path in include_paths:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved == original_parent:
+            resolved = prepared_parent
+        elif " " in str(resolved):
+            continue
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        out.append(resolved)
+    return out
+
+
 def _classify_failure(output: str, returncode: int) -> str:
     msg = output.lower()
     if returncode == 124 or "timed out" in msg or "timeout" in msg:
@@ -260,9 +314,33 @@ def _run_one(
     out_bpl = out_dir / f"{stem}.bpl"
     out_meta = out_dir / f"{stem}.meta.json"
 
+    include_key = cand.path.parent.resolve()
+    include_paths = include_cache.get(include_key)
+    if include_paths is None:
+        include_paths = _include_paths(root, cand.path)
+        include_cache[include_key] = include_paths
+    missing_includes = _missing_quoted_includes(cand.path, include_paths)
+    if missing_includes:
+        return {
+            "path": cand.rel,
+            "target": cand.target,
+            "status": "SKIP",
+            "category": "missing_source_dependency",
+            "returncode": None,
+            "wall_s": 0.0,
+            "top_level_score": cand.top_level_score,
+            "top_level": cand.top_level,
+            "out_bpl": None,
+            "out_meta": None,
+            "error_tail": "missing quoted include(s): " + ", ".join(missing_includes),
+        }
+
+    p4_input = _prepare_p4c_input(root, cand.path, out_dir)
+    include_paths = _include_paths_for_prepared_input(cand.path, p4_input, include_paths)
+
     cmd: list[str] = [str(p4b_bin)]
     try:
-        cmd.extend(_maybe_tofino_cpp_defines(str(cand.path)))
+        cmd.extend(_maybe_tofino_cpp_defines(str(p4_input)))
     except Exception as exc:
         return {
             "path": cand.rel,
@@ -273,17 +351,12 @@ def _run_one(
             "wall_s": 0.0,
             "error_tail": str(exc),
         }
-    include_key = cand.path.parent.resolve()
-    include_paths = include_cache.get(include_key)
-    if include_paths is None:
-        include_paths = _include_paths(root, cand.path)
-        include_cache[include_key] = include_paths
     for inc in include_paths:
         cmd.extend(["-I", str(inc)])
     cmd.extend(["--std", "p4-16", "--goto"])
     if not with_slicing:
         cmd.append("--no-slicing")
-    cmd.extend([str(cand.path), "-o", str(out_bpl), "--meta-out", str(out_meta)])
+    cmd.extend([str(p4_input), "-o", str(out_bpl), "--meta-out", str(out_meta)])
 
     t0 = time.perf_counter()
     try:
@@ -346,6 +419,7 @@ def _semantic_counts(rows: Iterable[dict[str, Any]]) -> dict[str, int]:
 def _markdown(report: dict[str, Any]) -> str:
     rows = report["records"]
     ok_statuses = {"OK", "DISCOVERED"}
+    skip_statuses = {"SKIP"}
     semantic_counts = _semantic_counts(rows)
     lines: list[str] = []
     lines.append("# P4B Architecture Coverage Scan")
@@ -372,7 +446,8 @@ def _markdown(report: dict[str, Any]) -> str:
     lines.append("|---|---:|")
     lines.append(f"| total | {len(rows)} |")
     lines.append(f"| ok | {sum(1 for r in rows if r['status'] in ok_statuses)} |")
-    lines.append(f"| fail | {sum(1 for r in rows if r['status'] not in ok_statuses)} |")
+    lines.append(f"| skip | {sum(1 for r in rows if r['status'] in skip_statuses)} |")
+    lines.append(f"| fail | {sum(1 for r in rows if r['status'] not in ok_statuses | skip_statuses)} |")
     lines.append("")
     lines.append("### By Target")
     lines.append("")
@@ -414,12 +489,24 @@ def _markdown(report: dict[str, Any]) -> str:
     lines.append("| path | target | category | wall(s) | tail |")
     lines.append("|---|---|---|---:|---|")
     for r in rows:
-        if r["status"] in ok_statuses:
+        if r["status"] in ok_statuses | skip_statuses:
             continue
         tail = (r.get("error_tail") or "").replace("\r", "").replace("\n", "<br>")
         if len(tail) > 600:
             tail = tail[-600:]
         lines.append(f"| `{r['path']}` | `{r['target']}` | `{r['category']}` | {r['wall_s']} | {tail} |")
+    lines.append("")
+    lines.append("## Skips")
+    lines.append("")
+    lines.append("| path | target | category | reason |")
+    lines.append("|---|---|---|---|")
+    for r in rows:
+        if r["status"] not in skip_statuses:
+            continue
+        reason = (r.get("error_tail") or "").replace("\r", "").replace("\n", "<br>")
+        if len(reason) > 600:
+            reason = reason[-600:]
+        lines.append(f"| `{r['path']}` | `{r['target']}` | `{r['category']}` | {reason} |")
     lines.append("")
     lines.append("## All Programs")
     lines.append("")
@@ -567,7 +654,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     print(f"wrote {out_md}")
     if not records:
         return 2
-    compile_ok = all(r["status"] in {"OK", "DISCOVERED"} for r in records)
+    compile_ok = all(r["status"] in {"OK", "DISCOVERED", "SKIP"} for r in records)
     semantic_ok = not ns.semantic_audit or all(r.get("semantic_status") != SEMANTIC_FAIL for r in records)
     return 0 if compile_ok and semantic_ok else 1
 

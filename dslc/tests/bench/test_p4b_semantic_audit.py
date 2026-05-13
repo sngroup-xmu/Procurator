@@ -193,6 +193,22 @@ class TestP4BSemanticAudit(unittest.TestCase):
         self.assertEqual(out["semantic_status"], CHECK_WEAK)
         self.assertIn("hash_builtin_3arg", out["semantic_features"])
 
+    def test_three_arg_hash_target_helper_summary_is_ok(self) -> None:
+        src = "control C() { apply { hash(meta.output, HashAlgorithm.lookup3, { hdr.sa, hdr.da }); } }"
+        bpl = """
+        function hash__lookup3$bv16$bv16(arg0:bv16, arg1:bv16) returns(bv32);
+        procedure {:inline 1} C()
+        {
+            // p4b_hash_model: builtin algorithm=HashAlgorithm.lookup3 model=ubpf_runtime_helper precision=target_helper
+            meta.output := hash__lookup3$bv16$bv16(hdr.sa, hdr.da);
+        }
+        """
+
+        out = audit_text(src, bpl)
+
+        self.assertEqual(out["semantic_status"], CHECK_OK)
+        self.assertIn("hash_builtin_3arg", out["semantic_features"])
+
     def test_three_arg_hash_comment_only_is_failure(self) -> None:
         src = "control C() { apply { hash(meta.output, HashAlgorithm.lookup3, { hdr.sa }); } }"
         bpl = """
@@ -236,6 +252,22 @@ class TestP4BSemanticAudit(unittest.TestCase):
         out = audit_text(src, bpl)
 
         self.assertEqual(out["semantic_status"], CHECK_WEAK)
+
+    def test_hash_extern_target_helper_summary_is_ok(self) -> None:
+        src = "control C() { Hash<bit<16>>(PNA_HashAlgorithm_t.TOEPLITZ) h; apply { x = h.get_hash({a}); } }"
+        bpl = """
+        function C_h.get_hash$alg_PNA_HashAlgorithm_t_TOEPLITZ$bv16(arg0:bv16) returns(bv16);
+        procedure {:inline 1} C()
+        {
+            // p4b_hash_model: extern base=C_h algorithm=PNA_HashAlgorithm_t.TOEPLITZ model=dpdk_rss_helper precision=target_helper
+            x := C_h.get_hash$alg_PNA_HashAlgorithm_t_TOEPLITZ$bv16(a);
+        }
+        """
+
+        out = audit_text(src, bpl)
+
+        self.assertEqual(out["semantic_status"], CHECK_OK)
+        self.assertIn("hash_extern", out["semantic_features"])
 
     def test_hash_extern_identity_precise_is_ok(self) -> None:
         src = "control C() { Hash<bit<16>>(HashAlgorithm_t.IDENTITY) h; apply { x = h.get({a}); } }"

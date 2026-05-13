@@ -246,6 +246,13 @@ def _check_hash_builtin_3arg(bpl: str, *, slicing_mode: bool) -> SemanticCheck:
     precisions = _hash_model_precisions(bpl, kind="builtin")
     has_function = _has(r"\bfunction\s+hash[_$A-Za-z0-9.]*\(", bpl)
     has_assign = _has(r":=\s*hash[_$A-Za-z0-9.]*\(", bpl)
+    if "target_helper" in precisions:
+        return SemanticCheck(
+            "hash_builtin_3arg",
+            CHECK_OK,
+            "three-argument hash is summarized as the target runtime helper",
+            _hash_model_details(bpl, kind="builtin"),
+        )
     if "weak" in precisions:
         return SemanticCheck("hash_builtin_3arg", CHECK_WEAK, "three-argument hash uses havoc fallback", _hash_model_details(bpl, kind="builtin"))
     if "deterministic_uninterpreted" in precisions:
@@ -270,6 +277,13 @@ def _check_hash_extern(bpl: str, *, slicing_mode: bool) -> SemanticCheck:
     precisions = _hash_model_precisions(bpl, kind="extern")
     has_function = _has(r"\bfunction\s+[A-Za-z0-9_.]+\.(?:get|get_hash)[A-Za-z0-9_$]*\(", bpl)
     has_havoc_fallback = "__hash_get_" in bpl and _has(r"havoc\s+__hash_get_", bpl)
+    if "target_helper" in precisions:
+        return SemanticCheck(
+            "hash_extern",
+            CHECK_OK,
+            "Hash.get/get_hash is summarized as the target runtime helper",
+            _hash_model_details(bpl, kind="extern"),
+        )
     if "deterministic_uninterpreted" in precisions:
         return SemanticCheck(
             "hash_extern",
