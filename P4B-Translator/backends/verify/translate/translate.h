@@ -68,6 +68,7 @@ private:
 	// Map internal declaration names to sanitized control-plane names (e.g., from @name).
 	std::map<cstring, cstring> declRenames;
 	std::unordered_set<cstring> declRenameTargets;
+	std::map<cstring, cstring> controlInstanceTypes;
 	// Hash<W> extern instances keyed by translated instance name, with their
 	// Boogie return type (e.g. Hash<bit<11>> idx -> bv11).  Hash.get must stay a
 	// pure function of its data tuple; do not generalize this to arbitrary
@@ -116,6 +117,8 @@ private:
 	cstring renderBoolToBitvector(const cstring& expr, int width);
 	cstring renderBitvectorToBool(const cstring& expr, int width);
 	cstring coerceBitvectorExprWidth(const cstring& expr, int srcWidth, int dstWidth);
+	bool flattenHashDataFields(const IR::Expression* expr,
+	                           std::vector<std::pair<cstring, const IR::Type*>>& outFields);
 	cstring getOrCreateUnusedVar(cstring typeName);
 	cstring getOrCreateNamedVar(const std::string& name, cstring typeName);
 	cstring getOrCreateFreshVar(const std::string& prefix, cstring typeName);
@@ -139,10 +142,12 @@ private:
 		bool direct = false;
 	};
 	std::map<cstring, RegisterActionInfo> registerActions;
+	std::map<cstring, cstring> registerValueTypes;
 	std::set<cstring> forcedKeepVars;
 	std::unordered_set<cstring> usedVars;
 	cstring currentReturnVar;
 	int freshVarCount = 0;
+	std::map<cstring, int> registerWriteSiteCounts;
 	bool inParser = false;
 	std::set<cstring> parserLocalVars;
 
@@ -183,6 +188,7 @@ public:
 	void translateRegisterActionApply(const IR::Function* func, const cstring& procName);
 	cstring remapName(cstring name) const;
 	void recordDeclName(const IR::IDeclaration* decl);
+	void recordControlInstanceType(const IR::Declaration_Instance* instance, cstring name);
 	cstring translate(IR::ID id);
 	void incIndent();
 	void decIndent();
@@ -194,6 +200,7 @@ public:
 	bool isGlobalVariable(cstring variable);
 	void updateModifiedVariables(cstring variable);
 	void addRegisterWriteModifiedVariables(const cstring& regName);
+	void emitRegisterWriteSite(const cstring& regName);
 	void addPred(cstring proc, cstring predProc);
 
 	// P4LTL Specification

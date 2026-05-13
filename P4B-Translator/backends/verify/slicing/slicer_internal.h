@@ -68,6 +68,32 @@ static bool isIndexSegment(const std::string& s) {
     return true;
 }
 
+static bool isPersistentStateKey(const VarKey& key, const std::set<std::string>& regDecls) {
+    if (regDecls.count(key.base)) {
+        return true;
+    }
+    std::string withSuffix = key.base + "_0";
+    if (regDecls.count(withSuffix)) {
+        return true;
+    }
+    if (key.base.size() > 2 && key.base.rfind("_0") == key.base.size() - 2) {
+        std::string trimmed = key.base.substr(0, key.base.size() - 2);
+        if (regDecls.count(trimmed)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool isCrossPassPayloadKey(const VarKey& key,
+                                  const std::set<std::string>& packetCarriedBases,
+                                  const std::set<std::string>& regDecls) {
+    if (packetCarriedBases.count(key.base)) {
+        return true;
+    }
+    return isPersistentStateKey(key, regDecls);
+}
+
 static std::string varKeyToString(const VarKey& key) {
     std::string out = key.base;
     for (const auto& seg : key.segs) {
@@ -456,6 +482,46 @@ static void collectRegActionCallArgs(const IR::Vector<IR::Argument>* args,
         }
         idx++;
     }
+}
+
+static bool collectDirectRegisterBuiltinUsesDefs(const std::string& methodName,
+                                                 const IR::Expression* receiver,
+                                                 const IR::Vector<IR::Argument>* args,
+                                                 std::set<VarKey, VarKeyLess>& uses,
+                                                 std::set<VarKey, VarKeyLess>& defs,
+                                                 P4::TypeMap* typeMap) {
+    if (!args || (methodName != "register_read" && methodName != "register_write")) {
+        return false;
+    }
+    if (receiver) {
+        if (methodName == "register_write") {
+            collectExprKeys(receiver, defs, typeMap);
+        } else {
+            collectExprKeys(receiver, uses, typeMap);
+        }
+    }
+    int idx = 0;
+    for (auto arg : *args) {
+        if (!arg || !arg->expression) {
+            idx++;
+            continue;
+        }
+        if (methodName == "register_write") {
+            if (!receiver && idx == 0) {
+                collectExprKeys(arg->expression, defs, typeMap);
+            } else {
+                collectExprKeys(arg->expression, uses, typeMap);
+            }
+        } else if (methodName == "register_read") {
+            if (idx == 0) {
+                collectExprKeys(arg->expression, defs, typeMap);
+            } else {
+                collectExprKeys(arg->expression, uses, typeMap);
+            }
+        }
+        idx++;
+    }
+    return true;
 }
 
 static void collectExprKeys(const IR::Expression* expr,
@@ -1037,6 +1103,13 @@ static void collectStmtUsesDefs(const IR::Statement* stmt,
                 }
             }
             handled = true;
+        } else if (collectDirectRegisterBuiltinUsesDefs(methodName,
+                                                        receiver,
+                                                        mce->arguments,
+                                                        out.uses,
+                                                        out.defs,
+                                                        typeMap)) {
+            handled = true;
         } else if (methodName == "write") {
             if (receiver) {
                 collectExprKeys(receiver, out.defs, typeMap);
@@ -1341,6 +1414,13 @@ static void fillNodeUsesDefs(NodeInfo& node,
                         argIdx++;
                     }
                 }
+                handled = true;
+            } else if (collectDirectRegisterBuiltinUsesDefs(methodName,
+                                                            receiver,
+                                                            expr ? expr->arguments : nullptr,
+                                                            node.uses,
+                                                            node.defs,
+                                                            typeMap)) {
                 handled = true;
             } else if (methodName == "write") {
                 if (receiver) {
@@ -2455,6 +2535,7 @@ class ActionTableCollector : public Inspector {
  public:
     std::unordered_map<cstring, const IR::P4Action*> actions;
     std::unordered_map<cstring, const IR::P4Table*> tables;
+    std::unordered_map<cstring, const IR::P4Control*> controls;
     std::unordered_map<cstring, const IR::Declaration_Instance*> regActions;
 
     bool preorder(const IR::P4Action* a) override {
@@ -2464,7 +2545,38 @@ class ActionTableCollector : public Inspector {
 
     bool preorder(const IR::P4Table* t) override {
         tables.emplace(t->name.name, t);
+        cstring cp = t->controlPlaneName();
+        if (!cp.isNullOrEmpty()) {
+            tables.emplace(cp, t);
+        }
         return false;
+    }
+
+    bool preorder(const IR::P4Control* c) override {
+        controls.emplace(c->name.name, c);
+        const std::string name = c->name.name.c_str();
+        const std::string applySuffix = ".apply";
+        if (name.size() > applySuffix.size() &&
+            name.rfind(applySuffix) == name.size() - applySuffix.size()) {
+            const std::string base = name.substr(0, name.size() - applySuffix.size());
+            controls.emplace(base.c_str(), c);
+            if (base.size() > 2 && base.rfind("_0") == base.size() - 2) {
+                controls.emplace(base.substr(0, base.size() - 2).c_str(), c);
+            } else {
+                controls.emplace((base + "_0").c_str(), c);
+            }
+        } else {
+            controls.emplace((name + applySuffix).c_str(), c);
+            if (name.size() > 2 && name.rfind("_0") == name.size() - 2) {
+                const std::string base = name.substr(0, name.size() - 2);
+                controls.emplace(base.c_str(), c);
+                controls.emplace((base + applySuffix).c_str(), c);
+            } else {
+                controls.emplace((name + "_0").c_str(), c);
+                controls.emplace((name + "_0" + applySuffix).c_str(), c);
+            }
+        }
+        return true;
     }
 
     bool preorder(const IR::Declaration_Instance* inst) override {

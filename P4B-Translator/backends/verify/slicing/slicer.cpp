@@ -45,6 +45,7 @@ SliceResult Slicer::run(const SliceOptions& opts) {
     program->apply(collector);
     std::unordered_map<cstring, UsesDefs> actionUsesDefs;
     std::unordered_map<cstring, UsesDefs> tableUsesDefs;
+    std::unordered_map<cstring, UsesDefs> tableMayUsesDefs;
     std::unordered_map<cstring, std::unordered_set<int>> actionStmtIds;
     std::unordered_map<cstring, UsesDefs> regActionUsesDefs;
     std::unordered_map<cstring, std::unordered_set<int>> regActionStmtIds;
@@ -211,12 +212,14 @@ SliceResult Slicer::run(const SliceOptions& opts) {
         return false;
     };
     auto buildTableUsesDefs =
-        [&](const std::unordered_map<cstring, UsesDefs>& currentActionUsesDefs)
+        [&](const std::unordered_map<cstring, UsesDefs>& currentActionUsesDefs,
+            std::unordered_map<cstring, UsesDefs>* mayOut = nullptr)
         -> std::unordered_map<cstring, UsesDefs> {
         std::unordered_map<cstring, UsesDefs> out;
         for (const auto& kv : collector.tables) {
             const IR::P4Table* table = kv.second;
             UsesDefs ud;
+            UsesDefs mayUd;
             bool fixedDefault = false;
             if (opts.bmv2Analyzer) {
                 auto it = tableCp.find(kv.first);
@@ -230,14 +233,38 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                 actionRun.base = kv.first.c_str();
                 actionRun.segs.push_back("action_run");
                 addVarKey(ud.defs, actionRun);
+                addVarKey(mayUd.defs, actionRun);
                 if (auto key = table->getKey()) {
                     for (auto ke : key->keyElements) {
                         if (ke && ke->expression) {
                             collectExprKeys(ke->expression, ud.uses, typeMap);
+                            collectExprKeys(ke->expression, mayUd.uses, typeMap);
                         }
                     }
                 }
             }
+            std::vector<std::set<VarKey, VarKeyLess>> possibleActionDefs;
+            std::set<cstring> seenActions;
+            auto addActionSummary = [&](cstring actionName) {
+                if (actionName == nullptr || actionName == "") {
+                    return;
+                }
+                if (!seenActions.insert(actionName).second) {
+                    return;
+                }
+                if (!actionAllowed(kv.first, actionName)) {
+                    return;
+                }
+                auto it = currentActionUsesDefs.find(actionName);
+                if (it == currentActionUsesDefs.end()) {
+                    possibleActionDefs.emplace_back();
+                    return;
+                }
+                mergeSets(ud.uses, it->second.uses);
+                mergeSets(mayUd.uses, it->second.uses);
+                mergeSets(mayUd.defs, it->second.defs);
+                possibleActionDefs.push_back(it->second.defs);
+            };
             if (auto al = table->getActionList()) {
                 for (auto a : al->actionList) {
                     if (!a) {
@@ -247,50 +274,40 @@ SliceResult Slicer::run(const SliceOptions& opts) {
                     if (!path) {
                         continue;
                     }
-                    const bool allowed = actionAllowed(kv.first, path->name);
-                    auto it = currentActionUsesDefs.find(path->name);
-                    if (!allowed) {
-                        continue;
-                    }
-                    if (it != currentActionUsesDefs.end()) {
-                        mergeSets(ud.uses, it->second.uses);
-                        mergeSets(ud.defs, it->second.defs);
-                    }
+                    addActionSummary(path->name);
                 }
             }
             if (auto defAct = table->getDefaultAction()) {
                 if (auto pe = defAct->to<IR::PathExpression>()) {
-                    if (!actionAllowed(kv.first, pe->path->name)) {
-                        // For rule-based tables without explicit defaults, we add P4's default to allowedActions above.
-                        // Otherwise, treat non-allowed defaults as irrelevant for the configured control plane.
-                        goto default_done;
-                    }
-                    auto it = currentActionUsesDefs.find(pe->path->name);
-                    if (it != currentActionUsesDefs.end()) {
-                        mergeSets(ud.uses, it->second.uses);
-                        mergeSets(ud.defs, it->second.defs);
-                    }
+                    addActionSummary(pe->path->name);
                 } else if (auto mce = defAct->to<IR::MethodCallExpression>()) {
                     if (auto m = mce->method->to<IR::PathExpression>()) {
-                        if (!actionAllowed(kv.first, m->path->name)) {
-                            goto default_done;
-                        }
-                        auto it = currentActionUsesDefs.find(m->path->name);
-                        if (it != currentActionUsesDefs.end()) {
-                            mergeSets(ud.uses, it->second.uses);
-                            mergeSets(ud.defs, it->second.defs);
-                        }
+                        addActionSummary(m->path->name);
                     }
                 }
-default_done:
-                ;
+            }
+            if (!possibleActionDefs.empty()) {
+                std::set<VarKey, VarKeyLess> mustDefs = possibleActionDefs.front();
+                for (size_t i = 1; i < possibleActionDefs.size(); ++i) {
+                    std::set<VarKey, VarKeyLess> next;
+                    for (const auto& d : mustDefs) {
+                        if (possibleActionDefs[i].count(d)) {
+                            insertVarKey(next, d);
+                        }
+                    }
+                    mustDefs = std::move(next);
+                }
+                mergeSets(ud.defs, mustDefs);
             }
             out.emplace(kv.first, std::move(ud));
+            if (mayOut != nullptr) {
+                mayOut->emplace(kv.first, std::move(mayUd));
+            }
         }
         return out;
     };
 
-    tableUsesDefs = buildTableUsesDefs(actionUsesDefs);
+    tableUsesDefs = buildTableUsesDefs(actionUsesDefs, &tableMayUsesDefs);
 
     StatefulDeclCollector statefulDeclCollector;
     program->apply(statefulDeclCollector);
@@ -676,7 +693,8 @@ def_done:
         // Run a small fixpoint between CFG slicing and action-body slicing.
         // The first pass uses coarse action/table summaries, and later passes
         // refine those summaries based on the sliced action bodies.
-        tableUsesDefs = buildTableUsesDefs(actionUsesDefs);
+        tableMayUsesDefs.clear();
+        tableUsesDefs = buildTableUsesDefs(actionUsesDefs, &tableMayUsesDefs);
 
         keepStmtIds.clear();
         keepActions.clear();
@@ -800,37 +818,9 @@ def_done:
         }
     }
 
-    auto crossOk = [&](const VarKey& key) -> bool {
-        if (packetCarriedBases.count(key.base)) {
-            return true;
-        }
-        if (regDeclCollector.regs.count(key.base)) {
-            return true;
-        }
-        std::string withSuffix = key.base + "_0";
-        if (regDeclCollector.regs.count(withSuffix)) {
-            return true;
-        }
-        return false;
-    };
-    auto isStatefulKey = [&](const VarKey& key) -> bool {
-        if (regDeclCollector.regs.count(key.base)) {
-            return true;
-        }
-        std::string withSuffix = key.base + "_0";
-        if (regDeclCollector.regs.count(withSuffix)) {
-            return true;
-        }
-        if (key.base.size() > 2 && key.base.rfind("_0") == key.base.size() - 2) {
-            std::string trimmed = key.base.substr(0, key.base.size() - 2);
-            if (regDeclCollector.regs.count(trimmed)) {
-                return true;
-            }
-        }
-        return false;
-    };
-
-    // Build data edges (add cross-pass edges only for CROSSOK variables).
+    // Build data edges. Cross-pass edges are restricted to values that the
+    // actor-event semantics can carry into a later pass, plus persistent P4
+    // state such as registers.
     std::unordered_map<int, std::unordered_set<int>> dataPredSets;
     auto addDataPred = [&](int useId, int defId, const VarKey&) {
         dataPredSets[useId].insert(defId);
@@ -841,9 +831,55 @@ def_done:
     }
     for (const auto& kv : cfg.nodes) {
         int id = kv.first;
+        const auto* stmt = kv.second.stmt;
+        auto* mcs = stmt ? stmt->to<IR::MethodCallStatement>() : nullptr;
+        auto* expr = mcs ? mcs->methodCall : nullptr;
+        auto* member = (expr && expr->method) ? expr->method->to<IR::Member>() : nullptr;
+        if (!member || member->member != "apply") {
+            continue;
+        }
+        auto* base = member->expr->to<IR::PathExpression>();
+        if (!base) {
+            continue;
+        }
+        cstring tableName = resolvePathName(base, refMap);
+        auto mayIt = tableMayUsesDefs.find(tableName);
+        if (mayIt == tableMayUsesDefs.end()) {
+            continue;
+        }
+        for (const auto& mayDef : mayIt->second.defs) {
+            std::deque<int> todo;
+            std::unordered_set<int> seen;
+            for (int succ : kv.second.succs) {
+                todo.push_back(succ);
+            }
+            while (!todo.empty()) {
+                int cur = todo.front();
+                todo.pop_front();
+                if (!seen.insert(cur).second) {
+                    continue;
+                }
+                auto curIt = cfg.nodes.find(cur);
+                if (curIt == cfg.nodes.end()) {
+                    continue;
+                }
+                if (curIt->second.uses.count(mayDef)) {
+                    dataPredSets[cur].insert(id);
+                }
+                if (curIt->second.defs.count(mayDef)) {
+                    continue;
+                }
+                for (int succ : curIt->second.succs) {
+                    todo.push_back(succ);
+                }
+            }
+        }
+    }
+    for (const auto& kv : cfg.nodes) {
+        int id = kv.first;
         const auto& node = kv.second;
         for (const auto& use : node.uses) {
-            if (!isStatefulKey(use)) {
+            if (!isPersistentStateKey(use, regDeclCollector.regs)) {
                 continue;
             }
             auto defIt = allDefs1.find(use);
@@ -857,7 +893,7 @@ def_done:
     }
     if (result.hasRecirculation) {
         walkReachingDefs(nodes2, [&](int useId, int defId, const VarKey& var) {
-            if (!crossOk(var)) {
+            if (!isCrossPassPayloadKey(var, packetCarriedBases, regDeclCollector.regs)) {
                 return;
             }
             dataPredSets[useId].insert(defId);
@@ -1042,7 +1078,8 @@ def_done:
     // Keep action bodies referenced by kept calls.
     std::unordered_set<int> extraKeep;
     std::unordered_set<cstring> keepRegActions;
-    auto recordApplyCallee = [&](const cstring& callee) {
+    std::unordered_set<cstring> visitingControlCallees;
+    std::function<void(const cstring&)> recordApplyCallee = [&](const cstring& callee) {
         auto tit = collector.tables.find(callee);
         if (tit != collector.tables.end()) {
             cstring tableName = tit->second->controlPlaneName();
@@ -1078,6 +1115,45 @@ def_done:
                     }
                 }
             }
+            return;
+        }
+        auto cit = collector.controls.find(callee);
+        if (cit != collector.controls.end()) {
+            if (!visitingControlCallees.insert(callee).second) {
+                return;
+            }
+            if (cit->second && cit->second->body) {
+                collectStmtIds(cit->second->body, extraKeep);
+                class NestedApplyCollector : public Inspector {
+                 public:
+                    std::function<void(const cstring&)>& record;
+                    P4::ReferenceMap* refMap;
+                    NestedApplyCollector(std::function<void(const cstring&)>& record,
+                                         P4::ReferenceMap* refMap)
+                        : record(record), refMap(refMap) {}
+
+                    bool preorder(const IR::MethodCallExpression* expr) override {
+                        if (!expr || !expr->method) {
+                            return true;
+                        }
+                        if (auto member = expr->method->to<IR::Member>()) {
+                            if (member->member == "apply" ||
+                                member->member == "execute" ||
+                                member->member == "execute_log") {
+                                if (auto base = member->expr->to<IR::PathExpression>()) {
+                                    record(resolvePathName(base, refMap));
+                                }
+                            }
+                        } else if (auto pe = expr->method->to<IR::PathExpression>()) {
+                            record(resolvePathName(pe, refMap));
+                        }
+                        return true;
+                    }
+                };
+                NestedApplyCollector nested(recordApplyCallee, refMap);
+                cit->second->body->apply(nested);
+            }
+            visitingControlCallees.erase(callee);
             return;
         }
         auto rit = regActionStmtIds.find(callee);
@@ -1127,6 +1203,93 @@ def_done:
             }
 	        }
 	    }
+
+    auto controlBodyHasKeptStatement = [&](const IR::P4Control* control) -> bool {
+        if (!control || !control->body) {
+            return false;
+        }
+        std::unordered_set<int> bodyIds;
+        collectStmtIds(control->body, bodyIds);
+        for (int stmtId : bodyIds) {
+            if (extraKeep.count(stmtId)) {
+                return true;
+            }
+        }
+        for (const auto& nodeKv : cfg.nodes) {
+            if (!keepNodes.count(nodeKv.first) || !nodeKv.second.stmt) {
+                continue;
+            }
+            if (bodyIds.count(nodeKv.second.stmt->id)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    bool callClosureChanged = true;
+    while (callClosureChanged) {
+        callClosureChanged = false;
+        for (const auto& kv : cfg.nodes) {
+            int id = kv.first;
+            if (keepNodes.count(id)) {
+                continue;
+            }
+            auto* stmt = kv.second.stmt;
+            auto* mcs = stmt ? stmt->to<IR::MethodCallStatement>() : nullptr;
+            auto* expr = mcs ? mcs->methodCall : nullptr;
+            if (!expr || !expr->method) {
+                continue;
+            }
+            cstring callee = nullptr;
+            if (auto member = expr->method->to<IR::Member>()) {
+                if (member->member == "apply" ||
+                    member->member == "execute" ||
+                    member->member == "execute_log") {
+                    if (auto base = member->expr->to<IR::PathExpression>()) {
+                        callee = resolvePathName(base, refMap);
+                    }
+                }
+            } else if (auto pe = expr->method->to<IR::PathExpression>()) {
+                callee = resolvePathName(pe, refMap);
+            }
+            if (callee == nullptr || callee == "") {
+                continue;
+            }
+
+            bool keepCall = false;
+            if (keepTables.count(callee) || keepActions.count(callee) ||
+                keepRegActions.count(callee)) {
+                keepCall = true;
+            } else {
+                auto tit = collector.tables.find(callee);
+                if (tit != collector.tables.end()) {
+                    cstring tableName = tit->second->controlPlaneName();
+                    if (tableName.isNullOrEmpty()) {
+                        tableName = callee;
+                    }
+                    keepCall = keepTables.count(tableName) > 0;
+                }
+            }
+            if (!keepCall) {
+                auto cit = collector.controls.find(callee);
+                if (cit != collector.controls.end()) {
+                    keepCall = controlBodyHasKeptStatement(cit->second);
+                }
+            }
+            if (!keepCall) {
+                continue;
+            }
+            keepNodes.insert(id);
+            recordApplyCallee(callee);
+            for (int pred : kv.second.ctrlPreds) {
+                if (!keepNodes.count(pred)) {
+                    keepNodes.insert(pred);
+                    callClosureChanged = true;
+                }
+            }
+            callClosureChanged = true;
+        }
+    }
 
     std::unordered_map<cstring, std::unordered_set<int>> actionSliceStmtIds;
     std::unordered_set<cstring> slicedActions;

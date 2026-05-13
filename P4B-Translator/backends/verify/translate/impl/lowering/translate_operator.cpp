@@ -127,25 +127,39 @@ cstring Translator::translate(const IR::Operation_Binary *opBinary){
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "mul."+returnType+"("+left+", "+right+")";
     }
+    else if (opBinary->is<IR::AddSat>()) {
+        cstring left = renderInfIntWithBvType(opBinary->left, returnType);
+        cstring right = renderInfIntWithBvType(opBinary->right, returnType);
+        cstring satType = returnType.startsWith("bv") ? returnType : typeName;
+        if (satType.startsWith("bv")) {
+            addFunction("add", "bvadd", satType, satType);
+            addFunction("sub", "bvsub", satType, satType);
+            addFunction("bult", "bvult", satType, "bool");
+            cstring sum = "add."+satType+"("+left+", "+right+")";
+            cstring maxv = "sub."+satType+"(0"+satType+", 1"+satType+")";
+            return "(if bult."+satType+"("+sum+", "+left+") then "+maxv+" else "+sum+")";
+        }
+        return "("+left+" + "+right+")";
+    }
     else if (opBinary->is<IR::Add>()) {
         addFunction("add", "bvadd", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
         return "add."+returnType+"("+left+", "+right+")";
     }
-    else if (opBinary->is<IR::AddSat>()) {
-        addFunction("add", "bvadd", typeName, returnType);
+    else if (opBinary->is<IR::SubSat>()) {
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);
-        return "add."+returnType+"("+left+", "+right+")";
+        cstring satType = returnType.startsWith("bv") ? returnType : typeName;
+        if (satType.startsWith("bv")) {
+            addFunction("sub", "bvsub", satType, satType);
+            addFunction("bult", "bvult", satType, "bool");
+            cstring diff = "sub."+satType+"("+left+", "+right+")";
+            return "(if bult."+satType+"("+left+", "+right+") then 0"+satType+" else "+diff+")";
+        }
+        return "(if "+left+" < "+right+" then 0 else ("+left+" - "+right+"))";
     }
     else if (opBinary->is<IR::Sub>()) {
-        addFunction("sub", "bvsub", typeName, returnType);
-        cstring left = renderInfIntWithBvType(opBinary->left, returnType);
-        cstring right = renderInfIntWithBvType(opBinary->right, returnType);
-        return "sub."+returnType+"("+left+", "+right+")";
-    }
-    else if (opBinary->is<IR::SubSat>()) {
         addFunction("sub", "bvsub", typeName, returnType);
         cstring left = renderInfIntWithBvType(opBinary->left, returnType);
         cstring right = renderInfIntWithBvType(opBinary->right, returnType);

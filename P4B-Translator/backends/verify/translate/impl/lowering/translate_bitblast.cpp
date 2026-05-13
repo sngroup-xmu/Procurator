@@ -115,6 +115,19 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
         else if (auto mul = opBinary->to<IR::Mul>()){
             return "";
         }
+        else if (auto addSat = opBinary->to<IR::AddSat>()) {
+            // Saturating add in bv2int mode:
+            // clamp to max when modular addition would wrap.
+            cstring powerFunc = "power_2_"+toString(size)+"()";
+            cstring funcName = "addsat."+typeName;
+            cstring function = "";
+            function = "function {:inline true} "+funcName+"(left:int, right:int) : int{\n";
+            function += "    if(((left%"+powerFunc+") + (right%"+powerFunc+")) >= "+powerFunc+") then "+powerFunc+"-1\n";
+            function += "    else (((left%"+powerFunc+") + (right%"+powerFunc+"))%"+powerFunc+")\n";
+            function += "}\n";
+            addFunction(funcName, function);
+            return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        }
         else if (auto add = opBinary->to<IR::Add>()){
             /*  Example:
                     vector<bool> res(a.size(), false);
@@ -155,8 +168,18 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
             return tmpPrefix;
         }
-        else if (auto addSat = opBinary->to<IR::AddSat>()) {
-            return "";
+        else if (auto subSat = opBinary->to<IR::SubSat>()) {
+            // Saturating sub in bv2int mode:
+            // clamp to 0 on underflow.
+            cstring powerFunc = "power_2_"+toString(size)+"()";
+            cstring funcName = "subsat."+typeName;
+            cstring function = "";
+            function = "function {:inline true} "+funcName+"(left:int, right:int) : int{\n";
+            function += "    if((left%"+powerFunc+") < (right%"+powerFunc+")) then 0\n";
+            function += "    else (("+powerFunc+" + (left%"+powerFunc+") - (right%"+powerFunc+"))%"+powerFunc+")\n";
+            function += "}\n";
+            addFunction(funcName, function);
+            return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
         }
         else if (auto sub = opBinary->to<IR::Sub>()) {
             /*  Example:
@@ -225,9 +248,6 @@ cstring Translator::bitBlasting(const IR::Operation_Binary *opBinary){
             }
 
             return tmpPrefix;
-        }
-        else if (auto subSat = opBinary->to<IR::SubSat>()) {
-            return "";
         }
         else if (auto bAnd = opBinary->to<IR::BAnd>()) {
             /*  Example:
@@ -669,6 +689,18 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
             
             return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
         }
+        else if (auto addSat = opBinary->to<IR::AddSat>()) {
+            // Saturating add in bv2int mode:
+            // clamp to MAX on overflow.
+            cstring powerFunc = "power_2_"+toString(size)+"()";
+            cstring funcName = "addsat."+typeName;
+            function = "function {:inline true} "+funcName+"(left:int, right:int) : int{\n";
+            function += "    if(((left%"+powerFunc+") + (right%"+powerFunc+")) >= "+powerFunc+") then "+powerFunc+"-1\n";
+            function += "    else (((left%"+powerFunc+") + (right%"+powerFunc+"))%"+powerFunc+")\n";
+            function += "}\n";
+            addFunction(funcName, function);
+            return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
+        }
         else if (auto add = opBinary->to<IR::Add>()){
             // Arithmetic operands are normalized through modulo reduction, so int
             // literals and bitvector expressions share one Boogie helper.
@@ -682,33 +714,19 @@ cstring Translator::translateUA(const IR::Operation_Binary *opBinary){
             
             return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
         }
-        else if (auto addSat = opBinary->to<IR::AddSat>()) {
-            // Saturating arithmetic is currently approximated by the same modular
-            // helper as Add; callers that need exact saturation should avoid the
-            // bitblasting lowering mode until that model is strengthened.
+        else if (auto subSat = opBinary->to<IR::SubSat>()) {
+            // Saturating sub in bv2int mode:
+            // clamp to 0 on underflow.
             cstring powerFunc = "power_2_"+toString(size)+"()";
-            cstring funcName = "add."+typeName;
-
-            function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
-                "(left%"+powerFunc+")+(right%"+powerFunc+"))%"+powerFunc+"}\n";
-            
+            cstring funcName = "subsat."+typeName;
+            function = "function {:inline true} "+funcName+"(left:int, right:int) : int{\n";
+            function += "    if((left%"+powerFunc+") < (right%"+powerFunc+")) then 0\n";
+            function += "    else (("+powerFunc+" + (left%"+powerFunc+") - (right%"+powerFunc+"))%"+powerFunc+")\n";
+            function += "}\n";
             addFunction(funcName, function);
-            
             return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
         }
         else if (auto sub = opBinary->to<IR::Sub>()) {
-            // overflow???
-            cstring powerFunc = "power_2_"+toString(size)+"()";
-            cstring funcName = "sub."+typeName;
-
-            function = "function {:inline true} "+funcName+"(left:int, right:int) : int{("+
-                powerFunc+" + (left%"+powerFunc+") - (right%"+powerFunc+"))%"+powerFunc+"}\n";
-            
-            addFunction(funcName, function);
-
-            return funcName+"("+translate(opBinary->left)+", "+translate(opBinary->right)+")";
-        }
-        else if (auto subSat = opBinary->to<IR::SubSat>()) {
             // overflow???
             cstring powerFunc = "power_2_"+toString(size)+"()";
             cstring funcName = "sub."+typeName;

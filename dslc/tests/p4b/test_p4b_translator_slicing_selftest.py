@@ -140,6 +140,50 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
+    def test_distcache_kept_registers_keep_write_helpers(self) -> None:
+        """Slicing must not keep register mirror globals without their helper procedures."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "distcache" / "leafswitch" / "netcache.p4"
+        entries = repo_root / "Procurator" / "argo" / "code" / "spec" / "bench" / "distcache_leaf_cm_hotness_entries_min.txt"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not entries.exists() or not p4include.is_dir():
+            self.skipTest("missing DistCache dataset, entries, or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "distcache_cm34.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "--goto",
+                "--no-slicing-control-seeds",
+                "--bmv2cmds",
+                str(entries),
+                "--slicing-vars=netcacheEgress_cm3_reg,netcacheEgress_cm4_reg",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        for reg in ["netcacheEgress_cm3_reg", "netcacheEgress_cm4_reg"]:
+            self.assertRegex(text, rf"(?m)^function\s+{{:inline true}}{reg}\.read\b")
+            self.assertRegex(text, rf"(?m)^procedure\s+{{:inline 1}}\s+{reg}\.write\b")
+            self.assertRegex(
+                text,
+                rf"(?s)procedure\s+{{:inline 1}}\s+{reg}\.write\(.*?"
+                rf"{reg}__wrote_any\s*:=\s*true;.*?"
+                rf"{reg}__last0_value\s*:=\s*value;",
+            )
+
     def test_distcache_parser_select_fields_not_dropped(self) -> None:
         """Regression: parser select fields must remain declared under slicing."""
 
@@ -283,6 +327,50 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
             "--goto",
             "--slicing-vars=hdr.fanout.write_id",
             "--slicing-selftest=recirc_meta_flow",
+            str(p4),
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    def test_recirc_payload_flow_cross_pass_slicing(self) -> None:
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "recirc_fanout" / "switch.p4"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing recirc_fanout dataset or p4include")
+
+        cmd = [
+            str(p4b_bin),
+            "-I",
+            str(p4include),
+            "--goto",
+            "--slicing-vars=standard_metadata.egress_spec",
+            "--slicing-selftest=recirc_payload_flow",
+            str(p4),
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    def test_clone_payload_flow_cross_pass_slicing(self) -> None:
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "clone_fanout" / "switch.p4"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing clone_fanout dataset or p4include")
+
+        cmd = [
+            str(p4b_bin),
+            "-I",
+            str(p4include),
+            "--goto",
+            "--slicing-vars=p4b_clone_i2e",
+            "--slicing-selftest=clone_payload_flow",
             str(p4),
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -479,8 +567,8 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
         self.assertIn("goto State$MyParser$int_parser_start;", text)
         self.assertIn("goto State$MyParser$int_parser_start_0;", text)
 
-    def test_external_int_flowdos_control_apply_counter_wraparound_meta(self) -> None:
-        """Regression: ordinary control-apply read/write counters must be exported to wraparound meta."""
+    def test_external_int_flowdos_reset_counter_not_exported_as_wraparound_meta(self) -> None:
+        """Regression: counters with threshold resets are not exported as steady pumps."""
 
         repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
         p4b_bin = self._p4b_bin(repo_root)
@@ -514,22 +602,13 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
 
         updates = meta.get("wraparound", {}).get("updates", [])
         counter_updates = [u for u in updates if u.get("reg") == "MyIngress_counter_filter"]
-        self.assertTrue(counter_updates, f"expected FlowDoS counter_filter update, got {updates!r}")
-        counter = counter_updates[0]
-        self.assertEqual(counter.get("idx_vars"), ["counter_pos"])
-        self.assertEqual(counter.get("idx_expr"), "counter_pos")
-        self.assertEqual(counter.get("value_var"), "counter_val")
-        self.assertEqual(counter.get("op"), "add")
-        self.assertIs(counter.get("delta_is_const"), True)
-        self.assertEqual(counter.get("delta_const"), "1")
-        self.assertEqual(counter.get("value_width"), 8)
-        self.assertEqual(counter.get("index_width"), 32)
-        self.assertEqual(counter.get("context"), "MyIngress")
+        self.assertFalse(counter_updates, f"FlowDoS reset counter must not be exported, got {updates!r}")
         index_defs = meta.get("wraparound", {}).get("index_definitions", [])
         counter_defs = [d for d in index_defs if d.get("target_var") == "counter_pos"]
         self.assertTrue(counter_defs, f"expected counter_pos hash index definition, got {index_defs!r}")
         exprs = [d.get("expr", "") for d in counter_defs]
-        self.assertTrue(any("hash_" in e and "crc16" in e for e in exprs))
+        self.assertTrue(any("__p4b_crc16_bmv2_byte" in e and "urem.bv32" in e for e in exprs))
+        self.assertFalse(any("hash__crc16" in e for e in exprs))
         self.assertTrue(
             any("hdr.ipv4.srcAddr" in e for e in exprs),
             f"expected callsite-specialized counter_pos definition, got {counter_defs!r}",
@@ -557,6 +636,49 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
             "--goto",
             "--slicing-vars=counter_filter",
             "--slicing-selftest=flowdos_hash_index_dependency",
+            str(p4),
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+    def test_external_netbeacon_total_pkts_keeps_result_guard_defs(self) -> None:
+        """Regression: noaction table branches must not kill prior guard definitions."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built (missing build-host/p4c-translator)")
+
+        p4 = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "dataset"
+            / "external_netbeacon_sec23"
+            / "NetBeacon"
+            / "switch"
+            / "data_plane"
+            / "switch.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing external NetBeacon dataset or p4include")
+
+        from dslc.backends.boogie_p4b import _maybe_tofino_cpp_defines
+
+        cmd = [
+            str(p4b_bin),
+            *_maybe_tofino_cpp_defines(str(p4)),
+            "--std",
+            "p4-16",
+            "-I",
+            str(p4include),
+            "-I",
+            str(p4.parent),
+            "--goto",
+            "--no-slicing-control-seeds",
+            "--slicing-vars=SwitchIngress_Register_total_pkts",
+            "--slicing-selftest=netbeacon_total_pkts_result_guard",
             str(p4),
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -597,25 +719,29 @@ class TestP4BTranslatorSlicingSelftest(unittest.TestCase):
 
         self.assertIn("var Ingress_reg_pkt_count:[bv11]bv8;", text)
         self.assertIn("var Ingress_reg_pkt_len_total:[bv11]bv16;", text)
+        self.assertIn(
+            "p4b_hash_model: extern base=Ingress_flow_id_calc "
+            "algorithm=HashAlgorithm_t.CRC32 model=crc32_bmv2 precision=precise",
+            text,
+        )
+        self.assertIn(
+            "p4b_hash_model: extern base=Ingress_idx_calc "
+            "algorithm=HashAlgorithm_t.CRC16 model=crc16_bmv2 precision=precise",
+            text,
+        )
+        self.assertIn("__p4b_crc32_bmv2_byte", text)
+        self.assertIn("__p4b_crc16_bmv2_byte", text)
         self.assertRegex(
             text,
-            r"function Ingress_flow_id_calc\.get\$bv32\$bv32\$bv16\$bv16\$bv8"
-            r"\(arg0:bv32, arg1:bv32, arg2:bv16, arg3:bv16, arg4:bv8\) returns\(bv32\);",
+            r"(?s)meta\.flow_ID := .*__p4b_crc32_bmv2_byte.*"
+            r"hdr\.ipv4\.src_addr.*hdr\.ipv4\.dst_addr.*srcPort(?:_\d+)?.*"
+            r"dstPort(?:_\d+)?.*hdr\.ipv4\.protocol.*;",
         )
         self.assertRegex(
             text,
-            r"meta\.flow_ID := Ingress_flow_id_calc\.get\$bv32\$bv32\$bv16\$bv16\$bv8"
-            r"\(hdr\.ipv4\.src_addr, hdr\.ipv4\.dst_addr, srcPort(?:_\d+)?, dstPort(?:_\d+)?, hdr\.ipv4\.protocol\);",
-        )
-        self.assertRegex(
-            text,
-            r"function Ingress_idx_calc\.get\$bv32\$bv32\$bv16\$bv16\$bv8"
-            r"\(arg0:bv32, arg1:bv32, arg2:bv16, arg3:bv16, arg4:bv8\) returns\(bv11\);",
-        )
-        self.assertRegex(
-            text,
-            r"meta\.register_index := Ingress_idx_calc\.get\$bv32\$bv32\$bv16\$bv16\$bv8"
-            r"\(hdr\.ipv4\.src_addr, hdr\.ipv4\.dst_addr, srcPort(?:_\d+)?, dstPort(?:_\d+)?, hdr\.ipv4\.protocol\);",
+            r"(?s)meta\.register_index := .*__p4b_crc16_bmv2_byte.*"
+            r"hdr\.ipv4\.src_addr.*hdr\.ipv4\.dst_addr.*srcPort(?:_\d+)?.*"
+            r"dstPort(?:_\d+)?.*hdr\.ipv4\.protocol.*;",
         )
         self.assertRegex(
             text,

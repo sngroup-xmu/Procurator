@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -427,6 +428,58 @@ static void collectAffineRegisterWrites(const IR::Statement* body,
         return;
     }
 
+    std::unordered_map<std::string, int> registerWriteCounts;
+
+    std::function<void(const IR::Statement*)> countRegisterWrites = [&](const IR::Statement* stmt) {
+        if (stmt == nullptr) {
+            return;
+        }
+        if (auto block = stmt->to<IR::BlockStatement>()) {
+            for (auto comp : block->components) {
+                if (auto s = comp->to<IR::Statement>()) {
+                    countRegisterWrites(s);
+                }
+            }
+            return;
+        }
+        if (auto ifs = stmt->to<IR::IfStatement>()) {
+            countRegisterWrites(ifs->ifTrue);
+            countRegisterWrites(ifs->ifFalse);
+            return;
+        }
+        if (auto sw = stmt->to<IR::SwitchStatement>()) {
+            for (auto c : sw->cases) {
+                if (c && c->statement) {
+                    countRegisterWrites(c->statement);
+                }
+            }
+            return;
+        }
+        auto mcs = stmt->to<IR::MethodCallStatement>();
+        if (mcs == nullptr || mcs->methodCall == nullptr || mcs->methodCall->method == nullptr) {
+            return;
+        }
+        auto member = mcs->methodCall->method->to<IR::Member>();
+        if (member == nullptr || member->member != "write") {
+            return;
+        }
+        std::string objVar;
+        if (!extractVarPath(member->expr, objVar) || objVar.empty()) {
+            return;
+        }
+        std::string regName = objVar;
+        const auto dot = regName.find_last_of('.');
+        if (dot != std::string::npos) {
+            regName = regName.substr(dot + 1);
+        }
+        auto itReg = regs.find(regName);
+        if (itReg == regs.end()) {
+            return;
+        }
+        registerWriteCounts[itReg->second.boogie_name]++;
+    };
+    countRegisterWrites(body);
+
     std::unordered_map<std::string, UpdateInfo> varUpdates;
     std::unordered_set<std::string> emitted;
 
@@ -585,6 +638,13 @@ static void collectAffineRegisterWrites(const IR::Statement* body,
             const bool hasIdxExpr = extractBvExprString(idxExpr, idxExprStr);
 
             const auto& regInfo = itReg->second;
+            auto countIt = registerWriteCounts.find(regInfo.boogie_name);
+            if (countIt == registerWriteCounts.end() || countIt->second != 1) {
+                // Multiple writes in the same action/control may reset or overwrite the
+                // affine update, so the block is not a steady one-step pump.
+                return;
+            }
+
             std::string key = regInfo.boogie_name + "|" + valVar + "|" + u.op + "|" + u.delta_const_dec;
             if (emitted.count(key)) {
                 return;

@@ -103,6 +103,43 @@ cstring Translator::coerceBitvectorExprWidth(const cstring& expr, int srcWidth, 
     return "0bv" + toString(dstWidth - srcWidth) + "++" + expr;
 }
 
+bool Translator::flattenHashDataFields(const IR::Expression* expr,
+                                       std::vector<std::pair<cstring, const IR::Type*>>& outFields) {
+    if (expr == nullptr || expr->type == nullptr) {
+        return false;
+    }
+    cstring baseName = translate(expr);
+    if (baseName == "") {
+        return false;
+    }
+    if (const IR::Type_Header* headerType = resolveHeaderType(expr->type)) {
+        for (const IR::StructField* field : headerType->fields) {
+            outFields.emplace_back(baseName + "." + field->name, field->type);
+        }
+        return !headerType->fields.empty();
+    }
+
+    const IR::Type_Struct* structType = expr->type->to<IR::Type_Struct>();
+    if (structType == nullptr) {
+        if (auto typeName = expr->type->to<IR::Type_Name>()) {
+            auto it = structs.find(typeName->path->name);
+            if (it != structs.end()) {
+                structType = it->second;
+            }
+        }
+    }
+    if (structType == nullptr) {
+        return false;
+    }
+
+    bool any = false;
+    for (const IR::StructField* field : structType->fields) {
+        outFields.emplace_back(baseName + "." + field->name, field->type);
+        any = true;
+    }
+    return any;
+}
+
 void Translator::translate(const IR::P4Program *program){
     analyzeProgram(program);
     const bool debugObjects = std::getenv("P4VERIFY_DEBUG_TRANSLATE_OBJECTS") != nullptr;
@@ -153,6 +190,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
     cstring name = translate(instance->getName());
 
     if(instanceName != "") name = instanceName;
+    recordControlInstanceType(instance, name);
     recordHashExtern(instance, name);
     recordRandomExtern(instance, name);
     recordCounterExtern(instance, name);
@@ -225,14 +263,18 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addDeclaration("var "+name+"__counter:["+info.indexType+"]"+info.valueType+";\n");
         addDeclaration("var "+name+"__last_index:"+info.indexType+";\n");
         addDeclaration("var "+name+"__last_value:"+info.valueType+";\n");
+        addDeclaration("var "+name+"__last_old_value:"+info.valueType+";\n");
         addDeclaration("var "+name+"__wrote_any:bool;\n");
         addDeclaration("var "+name+"__wrote_index0:bool;\n");
+        addDeclaration("var "+name+"__last0_old_value:"+info.valueType+";\n");
         addDeclaration("var "+name+"__last0_value:"+info.valueType+";\n");
         addGlobalVariables(name+"__counter");
         addGlobalVariables(name+"__last_index");
         addGlobalVariables(name+"__last_value");
+        addGlobalVariables(name+"__last_old_value");
         addGlobalVariables(name+"__wrote_any");
         addGlobalVariables(name+"__wrote_index0");
+        addGlobalVariables(name+"__last0_old_value");
         addGlobalVariables(name+"__last0_value");
         emittedVarDecls.insert(name);
 
@@ -250,8 +292,10 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         count.addModifiedGlobalVariables(name+"__counter");
         count.addModifiedGlobalVariables(name+"__last_index");
         count.addModifiedGlobalVariables(name+"__last_value");
+        count.addModifiedGlobalVariables(name+"__last_old_value");
         count.addModifiedGlobalVariables(name+"__wrote_any");
         count.addModifiedGlobalVariables(name+"__wrote_index0");
+        count.addModifiedGlobalVariables(name+"__last0_old_value");
         count.addModifiedGlobalVariables(name+"__last0_value");
         addProcedure(count);
 
@@ -265,8 +309,10 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         increment.addModifiedGlobalVariables(name+"__counter");
         increment.addModifiedGlobalVariables(name+"__last_index");
         increment.addModifiedGlobalVariables(name+"__last_value");
+        increment.addModifiedGlobalVariables(name+"__last_old_value");
         increment.addModifiedGlobalVariables(name+"__wrote_any");
         increment.addModifiedGlobalVariables(name+"__wrote_index0");
+        increment.addModifiedGlobalVariables(name+"__last0_old_value");
         increment.addModifiedGlobalVariables(name+"__last0_value");
         addProcedure(increment);
 
@@ -279,6 +325,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         } else {
             rhs = name+"__counter[index] + value";
         }
+        add.addStatement(getIndent()+name+"__last_old_value := "+name+"__counter[index];\n");
         add.addStatement(getIndent()+name+"__counter[index] := "+rhs+";\n");
         add.addStatement(getIndent()+name+"__last_index := index;\n");
         add.addStatement(getIndent()+name+"__last_value := "+name+"__counter[index];\n");
@@ -286,6 +333,7 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         add.addStatement(getIndent()+"if (index == "+zeroIndex+") {\n");
         incIndent();
         add.addStatement(getIndent()+name+"__wrote_index0 := true;\n");
+        add.addStatement(getIndent()+name+"__last0_old_value := "+name+"__last_old_value;\n");
         add.addStatement(getIndent()+name+"__last0_value := "+name+"__counter[index];\n");
         decIndent();
         add.addStatement(getIndent()+"}\n");
@@ -293,8 +341,10 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         add.addModifiedGlobalVariables(name+"__counter");
         add.addModifiedGlobalVariables(name+"__last_index");
         add.addModifiedGlobalVariables(name+"__last_value");
+        add.addModifiedGlobalVariables(name+"__last_old_value");
         add.addModifiedGlobalVariables(name+"__wrote_any");
         add.addModifiedGlobalVariables(name+"__wrote_index0");
+        add.addModifiedGlobalVariables(name+"__last0_old_value");
         add.addModifiedGlobalVariables(name+"__last0_value");
         addProcedure(add);
     }
@@ -358,7 +408,26 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addProcedure(executeColored);
     }
 
-    if(typeName=="V1Switch" || typeName=="PNA_NIC"){
+    if(typeName=="IngressPipeline" || typeName=="EgressPipeline"){
+        BoogieProcedure pipe = BoogieProcedure(name);
+        pipe.addDeclaration("procedure {:inline 1} "+name+"()\n");
+        incIndent();
+
+        for(auto argument:*instance->arguments){
+            cstring procName = translate(argument->expression);
+            if (procName == "") {
+                continue;
+            }
+            pipe.addStatement(getIndent()+"call "+procName+"();\n");
+            pipe.addSucc(procName);
+            addPred(procName, name);
+        }
+
+        decIndent();
+        addProcedure(pipe);
+    }
+
+    if(typeName=="V1Switch" || typeName=="PNA_NIC" || typeName=="PSA_Switch"){
         BoogieProcedure main = BoogieProcedure(name);
         main.addDeclaration("procedure {:inline 1} "+name+"()\n");
         incIndent();
@@ -374,6 +443,14 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         for(auto argument:*instance->arguments){
             argumentIndex++;
             cstring procName = translate(argument->expression);
+            if (typeName == "PSA_Switch") {
+                auto instIt = controlInstanceTypes.find(procName);
+                cstring procType = instIt != controlInstanceTypes.end() ? instIt->second : procName;
+                if (procType == "PacketReplicationEngine" || procType == "BufferingQueueingEngine" ||
+                    procName == "" || procedures.find(procName) == procedures.end()) {
+                    continue;
+                }
+            }
             if (typeName == "V1Switch" && argumentIndex == argumentCount) {
                 deparser = procName;
                 continue;
@@ -502,14 +579,19 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addDeclaration("\n// Register "+name+"\n");
         addDeclaration("var "+name+":["+sizeTypeName+"]"+valueTypeName+";\n");
         regDebug("var decl");
+        registerValueTypes[name] = valueTypeName;
         if (effectiveSize >= 0) {
             registerDomainSizes[name] = effectiveSize;
         }
         addDeclaration("var "+name+"__last_index:"+sizeTypeName+";\n");
         addDeclaration("var "+name+"__last_value:"+valueTypeName+";\n");
+        addDeclaration("var "+name+"__last_old_value:"+valueTypeName+";\n");
         addDeclaration("var "+name+"__wrote_any:bool;\n");
         addDeclaration("var "+name+"__wrote_index0:bool;\n");
+        addDeclaration("var "+name+"__last0_old_value:"+valueTypeName+";\n");
         addDeclaration("var "+name+"__last0_value:"+valueTypeName+";\n");
+        addDeclaration("var "+name+"__next_write_site:int;\n");
+        addDeclaration("var "+name+"__last_write_site:int;\n");
         regDebug("mirror decls");
 
         cstring sizeConstType = sizeTypeName;
@@ -547,9 +629,13 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         addGlobalVariables(name);
         addGlobalVariables(name+"__last_index");
         addGlobalVariables(name+"__last_value");
+        addGlobalVariables(name+"__last_old_value");
         addGlobalVariables(name+"__wrote_any");
         addGlobalVariables(name+"__wrote_index0");
+        addGlobalVariables(name+"__last0_old_value");
         addGlobalVariables(name+"__last0_value");
+        addGlobalVariables(name+"__next_write_site");
+        addGlobalVariables(name+"__last_write_site");
         regDebug("globals");
 
         /* read and write functions 
@@ -569,19 +655,57 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         write.addDeclaration("procedure {:inline 1} "+write.getName()+"(index:"+sizeTypeName+", value:"
             +valueTypeName+")\n");
         cstring indexZero = renderBoogieZeroLiteral(sizeTypeName);
+        auto typedFailFastConstant = [&](cstring raw) -> std::string {
+            std::string out = raw.c_str();
+            if (valueTypeName.startsWith("bv") && out.find("bv") == std::string::npos) {
+                out += valueTypeName.c_str();
+            }
+            return out;
+        };
         incIndent();
+        write.addStatement(getIndent()+name+"__last_old_value := "+name+"[index];\n");
         write.addStatement(getIndent()+name+"[index] := value;\n");
         write.addStatement(getIndent()+name+"__last_index := index;\n");
         write.addStatement(getIndent()+name+"__last_value := value;\n");
+        write.addStatement(getIndent()+name+"__last_write_site := "+name+"__next_write_site;\n");
         write.addStatement(getIndent()+name+"__wrote_any := true;\n");
         for (const auto& ff : options.fail_fast_register_asserts) {
             if (ff.reg_boogie == name && ff.mode == "any") {
-                std::string ffConstant = ff.constant.c_str();
-                if (valueTypeName.startsWith("bv") &&
-                    ffConstant.find("bv") == std::string::npos) {
-                    ffConstant += valueTypeName.c_str();
-                }
+                std::string ffConstant = typedFailFastConstant(ff.constant);
                 std::string bad = name+"__wrote_any && "+name+"__last_value == "+ffConstant;
+                write.addStatement(getIndent()+"if ("+bad+") {\n");
+                incIndent();
+                write.addStatement(getIndent()+"assert false;\n");
+                write.addStatement(getIndent()+"assume false;\n");
+                decIndent();
+                write.addStatement(getIndent()+"}\n");
+            } else if (ff.reg_boogie == name && ff.mode == "anysite") {
+                std::string ffConstant = typedFailFastConstant(ff.constant);
+                std::string bad = name+"__wrote_any && "+name+"__last_value == "+ffConstant+
+                    " && "+name+"__last_write_site == "+std::string(ff.site_constant.c_str());
+                write.addStatement(getIndent()+"if ("+bad+") {\n");
+                incIndent();
+                write.addStatement(getIndent()+"assert false;\n");
+                write.addStatement(getIndent()+"assume false;\n");
+                decIndent();
+                write.addStatement(getIndent()+"}\n");
+            } else if (ff.reg_boogie == name && ff.mode == "oldnew") {
+                std::string oldConstant = typedFailFastConstant(ff.old_constant);
+                std::string newConstant = typedFailFastConstant(ff.new_constant);
+                std::string bad = name+"__wrote_any && "+name+"__last_old_value == "+oldConstant+
+                    " && "+name+"__last_value == "+newConstant;
+                write.addStatement(getIndent()+"if ("+bad+") {\n");
+                incIndent();
+                write.addStatement(getIndent()+"assert false;\n");
+                write.addStatement(getIndent()+"assume false;\n");
+                decIndent();
+                write.addStatement(getIndent()+"}\n");
+            } else if (ff.reg_boogie == name && ff.mode == "oldnewsite") {
+                std::string oldConstant = typedFailFastConstant(ff.old_constant);
+                std::string newConstant = typedFailFastConstant(ff.new_constant);
+                std::string bad = name+"__wrote_any && "+name+"__last_old_value == "+oldConstant+
+                    " && "+name+"__last_value == "+newConstant+
+                    " && "+name+"__last_write_site == "+std::string(ff.site_constant.c_str());
                 write.addStatement(getIndent()+"if ("+bad+") {\n");
                 incIndent();
                 write.addStatement(getIndent()+"assert false;\n");
@@ -593,14 +717,11 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         write.addStatement(getIndent()+"if (index == "+indexZero+") {\n");
         incIndent();
         write.addStatement(getIndent()+name+"__wrote_index0 := true;\n");
+        write.addStatement(getIndent()+name+"__last0_old_value := "+name+"__last_old_value;\n");
         write.addStatement(getIndent()+name+"__last0_value := value;\n");
         for (const auto& ff : options.fail_fast_register_asserts) {
             if (ff.reg_boogie == name && ff.mode == "slot0") {
-                std::string ffConstant = ff.constant.c_str();
-                if (valueTypeName.startsWith("bv") &&
-                    ffConstant.find("bv") == std::string::npos) {
-                    ffConstant += valueTypeName.c_str();
-                }
+                std::string ffConstant = typedFailFastConstant(ff.constant);
                 std::string bad = name+"__wrote_index0 && "+name+"__last0_value == "+ffConstant;
                 write.addStatement(getIndent()+"if ("+bad+") {\n");
                 incIndent();
@@ -616,9 +737,12 @@ void Translator::translate(const IR::Declaration_Instance *instance, cstring ins
         write.addModifiedGlobalVariables(name);
         write.addModifiedGlobalVariables(name+"__last_index");
         write.addModifiedGlobalVariables(name+"__last_value");
+        write.addModifiedGlobalVariables(name+"__last_old_value");
         write.addModifiedGlobalVariables(name+"__wrote_any");
         write.addModifiedGlobalVariables(name+"__wrote_index0");
+        write.addModifiedGlobalVariables(name+"__last0_old_value");
         write.addModifiedGlobalVariables(name+"__last0_value");
+        write.addModifiedGlobalVariables(name+"__last_write_site");
         addProcedure(write);
         regDebug("write proc");
     }
@@ -983,6 +1107,8 @@ void Translator::translate(const IR::P4Parser *p4Parser){
         parserName = "_parser_" + parserName;
     }
     // Declare apply-parameter header/metadata instances (e.g., hdr_eg) as global fields.
+    BoogieProcedure* prevProcedure = currentProcedure;
+    currentProcedure = nullptr;
     if (p4Parser->getApplyParameters() != nullptr) {
         for (auto param : p4Parser->getApplyParameters()->parameters) {
             if (auto typeName = param->type->to<IR::Type_Name>()) {
@@ -996,6 +1122,7 @@ void Translator::translate(const IR::P4Parser *p4Parser){
             }
         }
     }
+    currentProcedure = prevProcedure;
     BoogieProcedure parser = BoogieProcedure(parserName);
     bool prevInParser = inParser;
     std::set<cstring> prevParserLocalVars = parserLocalVars;
@@ -1115,6 +1242,7 @@ void Translator::translate(const IR::P4Parser *p4Parser){
     }
     parserLocalVars = prevParserLocalVars;
     inParser = prevInParser;
+    currentProcedure = nullptr;
 }
 
 void Translator::computeParserStateLabels(const IR::P4Parser* p4Parser) {
@@ -1314,6 +1442,8 @@ void Translator::translate(const IR::P4Control *p4Control){
     cstring controlName = p4Control->name.toString();
     const bool debugObjects = std::getenv("P4VERIFY_DEBUG_TRANSLATE_OBJECTS") != nullptr;
     // Declare apply-parameter header/metadata instances (e.g., hdr_eg) as global fields.
+    BoogieProcedure* prevProcedure = currentProcedure;
+    currentProcedure = nullptr;
     if (p4Control->getApplyParameters() != nullptr) {
         for (auto param : p4Control->getApplyParameters()->parameters) {
             if (auto typeName = param->type->to<IR::Type_Name>()) {
@@ -1327,6 +1457,7 @@ void Translator::translate(const IR::P4Control *p4Control){
             }
         }
     }
+    currentProcedure = prevProcedure;
     BoogieProcedure control = BoogieProcedure(controlName);
     control.setImplemented();
     addProcedure(control);
@@ -1411,10 +1542,13 @@ void Translator::translate(const IR::P4Control *p4Control){
     currentProcedure->addDeclaration("\n// Control "+controlName+"\n");
     currentProcedure->addDeclaration("procedure {:inline 1} "+controlName+"()\n");
     incIndent();
-    for(auto statOrDecl:p4Control->body->components){
-        currentProcedure->addStatement(translate(statOrDecl));
+    if (p4Control->body != nullptr) {
+        for(auto statOrDecl:p4Control->body->components){
+            currentProcedure->addStatement(translate(statOrDecl));
+        }
     }
     decIndent();
+    currentProcedure = nullptr;
 }
 
 void Translator::translate(const IR::Method *method){

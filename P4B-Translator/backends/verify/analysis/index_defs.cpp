@@ -8,6 +8,8 @@
 #include "backends/verify/analysis/index_defs.h"
 
 #include <algorithm>
+#include <cstdint>
+#include <cstdlib>
 #include <set>
 #include <sstream>
 #include <string>
@@ -209,6 +211,150 @@ static std::string normalizeV1ModelHashAlgorithm(std::string algorithm) {
         return "_" + algorithm;
     }
     return algorithm;
+}
+
+static std::string lowerAscii(std::string s) {
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return s;
+}
+
+static bool isDefaultCrc16Algorithm(const std::string& algorithm) {
+    std::string alg = lowerAscii(algorithm);
+    return alg.find("custom") == std::string::npos &&
+           (alg.find("crc16") != std::string::npos || alg.find("crc_16") != std::string::npos);
+}
+
+static bool isDefaultCrc32Algorithm(const std::string& algorithm) {
+    std::string alg = lowerAscii(algorithm);
+    return alg.find("custom") == std::string::npos &&
+           (alg.find("crc32") != std::string::npos || alg.find("crc_32") != std::string::npos);
+}
+
+static int bvTypeWidth(const std::string& typeName) {
+    if (typeName.rfind("bv", 0) != 0) {
+        return -1;
+    }
+    return std::atoi(typeName.c_str() + 2);
+}
+
+static std::string bvConst(uint64_t value, int width) {
+    return std::to_string(value) + "bv" + std::to_string(width);
+}
+
+static std::string coerceBvExprWidth(const std::string& expr, int srcWidth, int dstWidth) {
+    if (srcWidth <= 0 || dstWidth <= 0 || srcWidth == dstWidth) {
+        return expr;
+    }
+    if (dstWidth < srcWidth) {
+        return "(" + expr + ")[" + std::to_string(dstWidth) + ":0]";
+    }
+    return "0bv" + std::to_string(dstWidth - srcWidth) + "++(" + expr + ")";
+}
+
+static bool byteAlignedHashData(const std::vector<std::string>& args,
+                                const std::vector<std::string>& argTypes,
+                                size_t begin,
+                                size_t end,
+                                std::string* combined,
+                                int* paddedWidth) {
+    if (combined == nullptr || paddedWidth == nullptr || begin >= end ||
+        end > args.size() || end > argTypes.size()) {
+        return false;
+    }
+    combined->clear();
+    int width = 0;
+    for (size_t i = begin; i < end; ++i) {
+        int w = bvTypeWidth(argTypes[i]);
+        if (w <= 0) {
+            return false;
+        }
+        if (combined->empty()) {
+            *combined = args[i];
+        } else {
+            *combined += "++" + args[i];
+        }
+        width += w;
+    }
+    if (width <= 0) {
+        return false;
+    }
+    *paddedWidth = width;
+    int rem = width % 8;
+    if (rem != 0) {
+        int pad = 8 - rem;
+        *combined += "++0bv" + std::to_string(pad);
+        *paddedWidth += pad;
+    }
+    return *paddedWidth > 0 && (*paddedWidth % 8) == 0;
+}
+
+static std::string hashByteAt(const std::string& combined, int paddedWidth, int byteIndex) {
+    if (paddedWidth == 8) {
+        return combined;
+    }
+    int hi = paddedWidth - (byteIndex * 8);
+    int lo = hi - 8;
+    return "(" + combined + ")[" + std::to_string(hi) + ":" + std::to_string(lo) + "]";
+}
+
+static bool renderPreciseCrcHashExpr(const std::string& normalizedAlgorithm,
+                                     const std::vector<std::string>& args,
+                                     const std::vector<std::string>& argTypes,
+                                     size_t begin,
+                                     size_t end,
+                                     int targetWidth,
+                                     std::string* out) {
+    if (out == nullptr || targetWidth <= 0) {
+        return false;
+    }
+    int nativeWidth = 0;
+    uint64_t init = 0;
+    uint64_t finalXor = 0;
+    if (isDefaultCrc16Algorithm(normalizedAlgorithm)) {
+        nativeWidth = 16;
+        init = 0;
+        finalXor = 0;
+    } else if (isDefaultCrc32Algorithm(normalizedAlgorithm)) {
+        nativeWidth = 32;
+        init = 0xFFFFFFFFULL;
+        finalXor = 0xFFFFFFFFULL;
+    } else {
+        return false;
+    }
+    std::string combined;
+    int paddedWidth = 0;
+    if (!byteAlignedHashData(args, argTypes, begin, end, &combined, &paddedWidth)) {
+        return false;
+    }
+    std::string crc = bvConst(init, nativeWidth);
+    const std::string byteFunc =
+        nativeWidth == 16 ? "__p4b_crc16_bmv2_byte" : "__p4b_crc32_bmv2_byte";
+    for (int i = 0; i < paddedWidth / 8; ++i) {
+        crc = byteFunc + "(" + crc + ", " + hashByteAt(combined, paddedWidth, i) + ")";
+    }
+    if (finalXor != 0) {
+        const std::string type = "bv" + std::to_string(nativeWidth);
+        crc = "bxor." + type + "(" + crc + ", " + bvConst(finalXor, nativeWidth) + ")";
+    }
+    *out = coerceBvExprWidth(crc, nativeWidth, targetWidth);
+    return true;
+}
+
+static bool renderRangedHashExpr(const std::string& rawHash,
+                                 const std::string& base,
+                                 const std::string& max,
+                                 const std::string& resultType,
+                                 std::string* out) {
+    if (out == nullptr || rawHash.empty() || base.empty() || max.empty() ||
+        resultType.rfind("bv", 0) != 0) {
+        return false;
+    }
+    *out = "(if " + max + " == 0" + resultType + " then " + base +
+           " else add." + resultType + "(" + base + ", urem." + resultType +
+           "(" + rawHash + ", " + max + ")))";
+    return true;
 }
 
 static void idxDefCollectVarPaths(const IR::Expression* expr,
@@ -825,6 +971,17 @@ static bool renderV1ModelHashDefinition(const IR::MethodCallExpression* mce,
     }
     if (!renderBoundArg((*mce->arguments)[4]->expression)) {
         return false;
+    }
+
+    std::string rawCrc;
+    if (args.size() >= 2 &&
+        renderPreciseCrcHashExpr(
+            algorithm, args, argTypes, 1, args.size() - 1, bvTypeWidth(resultType), &rawCrc) &&
+        renderRangedHashExpr(rawCrc, args.front(), args.back(), resultType, rhs)) {
+        idxDefCollectVarPaths((*mce->arguments)[2]->expression, refMap, renames, deps);
+        idxDefCollectVarPaths((*mce->arguments)[3]->expression, refMap, renames, deps);
+        idxDefCollectVarPaths((*mce->arguments)[4]->expression, refMap, renames, deps);
+        return true;
     }
 
     std::string callee = "hash_" + algorithm;

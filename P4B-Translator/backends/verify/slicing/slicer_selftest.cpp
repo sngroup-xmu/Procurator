@@ -38,7 +38,8 @@ int runSlicingSelftest(cstring selftestCase,
         caseName != "frr_pkt_par_write" &&
         caseName != "netlock_pushback_underflow" && caseName != "etc_pkt_len_target_prefix" &&
         caseName != "flowrest_flow_duration_target_prefix" &&
-        caseName != "flowdos_hash_index_dependency") {
+        caseName != "flowdos_hash_index_dependency" &&
+        caseName != "netbeacon_total_pkts_result_guard") {
         std::cerr << "[SELFTEST] unknown case: " << caseName << "\n";
         return 2;
     }
@@ -471,6 +472,38 @@ int runSlicingSelftest(cstring selftestCase,
             slicedProgram->apply(finder);
             expect(finder.foundHashCall,
                    "expected sliced IR retains hash(...) inside compute_hash action");
+        }
+    } else if (caseName == "netbeacon_total_pkts_result_guard") {
+        // NetBeacon regression: Flow_result has a noaction branch.  Its table
+        // summary must not kill earlier definitions of ig_md.result; otherwise
+        // the total-packet update guard can become unconstrained after slicing.
+        expect(_setContains(sres.keepVarNames, "ig_md.result"),
+               "expected keepVarNames contains ig_md.result");
+        expect(_setContains(sres.keepVarNames, "Register_result") ||
+                   _setContains(sres.keepVarNames, "SwitchIngress_Register_result"),
+               "expected keepVarNames contains Register_result");
+
+        if (slicedProgram) {
+            class ResultDependencyFinder : public Inspector {
+             public:
+                bool foundReadResult = false;
+                bool preorder(const IR::MethodCallStatement* mcs) override {
+                    if (!mcs || !mcs->methodCall || !mcs->methodCall->method) {
+                        return true;
+                    }
+                    if (auto pe = mcs->methodCall->method->to<IR::PathExpression>()) {
+                        const std::string name = pe->path->name.toString().c_str();
+                        if (name.find("Read_result") != std::string::npos) {
+                            foundReadResult = true;
+                        }
+                    }
+                    return true;
+                }
+            };
+            ResultDependencyFinder finder;
+            slicedProgram->apply(finder);
+            expect(finder.foundReadResult,
+                   "expected sliced IR retains Read_result() before Flow_result.apply()");
         }
     } else if (caseName == "netlock_pushback_underflow") {
         // NetLock slicing regression: ensure register-action execute inside assignments is not dropped.

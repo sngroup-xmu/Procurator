@@ -373,6 +373,97 @@ class TestP4BVerifyFrontendIo(unittest.TestCase):
 
         self.assertGreater(checked, 0, "expected at least one sliced SwitchML counter wrapper")
 
+    def test_saturated_ops_lower_to_guarded_ite(self) -> None:
+        """Regression: |+| and |-| must use saturating semantics, not modular wrap."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        saturated = (
+            repo_root
+            / "P4B-Translator"
+            / "testdata"
+            / "p4_16_samples"
+            / "saturated-bmv2.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not saturated.exists() or not p4include.is_dir():
+            self.skipTest("missing saturated sample or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "saturated.bpl"
+            cmd = [
+                str(p4b_bin),
+                "-I",
+                str(p4include),
+                "--goto",
+                "--no-slicing",
+                "-o",
+                str(out_bpl),
+                str(saturated),
+            ]
+            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        # Saturating add: if sum wraps then clamp to MAX (all ones).
+        self.assertIn("if bult.bv8(add.bv8(", text)
+        self.assertIn("then sub.bv8(0bv8, 1bv8) else add.bv8(", text)
+        self.assertIn("if bult.bv16(add.bv16(", text)
+        self.assertIn("then sub.bv16(0bv16, 1bv16) else add.bv16(", text)
+        # Saturating sub: if underflow then clamp to 0.
+        self.assertIn("if bult.bv8(", text)
+        self.assertIn("then 0bv8 else sub.bv8(", text)
+        self.assertIn("if bult.bv16(", text)
+        self.assertIn("then 0bv16 else sub.bv16(", text)
+
+    def test_saturated_ops_ua_mode_keep_saturating_guards(self) -> None:
+        """Regression: UA/bv2int mode must preserve saturating arithmetic guards."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        saturated = (
+            repo_root
+            / "P4B-Translator"
+            / "testdata"
+            / "p4_16_samples"
+            / "saturated-bmv2.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not saturated.exists() or not p4include.is_dir():
+            self.skipTest("missing saturated sample or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "saturated-ua.bpl"
+            cmd = [
+                str(p4b_bin),
+                "-I",
+                str(p4include),
+                "--goto",
+                "--ua",
+                "--no-slicing",
+                "-o",
+                str(out_bpl),
+                str(saturated),
+            ]
+            proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stdout)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("function {:inline true} addsat.bv8(", text)
+        self.assertIn("if(((left%power_2_8()) + (right%power_2_8())) >= power_2_8()) then power_2_8()-1", text)
+        self.assertIn("function {:inline true} addsat.bv16(", text)
+        self.assertIn("if(((left%power_2_16()) + (right%power_2_16())) >= power_2_16()) then power_2_16()-1", text)
+        self.assertIn("function {:inline true} subsat.bv8(", text)
+        self.assertIn("if((left%power_2_8()) < (right%power_2_8())) then 0", text)
+        self.assertIn("function {:inline true} subsat.bv16(", text)
+        self.assertIn("if((left%power_2_16()) < (right%power_2_16())) then 0", text)
+
 
 if __name__ == "__main__":
     unittest.main()

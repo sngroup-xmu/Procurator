@@ -40,6 +40,39 @@ static bool hashAlgorithmIsIdentity(const cstring& algorithm) {
     return alg == "identity" || alg.find("identity") != std::string::npos;
 }
 
+static bool hashAlgorithmIsDefaultCrc16(const cstring& algorithm) {
+    std::string alg = lowerAscii(algorithm.c_str());
+    return alg.find("custom") == std::string::npos &&
+           (alg.find("crc16") != std::string::npos || alg.find("crc_16") != std::string::npos);
+}
+
+static bool hashAlgorithmIsDefaultCrc32(const cstring& algorithm) {
+    std::string alg = lowerAscii(algorithm.c_str());
+    return alg.find("custom") == std::string::npos &&
+           (alg.find("crc32") != std::string::npos || alg.find("crc_32") != std::string::npos);
+}
+
+static bool hashAlgorithmUsesBmv2DefaultCrc(const cstring& algorithm) {
+    std::string alg = lowerAscii(algorithm.c_str());
+    if (alg.find("custom") != std::string::npos) {
+        return false;
+    }
+    // Treat architecture enum spellings (HashAlgorithm, HashAlgorithm_t,
+    // PSA_HashAlgorithm_t, PNA_HashAlgorithm_t) uniformly for standard CRC16/32.
+    // CUSTOM remains excluded above and still falls back to conservative UF/havoc.
+    return hashAlgorithmIsDefaultCrc16(algorithm) || hashAlgorithmIsDefaultCrc32(algorithm);
+}
+
+static bool hashAlgorithmIsLookup3(const cstring& algorithm) {
+    std::string alg = lowerAscii(algorithm.c_str());
+    return alg.find("lookup3") != std::string::npos;
+}
+
+static bool hashAlgorithmIsToeplitz(const cstring& algorithm) {
+    std::string alg = lowerAscii(algorithm.c_str());
+    return alg.find("toeplitz") != std::string::npos;
+}
+
 static std::string hashAlgorithmModelName(const cstring& algorithm) {
     if (hashAlgorithmIsIdentity(algorithm)) {
         return "identity";
@@ -126,6 +159,188 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
         return "";
     };
 
+    auto bvConst = [&](uint64_t value, int width) -> cstring {
+        return cstring(std::to_string(value)) + "bv" + toString(width);
+    };
+
+    auto typeWidth = [&](const cstring& typeName) -> int {
+        if (typeName.startsWith("bv")) {
+            return atoi(typeName.c_str() + 2);
+        }
+        auto it = typeDefs.find(typeName);
+        if (it != typeDefs.end()) {
+            return it->second;
+        }
+        return -1;
+    };
+
+    auto renderExprAsType = [&](const IR::Expression* expr, cstring rendered, cstring typeName) -> cstring {
+        int width = typeWidth(typeName);
+        if (width <= 0 || expr == nullptr) {
+            return rendered;
+        }
+        while (auto cast = expr->to<IR::Cast>()) {
+            expr = cast->expr;
+            if (expr == nullptr) {
+                return rendered;
+            }
+        }
+        if (auto constant = expr->to<IR::Constant>()) {
+            const big_int mod = big_int(1) << width;
+            big_int v = constant->value % mod;
+            if (v < 0) {
+                v += mod;
+            }
+            return toString(v) + "bv" + toString(width);
+        }
+        return rendered;
+    };
+
+    auto coerceHashExprWidth = [&](const cstring& expr, int srcWidth, int dstWidth) -> cstring {
+        if (srcWidth <= 0 || dstWidth <= 0 || srcWidth == dstWidth) {
+            return expr;
+        }
+        if (dstWidth < srcWidth) {
+            return "(" + expr + ")[" + toString(dstWidth) + ":0]";
+        }
+        return "0bv" + toString(dstWidth - srcWidth) + "++(" + expr + ")";
+    };
+
+    auto byteAlignedHashData = [&](const std::vector<cstring>& args,
+                                   const std::vector<int>& widths,
+                                   size_t begin,
+                                   size_t end,
+                                   cstring& combined,
+                                   int& paddedWidth) -> bool {
+        if (begin >= end || end > args.size() || end > widths.size()) {
+            return false;
+        }
+        combined = "";
+        int combinedWidth = 0;
+        for (size_t i = begin; i < end; ++i) {
+            int width = widths[i];
+            if (width <= 0) {
+                return false;
+            }
+            if (combined == "") {
+                combined = args[i];
+            } else {
+                combined += "++" + args[i];
+            }
+            combinedWidth += width;
+        }
+        if (combinedWidth <= 0) {
+            return false;
+        }
+        int rem = combinedWidth % 8;
+        paddedWidth = combinedWidth;
+        if (rem != 0) {
+            int pad = 8 - rem;
+            combined += "++0bv" + toString(pad);
+            paddedWidth += pad;
+        }
+        return paddedWidth > 0 && paddedWidth % 8 == 0;
+    };
+
+    auto hashByteAt = [&](const cstring& combined, int paddedWidth, int byteIndex) -> cstring {
+        if (paddedWidth == 8) {
+            return combined;
+        }
+        int hi = paddedWidth - (byteIndex * 8);
+        int lo = hi - 8;
+        return "(" + combined + ")[" + toString(hi) + ":" + toString(lo) + "]";
+    };
+
+    auto bitSlice = [&](const cstring& expr, int hi, int lo) -> cstring {
+        return "(" + expr + ")[" + toString(hi) + ":" + toString(lo) + "]";
+    };
+
+    auto ensureCrcByteFunction = [&](int width) -> cstring {
+        cstring type = "bv" + toString(width);
+        cstring funcName = width == 16 ? "__p4b_crc16_bmv2_byte" : "__p4b_crc32_bmv2_byte";
+        cstring bitFuncName = width == 16 ? "__p4b_crc16_bmv2_bit" : "__p4b_crc32_bmv2_bit";
+        cstring poly = width == 16 ? bvConst(0xA001ULL, 16) : bvConst(0xEDB88320ULL, 32);
+        addFunction("shr", "bvlshr", type, type);
+        addFunction("bxor", "bvxor", type, type);
+
+        cstring shifted = "shr." + type + "(crc, " + bvConst(1, width) + ")";
+        cstring mixed = "bxor." + type + "(" + shifted + ", " + poly + ")";
+        cstring bitDecl = "function {:inline true} " + bitFuncName + "(crc:" + type + ") returns(" +
+                          type + ") { (if " + bitSlice("crc", 1, 0) + " == 1bv1 then " +
+                          mixed + " else " + shifted + ") }\n";
+        addFunction(bitFuncName, bitDecl);
+
+        cstring crc = "bxor." + type + "(crc, " + coerceHashExprWidth("byte", 8, width) + ")";
+        for (int bit = 0; bit < 8; ++bit) {
+            crc = bitFuncName + "(" + crc + ")";
+        }
+
+        cstring decl = "function {:inline true} " + funcName + "(crc:" + type + ", byte:bv8) returns(" +
+                       type + ") { " + crc + " }\n";
+        addFunction(funcName, decl);
+        return funcName;
+    };
+
+    auto preciseCrcHashExpr = [&](const cstring& algorithm,
+                                  const std::vector<cstring>& args,
+                                  const std::vector<int>& widths,
+                                  size_t begin,
+                                  size_t end,
+                                  int targetWidth,
+                                  cstring& modelName) -> cstring {
+        int nativeWidth = 0;
+        uint64_t init = 0;
+        uint64_t finalXor = 0;
+        if (!hashAlgorithmUsesBmv2DefaultCrc(algorithm)) {
+            return "";
+        }
+        if (hashAlgorithmIsDefaultCrc16(algorithm)) {
+            nativeWidth = 16;
+            init = 0;
+            finalXor = 0;
+            modelName = "crc16_bmv2";
+        } else if (hashAlgorithmIsDefaultCrc32(algorithm)) {
+            nativeWidth = 32;
+            init = 0xFFFFFFFFULL;
+            finalXor = 0xFFFFFFFFULL;
+            modelName = "crc32_bmv2";
+        } else {
+            return "";
+        }
+
+        cstring combined;
+        int paddedWidth = 0;
+        if (!byteAlignedHashData(args, widths, begin, end, combined, paddedWidth)) {
+            return "";
+        }
+
+        cstring type = "bv" + toString(nativeWidth);
+        cstring crc = bvConst(init, nativeWidth);
+        cstring byteFunc = ensureCrcByteFunction(nativeWidth);
+        int byteCount = paddedWidth / 8;
+        for (int i = 0; i < byteCount; ++i) {
+            crc = byteFunc + "(" + crc + ", " + hashByteAt(combined, paddedWidth, i) + ")";
+        }
+        if (finalXor != 0) {
+            addFunction("bxor", "bvxor", type, type);
+            crc = "bxor." + type + "(" + crc + ", " + bvConst(finalXor, nativeWidth) + ")";
+        }
+        return coerceHashExprWidth(crc, nativeWidth, targetWidth);
+    };
+
+    auto rangeHashExpr = [&](const cstring& rawHash,
+                             const cstring& base,
+                             const cstring& max,
+                             const cstring& typeName) -> cstring {
+        if (rawHash == "" || base == "" || max == "" || !typeName.startsWith("bv")) {
+            return "";
+        }
+        addFunction("add", "bvadd", typeName, typeName);
+        addFunction("urem", "bvurem", typeName, typeName);
+        cstring ranged = "add." + typeName + "(" + base + ", urem." + typeName + "(" + rawHash + ", " + max + "))";
+        return "(if " + max + " == 0" + typeName + " then " + base + " else " + ranged + ")";
+    };
+
     if (auto member = methodCallExpression->method->to<IR::Member>()) {
         if (member->member == "execute" || member->member == "execute_log") {
             cstring base = translate(member->expr);
@@ -176,9 +391,67 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                     currentProcedure->addStatement(getIndent()+"call "+valVar+" := "+info.applyName+"("+valVar+");\n");
                     currentProcedure->addStatement(getIndent()+retVar+" := "+valVar+";\n");
                 }
+                emitRegisterWriteSite(info.regName);
                 currentProcedure->addStatement(getIndent()+"call "+info.regName+".write("+idx+", "+valVar+");\n");
                 addRegisterWriteModifiedVariables(info.regName);
                 return retVar;
+            }
+        }
+    }
+
+    if (auto member = methodCallExpression->method->to<IR::Member>()) {
+        const std::string methodText =
+            methodCallExpression->method ? methodCallExpression->method->toString().c_str() : "";
+        const std::string originalMember =
+            member->member.originalName.isNullOrEmpty() ? "" : member->member.originalName.c_str();
+        const bool isRegisterRead =
+            member->member == "register_read" ||
+            originalMember == "register_read" ||
+            methodText.find(".register_read") != std::string::npos;
+        const bool isRegisterWrite =
+            member->member == "register_write" ||
+            originalMember == "register_write" ||
+            methodText.find(".register_write") != std::string::npos;
+        if ((isRegisterRead || isRegisterWrite) && methodCallExpression->arguments != nullptr) {
+            cstring reg = translate(member->expr);
+            if (!isGlobalVariable(reg)) {
+                cstring raw = methodCallExpression->method->toString();
+                std::string rawStr = raw.c_str();
+                const std::string suffix = isRegisterRead ? ".register_read" : ".register_write";
+                size_t pos = rawStr.find(suffix);
+                if (pos != std::string::npos) {
+                    reg = cstring(rawStr.substr(0, pos));
+                }
+            }
+            if (isGlobalVariable(reg)) {
+                if (isRegisterRead && methodCallExpression->arguments->size() >= 2) {
+                    cstring outVar = translate((*methodCallExpression->arguments)[0]);
+                    const auto* idxExpr = (*methodCallExpression->arguments)[1]->expression;
+                    cstring idx = translate((*methodCallExpression->arguments)[1]);
+                    std::string assumeExpr = regIndexAssume(reg.c_str(), idxExpr, idx.c_str());
+                    if (!assumeExpr.empty() && currentProcedure != nullptr) {
+                        currentProcedure->addStatement(getIndent() + "assume (" + assumeExpr + ");\n");
+                    }
+                    currentProcedure->addModifiedGlobalVariables(outVar);
+                    return outVar + " := " + reg + ".read(" + reg + ", " + idx + ")";
+                }
+                if (isRegisterWrite && methodCallExpression->arguments->size() >= 2) {
+                    const auto* idxExpr = (*methodCallExpression->arguments)[0]->expression;
+                    cstring idx = translate((*methodCallExpression->arguments)[0]);
+                    const auto* valueExpr = (*methodCallExpression->arguments)[1]->expression;
+                    cstring value = translate((*methodCallExpression->arguments)[1]);
+                    auto valueType = registerValueTypes.find(reg);
+                    if (valueType != registerValueTypes.end()) {
+                        value = renderExprAsType(valueExpr, value, valueType->second);
+                    }
+                    std::string assumeExpr = regIndexAssume(reg.c_str(), idxExpr, idx.c_str());
+                    if (!assumeExpr.empty() && currentProcedure != nullptr) {
+                        currentProcedure->addStatement(getIndent() + "assume (" + assumeExpr + ");\n");
+                    }
+                    emitRegisterWriteSite(reg);
+                    addRegisterWriteModifiedVariables(reg);
+                    return reg + ".write(" + idx + ", " + value + ")";
+                }
             }
         }
     }
@@ -210,8 +483,10 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 currentProcedure->addModifiedGlobalVariables(base+"__counter");
                 currentProcedure->addModifiedGlobalVariables(base+"__last_index");
                 currentProcedure->addModifiedGlobalVariables(base+"__last_value");
+                currentProcedure->addModifiedGlobalVariables(base+"__last_old_value");
                 currentProcedure->addModifiedGlobalVariables(base+"__wrote_any");
                 currentProcedure->addModifiedGlobalVariables(base+"__wrote_index0");
+                currentProcedure->addModifiedGlobalVariables(base+"__last0_old_value");
                 currentProcedure->addModifiedGlobalVariables(base+"__last0_value");
                 return res;
             }
@@ -318,6 +593,12 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                     }
                     return coerceBitvectorExprWidth(combined, combinedWidth, retWidth);
                 };
+                auto externHashArgWidth = [](const cstring& bvType) -> int {
+                    if (!bvType.startsWith("bv")) {
+                        return -1;
+                    }
+                    return atoi(bvType.c_str() + 2);
+                };
                 std::function<bool(const IR::Expression*)> renderHashData =
                     [&](const IR::Expression* expr) -> bool {
                         if (expr == nullptr) {
@@ -339,6 +620,26 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                                 }
                             }
                             return true;
+                        }
+                        if (expr->type != nullptr &&
+                            (resolveHeaderType(expr->type) != nullptr ||
+                             expr->type->to<IR::Type_Struct>() != nullptr ||
+                             expr->type->to<IR::Type_Name>() != nullptr)) {
+                            std::vector<std::pair<cstring, const IR::Type*>> flattened;
+                            if (flattenHashDataFields(expr, flattened) && !flattened.empty()) {
+                                for (const auto& field : flattened) {
+                                    cstring rendered = field.first;
+                                    cstring argType = inferBoogieType(field.second, rendered);
+                                    if (argType == "") {
+                                        int width = getSize(rendered);
+                                        argType = width > 0 ? "bv" + toString(width) : "int";
+                                    }
+                                    renderedArgs.push_back(rendered);
+                                    renderedArgTypes.push_back(argType);
+                                    renderedArgWidths.push_back(externHashArgWidth(argType));
+                                }
+                                return true;
+                            }
                         }
 
                         cstring rendered = translate(expr);
@@ -380,6 +681,20 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                     }
                 }
 
+                cstring preciseModel;
+                cstring preciseHash = preciseCrcHashExpr(
+                    algorithmForModel,
+                    renderedArgs,
+                    renderedArgWidths,
+                    0,
+                    renderedArgs.size(),
+                    bvTypeWidth(retType),
+                    preciseModel);
+                if (preciseHash != "") {
+                    markHashModel(preciseModel.c_str(), "precise");
+                    return preciseHash;
+                }
+
                 std::string mangledMethod = method.c_str();
                 mangledMethod += "$alg_";
                 mangledMethod += hashAlgorithmMangleName(algorithmForModel);
@@ -398,7 +713,11 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 }
                 decl += ") returns(" + retType + ");\n";
                 addFunction(hashMethod, decl);
-                markHashModel(hashAlgorithmModelName(algorithmForModel), "deterministic_uninterpreted");
+                if (hashAlgorithmIsToeplitz(algorithmForModel)) {
+                    markHashModel("dpdk_rss_helper", "target_helper");
+                } else {
+                    markHashModel(hashAlgorithmModelName(algorithmForModel), "deterministic_uninterpreted");
+                }
 
                 res += hashMethod+"(";
                 for (size_t i = 0; i < renderedArgs.size(); ++i) {
@@ -517,6 +836,7 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             reg = ((std::string)method.c_str()).substr(0, idx);
         }
         if (isGlobalVariable(reg)) {
+            emitRegisterWriteSite(reg);
             addRegisterWriteModifiedVariables(reg);
         }
         if (methodCallExpression->arguments && methodCallExpression->arguments->size() >= 1) {
@@ -726,6 +1046,97 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                     res += ");\n";
                 }
             } else {
+                cstring preciseModel;
+                cstring preciseHash = preciseCrcHashExpr(
+                    algorithmForModel,
+                    renderedArgs,
+                    renderedArgWidths,
+                    0,
+                    renderedArgs.size(),
+                    bvWidth(typeName),
+                    preciseModel);
+                if (preciseHash != "") {
+                    markV1HashModel(preciseModel.c_str(), "precise");
+                    res += arg0 + " := " + preciseHash + ";\n";
+                } else {
+                    std::string mangledMethod = "hash";
+                    if (algorithmForModel != "") {
+                        mangledMethod += "_";
+                        mangledMethod += hashAlgorithmMangleName(algorithmForModel);
+                    }
+                    for (const auto& argType : renderedArgTypes) {
+                        mangledMethod += "$";
+                        mangledMethod += sanitizeHashSignaturePart(argType.c_str());
+                    }
+                    cstring hashMethod = cstring(mangledMethod);
+                    cstring decl = "function " + hashMethod + "(";
+                    for (size_t i = 0; i < renderedArgTypes.size(); ++i) {
+                        if (i != 0) {
+                            decl += ", ";
+                        }
+                        decl += "arg"+toString(static_cast<int>(i))+":"+renderedArgTypes[i];
+                    }
+                    decl += ") returns(" + typeName + ");\n";
+                    addFunction(hashMethod, decl);
+                    if (hashAlgorithmIsLookup3(algorithmForModel)) {
+                        markV1HashModel("ubpf_runtime_helper", "target_helper");
+                    } else {
+                        markV1HashModel(hashAlgorithmModelName(algorithmForModel), "deterministic_uninterpreted");
+                    }
+
+                    res += arg0 + " := " + hashMethod + "(";
+                    for (size_t i = 0; i < renderedArgs.size(); ++i) {
+                        if (i != 0) {
+                            res += ", ";
+                        }
+                        res += renderedArgs[i];
+                    }
+                    res += ");\n";
+                }
+            }
+            currentProcedure->addModifiedGlobalVariables(arg0);
+            return res;
+        }
+
+        // v1model-style hash(result, algorithm, base, data, max).
+        if (methodCallExpression->arguments->size() < 5) {
+            return "";
+        }
+        const auto *arg2Expr = (*methodCallExpression->arguments)[2]->expression;
+        const auto *arg3Expr = (*methodCallExpression->arguments)[3]->expression;
+        const auto *arg4Expr = (*methodCallExpression->arguments)[4]->expression;
+
+        // v1model's 5-argument hash returns base + hash(data) % max, or base when max is 0.
+        // Prefer an exact CRC model for BMv2/PSA/PNA defaults; otherwise keep a deterministic UF.
+        cstring rangeFrom;
+        cstring rangeTo;
+        if (!renderHashArg(arg2Expr, typeName) || !renderHashData(arg3Expr) ||
+            !renderHashArg(arg4Expr, typeName)) {
+            markV1HashModel("havoc_fallback", "weak");
+            res += "havoc "+arg0+";\n";
+        } else {
+            if (renderedArgs.size() >= 2) {
+                rangeFrom = renderedArgs.front();
+                rangeTo = renderedArgs.back();
+            }
+            cstring preciseModel;
+            cstring preciseHash = "";
+            if (renderedArgs.size() >= 2) {
+                preciseHash = preciseCrcHashExpr(
+                    algorithmForModel,
+                    renderedArgs,
+                    renderedArgWidths,
+                    1,
+                    renderedArgs.size() - 1,
+                    bvWidth(typeName),
+                    preciseModel);
+            }
+            cstring rangedPreciseHash =
+                preciseHash != "" ? rangeHashExpr(preciseHash, rangeFrom, rangeTo, typeName) : "";
+            if (rangedPreciseHash != "") {
+                markV1HashModel(preciseModel.c_str(), "precise");
+                res += arg0 + " := " + rangedPreciseHash + ";\n";
+            } else {
                 std::string mangledMethod = "hash";
                 if (algorithmForModel != "") {
                     mangledMethod += "_";
@@ -756,60 +1167,6 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
                 }
                 res += ");\n";
             }
-            currentProcedure->addModifiedGlobalVariables(arg0);
-            return res;
-        }
-
-        // v1model-style hash(result, algorithm, base, data, max).
-        if (methodCallExpression->arguments->size() < 5) {
-            return "";
-        }
-        const auto *arg2Expr = (*methodCallExpression->arguments)[2]->expression;
-        const auto *arg3Expr = (*methodCallExpression->arguments)[3]->expression;
-        const auto *arg4Expr = (*methodCallExpression->arguments)[4]->expression;
-
-        // Keep v1model hash deterministic for a fixed algorithm/range/data tuple.
-        // We still model the hash as uninterpreted, and retain the range assume below.
-        cstring rangeFrom;
-        cstring rangeTo;
-        if (!renderHashArg(arg2Expr, typeName) || !renderHashData(arg3Expr) ||
-            !renderHashArg(arg4Expr, typeName)) {
-            markV1HashModel("havoc_fallback", "weak");
-            res += "havoc "+arg0+";\n";
-        } else {
-            if (renderedArgs.size() >= 2) {
-                rangeFrom = renderedArgs.front();
-                rangeTo = renderedArgs.back();
-            }
-            std::string mangledMethod = "hash";
-            if (algorithmForModel != "") {
-                mangledMethod += "_";
-                mangledMethod += hashAlgorithmMangleName(algorithmForModel);
-            }
-            for (const auto& argType : renderedArgTypes) {
-                mangledMethod += "$";
-                mangledMethod += sanitizeHashSignaturePart(argType.c_str());
-            }
-            cstring hashMethod = cstring(mangledMethod);
-            cstring decl = "function " + hashMethod + "(";
-            for (size_t i = 0; i < renderedArgTypes.size(); ++i) {
-                if (i != 0) {
-                    decl += ", ";
-                }
-                decl += "arg"+toString(static_cast<int>(i))+":"+renderedArgTypes[i];
-            }
-            decl += ") returns(" + typeName + ");\n";
-            addFunction(hashMethod, decl);
-            markV1HashModel(hashAlgorithmModelName(algorithmForModel), "deterministic_uninterpreted");
-
-            res += arg0 + " := " + hashMethod + "(";
-            for (size_t i = 0; i < renderedArgs.size(); ++i) {
-                if (i != 0) {
-                    res += ", ";
-                }
-                res += renderedArgs[i];
-            }
-            res += ");\n";
         }
 
         cstring arg2 = rangeFrom != "" ? rangeFrom : translate(arg2Expr);

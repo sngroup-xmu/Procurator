@@ -49,6 +49,16 @@ static std::string getExternBaseName(const IR::Expression* expr) {
     return "";
 }
 
+static std::string getControlBaseName(const IR::Expression* expr) {
+    if (expr == nullptr || expr->type == nullptr) {
+        return "";
+    }
+    if (auto typeName = expr->type->to<IR::Type_Name>()) {
+        return typeName->path->name.toString().c_str();
+    }
+    return "";
+}
+
 void Translator::translate(const IR::Node *node){
     if (auto typeStruct = node->to<IR::Type_Struct>()) {
         translate(typeStruct);
@@ -532,6 +542,33 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
         return "";
     }
     if (auto member = methodCallStatement->methodCall->method->to<IR::Member>()) {
+        if (member->member == "apply") {
+            cstring receiverName = translate(member->expr);
+            auto controlIt = controlInstanceTypes.find(receiverName);
+            std::string controlName;
+            if (controlIt != controlInstanceTypes.end()) {
+                controlName = controlIt->second.c_str();
+            } else {
+                controlName = getControlBaseName(member->expr);
+            }
+            if (std::getenv("P4VERIFY_DEBUG_CONTROL_APPLY") != nullptr) {
+                std::cerr << "[p4verify-control-apply] receiver="
+                          << (member->expr ? member->expr->toString() : "<null>")
+                          << " type="
+                          << ((member->expr && member->expr->type) ? member->expr->type->toString() : "<null>")
+                          << " rendered=" << receiverName
+                          << " control=" << controlName << std::endl;
+            }
+            if (!controlName.empty()) {
+                cstring controlProc = cstring(controlName);
+                if (procedures.find(controlProc) != procedures.end()) {
+                    currentProcedure->addStatement(getIndent()+"call "+controlProc+"();\n");
+                    currentProcedure->addSucc(controlProc);
+                    addPred(controlProc, currentProcedure->getName());
+                    return "";
+                }
+            }
+        }
         if (member->member == "execute" || member->member == "execute_log") {
             cstring base = translate(member->expr);
             if (registerActions.find(base) != registerActions.end()) {
@@ -991,6 +1028,10 @@ cstring Translator::translate(const IR::MethodCallStatement *methodCallStatement
         currentProcedure->addStatement(getIndent()+expr2);
     }
     else if(expr2 != ""){
+        if (expr2.find(" := ") != nullptr) {
+            currentProcedure->addStatement(getIndent()+expr2+";\n");
+            return "";
+        }
         cstring retType = inferBoogieType(methodCallStatement->methodCall->type, "");
         if (retType != "") {
             cstring sink = getOrCreateUnusedVar(retType);

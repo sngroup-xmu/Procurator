@@ -123,6 +123,47 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
         self.assertIn("damper_tbl_1.action_run := damper_tbl_1.action.set_damper", text)
         self.assertIn("damper_tbl_1.set_damper.threshold := 1bv16", text)
 
+    def test_p4db_damper_indexed_register_seed_keeps_ingress_write_path(self) -> None:
+        """DSL register-slot assertions lower to indexed seeds; those must retain the write path."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4 = repo_root / "Procurator" / "argo" / "code" / "dataset" / "P4DB" / "tests" / "damper" / "router.p4"
+        entries = repo_root / "Procurator" / "argo" / "code" / "spec" / "bench" / "p4db_damper_threshold1_commands.txt"
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not entries.exists() or not p4include.is_dir():
+            self.skipTest("missing P4DB dataset, commands, or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "out.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-14",
+                "-I",
+                str(p4include),
+                "--goto",
+                "--no-slicing-control-seeds",
+                "--bmv2cmds",
+                str(entries),
+                "--slicing-vars=damper_register,damper_register[0bv32],damper_register_0,damper_register_0[0bv32]",
+                "--slicing-keep-vars=damper_register[0bv32]",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertRegex(text, r"(?s)procedure\s+\{:\s*inline\s+1\}\s+ingress\(\).*?call damper_1\(\);")
+        self.assertRegex(text, r"(?s)procedure\s+\{:\s*inline\s+1\}\s+damper_1\(\).*?call damper_tbl_1\.apply\(\);")
+        self.assertIn("call set_damper(", text)
+        self.assertRegex(text, r"(?s)procedure\s+\{:\s*inline\s+1\}\s+set_damper\(.*?call damper_register\.write")
+
     def test_json_ir_slicing_does_not_prune_register_domains(self) -> None:
         """JSON IR skips statement pruning, so register domains must stay complete."""
 
@@ -276,8 +317,8 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
         self.assertRegex(body, r"[A-Za-z0-9_$.]*ipv4_block\.hit := false;")
         self.assertNotRegex(body, r"[A-Za-z0-9_$.]*ipv4_block\.hit := true;")
 
-    def test_ubpf_three_arg_hash_lowers_to_deterministic_assignment(self) -> None:
-        """Regression: uBPF hash(out, algo, data) must not be emitted as a no-op."""
+    def test_ubpf_three_arg_hash_lowers_to_target_helper_summary(self) -> None:
+        """Regression: uBPF hash(out, algo, data) must model the target helper boundary."""
 
         repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
         p4b_bin = self._p4b_bin(repo_root)
@@ -310,7 +351,13 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
             text = out_bpl.read_text(encoding="utf-8", errors="replace")
 
         self.assertRegex(text, r"function\s+hash_lookup3\$bv16\$bv8")
+        self.assertIn(
+            "p4b_hash_model: builtin algorithm=HashAlgorithm.lookup3 "
+            "model=ubpf_runtime_helper precision=target_helper",
+            text,
+        )
         self.assertIn("meta.output := hash_lookup3$bv16$bv8(headers.test.sa, headers.test.da);", text)
+        self.assertNotIn("precision=deterministic_uninterpreted", text)
         self.assertNotIn("// hash", text)
 
     def test_psa_identity_hash_extern_lowers_to_precise_slice(self) -> None:
@@ -348,10 +395,214 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
 
         self.assertIn("p4b_hash_model: extern", text)
         self.assertIn("model=identity precision=precise", text)
-        self.assertIn("model=crc16_uf precision=deterministic_uninterpreted", text)
-        self.assertRegex(text, r"b\.data1 := .*hdr\.ipv4\.protocol")
-        self.assertNotRegex(text, r"b\.data1 := .*h1(?:_\d+)?\.get_hash")
-        self.assertRegex(text, r"b\.data0 := .*get_hash.*\(")
+        self.assertIn("model=crc16_bmv2 precision=precise", text)
+
+    def test_psa_crc_hash_extern_flattens_header_data_precisely(self) -> None:
+        """Regression: Hash.get_hash(header) should hash header fields, not a Ref UF."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        sample_dir = repo_root / "P4B-Translator" / "testdata" / "p4_16_samples"
+        p4 = sample_dir / "psa-hash.p4"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing PSA hash sample or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "psa_hash_header.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "-I",
+                str(sample_dir),
+                "--goto",
+                "--no-slicing",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("model=crc16_bmv2 precision=precise", text)
+        self.assertNotIn("model=crc16_uf precision=deterministic_uninterpreted", text)
+        self.assertIn("hdr.ethernet.dstAddr", text)
+        self.assertIn("__p4b_crc16_bmv2_byte", text)
+
+    def test_psa_empty_architecture_controls_do_not_crash(self) -> None:
+        """Regression: PSA samples with empty controls should still emit BPL."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        sample_dir = repo_root / "P4B-Translator" / "testdata" / "p4_16_samples"
+        p4 = sample_dir / "psa-drop-all-bmv2.p4"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing PSA drop-all sample or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "psa_drop_all.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "-I",
+                str(sample_dir),
+                "--goto",
+                "--no-slicing",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("procedure {:inline 1} ingress()", text)
+        self.assertIn("procedure {:inline 1} main()", text)
+        self.assertRegex(text, r"(?s)procedure\s+\{:\s*inline\s+1\}\s+main\(\).*call ip\(\);.*call ep\(\);")
+        self.assertRegex(
+            text,
+            r"(?s)procedure\s+\{:\s*inline\s+1\}\s+ip\(\).*call IngressParserImpl\(\);.*call ingress\(\);.*call IngressDeparserImpl\(\);",
+        )
+        self.assertRegex(
+            text,
+            r"(?s)procedure\s+\{:\s*inline\s+1\}\s+ep\(\).*call EgressParserImpl\(\);.*call egress\(\);.*call EgressDeparserImpl\(\);",
+        )
+
+    def test_pna_empty_precontrol_does_not_crash(self) -> None:
+        """Regression: PNA samples with empty pre-control blocks should emit BPL."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        sample_dir = repo_root / "P4B-Translator" / "testdata" / "p4_16_samples"
+        p4 = sample_dir / "pna-example-ipsec.p4"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing PNA ipsec sample or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "pna_ipsec.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "-I",
+                str(sample_dir),
+                "--goto",
+                "--no-slicing",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("procedure {:inline 1} PreControlImpl()", text)
+        self.assertIn("procedure {:inline 1} main()", text)
+
+    def test_pna_toeplitz_hash_extern_lowers_to_target_helper_summary(self) -> None:
+        """Regression: PNA TOEPLITZ Hash extern is a DPDK RSS target helper boundary."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        sample_dir = repo_root / "P4B-Translator" / "testdata" / "p4_16_samples"
+        p4 = sample_dir / "pna-dpdk-toeplitz-hash.p4"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing PNA Toeplitz hash sample or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "pna_toeplitz_hash.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "-I",
+                str(sample_dir),
+                "--goto",
+                "--no-slicing",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn(
+            "p4b_hash_model: extern base=MainControlImpl_h "
+            "algorithm=PNA_HashAlgorithm_t.TOEPLITZ model=dpdk_rss_helper precision=target_helper",
+            text,
+        )
+        self.assertRegex(text, r"function\s+MainControlImpl_h\.get_hash\$alg_TOEPLITZ\$bv48\$bv48\$bv16")
+        self.assertNotIn("model=toeplitz_uf precision=deterministic_uninterpreted", text)
+        self.assertNotIn("precision=deterministic_uninterpreted", text)
+
+    def test_tna_crc_hash_extern_lowers_to_precise_crc_model(self) -> None:
+        """Regression: TNA Hash.get CRC16/CRC32 should use precise CRC lowering."""
+
+        repo_root = next(p for p in Path(__file__).resolve().parents if (p / "Procurator").exists())
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("P4B-Translator not built")
+
+        p4 = (
+            repo_root
+            / "Procurator"
+            / "argo"
+            / "code"
+            / "dataset"
+            / "external_flowrest_per_flow"
+            / "unsw_per_flow_16_classes.p4"
+        )
+        p4include = repo_root / "P4B-Translator" / "p4include"
+        if not p4.exists() or not p4include.is_dir():
+            self.skipTest("missing Flowrest dataset or p4include")
+
+        from dslc.backends.boogie.node.p4b import _maybe_tofino_cpp_defines
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "flowrest_hash_extern.bpl"
+            cmd = [
+                str(p4b_bin),
+                *_maybe_tofino_cpp_defines(str(p4)),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "--goto",
+                "--no-slicing",
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertIn("model=crc32_bmv2 precision=precise", text)
+        self.assertIn("model=crc16_bmv2 precision=precise", text)
+        self.assertIn("__p4b_crc32_bmv2_byte", text)
+        self.assertIn("__p4b_crc16_bmv2_byte", text)
 
     def test_counter_externs_emit_stateful_updates(self) -> None:
         """Regression: PSA and eBPF counters must not survive as comment-only effects."""

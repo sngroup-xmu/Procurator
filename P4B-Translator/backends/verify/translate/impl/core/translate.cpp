@@ -668,9 +668,13 @@ bool Translator::shouldKeepVar(const std::string& name) const {
         static const std::vector<std::string> registerMirrorSuffixes = {
             "__last_index",
             "__last_value",
+            "__last_old_value",
             "__wrote_any",
             "__wrote_index0",
-            "__last0_value"
+            "__last0_old_value",
+            "__last0_value",
+            "__next_write_site",
+            "__last_write_site"
         };
         for (const auto& suffix : registerMirrorSuffixes) {
             if (nameStr.size() <= suffix.size()) {
@@ -812,6 +816,18 @@ void Translator::recordDeclName(const IR::IDeclaration* decl) {
     }
     declRenames[orig] = renamed;
     declRenameTargets.insert(renamed);
+}
+
+void Translator::recordControlInstanceType(const IR::Declaration_Instance* instance, cstring name) {
+    if (instance == nullptr || instance->type == nullptr || name == nullptr || name == "") {
+        return;
+    }
+    if (auto typeName = instance->type->to<IR::Type_Name>()) {
+        cstring controlType = translate(typeName);
+        if (procedures.find(controlType) != procedures.end()) {
+            controlInstanceTypes[name] = controlType;
+        }
+    }
 }
 
 static std::string externBaseTypeName(const IR::Type* type) {
@@ -1052,6 +1068,7 @@ void Translator::analyzeProgram(const IR::P4Program *program){
                     tables[translate(p4Table->name)] = p4Table;
                 }
                 else if (auto inst = controlLocal->to<IR::Declaration_Instance>()) {
+                    recordControlInstanceType(inst, translate(inst->getName()));
                     recordHashExtern(inst, translate(inst->getName()));
                     recordRandomExtern(inst, translate(inst->getName()));
                     recordCounterExtern(inst, translate(inst->getName()));
@@ -1078,6 +1095,7 @@ void Translator::analyzeProgram(const IR::P4Program *program){
         else if (auto instance = obj->to<IR::Declaration_Instance>()){
             instances.push_back(instance);
             recordDeclName(instance);
+            recordControlInstanceType(instance, translate(instance->getName()));
             recordHashExtern(instance, translate(instance->getName()));
             recordRandomExtern(instance, translate(instance->getName()));
             recordCounterExtern(instance, translate(instance->getName()));
@@ -1277,9 +1295,27 @@ void Translator::addRegisterWriteModifiedVariables(const cstring& regName) {
     currentProcedure->addModifiedGlobalVariables(regName);
     currentProcedure->addModifiedGlobalVariables(regName+"__last_index");
     currentProcedure->addModifiedGlobalVariables(regName+"__last_value");
+    currentProcedure->addModifiedGlobalVariables(regName+"__last_old_value");
     currentProcedure->addModifiedGlobalVariables(regName+"__wrote_any");
     currentProcedure->addModifiedGlobalVariables(regName+"__wrote_index0");
+    currentProcedure->addModifiedGlobalVariables(regName+"__last0_old_value");
     currentProcedure->addModifiedGlobalVariables(regName+"__last0_value");
+    currentProcedure->addModifiedGlobalVariables(regName+"__next_write_site");
+    currentProcedure->addModifiedGlobalVariables(regName+"__last_write_site");
+}
+
+void Translator::emitRegisterWriteSite(const cstring& regName) {
+    if (currentProcedure == nullptr || regName == "" || !isGlobalVariable(regName)) {
+        return;
+    }
+    int& site = registerWriteSiteCounts[regName];
+    if (site <= 0) {
+        site = 1;
+    }
+    currentProcedure->addStatement(
+        getIndent() + regName + "__next_write_site := " + toString(site++) + ";\n");
+    currentProcedure->addModifiedGlobalVariables(regName+"__next_write_site");
+    currentProcedure->addModifiedGlobalVariables(regName+"__last_write_site");
 }
 
 void Translator::addPred(cstring proc, cstring predProc){
@@ -1898,6 +1934,26 @@ void Translator::writeToFile(){
     std::set<cstring> reachableProcedures;
     if (options.slicingEnabled && !options.slicingKeepVars.empty()) {
         reachableProcedures = collectReachableProcedures(procedures, mainProcedure.getName());
+        for (const auto& kv : procedures) {
+            std::string procName = kv.first.c_str();
+            std::string suffix;
+            if (procName.size() > 5 && procName.rfind(".read") == procName.size() - 5) {
+                suffix = ".read";
+            } else if (procName.size() > 6 && procName.rfind(".write") == procName.size() - 6) {
+                suffix = ".write";
+            } else {
+                continue;
+            }
+            std::string base = procName.substr(0, procName.size() - suffix.size());
+            auto typeIt = varTypes.find(cstring(base));
+            if (typeIt == varTypes.end() || !typeIt->second.startsWith("[")) {
+                continue;
+            }
+            if (!isGlobalVariable(cstring(base)) || !shouldKeepVar(base)) {
+                continue;
+            }
+            reachableProcedures.insert(kv.first);
+        }
     } else {
         for (const auto& kv : procedures) {
             reachableProcedures.insert(kv.first);

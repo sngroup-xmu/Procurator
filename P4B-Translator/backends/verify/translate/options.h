@@ -93,8 +93,11 @@ class P4VerifyOptions : public CompilerOptions {
 
     struct FailFastRegisterAssert {
         cstring reg_boogie = nullptr;
-        cstring mode = nullptr;             // "any" | "slot0"
+        cstring mode = nullptr;             // "any" | "slot0" | "oldnew"
         cstring constant = nullptr;         // typed Boogie literal, e.g. 0bv16
+        cstring old_constant = nullptr;     // typed Boogie literal for oldnew mode
+        cstring new_constant = nullptr;     // typed Boogie literal for oldnew mode
+        cstring site_constant = nullptr;    // integer callsite id for site-qualified modes
     };
 
     // Post-slicing analysis results (filled by analysis passes, emitted via --meta-out).
@@ -253,20 +256,42 @@ class P4VerifyOptions : public CompilerOptions {
         registerOption("--fail-fast-register-assert", "reg:mode:constant",
                        [this](const char* arg) {
                            auto parts = split(std::string(arg), ":");
-                           if (parts.size() != 3) {
+                           if (parts.size() < 3 || parts.size() > 5) {
                                return false;
                            }
                            FailFastRegisterAssert item;
                            item.reg_boogie = parts[0].c_str();
                            item.mode = parts[1].c_str();
                            item.constant = parts[2].c_str();
-                           if (item.mode != "any" && item.mode != "slot0") {
+                           if (item.mode != "any" && item.mode != "slot0" && item.mode != "oldnew" &&
+                               item.mode != "anysite" && item.mode != "oldnewsite") {
+                               return false;
+                           }
+                           if (item.mode == "oldnew") {
+                               if (parts.size() != 4) {
+                                   return false;
+                               }
+                               item.old_constant = parts[2].c_str();
+                               item.new_constant = parts[3].c_str();
+                           } else if (item.mode == "anysite") {
+                               if (parts.size() != 4) {
+                                   return false;
+                               }
+                               item.site_constant = parts[3].c_str();
+                           } else if (item.mode == "oldnewsite") {
+                               if (parts.size() != 5) {
+                                   return false;
+                               }
+                               item.old_constant = parts[2].c_str();
+                               item.new_constant = parts[3].c_str();
+                               item.site_constant = parts[4].c_str();
+                           } else if (parts.size() != 3) {
                                return false;
                            }
                            fail_fast_register_asserts.push_back(item);
                            return true;
                        },
-                       "Add an immediate mirror-only assertion after register writes (reg:any|slot0:typed_literal).");
+                       "Add an immediate register-write assertion after register writes (reg:any|slot0:typed_literal, reg:anysite:value:site, reg:oldnew:old:new, or reg:oldnewsite:old:new:site).");
 
         registerOption("--no-slicing", nullptr,
                        [this](const char*) {
