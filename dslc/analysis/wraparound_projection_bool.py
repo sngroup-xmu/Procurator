@@ -65,7 +65,46 @@ def constant_bool_expr(expr: str) -> Optional[bool]:
         lhs = literal(m.group("lhs"))
         rhs = literal(m.group("rhs"))
         return None if lhs is None or rhs is None else lhs != rhs
+    m = re.match(r"^(?P<op>b(?:ult|ule|ugt|uge|slt|sle|sgt|sge))\.bv(?P<w>\d+)\((?P<args>.*)\)$", s)
+    if m:
+        args = [literal(part) for part in split_top_level_args(m.group("args"))]
+        if len(args) != 2 or args[0] is None or args[1] is None:
+            return None
+        return _eval_bv_cmp(m.group("op"), int(args[0].split("bv", 1)[0]), int(args[1].split("bv", 1)[0]), int(m.group("w")))
     return None
+
+
+def split_top_level_args(expr: str) -> List[str]:
+    parts: List[str] = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(expr):
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}" and depth > 0:
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(expr[start:i].strip())
+            start = i + 1
+    tail = expr[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _eval_bv_cmp(op: str, left: int, right: int, width: int) -> bool:
+    mask = (1 << width) - 1
+    left &= mask
+    right &= mask
+    if op in {"bult", "bslt"}:
+        return left < right
+    if op in {"bule", "bsle"}:
+        return left <= right
+    if op in {"bugt", "bsgt"}:
+        return left > right
+    if op in {"buge", "bsge"}:
+        return left >= right
+    return False
 
 
 def split_top_level_bool(expr: str, op: str) -> List[str]:

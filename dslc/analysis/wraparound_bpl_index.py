@@ -3,12 +3,14 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Set, Tuple
 
+from .boogie_bv_eval import bv_width, eval_bv_expr
+
 
 _RE_IDENT = re.compile(r"\b[A-Za-z_][A-Za-z0-9_.]*\b")
 _RE_BV_LIT = re.compile(r"^(?P<val>\d+)bv(?P<w>\d+)$")
 _RE_TYPE_ALIAS = re.compile(r"^\s*type\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(?P<rhs>[^;]+);\s*$")
-_RE_CONCAT_LIT_VAR = re.compile(
-    r"^(?P<prefix>\d+)bv(?P<pw>\d+)\s*\+\+\s*(?P<var>[A-Za-z_][A-Za-z0-9_.]*)$"
+_RE_CONST_DECL = re.compile(
+    r"^\s*const(?:\s+unique)?\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*:\s*(?P<type>[^;]+);\s*$"
 )
 _RE_ASSIGN_STMT = re.compile(r"^\s*(?P<lhs>[^:;]+?)\s*:=\s*(?P<rhs>.*);\s*$")
 _RE_CALL_STMT = re.compile(
@@ -16,9 +18,9 @@ _RE_CALL_STMT = re.compile(
 )
 _RE_HAVOC_STMT = re.compile(r"^\s*havoc\s+(?P<vars>[^;]+)\s*;\s*$")
 _RE_PROC_HEADER = re.compile(
-    r"^\s*procedure(?:\s+\{[^}]*\})?\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\((?P<params>[^)]*)\)"
+    r"^\s*procedure(?:\s+\{[^}]*\})*\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\((?P<params>[^)]*)\)"
 )
-_RE_FUNCTION_DECL = re.compile(r"^\s*function\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\s*\(")
+_RE_FUNCTION_DECL = re.compile(r"^\s*function(?:\s+\{[^}]*\})*\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\s*\(")
 _RE_ASSUME_CONST_EQ = re.compile(
     r"^\s*assume\s+\(?\s*(?P<lhs>[A-Za-z_][A-Za-z0-9_.]*)\s*==\s*(?P<rhs>[^;)]+)\s*\)?\s*;\s*$"
 )
@@ -27,6 +29,7 @@ _RE_ASSUME_STMT = re.compile(r"^\s*assume\s+(?P<expr>.*)\s*;\s*$")
 _RE_GOTO_STMT = re.compile(r"^\s*goto\s+(?P<labels>[^;]+)\s*;\s*$")
 _RE_LABEL_STMT = re.compile(r"^\s*(?P<label>[A-Za-z_][A-Za-z0-9_.$]*)\s*:\s*$")
 _RE_RETURN_STMT = re.compile(r"^\s*return\s*;\s*$")
+_RE_TRAILING_BV_SLICE = re.compile(r"^(?P<body>.+)\[(?P<hi>\d+):(?P<lo>\d+)\]$")
 
 
 def _vars_in_expr(expr: str, *, var_types: Dict[str, str]) -> List[str]:
@@ -37,18 +40,9 @@ def _vars_in_expr(expr: str, *, var_types: Dict[str, str]) -> List[str]:
     return sorted(set(vars_found))
 
 def _residual_noncallee_identifiers(expr: str) -> List[str]:
-    """
-    Return identifiers that occur as values rather than function symbols.
-
-    A pre-loop fast-forward index may safely call an uninterpreted function over
-    literals, e.g. `Hash.get(1bv32, 2bv16)`.  The function name itself is an
-    identifier in Boogie text, but it is not a runtime value.  Any identifier
-    left after removing callee positions is a value dependency and is unsafe
-    unless it is one of Boogie's literal keywords.
-    """
-
+    """Return identifiers that occur as values rather than function symbols."""
     without_callees = _RE_CALLEE_IDENT.sub("", expr)
-    allowed = {"true", "false"}
+    allowed = {"true", "false", "if", "then", "else"}
     out: Set[str] = set()
     for tok in _RE_IDENT.findall(without_callees):
         if tok in allowed:
@@ -56,13 +50,35 @@ def _residual_noncallee_identifiers(expr: str) -> List[str]:
         out.add(tok)
     return sorted(out)
 
-def _is_preloop_pure_index_expr(expr: str, *, var_types: Dict[str, str]) -> bool:
+def _is_preloop_pure_index_expr(
+    expr: str, *, var_types: Dict[str, str], declared_call_symbols: Optional[Set[str]] = None
+) -> bool:
     # First reject declared Boogie globals.  Then reject any residual identifier
     # (procedure parameters, locals, unresolved temporaries) in argument/value
     # position.  This is an allowlist: only literals and calls over literals pass.
     if _vars_in_expr(expr, var_types=var_types):
         return False
-    return not _residual_noncallee_identifiers(expr)
+    if _residual_noncallee_identifiers(expr):
+        return False
+    if declared_call_symbols is None:
+        return True
+    for callee in _RE_CALLEE_IDENT.findall(expr):
+        if callee not in declared_call_symbols:
+            return False
+    return True
+
+def _normalize_meta_expr_for_target_width(expr: str, target_type: Optional[str]) -> str:
+    width = bv_width(target_type)
+    if width is None:
+        return expr
+    m = _RE_TRAILING_BV_SLICE.match(expr.strip())
+    if not m:
+        return expr
+    hi = int(m.group("hi"))
+    lo = int(m.group("lo"))
+    if hi >= lo and hi - lo + 1 == width:
+        return f"{m.group('body')}[{hi + 1}:{lo}]"
+    return expr
 
 def _split_args(args: str) -> List[str]:
     out: List[str] = []
@@ -135,38 +151,50 @@ def _type_aliases(bpl_text: str) -> Dict[str, str]:
                 changed = True
     return aliases
 
-def _extract_bpl_constant_literals(bpl_text: str, *, var_types: Dict[str, str]) -> Dict[str, str]:
-    """
-    Extract Boogie-level constant equalities from generated env assumptions.
+def _const_types(bpl_text: str) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for line in bpl_text.splitlines():
+        m = _RE_CONST_DECL.match(line.strip())
+        if m:
+            out[m.group("name")] = m.group("type").strip()
+    return out
 
-    This complements DSL global assumes: host/node env blocks are emitted as typed
-    Boogie assumptions (`assume x == 7bv16;`).  For a dynamic register index such
-    as `meta.register_index := Hash.get(five_tuple)`, these equalities let us
-    turn the pre-loop fast-forward index into `Hash.get(constants...)` instead
-    of the uninitialized packet/meta variables at the cutpoint.
-    """
+def _extract_bpl_constant_literals(bpl_text: str, *, var_types: Dict[str, str]) -> Dict[str, str]:
+    """Extract env-like constant equalities without globalizing branch guards."""
 
     aliases = _type_aliases(bpl_text)
+    const_types = _const_types(bpl_text)
     candidates: Dict[str, Set[str]] = {}
-    for line in bpl_text.splitlines():
+
+    def record(line: str) -> None:
         m = _RE_ASSUME_CONST_EQ.match(line.strip())
         if not m:
-            continue
+            return
         lhs = m.group("lhs").strip()
         if lhs not in var_types:
-            continue
+            return
         rhs = m.group("rhs").strip()
         typ = aliases.get(var_types.get(lhs, ""), var_types.get(lhs, ""))
         if typ == "bool":
             if rhs not in {"true", "false"}:
-                continue
+                return
         elif typ == "int":
             if re.match(r"^-?\d+$", rhs) is None:
-                continue
+                return
         else:
-            if _RE_BV_LIT.match(rhs) is None:
-                continue
+            if _RE_BV_LIT.match(rhs) is None and const_types.get(rhs) != typ:
+                return
         candidates.setdefault(lhs, set()).add(rhs)
+
+    for line in bpl_text.splitlines():
+        if line.startswith("assume"):
+            record(line)
+
+    for name, body in _extract_proc_bodies(bpl_text).items():
+        if name not in {"main", "mainProcedure", "ULTIMATE.start"}:
+            continue
+        for stmt in _iter_bpl_statements(body):
+            record(stmt)
 
     return {lhs: next(iter(vals)) for lhs, vals in candidates.items() if len(vals) == 1}
 
@@ -177,16 +205,7 @@ def _derive_constant_assignment_literals(
     initial_consts: Dict[str, str],
     max_iters: int = 4,
 ) -> Dict[str, str]:
-    """
-    Derive additional constant-valued globals from simple assignments.
-
-    Example from Flowrest:
-      meta.hdr_srcport := hdr.tcp.src_port;
-
-    If `hdr.tcp.src_port` is fixed by env assumptions (and all assignments to
-    `meta.hdr_srcport` collapse to the same literal), we can safely use the
-    metadata value in a pre-loop index expression.
-    """
+    """Derive globals whose simple assignments always collapse to one literal."""
 
     writes: Dict[str, List[str]] = {}
     unknown_writes: Set[str] = set()
@@ -213,9 +232,7 @@ def _derive_constant_assignment_literals(
             continue
         rhs = m.group("rhs").strip()
         if rhs == lhs:
-            # P4B table/action stubs often emit `x := x;` to preserve an inout
-            # parameter.  Treat it as a no-op; it should not poison an otherwise
-            # constant env copy chain.
+            # P4B inout-preserving no-op.
             continue
         writes.setdefault(lhs, []).append(rhs)
 
@@ -341,28 +358,75 @@ def _is_simple_literal_expr(expr: str) -> bool:
     cur = expr.strip()
     return cur in {"true", "false"} or re.match(r"^-?\d+$", cur) is not None or _RE_BV_LIT.match(cur) is not None
 
+def _strip_wrapping_parens(expr: str) -> str:
+    cur = expr.strip()
+    while cur.startswith("(") and cur.endswith(")"):
+        depth = 0
+        wraps_entire = True
+        for i, ch in enumerate(cur):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth < 0:
+                    return cur
+                if depth == 0 and i != len(cur) - 1:
+                    wraps_entire = False
+                    break
+        if wraps_entire and depth == 0:
+            cur = cur[1:-1].strip()
+            continue
+        break
+    return cur
+
+def _split_top_level_bool(expr: str, op: str) -> List[str]:
+    parts: List[str] = []
+    cur: List[str] = []
+    depth = 0
+    i = 0
+    while i < len(expr):
+        ch = expr[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")" and depth > 0:
+            depth -= 1
+        if depth == 0 and expr.startswith(op, i):
+            parts.append("".join(cur).strip())
+            cur = []
+            i += len(op)
+            continue
+        cur.append(ch)
+        i += 1
+    parts.append("".join(cur).strip())
+    return [p for p in parts if p]
+
 def _eval_simple_assume(expr: str, env: Dict[str, str]) -> Optional[bool]:
     cur = _substitute_tokens(expr.strip(), env)
-    cur = cur.strip()
-    while cur.startswith("(") and cur.endswith(")"):
-        cur = cur[1:-1].strip()
+    cur = _strip_wrapping_parens(cur)
     if cur == "true":
         return True
     if cur == "false":
         return False
-    if cur.startswith("!"):
-        inner = cur[1:].strip()
-        while inner.startswith("(") and inner.endswith(")"):
-            inner = inner[1:-1].strip()
-        val = _eval_simple_assume(inner, env)
-        return None if val is None else not val
-    if "&&" in cur:
-        vals = [_eval_simple_assume(part, env) for part in cur.split("&&")]
+    and_parts = _split_top_level_bool(cur, "&&")
+    if len(and_parts) > 1:
+        vals = [_eval_simple_assume(part, env) for part in and_parts]
         if any(v is False for v in vals):
             return False
         if all(v is True for v in vals):
             return True
         return None
+    or_parts = _split_top_level_bool(cur, "||")
+    if len(or_parts) > 1:
+        vals = [_eval_simple_assume(part, env) for part in or_parts]
+        if any(v is True for v in vals):
+            return True
+        if all(v is False for v in vals):
+            return False
+        return None
+    if cur.startswith("!"):
+        inner = _strip_wrapping_parens(cur[1:].strip())
+        val = _eval_simple_assume(inner, env)
+        return None if val is None else not val
     m_eq = re.match(r"^(?P<a>\S+)\s*==\s*(?P<b>\S+)$", cur)
     if m_eq:
         a = m_eq.group("a")
@@ -390,13 +454,12 @@ def _assume_env_after(expr: str, env: Dict[str, str], *, var_types: Dict[str, st
     if val is True:
         return dict(env)
 
-    cur = expr.strip()
-    while cur.startswith("(") and cur.endswith(")"):
-        cur = cur[1:-1].strip()
+    cur = _strip_wrapping_parens(expr)
 
-    if "&&" in cur:
+    and_parts = _split_top_level_bool(cur, "&&")
+    if len(and_parts) > 1:
         out = dict(env)
-        for part in cur.split("&&"):
+        for part in and_parts:
             out = _assume_env_after(part, out, var_types=var_types)
             if out is None:
                 return None
@@ -439,15 +502,7 @@ def _call_args_at_proc_callsite(
     var_types: Dict[str, str],
     max_states: int = 2000,
 ) -> List[List[str]]:
-    """
-    Return target-call arguments after path-sensitive constant propagation.
-
-    This is intentionally narrow and conservative.  It follows intra-node inline
-    procedure calls and parser gotos, prunes branches whose `assume` is false
-    under the current constants, and records only values at the target callsite.
-    If the Boogie shape is outside this small fragment, the caller simply falls
-    back to the original dynamic index.
-    """
+    """Return target-call arguments after narrow path-sensitive propagation."""
 
     bodies = {name: _iter_bpl_statements(lines) for name, lines in _extract_proc_bodies(bpl_text).items()}
     if proc_name not in bodies:
@@ -624,12 +679,7 @@ def _extract_unique_proc_assignment_to(
     *,
     lhs: str,
 ) -> Dict[str, Tuple[List[str], str]]:
-    """
-    Find inline-like procedures that assign `lhs` exactly one RHS.
-
-    Returned mapping is `proc_name -> (params, rhs)`.  We intentionally ignore
-    procedures with multiple different assignments to `lhs`.
-    """
+    """Find inline-like procedures that assign `lhs` exactly one RHS."""
 
     lines = bpl_text.splitlines()
     out: Dict[str, Tuple[List[str], str]] = {}
@@ -693,24 +743,7 @@ def _derive_index_expr_from_bpl_definition(
     bpl_text: str,
     var_types: Dict[str, str],
 ) -> str:
-    """
-    Replace a dynamic index variable with its deterministic Boogie definition.
-
-    Flowrest/TNA often emits meta like `idx_expr = meta.register_index`, while
-    the generated Boogie computes that variable by calling a small action:
-
-      call Ingress_get_register_index(meta.hdr_srcport, meta.hdr_dstport);
-      ...
-      procedure Ingress_get_register_index(src, dst) {
-        meta.register_index := Hash.get(hdr.src, hdr.dst, src, dst, hdr.proto);
-      }
-
-    The wraparound fast-forward runs before the first scheduler iteration, so
-    using `meta.register_index` directly would read an uninitialized/havoced
-    value.  This helper recovers the pure RHS, substitutes call arguments and
-    env constants, and returns a stable expression such as
-    `Hash.get(10.0.0.1, 10.0.0.2, 1234, 443, TCP)`.
-    """
+    """Replace a dynamic index variable with a stable Boogie RHS when unique."""
 
     expr = idx_expr.strip()
     if expr not in var_types:
@@ -766,14 +799,13 @@ def _derive_index_expr_from_bpl_definition(
         cur = _substitute_tokens(cur, consts)
         derived.add(cur)
 
-    # The generated system harness may also copy mailbox/host metadata into the
-    # node-local meta variables (e.g. `mainProcedure` assigning
-    # `meta.register_index := io_meta.register_index`).  Those pre-pass copies
-    # are not the register-action index computation and are unsafe to use for a
-    # pre-loop fast-forward.  Prefer a uniquely recovered pure expression, such
-    # as a hash function over env literals.  If we cannot get exactly one pure
-    # expression, keep the original dynamic index so the CEGAR layer falls back.
-    pure = {d for d in derived if _is_preloop_pure_index_expr(d, var_types=var_types)}
+    # Ignore pre-pass mailbox copies; only a unique pure computation is stable.
+    declared = _declared_call_symbols(bpl_text)
+    pure = {
+        d
+        for d in derived
+        if _is_preloop_pure_index_expr(d, var_types=var_types, declared_call_symbols=declared)
+    }
     if len(pure) == 1:
         return next(iter(pure))
     return expr
@@ -869,6 +901,27 @@ def _derive_stable_meta_definition_map(
                 cur,
                 _definition_context_aliases(cur, item, node=node, var_types=var_types),
             )
+            # Meta may still mention high-level hash call symbols (e.g., *_idx_calc.get$...)
+            # that do not exist after P4B lowering. Rewrite such expressions to the actual
+            # declared/lowered assignment RHS when uniquely recoverable.
+            rewritten = _rewrite_hash_model_expr_to_declared(
+                cur,
+                node=node,
+                target_pref=target_pref,
+                bpl_text=bpl_text,
+                var_types=var_types,
+            )
+            if rewritten is not None:
+                cur, quality = rewritten
+                if quality == "low":
+                    # Do not turn a dynamic hash index into a pass-through copy such
+                    # as `io_meta.register_index`; such copies are pre-loop globals.
+                    # Keep the original expression and let normal purity checks decide.
+                    cur = _prefix_expr_with_known_vars(expr.strip(), node=node, var_types=var_types)
+                    cur = _substitute_tokens(
+                        cur,
+                        _definition_context_aliases(cur, item, node=node, var_types=var_types),
+                    )
             cur = _prefix_callees_with_declared_symbols(cur, node=node, declared=declared)
             cur = _substitute_tokens(cur, root_consts)
             cur = _substitute_tokens(cur, consts)
@@ -876,7 +929,9 @@ def _derive_stable_meta_definition_map(
                 cur,
                 {name: value for name, value in stable.items() if name != target_pref},
             )
-            if _is_preloop_pure_index_expr(cur, var_types=var_types):
+            cur = _canonicalize_call_arg_spacing(cur)
+            cur = _normalize_meta_expr_for_target_width(cur, var_types.get(target_pref))
+            if _is_preloop_pure_index_expr(cur, var_types=var_types, declared_call_symbols=declared):
                 candidates.setdefault(target_pref, set()).add(cur)
 
         next_stable = {
@@ -960,11 +1015,27 @@ def _derive_stable_expr_from_meta_definition(
             continue
         if target.strip() not in keys:
             continue
+        target_pref_item = _prefix_expr_with_known_vars(target.strip(), node=node, var_types=var_types)
         cur = _prefix_expr_with_known_vars(expr.strip(), node=node, var_types=var_types)
         cur = _substitute_tokens(
             cur,
             _definition_context_aliases(cur, item, node=node, var_types=var_types),
         )
+        rewritten = _rewrite_hash_model_expr_to_declared(
+            cur,
+            node=node,
+            target_pref=target_pref_item,
+            bpl_text=bpl_text,
+            var_types=var_types,
+        )
+        if rewritten is not None:
+            cur, quality = rewritten
+            if quality == "low":
+                cur = _prefix_expr_with_known_vars(expr.strip(), node=node, var_types=var_types)
+                cur = _substitute_tokens(
+                    cur,
+                    _definition_context_aliases(cur, item, node=node, var_types=var_types),
+                )
         cur = _prefix_callees_with_declared_symbols(cur, node=node, declared=declared)
         cur = _substitute_tokens(cur, root_consts)
         cur = _substitute_tokens(cur, consts)
@@ -972,7 +1043,9 @@ def _derive_stable_expr_from_meta_definition(
             cur,
             {name: value for name, value in stable_defs.items() if name != target_expr_pref},
         )
-        if _is_preloop_pure_index_expr(cur, var_types=var_types):
+        cur = _canonicalize_call_arg_spacing(cur)
+        cur = _normalize_meta_expr_for_target_width(cur, var_types.get(target_pref_item))
+        if _is_preloop_pure_index_expr(cur, var_types=var_types, declared_call_symbols=declared):
             candidates.add(cur)
 
     return next(iter(candidates)) if len(candidates) == 1 else None
@@ -1034,7 +1107,7 @@ def _derive_stable_expr_substitutions_from_meta_definitions(
             )
         )
 
-    return _derive_stable_meta_definition_map(
+    stable = _derive_stable_meta_definition_map(
         raw_defs,
         node=node,
         bpl_text=bpl_text,
@@ -1043,6 +1116,11 @@ def _derive_stable_expr_substitutions_from_meta_definitions(
         consts=consts,
         declared=_declared_call_symbols(bpl_text),
     )
+    folded: Dict[str, str] = {}
+    for target, expr in stable.items():
+        value = eval_bv_expr(expr, const_eq={}, var_types=var_types)
+        folded[target] = f"{value.value}bv{value.width}" if value is not None else expr
+    return folded
 
 def _node_roots_for_index_definition(*, node: str, bpl_text: str) -> List[str]:
     prefix = f"{node}_"
@@ -1175,44 +1253,11 @@ def _derive_consts_at_proc_entry(
             out[key] = next(iter(vals))  # type: ignore[arg-type]
     return out
 
-def _bv_width(typ: Optional[str]) -> Optional[int]:
-    if typ is None:
-        return None
-    m = re.match(r"^bv(?P<w>\d+)$", typ.strip())
-    if not m:
-        return None
-    return int(m.group("w"))
-
 def _maybe_eval_index_expr_to_constant(
     idx_expr: str, *, const_eq: Dict[str, int], var_types: Dict[str, str]
 ) -> Optional[int]:
-    expr = idx_expr.strip()
-    while expr.startswith("(") and expr.endswith(")"):
-        expr = expr[1:-1].strip()
-
-    if expr in const_eq:
-        return const_eq[expr]
-
-    m = _RE_CONCAT_LIT_VAR.match(expr.replace(" ", ""))
-    if not m:
-        return None
-
-    prefix_val = int(m.group("prefix"))
-    prefix_w = int(m.group("pw"))
-    var = m.group("var")
-    if var not in const_eq:
-        return None
-
-    var_val = const_eq[var]
-    var_w = _bv_width(var_types.get(var))
-    if var_w is None:
-        return None
-
-    if prefix_val < 0 or prefix_val >= (1 << prefix_w):
-        return None
-    if var_val < 0 or var_val >= (1 << var_w):
-        return None
-    return (prefix_val << var_w) | var_val
+    value = eval_bv_expr(idx_expr, const_eq=const_eq, var_types=var_types)
+    return None if value is None else value.value
 def _resolve_prefixed_name(name: str, *, node: str, var_types: Dict[str, str]) -> str:
     """
     Map an unprefixed P4B name to the composed Boogie name.
@@ -1291,10 +1336,122 @@ def _prefix_callees_with_declared_symbols(expr: str, *, node: str, declared: Set
         pref = f"{node}_{tok}"
         if pref in declared:
             return pref + suffix
-        if tok.startswith("hash_"):
-            normalized = _normalize_hash_callee_to_declared(tok, node=node, declared=declared)
-            if normalized is not None:
-                return normalized + suffix
+        normalized = _normalize_hash_callee_to_declared(tok, node=node, declared=declared)
+        if normalized is not None:
+            return normalized + suffix
         return raw
 
     return _RE_CALLEE_IDENT.sub(repl, expr)
+
+
+def _rewrite_hash_model_expr_to_declared(
+    expr: str,
+    *,
+    node: str,
+    target_pref: str,
+    bpl_text: str,
+    var_types: Dict[str, str],
+) -> Optional[Tuple[str, str]]:
+    """
+    Rewrite unsupported meta hash-call expressions into declared lowered formulas.
+
+    P4B meta may expose deterministic/index definitions as high-level hash callee
+    symbols (e.g., `Ingress_idx_calc.get$...`) while the final Boogie model has
+    already lowered hashes to inlined CRC formulas. In that case the meta callee is
+    undeclared in the composed BPL. This helper recovers the actual assigned RHS by
+    scanning assignments to `target_pref` inside node-local procedures.
+    """
+
+    if not isinstance(expr, str):
+        return None
+    if "get$" not in expr:
+        return None
+
+    declared = _declared_call_symbols(bpl_text)
+    undeclared = [c for c in _RE_CALLEE_IDENT.findall(expr) if c not in declared]
+    if not undeclared:
+        return None
+
+    def _expand_rhs_with_local_aliases(rhs: str, alias_map: Dict[str, str]) -> str:
+        """
+        Expand local temporaries with in-procedure aliases.
+
+        Example in lowered TNA models:
+          srcPort_1 := meta.hdr_srcport;
+          dstPort_1 := meta.hdr_dstport;
+          meta.register_index := crc(... srcPort_1 ... dstPort_1 ...);
+        We want the target RHS to inline those temporaries.
+        """
+
+        cur = rhs
+        seen: Set[str] = {cur}
+        for _ in range(16):
+            nxt = _substitute_tokens(cur, alias_map)
+            if nxt == cur or nxt in seen:
+                return nxt
+            seen.add(nxt)
+            cur = nxt
+        return cur
+
+    proc_bodies = _extract_proc_bodies(bpl_text)
+    prefix = f"{node}_"
+    candidates: Set[str] = set()
+    for proc, body in proc_bodies.items():
+        if not proc.startswith(prefix):
+            continue
+        local_aliases: Dict[str, str] = {}
+        for stmt in _iter_bpl_statements(body):
+            mh = _RE_HAVOC_STMT.match(stmt)
+            if mh:
+                for lhs in [part.strip() for part in mh.group("vars").split(",")]:
+                    local_aliases.pop(lhs, None)
+                continue
+
+            if stmt.lstrip().startswith("call "):
+                # Calls may clobber locals/globals through modifies; avoid
+                # carrying stale temporary aliases across call boundaries.
+                local_aliases.clear()
+                continue
+
+            m = _RE_ASSIGN_STMT.match(stmt)
+            if not m:
+                continue
+            lhs_parts = [p.strip() for p in m.group("lhs").split(",")]
+            rhs_raw = m.group("rhs").strip()
+            rhs_expanded = _expand_rhs_with_local_aliases(rhs_raw, local_aliases)
+            if target_pref in lhs_parts and rhs_expanded:
+                candidates.add(rhs_expanded)
+
+            if len(lhs_parts) != 1:
+                for lhs in lhs_parts:
+                    local_aliases.pop(lhs, None)
+                continue
+
+            lhs = lhs_parts[0]
+            if lhs in _RE_IDENT.findall(rhs_expanded):
+                local_aliases.pop(lhs, None)
+            else:
+                local_aliases[lhs] = rhs_expanded
+    if len(candidates) != 1:
+        return None
+    # Prefer real hash-like lowered formulas (CRC/concat/slice), not trivial copies
+    # from harness/meta passthrough assignments.
+    preferred = [
+        rhs
+        for rhs in candidates
+        if ("crc" in rhs.lower()) or ("++" in rhs) or ("[" in rhs and ":" in rhs and "]" in rhs)
+    ]
+    if len(preferred) == 1:
+        return preferred[0], "high"
+    return next(iter(candidates)), "low"
+
+
+def _canonicalize_call_arg_spacing(expr: str) -> str:
+    """
+    Normalize call argument spacing to keep deterministic expression strings.
+    """
+
+    text = str(expr or "")
+    text = re.sub(r"\(\s+", "(", text)
+    text = re.sub(r"\s+,\s*", ", ", text)
+    return text

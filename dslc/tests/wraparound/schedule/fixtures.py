@@ -218,25 +218,29 @@ class _SequenceRunner:
             else:
                 result_line = "RESULT: UNSAFE"
             if log_path is not None:
-                Path(log_path).write_text(f"{Path(input_bpl).name if input_bpl is not None else ''}\n{result_line}\n", encoding="utf-8")
+                self._write_log(log_path, input_bpl, result_line)
             return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=result_line)
         if stage == "near_wrap":
             result_line = "RESULT: UNSAFE"
             if log_path is not None:
-                Path(log_path).write_text(f"{Path(input_bpl).name if input_bpl is not None else ''}\n{result_line}\n", encoding="utf-8")
+                self._write_log(log_path, input_bpl, result_line)
             return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=result_line)
         if stage.startswith("confirm.witness."):
             result_line = "RESULT: UNSAFE"
             if log_path is not None:
-                Path(log_path).write_text(f"{Path(input_bpl).name if input_bpl is not None else ''}\n{result_line}\n", encoding="utf-8")
+                self._write_log(log_path, input_bpl, result_line)
             return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=result_line)
         if stage == "closure_check":
             result = self.closure_results.pop(0)
             result_line = f"RESULT: {result}"
             if log_path is not None:
-                Path(log_path).write_text(f"{Path(input_bpl).name if input_bpl is not None else ''}\n{result_line}\n", encoding="utf-8")
+                self._write_log(log_path, input_bpl, result_line)
             return StageRunResult(stage=stage, returncode=0, wall_time_s=0.0, result_line=result_line)
         raise AssertionError(stage)
+
+    def _write_log(self, log_path, input_bpl, result_line: str) -> None:  # type: ignore[no-untyped-def]
+        bpl = Path(input_bpl) if input_bpl is not None else Path("")
+        Path(log_path).write_text(f"[RUN] Ultimate -i {bpl.as_posix()}\n{result_line}\n", encoding="utf-8")
 
 
 class _TimeoutRecordingRunner(_SequenceRunner):

@@ -411,6 +411,7 @@ def analyze_bpl_for_wraparound(
         raise WraparoundTransformError(f"register not found: {pump_reg}")
     index_w, elem_w = decl
 
+    original_index_expr = index_expr
     # If the caller passes an index expression (typically inferred from meta),
     # ensure it typechecks against the register index width.
     if index_expr is not None:
@@ -424,6 +425,7 @@ def analyze_bpl_for_wraparound(
         index_width=index_w,
         index_value=idx_value,
         index_expr_override=index_expr,
+        original_index_expr=original_index_expr,
         use_last0_value=use_last0,
     )
 
@@ -444,6 +446,7 @@ def analyze_bpl_for_wraparound(
                 index_width=idx_w,
                 index_value=idx_value,
                 index_expr_override=index_expr,
+                original_index_expr=original_index_expr,
                 use_last0_value=(index_expr is None and index_value == 0 and f"{r}__last0_value" in var_types),
             )
         )

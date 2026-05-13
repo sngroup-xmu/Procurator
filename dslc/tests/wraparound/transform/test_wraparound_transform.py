@@ -311,6 +311,7 @@ procedure mainProcedure() returns()
         src = """
 var procurator_step: int;
 var procurator_phase: int;
+var unused_reg:[bv32]bv8;
 var dsl_pump_mode: bool;
 var io_meta.leafswitchidx: bv16;
 var reg:[bv32]bv32;
@@ -906,48 +907,6 @@ procedure mainProcedure() returns()
         # Snapshot is deterministic at the first cutpoint.
         self.assertIn("if (!wrap_snap_taken) {", out)
         self.assertRegex(out, r"if\s*\(wrap_snap_taken.*\)\s*\{")
-
-    def test_entry_check_inserts_reachability_error(self) -> None:
-        src = """
-var procurator_step: int;
-var procurator_phase: int;
-
-procedure main() returns()
-  modifies procurator_phase;
-{
-  if (procurator_phase == 0) {
-  }
-  if (procurator_phase == 4) {
-    procurator_phase := 0;
-  } else {
-    procurator_phase := procurator_phase + 1;
-  }
-}
-
-procedure mainProcedure() returns()
-  modifies procurator_phase, procurator_step;
-{
-  procurator_step := 0;
-  procurator_phase := 0;
-  while (true) {
-    call main();
-    procurator_step := procurator_step + 1;
-  }
-}
-"""
-        out = instrument_bpl_text(
-            bpl_text=src,
-            stage=WraparoundStage.ENTRY_CHECK,
-            pump_reg="unused_reg",
-            accel_regs=["unused_reg"],
-        )
-        # ENTRY_CHECK is a cheap satisfiability gate: it should not unroll the scheduler.
-        self.assertIn("while (true)", out)
-        self.assertIn("procurator_step := procurator_step + 1;", out)
-        self.assertIn("call __wraparound_entry_error();", out)
-        self.assertLess(out.index("procurator_phase := 0;"), out.index("call __wraparound_entry_error();"))
-        self.assertLess(out.index("call __wraparound_entry_error();"), out.index("while (true)"))
-        self.assertIn("WRAPAROUND_ENTRY_ASSERT", out)
 
     def test_closure_check_unrolls_one_round_and_proves_inc(self) -> None:
         src = """

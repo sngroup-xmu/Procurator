@@ -78,6 +78,7 @@ def branch_projection_resolves_only_ambiguity(dep_projection, branch: Sequence[s
         "dependency_projection_period=",
         "dependency_projection_live_deps=",
         "dependency_projection_dynamic_slot_exprs=",
+        "dependency_projection_unstable_cutpoint_guards=",
     )
     for note in notes:
         if note == "dependency_projection_incomplete":
@@ -87,8 +88,6 @@ def branch_projection_resolves_only_ambiguity(dep_projection, branch: Sequence[s
         if note.startswith("dependency_projection_branch_"):
             continue
         if "incomplete" in note:
-            return False
-        if note.startswith("dependency_projection_unstable_cutpoint_guards="):
             return False
         if note.startswith("dependency_projection_unresolved_calls="):
             return False

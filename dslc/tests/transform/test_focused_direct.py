@@ -752,7 +752,7 @@ procedure {:inline 1} s_Ingress()
         self.assertIn("s_reg[0bv16] := s_tmp;", res.text)
         self.assertNotIn("call s_reg.write(s_meta.register_index, s_tmp);", res.text)
 
-    def test_generic_call_helper_pins_hash_based_index(self) -> None:
+    def test_generic_call_helper_uses_nonzero_constant_hash_slot(self) -> None:
         bpl = """\
 var flowdos_reg:[bv32]bv8;
 var flowdos_reg__last_index:bv32;
@@ -764,11 +764,14 @@ var flowdos_counter_pos:bv32;
 var flowdos_counter_val:bv8;
 var flowdos_src:bv32;
 
+function {:inline true} flowdos___p4b_crc16_bmv2_bit(flowdos_crc:bv16) returns(bv16) { (if (flowdos_crc)[1:0] == 1bv1 then bxor.bv16(shr.bv16(flowdos_crc, 1bv16), 40961bv16) else shr.bv16(flowdos_crc, 1bv16)) }
+function {:inline true} flowdos___p4b_crc16_bmv2_byte(flowdos_crc:bv16, flowdos_byte:bv8) returns(bv16) { flowdos___p4b_crc16_bmv2_bit(flowdos___p4b_crc16_bmv2_bit(flowdos___p4b_crc16_bmv2_bit(flowdos___p4b_crc16_bmv2_bit(flowdos___p4b_crc16_bmv2_bit(flowdos___p4b_crc16_bmv2_bit(flowdos___p4b_crc16_bmv2_bit(flowdos___p4b_crc16_bmv2_bit(bxor.bv16(flowdos_crc, 0bv8++(flowdos_byte)))))))))) }
+
 procedure {:inline 1} flowdos_compute_hash()
   modifies flowdos_counter_pos, flowdos_src;
 {
   flowdos_src := 167772161bv32;
-  flowdos_counter_pos := flowdos_hash__crc16$bv32$bv32$bv32(0bv32, flowdos_src, 4096bv32);
+  flowdos_counter_pos := (if 4096bv32 == 0bv32 then 0bv32 else add.bv32(0bv32, urem.bv32(0bv16++(flowdos___p4b_crc16_bmv2_byte(flowdos___p4b_crc16_bmv2_byte(flowdos___p4b_crc16_bmv2_byte(flowdos___p4b_crc16_bmv2_byte(0bv16, (flowdos_src)[32:24]), (flowdos_src)[24:16]), (flowdos_src)[16:8]), (flowdos_src)[8:0])), 4096bv32)));
 }
 
 function {:inline true}flowdos_reg.read(r:[bv32]bv8, i:bv32) returns (bv8) { r[i] }
@@ -797,11 +800,81 @@ procedure {:inline 1} flowdos_ingress()
 
         self.assertTrue(res.changed)
         self.assertEqual(res.idx_var, "flowdos_counter_pos")
-        self.assertEqual(res.zero, "0bv32")
-        self.assertIn("assume flowdos_counter_pos == 0bv32;", res.text)
-        self.assertIn("flowdos_counter_val := flowdos_reg[0bv32];", res.text)
-        self.assertIn("flowdos_reg[0bv32] := flowdos_counter_val;", res.text)
+        self.assertEqual(res.zero, "2242bv32")
+        self.assertIn("assume flowdos_counter_pos == 2242bv32;", res.text)
+        self.assertIn("flowdos_counter_val := flowdos_reg[2242bv32];", res.text)
+        self.assertIn("flowdos_reg[2242bv32] := flowdos_counter_val;", res.text)
+        self.assertIn("flowdos_reg__last_index := 2242bv32;", res.text)
+        ingress_body = res.text.split("procedure {:inline 1} flowdos_ingress()", 1)[1]
+        self.assertNotIn("flowdos_reg__wrote_index0 := true;", ingress_body)
         self.assertNotIn("call flowdos_reg.write(flowdos_counter_pos, flowdos_counter_val);", res.text)
+
+    def test_oldnew_fail_fast_uses_focused_slot_and_old_value_mirror(self) -> None:
+        bpl = """\
+var flowdos_reg:[bv32]bv8;
+var flowdos_reg__last_index:bv32;
+var flowdos_reg__last_value:bv8;
+var flowdos_reg__last_old_value:bv8;
+var flowdos_reg__wrote_any:bool;
+var flowdos_reg__wrote_index0:bool;
+var flowdos_reg__last0_old_value:bv8;
+var flowdos_reg__last0_value:bv8;
+var flowdos_counter_pos:bv32;
+var flowdos_counter_val:bv8;
+var flowdos_src:bv32;
+
+procedure {:inline 1} flowdos_compute_hash()
+  modifies flowdos_counter_pos, flowdos_src;
+{
+  flowdos_src := 167772161bv32;
+  flowdos_counter_pos := 2242bv32;
+}
+
+function {:inline true}flowdos_reg.read(r:[bv32]bv8, i:bv32) returns (bv8) { r[i] }
+procedure {:inline 1} flowdos_reg.write(i:bv32, v:bv8)
+  modifies flowdos_reg, flowdos_reg__last_index, flowdos_reg__last_value, flowdos_reg__last_old_value,
+           flowdos_reg__wrote_any, flowdos_reg__wrote_index0, flowdos_reg__last0_old_value, flowdos_reg__last0_value;
+{
+  flowdos_reg__last_old_value := flowdos_reg[i];
+  flowdos_reg[i] := v;
+  flowdos_reg__last_index := i;
+  flowdos_reg__last_value := v;
+  flowdos_reg__wrote_any := true;
+  if (flowdos_reg__wrote_any && flowdos_reg__last_old_value == 255bv8 && flowdos_reg__last_value == 0bv8) {
+    assert false;
+    assume false;
+  }
+  if (i == 0bv32) {
+    flowdos_reg__wrote_index0 := true;
+    flowdos_reg__last0_old_value := flowdos_reg__last_old_value;
+    flowdos_reg__last0_value := v;
+  }
+}
+
+procedure {:inline 1} flowdos_ingress()
+  modifies flowdos_reg, flowdos_reg__last_index, flowdos_reg__last_value, flowdos_reg__last_old_value,
+           flowdos_reg__wrote_any, flowdos_reg__wrote_index0, flowdos_reg__last0_old_value, flowdos_reg__last0_value,
+           flowdos_counter_pos, flowdos_counter_val, flowdos_src;
+{
+  call flowdos_compute_hash();
+  flowdos_counter_val := flowdos_reg.read(flowdos_reg, flowdos_counter_pos);
+  call flowdos_reg.write(flowdos_counter_pos, add.bv8(flowdos_counter_val, 1bv8));
+}
+"""
+
+        res = focus_dynamic_index0_register_assert(bpl)
+
+        self.assertTrue(res.changed)
+        self.assertEqual(res.zero, "2242bv32")
+        self.assertEqual(res.target_old_value, "255bv8")
+        self.assertEqual(res.target_value, "0bv8")
+        self.assertIn("flowdos_reg__last_old_value := flowdos_reg[2242bv32];", res.text)
+        self.assertIn("flowdos_reg[2242bv32] := add.bv8(flowdos_counter_val, 1bv8);", res.text)
+        self.assertIn(
+            "if (flowdos_reg__wrote_any && flowdos_reg__last_index == 2242bv32 && flowdos_reg__last_old_value == 255bv8 && flowdos_reg__last_value == 0bv8)",
+            res.text,
+        )
+        self.assertNotIn("call flowdos_reg.write(flowdos_counter_pos, add.bv8(flowdos_counter_val, 1bv8));", res.text)
 
     def test_write_with_expression_value_is_scalarized(self) -> None:
         bpl = """\
@@ -848,7 +921,7 @@ procedure {:inline 1} s_Ingress()
         self.assertIn("s_reg[0bv16] := add.bv32(s_tmp, 1bv32);", res.text)
         self.assertNotIn("call s_reg.write(s_meta.register_index, add.bv32(s_tmp, 1bv32));", res.text)
 
-    def test_target_fail_fast_not_duplicated_for_same_target_value_write(self) -> None:
+    def test_target_value_write_keeps_focused_fail_fast(self) -> None:
         bpl = """\
 var s_reg:[bv16]bv32;
 var s_reg__last_index:bv16;
@@ -895,14 +968,13 @@ procedure {:inline 1} s_Ingress()
 
         res = focus_dynamic_index0_register_assert(bpl)
         self.assertTrue(res.changed)
-        # Only one injected focused fail-fast check is needed (for the non-target
-        # write); target-value writes should not duplicate it.
         self.assertEqual(
             res.text.count(
                 "if (s_reg__wrote_index0 && s_reg__last0_value == 0bv32) {"
             ),
-            1,
+            2,
         )
+        self.assertIn("s_reg[0bv16] := 0bv32;", res.text)
 
 
 if __name__ == "__main__":

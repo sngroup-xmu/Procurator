@@ -4,6 +4,12 @@ import re
 from pathlib import Path
 from typing import Optional, Sequence
 
+from .boogie.closure_simplify import (
+    eliminate_identity_register_writebacks,
+    simplify_deterministic_closure_blocks,
+    specialize_fixed_table_branches,
+)
+from .boogie.const_simplify import rewrite_stable_bv_assignments, simplify_bv_constant_assignments
 from .wraparound_analyze import (
     WraparoundConfig,
     WraparoundStage,
@@ -282,6 +288,39 @@ def _reassert_simple_equalities_after_havoc(
         i += 1
 
 
+def _truncate_mainprocedure_after_entry_error(lines: list[str], *, call_idx: int, force_return: bool = False) -> None:
+    """
+    ENTRY_CHECK asks whether initialization can reach the pre-loop cutpoint.
+
+    Once the injected entry error call is reached, the following scheduler loop is
+    irrelevant to that reachability query.  Removing it keeps Ultimate from
+    inlining unrelated P4 pipeline code and hash helpers for an entry-only gate.
+    """
+
+    if call_idx + 1 >= len(lines):
+        return
+    indent = re.match(r"^(\s*)", lines[call_idx]).group(1)  # type: ignore[union-attr]
+    i = call_idx + 1
+    while i < len(lines) and not lines[i].strip():
+        i += 1
+    if i >= len(lines) or not _is_mainprocedure_loop_header(lines[i]):
+        if force_return and (i >= len(lines) or lines[i].strip() != "return;"):
+            lines.insert(call_idx + 1, f"{indent}return;\n")
+        return
+
+    depth = 0
+    end = i
+    while end < len(lines):
+        depth += lines[end].count("{")
+        depth -= lines[end].count("}")
+        if depth <= 0:
+            break
+        end += 1
+    if end >= len(lines):
+        return
+    lines[i : end + 1] = [f"{indent}return;\n"]
+
+
 def instrument_bpl_text(
     *,
     bpl_text: str,
@@ -364,6 +403,7 @@ def instrument_bpl_text(
                 lines[insert_at:insert_at] = assume_lines
                 insert_at += len(assume_lines)
             lines[insert_at:insert_at] = [f"{indent}call {_ENTRY_ERROR_PROC}();\n"]
+            _truncate_mainprocedure_after_entry_error(lines, call_idx=insert_at, force_return=True)
             _rewrite_forall_bv32_array_inits(lines)
             lines.append(_emit_entry_error_proc())
             return "".join(lines)
@@ -374,12 +414,15 @@ def instrument_bpl_text(
                 insert_at = i
                 break
         indent = re.match(r"^(\s*)", lines[insert_at]).group(1) if insert_at < len(lines) else "  "  # type: ignore[union-attr]
+        entry_lines: list[str] = []
         if extra_assumes:
-            assume_lines = _emit_extra_assumes(extra_assumes, indent=indent)
-            lines[insert_at:insert_at] = assume_lines
-            insert_at += len(assume_lines)
+            entry_lines.extend(_emit_extra_assumes(extra_assumes, indent=indent))
+        entry_lines.append(f"{indent}call {_ENTRY_ERROR_PROC}();\n")
+        lines[insert_at:insert_at] = entry_lines
+        call_idx = insert_at + len(entry_lines) - 1
+        _truncate_mainprocedure_after_entry_error(lines, call_idx=call_idx)
+        if extra_assumes:
             _reassert_simple_equalities_after_havoc(lines, extra_assumes=extra_assumes)
-        lines[insert_at:insert_at] = [f"{indent}call {_ENTRY_ERROR_PROC}();\n"]
         # Performance: eliminate heavy quantified register initializations when safe.
         #
         # ENTRY_CHECK is a satisfiability gate; keeping large quantified inits can make
@@ -413,6 +456,13 @@ def instrument_bpl_text(
         unrolled = "".join(lines)
         no_nl_lines = [ln.rstrip("\n") for ln in lines]
         var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])
+        rewrite_stable_bv_assignments(lines, assumptions=extra_assumes or (), var_types=var_types)
+        simplify_bv_constant_assignments(lines, var_types=var_types)
+        specialize_fixed_table_branches(lines, assumptions=extra_assumes or (), var_types=var_types)
+        eliminate_identity_register_writebacks(lines, var_types=var_types)
+        simplify_deterministic_closure_blocks(lines, var_types=var_types)
+        no_nl_lines = [ln.rstrip("\n") for ln in lines]
+        unrolled = "".join(lines)
 
         cfg = analyze_bpl_for_wraparound(
             bpl_text=unrolled,
@@ -494,7 +544,7 @@ def instrument_bpl_text(
                 raise WraparoundTransformError("failed to locate UNROLLED marker in mainProcedure for closure_check")
 
         # Perform insertions from bottom to top to keep indices stable.
-        lines[body_close_idx:body_close_idx] = _emit_closure_asserts(cfg).splitlines(keepends=True)
+        lines[body_close_idx:body_close_idx] = _emit_closure_asserts(var_types, cfg).splitlines(keepends=True)
         lines[marker_idx:marker_idx] = _emit_closure_setup(var_types, cfg).splitlines(keepends=True)
 
         local_decl_lines = _emit_closure_local_decls(var_types, cfg).splitlines(keepends=True)
@@ -652,7 +702,11 @@ def instrument_bpl_text(
                     insert_var_at += 1
                 lines.insert(insert_var_at, f"var {confirm_active_var}: bool;\n")
                 no_nl_lines = [ln.rstrip("\n") for ln in lines]
-                var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])
+        var_types = _parse_global_var_types([ln.rstrip("\n") for ln in lines])
+        rewrite_stable_bv_assignments(lines, assumptions=extra_assumes or (), var_types=var_types)
+        simplify_bv_constant_assignments(lines, var_types=var_types)
+        no_nl_lines = [ln.rstrip("\n") for ln in lines]
+        bpl_text = "".join(lines)
 
         cfg = analyze_bpl_for_wraparound(
             bpl_text=bpl_text,

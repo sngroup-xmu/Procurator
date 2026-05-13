@@ -20,8 +20,12 @@ from dslc.workflows.wraparound_cegis import (
     WraparoundStopAfter,
     _confirm_unroll_schedule,
     _dynamic_index_fallback_diagnostic,
+    _dropped_stable_substitutions_note,
+    _index_expr_undeclared_callee_deps,
     _index_expr_global_deps,
     _index_expr_unresolved_value_deps,
+    _sanitize_candidate_stable_substitutions,
+    _undeclared_index_callee_fallback_diagnostic,
     _unresolved_index_fallback_diagnostic,
     _write_manifest,
 )
@@ -31,6 +35,7 @@ from dslc.workflows.wraparound_support.refinement import (
     _synthesize_refinement_assumes_from_witness,
 )
 from dslc.workflows.wraparound_support.results import _toolchain_has_witnessprinter
+from dslc.workflows.wraparound_support.schedule.stable_projection import stable_substitution_env_shape_assumes
 from dslc.workflows.wraparound_support.stage_text import _unroll_confirm_like_mainprocedure
 
 
@@ -66,9 +71,10 @@ def _run_cegis_loop(
     Core iterative loop (unit-testable via a fake StageRunner).
     """
 
-    del stop_after
+    stop_after = str(stop_after or WraparoundStopAfter.NONE.value)
 
     cand = candidate
+    cand, dropped_stable_substitutions = _sanitize_candidate_stable_substitutions(candidate=cand, base_text=base_text)
     det_period = _infer_deterministic_scheduler_period(base_text.splitlines())
 
     index_deps = _index_expr_global_deps(index_expr=cand.index_expr, base_text=base_text)
@@ -97,6 +103,19 @@ def _run_cegis_loop(
             certified=False,
             diagnostic=_unresolved_index_fallback_diagnostic(unresolved_index_deps),
         )
+    undeclared_callee_deps = _index_expr_undeclared_callee_deps(index_expr=cand.index_expr, base_text=base_text)
+    if undeclared_callee_deps:
+        return _write_manifest(
+            out_dir=out_dir,
+            spec_path=spec_path,
+            base_bpl=base_bpl,
+            work_dir=work_dir,
+            cand=cand,
+            attempts=[],
+            cegar_mode=WraparoundCegarMode.LEGACY_CLOSURE_ASSUMES.value,
+            certified=False,
+            diagnostic=_undeclared_index_callee_fallback_diagnostic(undeclared_callee_deps),
+        )
 
     try:
         spec_model = parse_model(spec_text)
@@ -112,6 +131,7 @@ def _run_cegis_loop(
 
     index_expr = cand.index_expr
     index_value = cand.index_value if cand.index_value is not None else 0
+    env_shape_assumes = tuple(stable_substitution_env_shape_assumes(candidate=cand))
     # Conditional existence/profile assumptions synthesized by CEGIS refinements.
     extra_assumes: List[str] = []
     env_completion_done = False
@@ -307,6 +327,11 @@ def _run_cegis_loop(
             notes.append("index_expr=const")
         if int(index_value) != int(base_index_value):
             notes.append(f"index_value={index_value}")
+        if env_shape_assumes:
+            notes.append("candidate_stable_env_shape=" + str(len(env_shape_assumes)))
+        if dropped_stable_substitutions:
+            notes.append("dropped_stable_env_shape=" + str(len(dropped_stable_substitutions)))
+            notes.append(_dropped_stable_substitutions_note(dropped_stable_substitutions))
         dropped_proj = sorted(base_proj_set.difference(set(proj_vars)))
         if dropped_proj:
             # Keep it stable and grep-friendly for manifests.
@@ -359,7 +384,7 @@ def _run_cegis_loop(
             cutpoint_cond=cutpoint_cond,
             step_op=step_op,
             step_delta=step_delta,
-            extra_assumes=extra_assumes,
+            extra_assumes=(*env_shape_assumes, *extra_assumes),
         )
         closure_bpl.write_text(closure_txt, encoding="utf-8")
 
@@ -382,7 +407,7 @@ def _run_cegis_loop(
             step_op=step_op,
             step_delta=step_delta,
             # CONFIRM is existential bug finding; refinements are closure-only.
-            extra_assumes=(),
+            extra_assumes=env_shape_assumes,
         )
         confirm_txt0, _confirm_steps0 = _unroll_confirm_like_mainprocedure(
             bpl_text=confirm_txt0, requested_steps=confirm_unroll, deterministic_period=det_period
@@ -442,6 +467,8 @@ def _run_cegis_loop(
                 cand=cand,
                 attempts=attempts,
             )
+            if stop_after == WraparoundStopAfter.ENTRY.value:
+                break
         else:
             # Closure-only refinement mode: do not rerun ENTRY under refined assumptions.
             if seed_entry_res is None:
@@ -712,7 +739,7 @@ def _run_cegis_loop(
                         step_op=step_op,
                         step_delta=step_delta,
                         # CONFIRM is existential bug finding; refinements are closure-only.
-                        extra_assumes=(),
+                        extra_assumes=env_shape_assumes,
                     )
                     confirm_txt, confirm_steps = _unroll_confirm_like_mainprocedure(
                         bpl_text=confirm_txt, requested_steps=unroll, deterministic_period=det_period
@@ -888,7 +915,7 @@ def _run_cegis_loop(
                             cutpoint_cond=cutpoint_cond,
                             step_op=step_op,
                             step_delta=step_delta,
-                            extra_assumes=extra_assumes,
+                    extra_assumes=(*env_shape_assumes, *extra_assumes),
                         )
                         closure_bpl.write_text(closure_txt, encoding="utf-8")
 

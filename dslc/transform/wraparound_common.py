@@ -34,6 +34,9 @@ class WraparoundTarget:
     index_expr_override: Optional[str] = None
     """Optional Boogie expression for the index (must have type `bv<index_width>`)."""
 
+    original_index_expr: Optional[str] = None
+    """Original caller-provided index expression before width coercion, if any."""
+
     use_last0_value: bool = False
     """Prefer scalar `<reg>__last0_value` over array select when available (dramatically reduces solver load)."""
 
@@ -131,7 +134,17 @@ _ASSERT_WRAPPER_PROC = "__wraparound_assert"
 _CLOSURE_UNROLL_MARKER_PREFIX = "// UNROLLED"
 
 _MAX_FORALL_INIT_EXPANSION = 64
+_SIMPLE_BV_EXPR_RE = re.compile(r"^\s*(?:\d+bv\d+|[A-Za-z_][A-Za-z0-9_.]*)\s*$")
 
 
 def _sanitize_local(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9_]", "_", name)
+
+
+def _closure_index_alias_name(target: WraparoundTarget) -> Optional[str]:
+    if target.use_last0_value:
+        return None
+    original = target.original_index_expr or target.index_expr
+    if _SIMPLE_BV_EXPR_RE.match(original):
+        return None
+    return f"wrap_closure_idx_{_sanitize_local(target.reg_var)}"

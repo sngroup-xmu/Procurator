@@ -64,9 +64,9 @@ _RE_CALL_STMT = re.compile(
 )
 _RE_HAVOC_STMT = re.compile(r"^\s*havoc\s+(?P<vars>[^;]+)\s*;\s*$")
 _RE_PROC_HEADER = re.compile(
-    r"^\s*procedure(?:\s+\{[^}]*\})?\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\((?P<params>[^)]*)\)"
+    r"^\s*procedure(?:\s+\{[^}]*\})*\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\((?P<params>[^)]*)\)"
 )
-_RE_FUNCTION_DECL = re.compile(r"^\s*function\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\s*\(")
+_RE_FUNCTION_DECL = re.compile(r"^\s*function(?:\s+\{[^}]*\})*\s+(?P<name>[A-Za-z_][A-Za-z0-9_.$]*)\s*\(")
 _RE_ASSUME_CONST_EQ = re.compile(
     r"^\s*assume\s+\(?\s*(?P<lhs>[A-Za-z_][A-Za-z0-9_.]*)\s*==\s*(?P<rhs>[^;)]+)\s*\)?\s*;\s*$"
 )
@@ -359,8 +359,12 @@ def _infer_from_global_asserts(*, spec_text: str, bpl_text: str) -> Optional[Wra
 
 
 _DEBUG_SUFFIXES = (
+    "__last0_old_value__dbg",
+    "__last0_old_value",
     "__last0_value__dbg",
     "__last0_value",
+    "__last_old_value__dbg",
+    "__last_old_value",
     "__last_value__dbg",
     "__last_value",
     "__last_index__dbg",
@@ -370,6 +374,8 @@ _DEBUG_SUFFIXES = (
     "__dbg0",
 )
 _INDEX0_DEBUG_SUFFIXES = (
+    "__last0_old_value__dbg",
+    "__last0_old_value",
     "__last0_value__dbg",
     "__last0_value",
     "__wrote_index0__dbg",
@@ -728,6 +734,23 @@ def _literal_int(expr: str, *, width: Optional[int] = None) -> Optional[int]:
     cur = expr.strip()
     while cur.startswith("(") and cur.endswith(")"):
         cur = cur[1:-1].strip()
+    if "++" in cur:
+        value = 0
+        total_width = 0
+        for raw_part in cur.split("++"):
+            part = raw_part.strip()
+            while part.startswith("(") and part.endswith(")"):
+                part = part[1:-1].strip()
+            m_part = _RE_BV_LIT.match(part)
+            if not m_part:
+                return None
+            part_val = int(m_part.group("val"))
+            part_width = int(m_part.group("w"))
+            value = (value << part_width) | (part_val % (1 << part_width))
+            total_width += part_width
+        if total_width == 0:
+            return None
+        return value if width is None else value % (1 << width)
     m = _RE_BV_LIT.match(cur)
     if m:
         val = int(m.group("val"))

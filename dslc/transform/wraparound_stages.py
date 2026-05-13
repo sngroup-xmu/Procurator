@@ -22,10 +22,117 @@ from .wraparound_common import (
     _RE_ASSUME_FORALL_BV32_INIT_EXCEPT,
     _RE_BVULE_BV32_CALL,
     _RE_STEP_INC,
+    _closure_index_alias_name,
     _sanitize_local,
 )
 
-def _emit_inline_reg_write(var_types: Dict[str, str], t: WraparoundTarget, *, value_expr: str) -> str:
+
+def _target_index_expr(target: WraparoundTarget, *, closure_alias: bool = False) -> str:
+    if closure_alias:
+        return _closure_index_alias_name(target) or target.index_expr
+    return target.index_expr
+
+
+def _closure_index_alias_targets(cfg: WraparoundConfig) -> List[Tuple[str, WraparoundTarget]]:
+    out: List[Tuple[str, WraparoundTarget]] = []
+    seen: set[str] = set()
+    for target in cfg.accel_targets:
+        alias = _closure_index_alias_name(target)
+        if not alias or alias in seen:
+            continue
+        seen.add(alias)
+        out.append((alias, target))
+    return out
+
+
+def _with_closure_index_aliases(expr: str, cfg: WraparoundConfig) -> str:
+    out = str(expr)
+    for alias, target in _closure_index_alias_targets(cfg):
+        out = out.replace(target.index_expr, alias)
+    return out
+
+
+def _normalized_cutpoint_term(expr: str) -> str:
+    text = str(expr or "").strip()
+    while text.startswith("(") and text.endswith(")"):
+        depth = 0
+        wraps = True
+        for idx, ch in enumerate(text):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0 and idx != len(text) - 1:
+                    wraps = False
+                    break
+        if not wraps or depth != 0:
+            break
+        text = text[1:-1].strip()
+    return re.sub(r"\s+", "", text)
+
+
+def _split_top_level_conjuncts(expr: str) -> List[str]:
+    parts: List[str] = []
+    cur: List[str] = []
+    depth = 0
+    i = 0
+    text = str(expr or "").strip()
+    while i < len(text):
+        ch = text[i]
+        if ch == "(":
+            depth += 1
+            cur.append(ch)
+            i += 1
+            continue
+        if ch == ")":
+            depth = max(0, depth - 1)
+            cur.append(ch)
+            i += 1
+            continue
+        if depth == 0 and text.startswith("&&", i):
+            part = "".join(cur).strip()
+            if part:
+                parts.append(part)
+            cur = []
+            i += 2
+            continue
+        cur.append(ch)
+        i += 1
+    part = "".join(cur).strip()
+    if part:
+        parts.append(part)
+    return parts or ([text] if text else [])
+
+
+def _closure_cutpoint_terms(cfg: WraparoundConfig) -> List[str]:
+    """
+    Return the residual final cutpoint obligations not already covered by
+    projection-predicate stability.
+
+    Closure setup assumes the cutpoint and snapshots each projection predicate.
+    If a top-level cutpoint conjunct is exactly one of those predicates, final
+    equality to the snapshot already implies that conjunct.  Keeping both copies
+    only makes SMT interpolation heavier.
+    """
+
+    predicate_terms = {
+        _normalized_cutpoint_term(_with_closure_index_aliases(pred, cfg)) for pred in cfg.proj_predicates
+    }
+    out: List[str] = []
+    for raw in _split_top_level_conjuncts(_with_closure_index_aliases(cfg.cutpoint_cond, cfg)):
+        if _normalized_cutpoint_term(raw) in predicate_terms:
+            continue
+        out.append(raw)
+    return out
+
+
+def _emit_inline_reg_write(
+    var_types: Dict[str, str],
+    t: WraparoundTarget,
+    *,
+    value_expr: str,
+    closure_alias: bool = False,
+) -> str:
     """
     Inline a `call <reg>.write(<idx>, <value>);` to avoid Ultimate issues with
     procedure-parameter variables in some proof tasks (notably closure_check).
@@ -34,7 +141,7 @@ def _emit_inline_reg_write(var_types: Dict[str, str], t: WraparoundTarget, *, va
     (`__last_index/__last_value/__wrote_any/__wrote_index0/__last0_value`).
     """
 
-    idx = t.index_expr
+    idx = _target_index_expr(t, closure_alias=closure_alias)
     reg = t.reg_var
     lines: List[str] = []
 
@@ -84,7 +191,7 @@ def _emit_target_slot_assumes(
     """
 
     target_by_reg = {t.reg_var for t in cfg.accel_targets}
-    idx = cfg.pump_target.index_expr
+    idx = _target_index_expr(cfg.pump_target)
     lines: List[str] = []
     for name in sorted(set(zero_init_regs)):
         if name in target_by_reg:
@@ -167,6 +274,8 @@ def _emit_closure_local_decls(var_types: Dict[str, str], cfg: WraparoundConfig) 
     p = cfg.pump_target
     lines: List[str] = []
     lines.append("  // wraparound closure_check instrumentation (generated)\n")
+    for alias, target in _closure_index_alias_targets(cfg):
+        lines.append(f"  var {alias}: bv{target.index_width};\n")
     lines.append(f"  var wrap_closure_seq0: bv{p.elem_width};\n")
     for t in cfg.accel_targets:
         local = f"wrap_closure_after_{_sanitize_local(t.reg_var)}"
@@ -192,6 +301,8 @@ def _emit_closure_setup(var_types: Dict[str, str], cfg: WraparoundConfig) -> str
     p = cfg.pump_target
     lines: List[str] = []
     lines.append("  // wraparound closure_check setup (generated)\n")
+    for alias, target in _closure_index_alias_targets(cfg):
+        lines.append(f"  {alias} := {target.index_expr};\n")
     lines.append("  havoc wrap_closure_seq0;\n")
     d = int(cfg.step_delta_int)
     modulus = 1 << p.elem_width
@@ -210,26 +321,48 @@ def _emit_closure_setup(var_types: Dict[str, str], cfg: WraparoundConfig) -> str
     # procedure-parameter variables like `<reg>.write_<param>` that can crash
     # some proof tasks (FloydHoare permissible-variable check).
     for t in cfg.accel_targets:
-        lines.append(_emit_inline_reg_write(var_types, t, value_expr="wrap_closure_seq0"))
+        lines.append(_emit_inline_reg_write(var_types, t, value_expr="wrap_closure_seq0", closure_alias=True))
     # Many specs use `dsl_pump_mode` to separate a pumping prefix from a functional suffix
     # (e.g., DistCache wraparound bugs). For closure_check we always want the pumping shape.
     if var_types.get("dsl_pump_mode") == "bool":
         lines.append("  dsl_pump_mode := true;\n")
-    lines.append(f"  assume({cfg.cutpoint_cond});\n")
+    lines.append(f"  assume({_with_closure_index_aliases(cfg.cutpoint_cond, cfg)});\n")
     for v in cfg.proj_vars:
         local = f"wrap_closure_snap_{_sanitize_local(v)}"
         lines.append(f"  {local} := {v};\n")
     for i, pred in enumerate(cfg.proj_predicates):
-        lines.append(f"  wrap_closure_pred_{i} := ({pred});\n")
+        lines.append(f"  wrap_closure_pred_{i} := ({_with_closure_index_aliases(pred, cfg)});\n")
     for i, expr in enumerate(cfg.proj_exprs):
         if not _infer_projection_expr_type(expr, var_types):
             continue
-        lines.append(f"  wrap_closure_expr_{i} := {expr};\n")
+        lines.append(f"  wrap_closure_expr_{i} := {_with_closure_index_aliases(expr, cfg)};\n")
     lines.append("\n")
     return "".join(lines)
 
 
-def _emit_closure_asserts(cfg: WraparoundConfig) -> str:
+def _closure_target_read_and_guards(
+    var_types: Dict[str, str],
+    target: WraparoundTarget,
+) -> Tuple[str, List[str]]:
+    if target.use_last0_value:
+        return target.last0_value_var, []
+
+    reg = target.reg_var
+    last_index = f"{reg}__last_index"
+    last_value = f"{reg}__last_value"
+    wrote_any = f"{reg}__wrote_any"
+    if (
+        var_types.get(last_index) == f"bv{target.index_width}"
+        and var_types.get(last_value) == f"bv{target.elem_width}"
+        and var_types.get(wrote_any) == "bool"
+    ):
+        idx = _target_index_expr(target, closure_alias=True)
+        return last_value, [f"({wrote_any})", f"({last_index} == {idx})"]
+
+    return f"{reg}[{_target_index_expr(target, closure_alias=True)}]", []
+
+
+def _emit_closure_asserts(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
     lines: List[str] = []
     lines.append("  // wraparound closure_check asserts (generated)\n")
     # Emit a *single* named assertion target for closure_check.
@@ -245,16 +378,19 @@ def _emit_closure_asserts(cfg: WraparoundConfig) -> str:
         local = f"wrap_closure_snap_{_sanitize_local(v)}"
         cond_terms.append(f"({v} == {local})")
     for i, pred in enumerate(cfg.proj_predicates):
-        cond_terms.append(f"(({pred}) == wrap_closure_pred_{i})")
+        cond_terms.append(f"(({_with_closure_index_aliases(pred, cfg)}) == wrap_closure_pred_{i})")
     for i, expr in enumerate(cfg.proj_exprs):
-        cond_terms.append(f"({expr} == wrap_closure_expr_{i})")
+        cond_terms.append(f"({_with_closure_index_aliases(expr, cfg)} == wrap_closure_expr_{i})")
     for t in cfg.accel_targets:
-        target_read = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
+        target_read, target_guards = _closure_target_read_and_guards(var_types, t)
         local = f"wrap_closure_after_{_sanitize_local(t.reg_var)}"
         lines.append(f"  {local} := {target_read};\n")
+        cond_terms.extend(target_guards)
         cond_terms.append(f"({local} == {_step_update_expr(cfg, 'wrap_closure_seq0')})")
-    # Ensure we end a full round at the intended cutpoint.
-    cond_terms.append(f"({cfg.cutpoint_cond})")
+    # Ensure we end a full round at the intended cutpoint.  Terms already
+    # covered by projection-predicate equality are omitted here.
+    for term in _closure_cutpoint_terms(cfg):
+        cond_terms.append(f"({term})")
     cond_expr = "true" if not cond_terms else " && ".join(cond_terms)
     lines.append(f"  call __wraparound_closure_assert_all({cond_expr});\n")
     lines.append("\n")
@@ -341,7 +477,7 @@ def _emit_step_block(var_types: Dict[str, str], cfg: WraparoundConfig) -> str:
         proj_eq_checks.append(f"        wrap_proj_ok := wrap_proj_ok && ({pre_expr} == {local});\n")
 
     lines: List[str] = []
-    target_read = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
+    target_read = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{_target_index_expr(p)}]"
     lines.append("    wrap_phase_before := procurator_phase;\n")
     lines.append(f"    wrap_target_old := {target_read};\n")
     for v in cfg.proj_vars:
@@ -846,14 +982,18 @@ def _emit_gated_assert_wrapper_proc(
     # register has left its near-wrap boundary.
     accel_reads: List[str] = []
     for t in cfg.accel_targets:
-        r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
+        r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{_target_index_expr(t)}]"
         accel_reads.append(r)
     if not accel_reads:
-        accel_reads = [cfg.pump_target.last0_value_var if cfg.pump_target.use_last0_value else f"{cfg.pump_target.reg_var}[{cfg.pump_target.index_expr}]"]
+        accel_reads = [
+            cfg.pump_target.last0_value_var
+            if cfg.pump_target.use_last0_value
+            else f"{cfg.pump_target.reg_var}[{_target_index_expr(cfg.pump_target)}]"
+        ]
     # Per-reg max constants (width may differ across targets in general).
     gate_terms: List[str] = []
     for t in cfg.accel_targets:
-        r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{t.index_expr}]"
+        r = t.last0_value_var if t.use_last0_value else f"{t.reg_var}[{_target_index_expr(t)}]"
         near = _near_wrap_value_expr(cfg, t)
         term = f"({r} != {near})"
         if (
@@ -864,13 +1004,13 @@ def _emit_gated_assert_wrapper_proc(
         ):
             term = (
                 f"({term} || "
-                f"({t.reg_var}__wrote_any && {t.reg_var}__last_index == {t.index_expr} "
+                f"({t.reg_var}__wrote_any && {t.reg_var}__last_index == {_target_index_expr(t)} "
                 f"&& {t.reg_var}__last_value != {near}))"
             )
         gate_terms.append(term)
     if not gate_terms:
         p = cfg.pump_target
-        r = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
+        r = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{_target_index_expr(p)}]"
         near = _near_wrap_value_expr(cfg, p)
         term = f"({r} != {near})"
         if (
@@ -881,7 +1021,7 @@ def _emit_gated_assert_wrapper_proc(
         ):
             term = (
                 f"({term} || "
-                f"({p.reg_var}__wrote_any && {p.reg_var}__last_index == {p.index_expr} "
+                f"({p.reg_var}__wrote_any && {p.reg_var}__last_index == {_target_index_expr(p)} "
                 f"&& {p.reg_var}__last_value != {near}))"
             )
         gate_terms.append(term)
@@ -1005,7 +1145,7 @@ def _emit_confirm_init(
 
 def _emit_init_snapshot(cfg: WraparoundConfig) -> str:
     p = cfg.pump_target
-    target_read = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{p.index_expr}]"
+    target_read = p.last0_value_var if p.use_last0_value else f"{p.reg_var}[{_target_index_expr(p)}]"
 
     lines: List[str] = []
     lines.append("  // wraparound init snapshot (generated)\n")

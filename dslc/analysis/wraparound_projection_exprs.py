@@ -238,8 +238,10 @@ def _is_stateful_register_array(name: str, var_types: Dict[str, str]) -> bool:
         for suffix in (
             "__last_index",
             "__last_value",
+            "__last_old_value",
             "__wrote_any",
             "__wrote_index0",
+            "__last0_old_value",
             "__last0_value",
         )
     )
@@ -366,7 +368,7 @@ def is_stable_cutpoint_var(name: str) -> bool:
         return True
     if name.startswith("dsl_") or name.endswith("dsl_pump_mode"):
         return True
-    if name.endswith("__last0_value"):
+    if name.endswith("__last0_value") or name.endswith("__last0_old_value"):
         return True
     return False
 

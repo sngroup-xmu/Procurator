@@ -40,11 +40,12 @@ global {
   queue_capacity = 1;
   deterministic_scheduler = true;
 
-  // The property is intentionally written as a counter should not become zero
-  // after the wraparound confirm stage. The wraparound pipeline should prove
-  // replayability before fast-forwarding the counter.
+  // This checks the increment-write wrap itself, not the threshold-reset write.
+  // `last_old_value` is latched before each register write by P4B.
   assert {
     !(flowdos_MyIngress_counter_filter__wrote_any
+      && flowdos_MyIngress_counter_filter__last_write_site == 1
+      && flowdos_MyIngress_counter_filter__last_old_value == 255
       && flowdos_MyIngress_counter_filter__last_value == 0);
   };
 }
