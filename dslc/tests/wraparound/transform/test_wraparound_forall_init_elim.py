@@ -93,6 +93,29 @@ class TestWraparoundForallInitElim(unittest.TestCase):
         self.assertIn("assume reg[0bv32] == 0bv1;", out)
         self.assertIn("assume reg[7bv32] == 1bv1;", out)
 
+    def test_keeps_size_only_forall_init_when_dynamic_access_is_unbounded(self) -> None:
+        lines = [
+            "const reg.size:bv32;\n",
+            "axiom reg.size == 20bv32;\n",
+            "assume (forall i:bv32 :: ((i != 0bv32) && (i != 1bv32) && (i != 2bv32)) ==> reg[i] == 0bv16);\n",
+            "assume reg[0bv32] == 65535bv16;\n",
+            "assume reg[1bv32] == 65535bv16;\n",
+            "assume reg[2bv32] == 65535bv16;\n",
+            "procedure foo() returns()\n",
+            "{\n",
+            "  x := reg.read(reg, idx);\n",
+            "}\n",
+        ]
+        _rewrite_forall_bv32_array_inits(lines)
+        out = "".join(lines)
+        self.assertIn(
+            "assume (forall i:bv32 :: ((i != 0bv32) && (i != 1bv32) && (i != 2bv32)) ==> reg[i] == 0bv16);",
+            out,
+        )
+        self.assertNotIn("assume reg[19bv32] == 0bv16;", out)
+        self.assertIn("assume reg[0bv32] == 65535bv16;", out)
+        self.assertIn("assume reg[2bv32] == 65535bv16;", out)
+
     def test_eliminates_forall_init_with_bv11_constant_accesses(self) -> None:
         lines = [
             "assume (forall i:bv11 :: reg[i] == 0bv16);\n",
