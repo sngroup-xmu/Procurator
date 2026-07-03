@@ -4,16 +4,37 @@ This directory is the reviewer-facing layer for the SIGCOMM26 artifact. It is
 separate from `src/` so that source code, benchmark inputs, and reproducibility
 machinery remain auditable.
 
-Planned entrypoints:
+Entrypoints:
 
-- `scripts/run_smoke.sh`: short environment and CLI check.
+- `scripts/setup_gemcutter.sh`: download the pinned Ultimate GemCutter Linux
+  release into ignored `.tmp/` local state.
+- `scripts/run_smoke.sh`: short CLI, P4B compile, and optional solver smoke.
 - `scripts/run_core_28.sh`: curated 28-case experiment runner.
 - `scripts/run_wraparound_4.sh`: wraparound certification runner.
 - `scripts/make_tables.py`: regenerate paper-facing tables from raw evidence.
+- `scripts/check_expected.py`: fail-closed checker for expected/actual JSON.
 
-Current status: the directory contains the public artifact skeleton and
-evidence manifests. Before archival, fill the expected result files from fresh
-runs and validate that every reported `UNSAFE`, witness, and wraparound
-certificate has the corresponding artifact path recorded. Inconclusive outcomes
-(`TIMEOUT`, `UNKNOWN`, OOM, toolchain errors, missing witnesses, or unverified
-`SAFE`) must remain inconclusive.
+Typical local setup:
+
+```bash
+artifact/scripts/setup_gemcutter.sh
+artifact/scripts/run_smoke.sh
+```
+
+The smoke profile writes `.tmp/procurator/artifact/smoke.actual.json`. It
+requires CLI help and P4B-to-Boogie compilation to pass. A short solver smoke is
+recorded when Ultimate is available, but `TIMEOUT`, `UNKNOWN`, OOM, toolchain
+errors, missing witnesses, and unverified `SAFE` remain inconclusive.
+
+Full profiles may take hours and should be run in WSL or Linux:
+
+```bash
+artifact/scripts/run_core_28.sh
+artifact/scripts/run_wraparound_4.sh
+artifact/scripts/run_compile_runtime.sh
+```
+
+Each script writes an actual JSON under `.tmp/procurator/artifact/` and then
+checks it against `artifact/expected/`. The checkers fail closed: focused
+diagnostics are not accepted as wraparound certification, and a missing witness
+or manifest is a failed artifact check.

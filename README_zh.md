@@ -6,16 +6,18 @@ Procurator 是一个用于验证分布式、状态化 P4 程序的研究原型�
 DSL spec (.prop) -> Boogie (.bpl) -> Ultimate/GemCutter -> witness/trace
 
 本仓库包含：
-- p4c translator（P4 -> Boogie）
-- Ultimate/GemCutter（并发验证器）
-- DSL 编译器 + harness 生成器
+- `src/p4b/source`：P4B/p4c fork（P4 -> Boogie translator）
+- `src/dslc`：DSL 编译器 + Boogie harness 生成器
+- `third_party/ultimate`：Ultimate/GemCutter 源码和 provenance；运行用的
+  GemCutter 二进制由 artifact setup 脚本下载到 ignored `.tmp/`
 
 ## 目录结构
 
 - `benchmarks/specs`：DSL 规格与编译入口
 - `benchmarks/datasets`：P4 程序与控制面 entries
-- `p4c translator`：P4 -> Boogie 翻译器（基于 p4c）
-- `UGemCutter-linux`：Ultimate CLI 包（GemCutter + witness printer）
+- `src/p4b/source`：P4 -> Boogie 翻译器（基于 p4c fork）
+- `.tmp/orphan-worktree-*/UGemCutter-linux`：本地 Ultimate CLI 包（由
+  `artifact/scripts/setup_gemcutter.sh` 下载，不提交）
 - `.tmp/procurator/`：每次运行的输出目录（Boogie / 日志 / witness）。默认每次执行都会创建新的 run 目录，不复用缓存。
 
 ## 系统依赖
@@ -37,7 +39,7 @@ sudo apt-get install -y \
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install \
-  -r dslc/requirements.txt
+  -r src/dslc/requirements.txt
 ```
 
 ## 构建 p4c translator（P4 -> Boogie）
@@ -60,17 +62,17 @@ src/p4b/source/build-host/backends/verify/p4c-translator
 
 ## Ultimate/GemCutter 配置（Boogie 后端）
 
-Ultimate 需要 Java 21。Z3 在 Ultimate 目录内。
+Ultimate/GemCutter 运行包建议用 artifact setup 脚本安装到 `.tmp/`：
 
 ```bash
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
+artifact/scripts/setup_gemcutter.sh
+export ULTIMATE="$PWD/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate"
 ```
 
 Ultimate 可执行文件：
 
 ```
-UGemCutter-linux/Ultimate
+.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate
 ```
 
 ## Boogie 用法
@@ -91,7 +93,7 @@ UGemCutter-linux/Ultimate
 ./src/bin/procurator verify \
   --spec benchmarks/specs/smoke/boogie_smoke.prop \
   --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate
+  --ultimate "$ULTIMATE"
 ```
 
 输出在一个新的 per-run 目录下（形如：`.tmp/procurator/verify/<spec>/<run_id>/`），包含：
@@ -202,8 +204,8 @@ global {
 先设置环境：
 
 ```bash
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
+artifact/scripts/setup_gemcutter.sh
+export ULTIMATE="$PWD/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate"
 ```
 
 说明：默认每次执行都会生成一个新的输出目录（不复用缓存），产物位于：
@@ -215,7 +217,7 @@ ATP：
 ./src/bin/procurator verify \
   --spec benchmarks/specs/bench/atp_bug.prop \
   --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate \
+  --ultimate "$ULTIMATE" \
   --env max \
   --toolchain src/dslc/toolchain/ultimate/ReachSafety-Witness.xml \
   --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf

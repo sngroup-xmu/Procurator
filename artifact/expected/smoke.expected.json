@@ -1,4 +1,17 @@
 {
   "profile": "smoke",
-  "status": "skeleton"
+  "status": "checkable",
+  "required": {
+    "cli_help": "ok",
+    "compile": "ok"
+  },
+  "allowed_solver_statuses": [
+    "SAFE",
+    "UNSAFE",
+    "TIMEOUT",
+    "UNKNOWN",
+    "ERROR",
+    "SKIPPED"
+  ],
+  "notes": "The smoke profile proves the CLI and P4B-to-Boogie compile path. A solver TIMEOUT/UNKNOWN/ERROR is recorded as inconclusive, not as bug absence."
 }

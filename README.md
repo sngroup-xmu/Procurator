@@ -15,8 +15,7 @@ Ultimate/GemCutter.
   - `src/dslc/`: DSL parser/compiler, Boogie harness generation, workflows,
     wraparound orchestration, toolchain runners, and tests.
 - `third_party/`: pinned third-party source trees and provenance records.
-  - `third_party/ultimate/`: Ultimate/GemCutter source or artifact-provided
-    binary provenance.
+  - `third_party/ultimate/`: Ultimate/GemCutter source and provenance.
   - `third_party/z3/`: Z3 provenance.
 - `benchmarks/`: public benchmark inputs.
   - `benchmarks/specs/`: Procurator DSL specifications.
@@ -58,11 +57,12 @@ src/p4b/source/build-host/backends/verify/p4c-translator
 ## Smoke
 
 ```bash
-./src/bin/procurator verify \
-  --spec benchmarks/specs/smoke/boogie_smoke.prop \
-  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
-  --ultimate third_party/ultimate/UGemCutter-linux/Ultimate
+artifact/scripts/setup_gemcutter.sh
+artifact/scripts/run_smoke.sh
 ```
+
+The GemCutter runtime is downloaded into ignored `.tmp/` local state. The smoke
+script records short solver outcomes honestly; `TIMEOUT` remains inconclusive.
 
 For artifact-oriented workflows, start from `ARTIFACT.md` and
 `artifact/README.md`.

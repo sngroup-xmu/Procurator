@@ -7,8 +7,9 @@ under `benchmarks/`.
 Smoke command shape:
 
 ```bash
-./src/bin/procurator verify \
-  --spec benchmarks/specs/smoke/boogie_smoke.prop \
-  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
-  --ultimate third_party/ultimate/UGemCutter-linux/Ultimate
+artifact/scripts/setup_gemcutter.sh
+artifact/scripts/run_smoke.sh
 ```
+
+The GemCutter setup script downloads the pinned Ultimate GemCutter Linux release
+into ignored `.tmp/` local state. Do not commit the downloaded binary bundle.

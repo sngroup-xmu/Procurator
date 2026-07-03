@@ -1,4 +1,16 @@
 {
   "profile": "wraparound_4",
-  "status": "pending"
+  "status": "checkable",
+  "expected_case_count": 4,
+  "required_category": "wraparound",
+  "required_modes": [
+    "slicing",
+    "noslicing"
+  ],
+  "allowed_statuses": [
+    "UNSAFE"
+  ],
+  "allow_inconclusive": false,
+  "require_unsafe_sanity_ok": true,
+  "notes": "Wraparound reproduction requires certified ENTRY_CHECK / NEAR_WRAP / CLOSURE_CHECK manifests. Focused diagnostics, TIMEOUT, UNKNOWN, and missing closure evidence do not pass."
 }

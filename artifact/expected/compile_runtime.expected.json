@@ -1,4 +1,10 @@
 {
   "profile": "compile_runtime",
-  "status": "pending"
+  "status": "checkable",
+  "expected_case_count": 28,
+  "required_modes": [
+    "slicing",
+    "noslicing"
+  ],
+  "notes": "Compile/runtime actual JSON must include successful compile_profile records and conclusive runtime records for every included mode."
 }

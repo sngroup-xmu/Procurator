@@ -1,4 +1,17 @@
 {
   "profile": "core_28",
-  "status": "pending"
+  "status": "checkable",
+  "expected_case_count": 28,
+  "required_modes": [
+    "slicing",
+    "noslicing"
+  ],
+  "allowed_statuses": [
+    "UNSAFE",
+    "SAFE",
+    "N/A"
+  ],
+  "allow_inconclusive": false,
+  "require_unsafe_sanity_ok": true,
+  "notes": "Full core results must come from run_e2e_ablations.py actual JSON. TIMEOUT, UNKNOWN, OOM, ERROR, missing witnesses, and unaudited SAFE are not accepted as reproduced evidence."
 }

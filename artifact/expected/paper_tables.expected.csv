@@ -1,2 +1,4 @@
-table,status
-skeleton,pending
+table,source,required_status
+core_28,artifact/expected/core_28.expected.json,checkable
+wraparound_4,artifact/expected/wraparound_4.expected.json,checkable
+compile_runtime,artifact/expected/compile_runtime.expected.json,checkable
