@@ -378,6 +378,196 @@ procedure ULTIMATE.start() returns()
 """
 
 
+def _bounded_dsl_guard_with_typedef_debug_snapshot_bpl() -> str:
+    return """\
+type pair = bv64;
+var procurator_bad:bool;
+var phase:int;
+var counter:[bv32]pair;
+var counter__dbg0:pair;
+
+procedure mainProcedure() returns()
+  modifies procurator_bad, phase, counter, counter__dbg0;
+{
+  procurator_bad := false;
+  phase := 1;
+  assume counter[0bv32] == 2bv64;
+  counter__dbg0 := counter[0bv32];
+  if (!(((phase != 1) || (counter__dbg0 == 0bv64)))) { procurator_bad := true; }
+  assert !procurator_bad;
+}
+
+procedure ULTIMATE.start() returns()
+  modifies procurator_bad, phase, counter, counter__dbg0;
+{
+  call mainProcedure();
+}
+"""
+
+
+def _bounded_dsl_guard_with_return_call_register_action_bpl(
+    *,
+    with_advance: bool = False,
+    with_emit: bool = False,
+    with_forward_drop_guard: bool = False,
+    with_forward_procedure: bool = False,
+    with_ipv4_route_tail: bool = False,
+) -> str:
+    advance_decl = "procedure pkt.advance(n:bv32);\n" if with_advance else ""
+    advance_call = "  call pkt.advance(64bv32);\n" if with_advance else ""
+    emit_decl = "procedure pkt.emit(h:pair);\n" if with_emit else ""
+    emit_call = "  call pkt.emit(tmp);\n" if with_emit else ""
+    forward_drop_decl = "var sw_forward:bool;\nvar sw_drop:bool;\n" if with_forward_drop_guard else ""
+    forward_drop_guard = "  if (sw_forward == false) { sw_drop := true; }\n" if with_forward_drop_guard else ""
+    forward_proc_decl = "var sw_eg_intr_md.egress_port:bv9;\n" if with_forward_procedure else ""
+    forward_proc = (
+        """\
+procedure sw_Forward() returns()
+{
+  if (sw_eg_intr_md.egress_port == 0bv9) {
+    return;
+  }
+  return;
+}
+
+"""
+        if with_forward_procedure
+        else ""
+    )
+    forward_proc_call = "  call sw_Forward();\n" if with_forward_procedure else ""
+    ipv4_route_decl = (
+        """\
+type header_ref;
+var sw_isValid:[header_ref]bool;
+var sw_hdr.nlk_hdr:header_ref;
+var sw_ig_md.routed:bv1;
+var sw_ig_md.recirced:bv2;
+"""
+        if with_ipv4_route_tail
+        else ""
+    )
+    ipv4_route_proc = (
+        """\
+procedure sw_SwitchIngress_ipv4_route_table.apply() returns()
+  modifies sw_ig_md.routed;
+{
+  sw_ig_md.routed := 1bv1;
+}
+
+"""
+        if with_ipv4_route_tail
+        else ""
+    )
+    ipv4_route_tail = (
+        """\
+  if (((sw_isValid[sw_hdr.nlk_hdr]) && ((sw_ig_md.routed == 0bv1))) && ((sw_ig_md.recirced == 0bv2))) {
+    call sw_SwitchIngress_ipv4_route_table.apply();
+  }
+"""
+        if with_ipv4_route_tail
+        else ""
+    )
+    main_modifies = "procurator_bad, phase, counter, counter__dbg0, tmp"
+    if with_forward_drop_guard:
+        main_modifies += ", sw_drop"
+    return """\
+type pair = bv64;
+var procurator_bad:bool;
+var phase:int;
+var counter:[bv32]pair;
+var counter__dbg0:pair;
+var tmp:pair;
+""" + forward_drop_decl + forward_proc_decl + ipv4_route_decl + """\
+
+function {:inline true}counter.read(r:[bv32]pair, i:bv32) returns (pair) { r[i] }
+procedure {:inline 1} counter.write(i:bv32, v:pair)
+  modifies counter;
+{
+  counter[i] := v;
+}
+
+procedure {:inline 1} dec_exclusive(v_in:pair) returns (v_out:pair)
+{
+  var v:pair;
+  v := v_in;
+  v := add.bv32(v[64:32], 4294967295bv32)++v[32:0];
+  v_out := v;
+}
+
+""" + advance_decl + emit_decl + forward_proc + ipv4_route_proc + """\
+procedure p4_node() returns()
+  modifies counter, tmp;
+{
+""" + advance_call + """\
+  tmp := counter.read(counter, 0bv32);
+  call tmp := dec_exclusive(tmp);
+  call counter.write(0bv32, tmp);
+""" + emit_call + """\
+}
+
+procedure mainProcedure() returns()
+  modifies """ + main_modifies + """;
+{
+  procurator_bad := false;
+  phase := 1;
+  assume counter[0bv32] == 0bv64;
+  call p4_node();
+""" + forward_drop_guard + """\
+""" + forward_proc_call + """\
+""" + ipv4_route_tail + """\
+  counter__dbg0 := counter[0bv32];
+  if (!(((phase != 1) || (counter__dbg0 == 0bv64)))) { procurator_bad := true; }
+  assert !procurator_bad;
+}
+
+procedure ULTIMATE.start() returns()
+  modifies procurator_bad, phase, counter, counter__dbg0, tmp;
+{
+  call mainProcedure();
+}
+"""
+
+
+def _bounded_dsl_guard_with_reused_procedure_local_names_bpl() -> str:
+    return """\
+type pair = bv64;
+var procurator_bad:bool;
+var out32:bv32;
+
+procedure wide(sw_value_in:pair) returns (sw_value_out:pair)
+{
+  var sw_value:pair;
+  sw_value := sw_value_in;
+  sw_value_out := sw_value;
+}
+
+procedure narrow(sw_value_in:bv32, sw_result_in:bv32) returns (sw_value_out:bv32, sw_result_out:bv32)
+{
+  var sw_value:bv32;
+  var sw_result:bv32;
+  sw_value := sw_value_in;
+  sw_result := sw_value;
+  sw_value_out := sw_value;
+  sw_result_out := sw_result;
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_bad, out32;
+{
+  procurator_bad := false;
+  call out32, out32 := narrow(7bv32, out32);
+  if (!((out32 == 8bv32))) { procurator_bad := true; }
+  assert !procurator_bad;
+}
+
+procedure ULTIMATE.start() returns()
+  modifies procurator_bad, out32;
+{
+  call mainProcedure();
+}
+"""
+
+
 def _run_prepass(
     tmp: Path,
     *,
@@ -528,6 +718,109 @@ class TestFocusedDirectWorkflow(unittest.TestCase):
                 _bounded_dsl_guard_with_direct_array_read_before_unknown_tail_bpl(),
                 encoding="utf-8",
             )
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_accepts_typedef_register_debug_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(_bounded_dsl_guard_with_typedef_debug_snapshot_bpl(), encoding="utf-8")
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_executes_return_call_register_action(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(_bounded_dsl_guard_with_return_call_register_action_bpl(), encoding="utf-8")
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_treats_packet_advance_as_noop(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(
+                _bounded_dsl_guard_with_return_call_register_action_bpl(with_advance=True),
+                encoding="utf-8",
+            )
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_treats_packet_emit_as_noop(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(
+                _bounded_dsl_guard_with_return_call_register_action_bpl(with_emit=True),
+                encoding="utf-8",
+            )
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_skips_unknown_forward_drop_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(
+                _bounded_dsl_guard_with_return_call_register_action_bpl(with_forward_drop_guard=True),
+                encoding="utf-8",
+            )
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_skips_forward_return_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(
+                _bounded_dsl_guard_with_return_call_register_action_bpl(with_forward_procedure=True),
+                encoding="utf-8",
+            )
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_skips_unknown_ipv4_route_tail(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(
+                _bounded_dsl_guard_with_return_call_register_action_bpl(with_ipv4_route_tail=True),
+                encoding="utf-8",
+            )
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_uses_procedure_local_types_for_reused_names(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(_bounded_dsl_guard_with_reused_procedure_local_names_bpl(), encoding="utf-8")
 
             rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
 

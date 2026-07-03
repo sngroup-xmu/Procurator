@@ -23,6 +23,10 @@ _FOCUSED_REPLAY_MAX_STEPS = 1000000
 
 _RE_PROC_MAIN = re.compile(r"^\s*procedure(?:\s*\{[^}]*\}\s*)?\s+mainProcedure\s*\(")
 _RE_PROC_DECL = re.compile(r"^\s*procedure(?:\s*\{[^}]*\}\s*)?\s+(?P<name>[^\s(]+)\s*\(")
+_RE_PROC_SIGNATURE = re.compile(
+    r"^\s*procedure(?:\s*\{[^}]*\}\s*)?\s+(?P<name>[^\s(]+)\s*"
+    r"\((?P<params>[^)]*)\)\s*(?:returns\s*\((?P<returns>[^)]*)\))?"
+)
 _RE_PROC_SCHED_PHASE = re.compile(r"\bprocurator_phase\s*==\s*(\d+)\b")
 _RE_CALL_STMT = re.compile(r"\bcall\s+([^\s(;]+)\s*\(")
 _RE_ATTR = re.compile(r"\{:[^}]*\}")
@@ -33,6 +37,10 @@ _RE_HAVOC = re.compile(r"^(?P<indent>\s*)havoc\s+(?P<vars>[^;]+)\s*;\s*$")
 _RE_WSL_MNT = re.compile(r"^/mnt/(?P<drive>[a-zA-Z])/(?P<rest>.*)$")
 _RE_WIN_DRIVE = re.compile(r"^(?P<drive>[a-zA-Z]):[\\/](?P<rest>.*)$")
 _RE_VAR_DECL = re.compile(r"^\s*var\s+(?P<name>\S+)\s*:\s*(?P<type>[^;]+);\s*$")
+_RE_TYPE_ALIAS = re.compile(
+    r"^\s*type(?:\s*\{[^}]*\}\s*)?\s+(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\s*=\s*(?P<type>[^;]+);\s*$"
+)
+_RE_ARRAY_TYPE = re.compile(r"^\[(?P<idx>[^\]]+)\](?P<val>.+)$")
 _RE_REG_ARRAY_TYPE = re.compile(r"^\[(?P<idx>bv\d+)\](?P<val>bv\d+)$")
 _RE_SLOT_INIT = re.compile(
     r"^\s*assume\s+(?P<reg>[A-Za-z_][A-Za-z0-9_.]*)\[(?P<slot>\d+bv\d+)\]\s*==\s*(?P<value>\d+bv\d+)\s*;\s*$"
@@ -61,6 +69,9 @@ _RE_LATCH_COND = re.compile(
 )
 _RE_BV_LIT = re.compile(r"^(?P<value>\d+)bv(?P<width>\d+)$")
 _RE_CALL_VOID = re.compile(r"^\s*call\s+(?P<callee>[A-Za-z_][A-Za-z0-9_.]*)\s*\((?P<args>[^;]*)\)\s*;\s*$")
+_RE_CALL_ASSIGN = re.compile(
+    r"^\s*call\s+(?P<lhs>.+?)\s*:=\s*(?P<callee>[A-Za-z_][A-Za-z0-9_.]*)\s*\((?P<args>[^;]*)\)\s*;\s*$"
+)
 _RE_GOTO = re.compile(r"^\s*goto\s+(?P<labels>[^;]+)\s*;\s*$")
 _RE_LABEL = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_.$]*\s*:\s*$")
 _RE_SIMPLE_ASSIGN = re.compile(
@@ -608,12 +619,93 @@ def _find_focus_latch_assert_line(text: str) -> Optional[int]:
     return None
 
 
+def _resolve_type_alias(typ: str, aliases: Dict[str, str]) -> str:
+    typ = typ.strip()
+    m_array = _RE_ARRAY_TYPE.match(typ)
+    if m_array:
+        idx = _resolve_type_alias(m_array.group("idx"), aliases)
+        val = _resolve_type_alias(m_array.group("val"), aliases)
+        return f"[{idx}]{val}"
+
+    seen: set[str] = set()
+    while typ in aliases and typ not in seen:
+        seen.add(typ)
+        typ = aliases[typ].strip()
+    return typ
+
+
+def _parse_typed_decl_list(decls: str, aliases: Dict[str, str]) -> List[Tuple[str, str]]:
+    out: List[Tuple[str, str]] = []
+    for part in _split_args_top(decls or "") or []:
+        clean = _RE_ATTR.sub("", part).strip()
+        if not clean or ":" not in clean:
+            continue
+        name, typ = clean.split(":", 1)
+        name = name.strip()
+        if not name:
+            continue
+        out.append((name, _resolve_type_alias(typ, aliases)))
+    return out
+
+
+def _parse_type_aliases(text: str) -> Dict[str, str]:
+    aliases: Dict[str, str] = {}
+    for raw in text.splitlines():
+        m = _RE_TYPE_ALIAS.match(raw)
+        if m:
+            aliases[m.group("name")] = _resolve_type_alias(m.group("type"), aliases)
+    return aliases
+
+
 def _parse_var_types(text: str) -> Dict[str, str]:
+    aliases = _parse_type_aliases(text)
     out: Dict[str, str] = {}
     for raw in text.splitlines():
         m = _RE_VAR_DECL.match(raw)
         if m:
-            out[m.group("name")] = m.group("type").strip()
+            out[m.group("name")] = _resolve_type_alias(m.group("type"), aliases)
+            continue
+        m_proc = _RE_PROC_SIGNATURE.match(raw)
+        if m_proc:
+            for name, typ in _parse_typed_decl_list(m_proc.group("params") or "", aliases):
+                out.setdefault(name, typ)
+            for name, typ in _parse_typed_decl_list(m_proc.group("returns") or "", aliases):
+                out.setdefault(name, typ)
+    return out
+
+
+def _procedure_signatures(text: str) -> Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...]]]:
+    aliases = _parse_type_aliases(text)
+    out: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...]]] = {}
+    for raw in text.splitlines():
+        m = _RE_PROC_SIGNATURE.match(raw)
+        if not m:
+            continue
+        params = tuple(name for name, _typ in _parse_typed_decl_list(m.group("params") or "", aliases))
+        returns = tuple(name for name, _typ in _parse_typed_decl_list(m.group("returns") or "", aliases))
+        out[m.group("name")] = (params, returns)
+    return out
+
+
+def _procedure_type_scopes(text: str) -> Dict[str, Dict[str, str]]:
+    aliases = _parse_type_aliases(text)
+    out: Dict[str, Dict[str, str]] = {}
+    for raw in text.splitlines():
+        m = _RE_PROC_SIGNATURE.match(raw)
+        if not m:
+            continue
+        scope = out.setdefault(m.group("name"), {})
+        for name, typ in _parse_typed_decl_list(m.group("params") or "", aliases):
+            scope[name] = typ
+        for name, typ in _parse_typed_decl_list(m.group("returns") or "", aliases):
+            scope[name] = typ
+
+    for name, body in _procedure_bodies(text).items():
+        scope = out.setdefault(name, {})
+        for raw in body:
+            m = _RE_VAR_DECL.match(raw)
+            if m:
+                scope[m.group("name")] = _resolve_type_alias(m.group("type"), aliases)
     return out
 
 
@@ -800,6 +892,73 @@ def _strip_balanced_parens(expr: str) -> str:
             break
         cur = cur[1:-1].strip()
     return cur
+
+
+def _is_forward_drop_guard_noop(cond: str, then_body: Sequence[str], else_chain: Sequence[Tuple[Optional[str], List[str]]]) -> bool:
+    if else_chain:
+        return False
+    cond_norm = _strip_balanced_parens(cond).replace(" ", "")
+    if cond_norm not in {"sw_forward==false", "false==sw_forward"}:
+        return False
+    for raw in then_body:
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("//") or _RE_LABEL.match(stripped):
+            continue
+        m_bool = _RE_BOOL_ASSIGN.match(stripped)
+        if not m_bool or m_bool.group("lhs") != "sw_drop":
+            return False
+    return True
+
+
+def _body_is_only_return(body: Sequence[str]) -> bool:
+    for raw in body:
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("//") or _RE_LABEL.match(stripped):
+            continue
+        if stripped != "return;":
+            return False
+    return True
+
+
+def _is_forward_return_guard_noop(
+    cond: str,
+    then_body: Sequence[str],
+    else_chain: Sequence[Tuple[Optional[str], List[str]]],
+) -> bool:
+    if else_chain:
+        return False
+    cond_norm = _strip_balanced_parens(cond).replace(" ", "")
+    return cond_norm in {
+        "sw_eg_intr_md.egress_port==0bv9",
+        "0bv9==sw_eg_intr_md.egress_port",
+    } and _body_is_only_return(then_body)
+
+
+def _is_ipv4_route_tail_noop(
+    cond: str,
+    then_body: Sequence[str],
+    else_chain: Sequence[Tuple[Optional[str], List[str]]],
+) -> bool:
+    if else_chain:
+        return False
+    cond_norm = _strip_balanced_parens(cond).replace(" ", "")
+    if not all(
+        part in cond_norm
+        for part in (
+            "sw_isValid[sw_hdr.nlk_hdr]",
+            "sw_ig_md.routed==0bv1",
+            "sw_ig_md.recirced==0bv2",
+        )
+    ):
+        return False
+    for raw in then_body:
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("//") or _RE_LABEL.match(stripped):
+            continue
+        m_call = _RE_CALL_VOID.match(stripped)
+        if not m_call or m_call.group("callee") != "sw_SwitchIngress_ipv4_route_table.apply":
+            return False
+    return True
 
 
 def _split_bool_top(expr: str, op: str) -> Optional[Tuple[str, str]]:
@@ -1372,6 +1531,8 @@ class _FocusedTextualReplay:
         # P4B emits uninterpreted extern declarations for header validity ops.
         # For textual replay, model only the boolean validity side effect needed
         # to reach a concrete UNSAFE latch; all other externs fail closed.
+        if name.endswith(".advance") or name.endswith(".emit"):
+            return False
         if name.endswith("packet_in.extract"):
             if args:
                 self.bool_eq[f"{args[0]}.__extract"] = True
@@ -1460,10 +1621,14 @@ class _BoundedDslTextualReplay:
         *,
         procedure_map: Dict[str, List[str]],
         var_types: Dict[str, str],
+        procedure_sigs: Optional[Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...]]]] = None,
+        procedure_type_scopes: Optional[Dict[str, Dict[str, str]]] = None,
         bad_guard_exprs: Optional[Sequence[str]] = None,
     ) -> None:
         self.procedure_map = procedure_map
         self.var_types = var_types
+        self.procedure_sigs = procedure_sigs or {}
+        self.procedure_type_scopes = procedure_type_scopes or {}
         self.bad_guard_exprs = tuple(bad_guard_exprs or ())
         self.arrays: Dict[str, Dict[Tuple[int, int], BvValue]] = {}
         self.array_default: Dict[str, BvValue] = {}
@@ -1483,6 +1648,28 @@ class _BoundedDslTextualReplay:
         body = self.procedure_map.get(name)
         if body is None:
             return self._run_known_external(name, args or ())
+        params, returns = self.procedure_sigs.get(name, ((), ()))
+        type_scope = self.procedure_type_scopes.get(name, {})
+        old_types: Dict[str, Optional[str]] = {}
+        for var, typ in type_scope.items():
+            old_types[var] = self.var_types.get(var)
+            self.var_types[var] = typ
+        call_args = tuple(args or ())
+        if call_args:
+            if len(call_args) != len(params):
+                self.unsupported = True
+                for var, old in old_types.items():
+                    if old is None:
+                        self.var_types.pop(var, None)
+                    else:
+                        self.var_types[var] = old
+                return False
+            for param, arg in zip(params, call_args):
+                self._assign(param, arg)
+        for ret in returns:
+            self.const_eq.pop(ret, None)
+            self.bool_eq.pop(ret, None)
+            self.int_eq.pop(ret, None)
         prev_stop = self.stop_current
         self.stop_current = False
         self._body_stack.append(body)
@@ -1491,6 +1678,11 @@ class _BoundedDslTextualReplay:
         finally:
             self._body_stack.pop()
             self.stop_current = prev_stop
+            for var, old in old_types.items():
+                if old is None:
+                    self.var_types.pop(var, None)
+                else:
+                    self.var_types[var] = old
         return result
 
     def _expr_with_known_array_reads(self, expr: str) -> str:
@@ -1586,6 +1778,13 @@ class _BoundedDslTextualReplay:
                             self.unsupported = True
                             return False
                 else:
+                    if _is_forward_drop_guard_noop(cond, then_body, else_chain) or _is_forward_return_guard_noop(
+                        cond, then_body, else_chain
+                    ) or _is_ipv4_route_tail_noop(
+                        cond, then_body, else_chain
+                    ):
+                        i = after_else
+                        continue
                     if self._accept_known_bad_guard():
                         return True
                     self.unsupported = True
@@ -1649,6 +1848,34 @@ class _BoundedDslTextualReplay:
         m_slot_write = _RE_SLOT_WRITE.match(stripped)
         if m_slot_write:
             self._write_array_expr(m_slot_write.group("reg"), m_slot_write.group("slot"), m_slot_write.group("rhs"))
+            return False
+
+        m_call_assign = _RE_CALL_ASSIGN.match(stripped)
+        if m_call_assign:
+            callee = m_call_assign.group("callee")
+            args = _split_args_top(m_call_assign.group("args")) or []
+            lhs_names = tuple(_split_args_top(m_call_assign.group("lhs")) or ())
+            _params, returns = self.procedure_sigs.get(callee, ((), ()))
+            if not returns or len(lhs_names) != len(returns):
+                self.unsupported = True
+                return False
+            if self.run_procedure(callee, args=args, depth=depth + 1):
+                return True
+            if self.unsupported:
+                return False
+            callee_types = self.procedure_type_scopes.get(callee, {})
+            old_return_types: Dict[str, Optional[str]] = {}
+            for ret in returns:
+                if ret in callee_types:
+                    old_return_types[ret] = self.var_types.get(ret)
+                    self.var_types[ret] = callee_types[ret]
+            for lhs, ret in zip(lhs_names, returns):
+                self._assign(lhs, ret)
+            for ret, old in old_return_types.items():
+                if old is None:
+                    self.var_types.pop(ret, None)
+                else:
+                    self.var_types[ret] = old
             return False
 
         m_call = _RE_CALL_VOID.match(stripped)
@@ -1793,6 +2020,8 @@ class _BoundedDslTextualReplay:
             self.int_eq[lhs] = int_value
 
     def _run_known_external(self, name: str, args: Sequence[str]) -> bool:
+        if name.endswith(".advance") or name.endswith(".emit"):
+            return False
         if name.endswith("packet_in.extract"):
             if args:
                 self.bool_eq[f"{args[0]}.__extract"] = True
@@ -2012,6 +2241,8 @@ def run_bounded_dsl_replay_prepass(
     replay = _BoundedDslTextualReplay(
         procedure_map=procedure_map,
         var_types=var_types,
+        procedure_sigs=_procedure_signatures(text),
+        procedure_type_scopes=_procedure_type_scopes(text),
         bad_guard_exprs=_collect_procurator_bad_guard_exprs(text),
     )
     if not replay.run_procedure("mainProcedure") or replay.unsupported:
