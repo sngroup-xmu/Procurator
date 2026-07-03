@@ -11,6 +11,10 @@ _RE_ASSUME_EQ = re.compile(
     r"^\s*assume\s+\(?\s*(?P<lhs>[A-Za-z_][A-Za-z0-9_.]*)\s*==\s*(?P<rhs>\d+bv\d+)\s*\)?\s*;\s*$"
 )
 _RE_HAVOC = re.compile(r"^\s*havoc\s+(?P<vars>[^;]+)\s*;\s*$")
+_RE_PROC_HEADER = re.compile(r"^\s*procedure(?:\s+\{[^}]*\})?\s+[A-Za-z_][A-Za-z0-9_.]*\(")
+_RE_LABEL = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_.$]*\s*:\s*$")
+_RE_CONTROL_BOUNDARY = re.compile(r"^\s*(?:if|else|while|goto|return|call|assert)\b")
+_RE_BLOCK_BOUNDARY = re.compile(r"^\s*\}?\s*(?:else\s*)?\{?\s*$")
 
 
 def simplify_bv_constant_assignments(lines: list[str], *, var_types: Dict[str, str]) -> None:
@@ -25,6 +29,10 @@ def simplify_bv_constant_assignments(lines: list[str], *, var_types: Dict[str, s
 
     env: Dict[str, int] = {}
     for i, line in enumerate(lines):
+        if _kills_straight_line_facts(line):
+            env.clear()
+            continue
+
         mh = _RE_HAVOC.match(line)
         if mh:
             for name in _split_vars(mh.group("vars")):
@@ -77,6 +85,21 @@ def rewrite_stable_bv_assignments(lines: list[str], *, assumptions: Sequence[str
 
 def _split_vars(raw: str) -> Sequence[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _kills_straight_line_facts(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("//"):
+        return False
+    if _RE_PROC_HEADER.match(line):
+        return True
+    if _RE_LABEL.match(line):
+        return True
+    if _RE_CONTROL_BOUNDARY.match(line):
+        return True
+    if _RE_BLOCK_BOUNDARY.match(line):
+        return True
+    return False
 
 
 def _is_bv_var(name: str, var_types: Dict[str, str]) -> bool:
