@@ -6,15 +6,15 @@ Procurator 是一个用于验证分布式、状态化 P4 程序的研究原型�
 DSL spec (.prop) -> Boogie (.bpl) -> Ultimate/GemCutter -> witness/trace
 
 本仓库包含：
-- P4B-Translator（P4 -> Boogie）
+- p4c translator（P4 -> Boogie）
 - Ultimate/GemCutter（并发验证器）
 - DSL 编译器 + harness 生成器
 
 ## 目录结构
 
-- `Procurator/argo/code/spec`：DSL 规格与编译入口
-- `Procurator/argo/code/dataset`：P4 程序与控制面 entries
-- `P4B-Translator`：P4 -> Boogie 翻译器（基于 p4c）
+- `benchmarks/specs`：DSL 规格与编译入口
+- `benchmarks/datasets`：P4 程序与控制面 entries
+- `p4c translator`：P4 -> Boogie 翻译器（基于 p4c）
 - `UGemCutter-linux`：Ultimate CLI 包（GemCutter + witness printer）
 - `.tmp/procurator/`：每次运行的输出目录（Boogie / 日志 / witness）。默认每次执行都会创建新的 run 目录，不复用缓存。
 
@@ -40,14 +40,14 @@ python3 -m venv .venv
   -r dslc/requirements.txt
 ```
 
-## 构建 P4B-Translator（P4 -> Boogie）
+## 构建 p4c translator（P4 -> Boogie）
 
-`P4B-Translator` 里不包含 gtest 源码，且 WSL 下 gold linker 可能崩溃，
+`p4c translator` 里不包含 gtest 源码，且 WSL 下 gold linker 可能崩溃，
 建议禁用 gtest 与 gold。
 
 ```bash
-mkdir -p P4B-Translator/build-host
-cd P4B-Translator/build-host
+mkdir -p src/p4b/source/build-host
+cd src/p4b/source/build-host
 cmake -DP4C_USE_GOLD=OFF -DENABLE_GTESTS=OFF ..
 cmake --build . --target p4c-translator -j"$(nproc)"
 ```
@@ -55,7 +55,7 @@ cmake --build . --target p4c-translator -j"$(nproc)"
 可执行文件路径：
 
 ```
-P4B-Translator/build-host/p4c-translator
+src/p4b/source/build-host/backends/verify/p4c-translator
 ```
 
 ## Ultimate/GemCutter 配置（Boogie 后端）
@@ -78,9 +78,9 @@ UGemCutter-linux/Ultimate
 1) DSL -> Boogie（默认不复用缓存）：
 
 ```bash
-./bin/procurator compile \
-  --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
+./src/bin/procurator compile \
+  --spec benchmarks/specs/smoke/boogie_smoke.prop \
+  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
 ```
 
 命令会打印输出目录（形如：`.tmp/procurator/compile/<spec>/<run_id>/`）。
@@ -88,9 +88,9 @@ UGemCutter-linux/Ultimate
 2) 编译 + 运行 Ultimate/GemCutter：
 
 ```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
+./src/bin/procurator verify \
+  --spec benchmarks/specs/smoke/boogie_smoke.prop \
+  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate
 ```
 
@@ -193,7 +193,7 @@ global {
 
 运行选项：
 
-- `./bin/procurator verify --env max`：忽略 `assume`，使用完全非确定输入。
+- `./src/bin/procurator verify --env max`：忽略 `assume`，使用完全非确定输入。
 - `--no-slicing`：关闭 P4 slicing（会明显扩大状态空间）。
 - `--no-env-prune`：关闭基于 sliced Boogie 的 env 输入剪枝（更保守，但更贵）。
 
@@ -212,65 +212,65 @@ export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
 ATP：
 
 ```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/bench/atp_bug.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
+./src/bin/procurator verify \
+  --spec benchmarks/specs/bench/atp_bug.prop \
+  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain src/dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 NetChain：
 
 ```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/test/netchain_bug.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
+./src/bin/procurator verify \
+  --spec benchmarks/specs/smoke/netchain_bug.prop \
+  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain src/dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 P4XOS：
 
 ```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/bench/p4xos_bug.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
+./src/bin/procurator verify \
+  --spec benchmarks/specs/bench/p4xos_bug.prop \
+  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain src/dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 DistCache（建议关闭 slicing 对齐语义：`--no-slicing --no-env-prune`）：
 
 ```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/bench/distcache_bug.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
+./src/bin/procurator verify \
+  --spec benchmarks/specs/bench/distcache_bug.prop \
+  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
   --no-slicing \
   --no-env-prune \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain src/dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 Gecko（Tofino JSON，建议关闭 slicing：`--no-slicing --no-env-prune`）：
 
 ```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/bench/gecko_bug1_timer_loss.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
+./src/bin/procurator verify \
+  --spec benchmarks/specs/bench/gecko_bug1_timer_loss.prop \
+  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
   --ultimate UGemCutter-linux/Ultimate \
   --env max \
   --no-slicing \
   --no-env-prune \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
+  --toolchain src/dslc/toolchain/ultimate/ReachSafety-Witness.xml \
+  --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
 ```
 
 ## 常见问题
@@ -281,6 +281,6 @@ Gecko（Tofino JSON，建议关闭 slicing：`--no-slicing --no-env-prune`）：
   - 把 Ultimate 目录加到 `PATH`：
     `UGemCutter-linux`
 - gold linker 崩溃：
-  - 使用 `-DP4C_USE_GOLD=OFF` 重新配置 P4B-Translator。
+  - 使用 `-DP4C_USE_GOLD=OFF` 重新配置 p4c translator。
 - DistCache 的 Boogie 字段缺失：
   - 用 `--no-prune` 运行。

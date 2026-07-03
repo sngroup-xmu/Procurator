@@ -1,0 +1,96 @@
+// NetChain bug
+//
+// Key points:
+// - Traffic model: host_h1 injects write requests to s1 with fixed overlay/ipv4 fields and keys in {2024,2025,2027,2028}
+// - Property: sequence monotonicity across replicas:
+//     [](s1_sequence_reg[0] >= s2_sequence_reg[0] && s2_sequence_reg[0] >= s3_sequence_reg[0])
+//
+// NOTE: Our current Boogie backend encodes safety checks as `assert` evaluated on every pass.
+
+import s1 from "../../datasets/Netchain/netchain_16.p4" entries "../../datasets/Netchain/commands_1.txt";
+import s2 from "../../datasets/Netchain/netchain_16.p4" entries "../../datasets/Netchain/commands_2.txt";
+import s3 from "../../datasets/Netchain/netchain_16.p4" entries "../../datasets/Netchain/commands_3.txt";
+
+topology {
+  link s1 -> s2 ALL;
+  link s2 -> s3 ALL;
+}
+
+node s1 {
+  external_input = true;
+
+  // Host traffic model (nondet + constraints):
+  // - Packet fields are havoc'd nondeterministically by the harness.
+  // - Here we only constrain them to match the host_h1 shape from Promela artifacts.
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.nc_hdr.valid == true;
+    hdr.udp.valid == true;
+    hdr.tcp.valid == false;
+    hdr.ipv4.protocol == 17;
+    hdr.overlay.0.valid == true;
+    hdr.overlay.1.valid == true;
+    hdr.overlay.2.valid == true;
+    hdr.overlay.3.valid == true;
+
+    hdr.ethernet.etherType == 2048;
+    hdr.ipv4.srcAddr == 1;
+    hdr.ipv4.dstAddr == 167797761;
+
+    // Boogie emits overlay stacks as numeric segments (overlay.0/overlay.1/...)
+    // Promela (run_3/main_model.pml): element_0=s1, element_1=s2, element_2=s3, element_3=host(0)
+    hdr.overlay.0.swip == 167797761;
+    hdr.overlay.1.swip == 167797762;
+    hdr.overlay.2.swip == 167797763;
+    hdr.overlay.3.swip == 0;
+
+    hdr.nc_hdr.op == 12; // NC_WRITE_REQUEST
+    hdr.nc_hdr.seq == 1;
+
+    // Narrow to a single key that maps to index 0 in find_index (2024 => 0).
+    hdr.nc_hdr.key == 2024;
+    // NOTE: In P4B Boogie, nc_hdr.value may be wider than nc_hdr.key (e.g., bv128 vs bv32).
+    // Avoid a width-mismatch constraint here; we can refine later if needed.
+  };
+}
+
+node s2 {}
+node s3 {}
+
+global {
+  // Keep queue small; the Boogie harness uses a single-slot mailbox for packet fields.
+  queue_capacity = 1;
+  // Increase bounded scheduler steps so the 16-bit sequence register can wrap around (flip bug).
+  max_steps = 262142;
+  // Reduce interleavings: run a deterministic round-robin scheduler (env->s1->s2->s3->...).
+  deterministic_scheduler = true;
+
+  // Force index-0 path to reduce spurious traces.
+  assume {
+    s1_meta.location.index == 0;
+    s2_meta.location.index == 0;
+    s3_meta.location.index == 0;
+    s1_find_index.hit == true;
+    s2_find_index.hit == true;
+    s3_find_index.hit == true;
+    // Pin switch roles to control-plane defaults (commands_1/2/3.txt).
+    s1_meta.my_md.role == 100;
+    s2_meta.my_md.role == 101;
+    s3_meta.my_md.role == 102;
+    // Force a forwarding decision so s1 can enqueue to s2 (avoid zero-port drops).
+    s1_standard_metadata.egress_port != 0;
+  };
+
+  // Property (ported from Promela ltl consistency):
+  // Promela: [](s1_sequence_reg[0] >= s2_sequence_reg[0] && s2_sequence_reg[0] >= s3_sequence_reg[0])
+  //
+  // In our Boogie pipeline, global assert blocks are checked on every pass.
+  // Split assertions to identify which relation is violated.
+  assert {
+    s1_sequence_reg[0] >= s2_sequence_reg[0];
+  };
+  assert {
+    s2_sequence_reg[0] >= s3_sequence_reg[0];
+  };
+}

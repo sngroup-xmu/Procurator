@@ -1,0 +1,10 @@
+{
+  "scope": "public benchmark inputs for the SIGCOMM26 artifact",
+  "spec_roots": [
+    "benchmarks/specs/bench",
+    "benchmarks/specs/smoke",
+    "benchmarks/specs/regression"
+  ],
+  "dataset_root": "benchmarks/datasets",
+  "license_review": "pending per-dataset provenance review"
+}

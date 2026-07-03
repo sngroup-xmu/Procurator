@@ -1,0 +1,82 @@
+// NetLock (P4_16 / TNA): spurious RELEASE underflows lock counters (functional).
+//
+// Background:
+//   ReleaseLock.update_lock_alu decrements the shared/exclusive counters without
+//   checking they are non-zero. For an unlocked lock, a duplicate/spurious RELEASE
+//   can underflow to 2^32-1 (bitvector wraparound), poisoning subsequent lock logic.
+//
+// Check:
+//   After the first RELEASE on a fresh lock, the shared/exclusive counter register
+//   must remain 0 (no negative / wrapped value).
+//
+// Any UNSAFE result must be validated by witness rerun.
+
+import sw from "../../datasets/NetLock/switch/p4/netlock.p4"
+  entries "netlock_min_entries.txt";
+
+topology {}
+
+host client {
+  connect sw;
+  env {
+    // Parser reachability to nlk_hdr via Ethernet/IPv4/UDP.
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.nlk_hdr.valid = true;
+
+    hdr.ethernet.etherType = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol = 17;        // IP_PROTOCOLS_UDP
+    hdr.udp.dstPort = 8888;        // LK_PORT
+
+    hdr.nlk_hdr.lock = 0;
+    hdr.nlk_hdr.client_id = 0;
+    hdr.nlk_hdr.tid = 0;
+    hdr.nlk_hdr.timestamp_lo = 0;
+    hdr.nlk_hdr.timestamp_hi = 0;
+    hdr.nlk_hdr.recirc_flag = 0;
+
+    // Reduce spurious parser/deparser paths for functional checks:
+    // - resubmit_flag=0 models a fresh external packet (not a resubmitted one).
+    // - mirror_type=0 prevents unconditional mirror.emit from generating clone events
+    //   unless the ingress pipeline explicitly requests it.
+    ig_intr_md.resubmit_flag = 0;
+    ig_intr_dprsr_md.mirror_type = 0;
+
+    // Two-step script: RELEASE (spurious) -> ACQUIRE.
+    //
+    // The assertion below is guarded to check the register state right after the
+    // first RELEASE has been processed.
+    if (phase == 0) {
+      hdr.nlk_hdr.op = 1;   // RELEASE_LOCK
+      hdr.nlk_hdr.mode = 1; // EXCLUSIVE_LOCK
+      phase = 1;
+    } else {
+      hdr.nlk_hdr.op = 0;   // ACQUIRE_LOCK
+      hdr.nlk_hdr.mode = 1; // EXCLUSIVE_LOCK
+      phase = 2;
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 3;
+
+  int phase = 0;
+
+  // Help the Boogie post-pass eliminate quantified register initializations:
+  // all register accesses in this spec are at lock_id == 0.
+  assume {
+    sw_ig_md.lock_id == 0;
+  };
+
+  // When phase==1 (i.e., after the first RELEASE injection, before the next host injection),
+  // the lock counters must still be 0.
+  assert {
+    (phase != 1) || (sw_shared_and_exclusive_count_register[0] == 0);
+  };
+}

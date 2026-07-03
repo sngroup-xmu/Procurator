@@ -1,320 +1,75 @@
-# Procurator: Distributed Stateful P4 Verification
+# Procurator
 
 Procurator is a research prototype for verifying distributed, stateful P4
-programs. It compiles a DSL spec into Boogie, generates a concurrent harness,
-and discharges safety properties with Ultimate/GemCutter. The default flow is:
+programs. It compiles a Procurator DSL specification into Boogie, builds a
+distributed actor harness, and discharges safety properties with
+Ultimate/GemCutter.
 
-DSL spec (.prop) -> Boogie (.bpl) -> Ultimate/GemCutter -> witness/trace
+## Layout
 
-This repository vendors:
-- P4B-Translator (P4 -> Boogie)
-- Ultimate/GemCutter (concurrent verifier)
-- A DSL compiler + harness generator
+- `src/`: first-party Procurator code.
+  - `src/bin/procurator`: CLI entrypoint.
+  - `src/p4b/source/`: full pinned P4B/p4c fork used to build
+    `p4c-translator`.
+  - `src/p4b/python/`: first-party path helpers for the P4B integration.
+  - `src/dslc/`: DSL parser/compiler, Boogie harness generation, workflows,
+    wraparound orchestration, toolchain runners, and tests.
+- `third_party/`: pinned third-party source trees and provenance records.
+  - `third_party/ultimate/`: Ultimate/GemCutter source or artifact-provided
+    binary provenance.
+  - `third_party/z3/`: Z3 provenance.
+- `benchmarks/`: public benchmark inputs.
+  - `benchmarks/specs/`: Procurator DSL specifications.
+  - `benchmarks/datasets/`: P4 programs, table entries, and configs referenced
+    by retained specs.
+- `artifact/`: SIGCOMM26 AE reproduction scripts, expected outputs, manifests,
+  and evidence.
+- `docs/`: public design, evaluation, and troubleshooting notes.
+- `tools/release/`: release-tree checks and packaging helpers.
 
-## Repository Layout
+Generated outputs should go under `.tmp/procurator/` or another explicit output
+directory. They are not source.
 
-- `dslc/`: DSL compiler + harness generator + workflows (**the only supported entrypoint is `./bin/procurator`**)
-- `Procurator/`: legacy dataset/specs kept as inputs (not used as an entrypoint)
-- `P4B-Translator`: P4 -> Boogie translator (p4c-based)
-- `UGemCutter-linux`: Ultimate CLI bundle (GemCutter + witness printer)
-- `dslc/toolchain/ultimate/`: Ultimate toolchain/settings presets (EPF/XML)
-- `.tmp/procurator/`: per-run outputs (Boogie, logs, witnesses). By default, each
-  invocation uses a fresh run directory to avoid silently reusing cached artifacts.
+## Build
 
-## System Requirements
-
-Ubuntu 24.04 (WSL) + Java 21. The fastest path is to use the bundled
-Ultimate binary and the bundled Z3 inside that folder.
-
-Recommended packages:
-
-```bash
-sudo apt-get update
-sudo apt-get install -y \
-  cmake g++ git automake libtool libgc-dev bison flex libfl-dev libgmp-dev \
-  libboost-dev libboost-iostreams-dev libboost-graph-dev llvm pkg-config \
-  python3 python3-pip python3-ply python3-scapy \
-  protobuf-compiler libprotobuf-dev \
-  openjdk-21-jdk
-```
-
-## Python Environment (DSL Compiler)
+Install the Python requirements:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install \
-  -r dslc/requirements.txt
+. .venv/bin/activate
+python -m pip install -r src/dslc/requirements.txt
 ```
 
-## Build P4B-Translator (P4 -> Boogie)
-
-The p4c tree in `P4B-Translator` does not ship with gtest sources.
-Disable gtests and disable the gold linker to avoid linker issues on WSL.
+Build the pinned P4B/p4c translator:
 
 ```bash
-mkdir -p P4B-Translator/build-host
-cd P4B-Translator/build-host
+mkdir -p src/p4b/source/build-host
+cd src/p4b/source/build-host
 cmake -DP4C_USE_GOLD=OFF -DENABLE_GTESTS=OFF ..
 cmake --build . --target p4c-translator -j"$(nproc)"
 ```
 
-Binary path:
+The expected binary path is:
 
-```
-P4B-Translator/build-host/p4c-translator
-```
-
-## Ultimate/GemCutter Setup (Boogie Backend)
-
-Ultimate requires Java 21. The bundled Z3 is inside the Ultimate folder.
-
-**[Build](https://github.com/ultimate-pa/ultimate/wiki/Usage#build) all Ultimate tools (including GemCutter):**
-```bash
-cd ultimate/releaseScripts/default
-./makeFresh.sh
+```text
+src/p4b/source/build-host/backends/verify/p4c-translator
 ```
 
-**Build only GemCutter (faster, for incremental builds):**
-```bash
-cd ultimate/releaseScripts/default
-# Ensure Maven build is up to date first
-cd ../../trunk/source/BA_MavenParentUltimate
-mvn -T 1C install -Pmaterialize
-# Then create GemCutter zip
-cd ../../../releaseScripts/default
-bash makeZip.sh GemCutter linux \
-  AutomizerCInline_IcfgBuilder_WitnessPrinter.xml \
-  NONE \
-  AutomizerCInline_IcfgBuilder.xml \
-  AutomizerCInline_IcfgBuilder_WitnessPrinter.xml \
-  NONE \
-  NONE
-```
+## Smoke
 
 ```bash
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
+./src/bin/procurator verify \
+  --spec benchmarks/specs/smoke/boogie_smoke.prop \
+  --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator \
+  --ultimate third_party/ultimate/UGemCutter-linux/Ultimate
 ```
 
-Ultimate executable:
+For artifact-oriented workflows, start from `ARTIFACT.md` and
+`artifact/README.md`.
 
-```
-UGemCutter-linux/Ultimate
-```
+## Evidence Rules
 
-## Boogie Usage
-
-1) Compile DSL -> Boogie (no cache by default):
-
-```bash
-./bin/procurator compile \
-  --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
-```
-
-The command prints the output directory under:
-`.tmp/procurator/compile/<spec>/<run_id>/`.
-
-2) Compile + run Ultimate/GemCutter:
-
-```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/test/boogie_smoke.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate
-```
-
-Outputs go to a fresh per-run directory under:
-`.tmp/procurator/verify/<spec>/<run_id>/`.
-
-## Spec Language (DSL)
-
-A spec file (`*.prop`) glues P4 programs, topology, environment, and safety
-properties. The compiler lives in `dslc` and is typically driven via the
-single entrypoint `./bin/procurator`.
-
-Minimal skeleton:
-
-```prop
-import s1 from "/abs/path/to/program.p4" entries "/abs/path/to/commands.txt";
-
-topology {
-  // link s1 -> s2 ALL;
-}
-
-node s1 {
-  external_input = true;
-  assume { hdr.ipv4.dstAddr == 167772161; };
-}
-
-global {
-  queue_capacity = 1;
-  assert { s1_counter_reg[0] >= 0; };
-}
-```
-
-Full example (multi-node + host + env + symmetry):
-
-```prop
-import s1 from "/abs/path/to/p4a.p4" entries "/abs/path/to/commands_1.txt";
-import s2 from "/abs/path/to/p4a.p4" entries "/abs/path/to/commands_2.txt";
-
-topology {
-  link s1 -> s2 ALL;
-}
-
-node s1 {
-  external_input = true;
-  assume {
-    hdr.ethernet.etherType == 2048;
-    hdr.ipv4.dstAddr == 167772162;
-  };
-  assert { s1_sequence_reg[0] >= 0; };
-  env {
-    // custom injection logic (assign/if/assume/assert allowed)
-    hdr.nc_hdr.op = 12;
-  };
-}
-
-node s2 {}
-
-host h1 {
-  connect s1;
-  assume { hdr.ipv4.srcAddr == 167772161; };
-}
-
-global {
-  queue_capacity = 1;
-  env_thread = false;
-  host_eager = true;
-  symmetry(s1, s2);
-  assert { s1_sequence_reg[0] >= s2_sequence_reg[0]; };
-}
-```
-
-Block and parameter reference:
-
-- `import <alias> from "<p4_path>" [entries "<commands.txt>"];`
-  - `alias` becomes the node name used elsewhere.
-  - `entries` is optional and points to control-plane commands.
-- `topology { link <src> -> <dst> <port|ALL>; }`
-  - `port` is a concrete egress port, or `ALL` for any port.
-- `node <alias> { ... }`
-  - `external_input = true|false` enables environment injection for this node.
-  - `assume { ...; }` constrains fields for external inputs.
-  - `assert { ...; }` local safety checks, evaluated after each pass.
-  - `env { ... }` injection-time logic (assign/if/assume/assert).
-- `host <name> { connect <node>; ... }`
-  - `connect` selects the node that receives host-injected packets.
-  - `assume { ...; }` adds host-side constraints (same syntax as node).
-- `global { ... }`
-  - `queue_capacity = <int>` mailbox capacity (small values reduce state space).
-  - `env_thread = false` disables automatic EnvThread injection.
-  - `host_eager = true` makes host injection attempt every step.
-  - `symmetry(n1, n2, ...)` adds symmetry breaking on inbox counts.
-  - `assert { ...; }` global safety checks, evaluated after each pass.
-  - `int name = <int>;` declares auxiliary integer state for the harness.
-
-Expression notes:
-
-- Use `;` to terminate each statement inside `assume`/`assert`/`env`.
-- Field access supports `hdr.foo.bar`, `hdr.overlay.0.swip`, and `reg[0]`.
-- Boolean ops use `&&`, `||`, `!`, and comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`).
-- If a single statement uses `||`, wrap it in parentheses to avoid parser ambiguity.
-
-Runtime knobs:
-
-- `./bin/procurator verify --env max` ignores `assume` on external inputs and uses fully nondeterministic packets.
-- `--no-slicing` disables P4 slicing (more conservative, but much more expensive).
-- `--no-env-prune` disables env-input pruning based on sliced Boogie usage.
-
-## Benchmark Runs (Max-Env)
-
-All runs below enable witness generation and use the internal SMTInterpol
-settings from `ReachSafety-32bit-GemCutter-internal-witness.epf`.
-
-Set environment once:
-
-```bash
-export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-export PATH="$PWD/UGemCutter-linux:$JAVA_HOME/bin:$PATH"
-```
-
-Note: by default each invocation creates a fresh output directory (no cache) under:
-`.tmp/procurator/verify/<spec>/<run_id>/` and prints the `.bpl`/`.gemcutter.log` paths.
-
-ATP:
-
-```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/bench/atp_bug.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate \
-  --env max \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
-```
-
-NetChain:
-
-```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/test/netchain_bug.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate \
-  --env max \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
-```
-
-P4XOS:
-
-```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/bench/p4xos_bug.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate \
-  --env max \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
-```
-
-DistCache (often needs slicing disabled to avoid missing header fields):
-
-```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/bench/distcache_bug.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate \
-  --env max \
-  --no-slicing \
-  --no-env-prune \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
-```
-
-Gecko (Tofino JSON; slicing is often disabled for debugging):
-
-```bash
-./bin/procurator verify \
-  --spec Procurator/argo/code/spec/bench/gecko_bug1_timer_loss.prop \
-  --p4b-bin P4B-Translator/build-host/p4c-translator \
-  --ultimate UGemCutter-linux/Ultimate \
-  --env max \
-  --no-slicing \
-  --no-env-prune \
-  --toolchain dslc/toolchain/ultimate/ReachSafety-Witness.xml \
-  --settings dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-witness.epf
-```
-
-## Troubleshooting
-
-- Java version errors (class file version 65/69):
-  - Use Java 21 JDK (`openjdk-21-jdk`) and ensure `JAVA_HOME` points to it. Note: JDK (not JRE) is required for building Ultimate from source as it includes the `javac` compiler.
-- Z3 not found:
-  - Add Ultimate folder to `PATH`:
-    `UGemCutter-linux`
-- Gold linker crashes:
-  - Configure P4B-Translator with `-DP4C_USE_GOLD=OFF`.
-- Undeclared identifiers in Boogie for DistCache:
-  - Re-run with `--no-slicing --no-env-prune`.
+Result reporting must fail closed. Do not treat `TIMEOUT`, `UNKNOWN`, OOM,
+toolchain `ERROR`, missing witnesses, or unverified `SAFE` results as bug
+absence. Wraparound certification requires the intended stage evidence, not only
+focused diagnostics.

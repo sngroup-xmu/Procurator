@@ -1,0 +1,95 @@
+# --- l2l3_forward_tbl ---
+table_set_default l2l3_forward_tbl _nop
+table_add l2l3_forward_tbl l2l3_forward 10.0.3.1/32 => 1
+table_add l2l3_forward_tbl l2l3_forward 10.0.1.1/32 => 2
+# --- set_hot_threshold_tbl ---
+table_set_default set_hot_threshold_tbl set_hot_threshold 0x400
+# --- hash_for_partition_tbl ---
+table_set_default hash_for_partition_tbl _nop
+table_add hash_for_partition_tbl hash_for_partition 0x1 =>
+table_add hash_for_partition_tbl hash_for_partition 0x2 =>
+table_add hash_for_partition_tbl hash_for_partition 0x30 =>
+# --- hash_partition_tbl ---
+table_set_default hash_partition_tbl _nop
+table_add hash_partition_tbl hash_partition 0x1 0->1023 => 0x162e 1
+table_add hash_partition_tbl hash_partition 0x2 0->1023 => 0x162e 1
+table_add hash_partition_tbl hash_partition 0x30 0->1023 => 0x162e 1
+# --- hash_spine_partition_tbl ---
+table_set_default hash_spine_partition_tbl _nop
+table_add hash_spine_partition_tbl hash_spine_partition 0x7f 0->1023 => 0x33 2
+# --- cache_lookup_tbl ---
+table_set_default cache_lookup_tbl uncached_action
+table_add cache_lookup_tbl cached_action 0x11111111 0x22222222 0x33333333 0x44444444 0x55555555 => 7
+# --- hash_for_seq_tbl ---
+table_set_default hash_for_seq_tbl _nop
+table_add hash_for_seq_tbl hash_for_seq 0x1 =>
+table_add hash_for_seq_tbl hash_for_seq 0x2 =>
+# --- prepare_for_cachehit_tbl ---
+table_set_default prepare_for_cachehit_tbl set_client_sid 0
+table_add prepare_for_cachehit_tbl set_client_sid 0x30 10.0.1.1/32 => 0x64
+# --- ipv4_forward_tbl ---
+table_set_default ipv4_forward_tbl _nop
+table_add ipv4_forward_tbl forward_normal_response 0x9 10.0.3.1/32 => 1
+table_add ipv4_forward_tbl forward_normal_response 0x9 10.0.1.1/32 => 2
+# --- sample_tbl ---
+table_set_default sample_tbl _nop
+table_add sample_tbl sample 0x30 =>
+# --- ig_port_forward_tbl ---
+table_set_default ig_port_forward_tbl _nop
+table_add ig_port_forward_tbl update_getreq_to_getreq_inswitch 0x30 =>
+table_add ig_port_forward_tbl update_putreq_to_putreq_inswitch 0x1 =>
+# --- bypass_egress_tbl ---
+table_set_default bypass_egress_tbl _nop
+table_add bypass_egress_tbl set_bypass_egress 0x3b 0x0 =>
+# --- access_latest_tbl ---
+table_set_default access_latest_tbl reset_is_latest
+table_add access_latest_tbl get_latest 0x4 1 0 =>
+# --- access_seq_tbl ---
+table_set_default access_seq_tbl _nop
+table_add access_seq_tbl assign_seq 0x5 0 =>
+# --- save_client_udpport_tbl ---
+table_set_default save_client_udpport_tbl _nop
+table_add save_client_udpport_tbl save_client_udpport 0x4 =>
+# --- prepare_for_cachepop_tbl ---
+table_set_default prepare_for_cachepop_tbl reset_server_sid
+table_add prepare_for_cachepop_tbl set_server_sid_and_port 0x4 1 => 0x4d
+# --- is_hot_tbl ---
+table_set_default is_hot_tbl reset_is_hot
+table_add is_hot_tbl set_is_hot 1 1 1 1 =>
+# --- access_cache_frequency_tbl ---
+table_set_default access_cache_frequency_tbl _nop
+table_add access_cache_frequency_tbl update_cache_frequency 0x4 1 0 0 =>
+# --- access_deleted_tbl ---
+table_set_default access_deleted_tbl reset_is_deleted
+table_add access_deleted_tbl get_deleted 0x4 1 1 0 =>
+table_add access_deleted_tbl set_and_get_deleted 0x14 1 1 0 =>
+# --- access_savedseq_tbl ---
+table_set_default access_savedseq_tbl _nop
+table_add access_savedseq_tbl set_and_get_savedseq 0x7f 1 1 =>
+# --- update_vallen_tbl ---
+table_set_default update_vallen_tbl reset_access_val_mode
+table_add update_vallen_tbl get_vallen 0x4 1 1 =>
+table_add update_vallen_tbl set_and_get_vallen 0x7f 1 1 =>
+# --- is_report_tbl ---
+table_set_default is_report_tbl reset_is_report
+table_add is_report_tbl set_is_report 1 1 1 =>
+# --- lastclone_lastscansplit_tbl ---
+table_set_default lastclone_lastscansplit_tbl reset_is_lastclone_lastscansplit
+table_add lastclone_lastscansplit_tbl set_is_lastclone 0x120 0 =>
+# --- eg_port_forward_tbl ---
+table_set_default eg_port_forward_tbl _nop
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 1 0 0 1 0 100 0 0 => 100 123 0
+# --- update_ipmac_srcport_tbl ---
+table_set_default update_ipmac_srcport_tbl _nop
+table_add update_ipmac_srcport_tbl update_ipmac_srcport_server2client 0x9 2 => 0x001122334455 0x00aabbccddeeff 10.0.1.1 10.0.2.1 0x1234
+# --- update_pktlen_tbl ---
+table_set_default update_pktlen_tbl _nop
+table_add update_pktlen_tbl update_pktlen 0x9 0->1024 => 34 54
+# --- add_and_remove_value_header_tbl ---
+table_set_default add_and_remove_value_header_tbl remove_all
+table_add add_and_remove_value_header_tbl add_to_val1 0x9 1->8 =>
+# --- update_vallo1_tbl / update_valhi1_tbl ... ---
+table_set_default update_vallo1_tbl NoAction
+table_set_default update_valhi1_tbl NoAction
+table_add update_vallo1_tbl get_vallo1 1 =>
+table_add update_valhi1_tbl get_valhi1 1 =>

@@ -1,0 +1,63 @@
+{
+  "include": [
+    "src/**",
+    "third_party/MANIFEST.json",
+    "third_party/README.md",
+    "third_party/LICENSES.md",
+    "third_party/ultimate/**",
+    "third_party/z3/**",
+    "benchmarks/specs/**",
+    "benchmarks/datasets/**",
+    "artifact/**",
+    "docs/design/**",
+    "docs/evaluation/**",
+    "docs/troubleshooting/**",
+    "tools/release/**",
+    "README.md",
+    "INSTALL.md",
+    "ARTIFACT.md",
+    "REPRODUCE.md",
+    "THIRD_PARTY.md",
+    "CITATION.cff",
+    "CHANGELOG.md",
+    ".gitignore"
+  ],
+  "exclude": [
+    ".agents/**",
+    ".codex/**",
+    ".gemini/**",
+    ".vscode/**",
+    ".tmp/**",
+    "tmp/**",
+    "workspace/**",
+    "build/**",
+    "src/p4b/source/.git/**",
+    "src/p4b/source/build-*/**",
+    "src/p4b/source/cmake-build-*/**",
+    ".venv/**",
+    ".venv-wsl/**",
+    "**/__pycache__/**",
+    "**/*.pyc",
+    "p4verify_latex/**",
+    "doc/**",
+    "p4rt-ovs/**",
+    "ubpf/**",
+    "AGENTS.md",
+    "HARDRULES.md",
+    "OPERATE.md",
+    "README_PROCURATOR_PML.md",
+    "docs/superpowers/**",
+    "third_party/legacy-translator/**"
+  ],
+  "needs_license_review": [
+    "src/p4b/source/**",
+    "third_party/ultimate/**",
+    "benchmarks/datasets/**"
+  ],
+  "needs_reference_check": [
+    "USAGE.md",
+    "README_zh.md",
+    "docs/evaluation/**",
+    "artifact/evidence/**"
+  ]
+}

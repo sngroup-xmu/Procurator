@@ -1,0 +1,10 @@
+
+table_set_default switch_config set_config 2 6
+
+table_add match_gw set_to_gw 66.0.0.100 => 1
+
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.1 => 2
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.2 => 3
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.3 => 3
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.4 => 1
+table_add fw_l3_forwarding fw_l3_forward_0 66.0.0.100 => 1

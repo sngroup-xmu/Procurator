@@ -1,0 +1,75 @@
+// External candidate: Flowrest INFOCOM 2023 per-flow Random Forest inference.
+//
+// Bug shape:
+//   reg_flow_duration is a 32-bit per-flow duration feature accumulated from
+//   inter-arrival time. A long-lived flow can make this feature wrap to 0,
+//   which later feeds table_feature1 as if the flow were short-lived.
+//
+// This is a bounded witness using three packets on the same flow:
+//   timestamp 1 -> first packet initializes time_last_pkt
+//   timestamp 2^32-1 -> second packet adds a huge IAT
+//   timestamp 1 -> third packet adds 2 and wraps flow_duration to 0
+//
+// The external P4 source is kept unchanged. Unsupported TNA/Tofino syntax must
+// be handled in P4B rather than by modifying dataset/external_flowrest_per_flow.
+
+import flowrest from "../../datasets/external_flowrest_per_flow/unsw_per_flow_16_classes.p4";
+
+topology {}
+
+host io {
+  connect flowrest;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.tcp.valid = true;
+    hdr.udp.valid = false;
+    hdr.recirc.valid = false;
+
+    hdr.ethernet.ether_type = 2048; // TYPE_IPV4
+    hdr.ipv4.protocol = 6;          // TCP
+    hdr.ipv4.total_len = 64;
+    hdr.ipv4.src_addr = 167772161;  // 10.0.0.1
+    hdr.ipv4.dst_addr = 167772162;  // 10.0.0.2
+    hdr.tcp.src_port = 1234;
+    hdr.tcp.dst_port = 443;
+    meta.hdr_srcport = 1234;
+    meta.hdr_dstport = 443;
+
+    ig_intr_md.resubmit_flag = 0;
+
+    if (phase == 0) {
+      ig_prsr_md.global_tstamp = 1;
+    } else {
+      if (phase == 1) {
+        ig_prsr_md.global_tstamp = 4294967295;
+      } else {
+        ig_prsr_md.global_tstamp = 1;
+      }
+    }
+
+    // Stable baseline so TTL observations are attributable to the P4 logic.
+    hdr.ipv4.ttl = 64;
+
+    phase += 1;
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 9;
+
+  int phase = 0;
+
+  assert {
+    // After the third packet of the same non-colliding flow, the accumulated
+    // duration feature must not have wrapped back to zero.  The write guard
+    // requires the counterexample to include an actual zero write.
+    (phase < 3)
+      || !(flowrest_Ingress_reg_flow_duration__wrote_any
+           && flowrest_Ingress_reg_flow_duration__last_value == 0);
+  };
+}

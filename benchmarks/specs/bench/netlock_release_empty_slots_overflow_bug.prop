@@ -1,0 +1,77 @@
+// NetLock (P4_16 / TNA): RELEASE can overflow the "empty_slots" counter (functional).
+//
+// Background:
+//   In ReleaseLock.inc_empty_slots_alu, the code increments `value.lo` when
+//   `value.lo <= ig_md.size_of_queue`. If `value.lo == size_of_queue` (queue empty),
+//   this increments empty_slots beyond the queue capacity, which can poison later
+//   queue logic.
+//
+// Check:
+//   Starting from the minimal control-plane initialization (empty_slots == size),
+//   after a single RELEASE on a fresh lock, `slots_two_sides_register[0]` must
+//   remain unchanged (i.e., empty_slots must not exceed the queue size).
+//
+// Any UNSAFE result must be validated by witness rerun.
+
+import sw from "../../datasets/NetLock/switch/p4/netlock.p4"
+  entries "netlock_min_entries.txt";
+
+topology {}
+
+host client {
+  connect sw;
+  env {
+    // Parser reachability to nlk_hdr via Ethernet/IPv4/UDP.
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.nlk_hdr.valid = true;
+
+    hdr.ethernet.etherType = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol = 17;        // IP_PROTOCOLS_UDP
+    hdr.udp.dstPort = 8888;        // LK_PORT
+
+    // Target lock 0 (the only lock configured in netlock_min_entries.txt).
+    hdr.nlk_hdr.lock = 0;
+    hdr.nlk_hdr.client_id = 0;
+    hdr.nlk_hdr.tid = 0;
+    hdr.nlk_hdr.timestamp_lo = 0;
+    hdr.nlk_hdr.timestamp_hi = 0;
+    hdr.nlk_hdr.recirc_flag = 0;
+
+    // External (not resubmitted) packet; avoid unconditional mirror clones.
+    ig_intr_md.resubmit_flag = 0;
+    ig_intr_dprsr_md.mirror_type = 0;
+
+    // Single-step script: send one RELEASE.
+    hdr.nlk_hdr.op = 1;   // RELEASE_LOCK
+    hdr.nlk_hdr.mode = 1; // EXCLUSIVE_LOCK
+    phase = 1;
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 3;
+
+  int phase = 0;
+
+  // Help the Boogie post-pass eliminate quantified register initializations:
+  // all register accesses in this spec are at lock_id == 0.
+  assume {
+    sw_ig_md.lock_id == 0;
+  };
+
+  // netlock_min_entries.txt initializes:
+  //   slots_two_sides_register[0] = (empty_slots=9, length_in_server=0)
+  // as a packed 64-bit value: (9 << 32) | 0 == 38654705664.
+  //
+  // After a RELEASE on an empty queue, empty_slots must not exceed the queue size
+  // (i.e., the packed register must remain unchanged).
+  assert {
+    (phase != 1) || (sw_slots_two_sides_register[0] == 38654705664);
+  };
+}

@@ -1,0 +1,23 @@
+proctype func_2
+	state  23 -(tr   5)-> state   8  [id   0 tp   2] [A---G] origin.pml:24 => ((a<5))
+	state  23 -(tr  10)-> state  16  [id   8 tp   2] [A---G] origin.pml:24 => ((b<35))
+	state  23 -(tr   2)-> state  19  [id  16 tp   2] [A---G] origin.pml:24 => else
+	state   8 -(tr   6)-> state  23  [id   1 tp   2] [----G] origin.pml:8 => ((a==5))
+	state   8 -(tr   2)-> state   5  [id   3 tp   2] [A---G] origin.pml:8 => else
+	state   5 -(tr   8)-> state  23  [id   4 tp   2] [----G] origin.pml:11 => a = (a+1)
+	state  16 -(tr  11)-> state  23  [id   9 tp   2] [----G] origin.pml:8 => ((a==5))
+	state  16 -(tr   2)-> state  13  [id  11 tp   2] [A---G] origin.pml:8 => else
+	state  13 -(tr  13)-> state  23  [id  12 tp   2] [----G] origin.pml:11 => a = (a+1)
+	state  19 -(tr  14)-> state  23  [id  17 tp   2] [----G] origin.pml:17 => (1)
+claim p
+	state   6 -(tr   3)-> state   6  [id  26 tp   2] [----G] origin.pml:3 => (!(((a<=5)&&(b<=35))))
+	state   6 -(tr   1)-> state   6  [id  29 tp   2] [----G] origin.pml:3 => (1)
+
+Transition Type: A=atomic; D=d_step; L=local; G=global
+Source-State Labels: p=progress; e=end; a=accept;
+Note: statement merging was used. Only the first
+      stmnt executed in each merge sequence is shown
+      (use spin -a -o3 to disable statement merging)
+
+pan: elapsed time 1.86e+07 seconds
+pan: rate         0 states/second

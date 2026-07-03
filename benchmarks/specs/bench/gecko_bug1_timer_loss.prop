@@ -1,0 +1,101 @@
+// Gecko bug #1: timer packet loss/blockage -> pending writes stall.
+//
+// Functional safety property (bug-finding):
+//   After a write request becomes pending, the timer mechanism must eventually
+//   clear it. If the timer packet is dropped/blocked at the switch boundary,
+//   time does not advance and pending requests are never re-evaluated.
+//
+// Modeling approach:
+//   - host injects one write (op=10) then repeatedly injects "tick" packets
+//     (op=0) that keep the pipeline running but never clear the pending write.
+//   - this exhibits bounded waiting (steps>3) as a safety violation.
+
+import ta from "../../datasets/gecko/timer_a.json" entries "../../datasets/gecko/control/a.txt";
+import tb from "../../datasets/gecko/timer_b.json" entries "../../datasets/gecko/control/b.txt";
+
+topology {
+  link ta -> tb ALL;
+}
+
+host io {
+  connect ta;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ethernet.ether_type = 21845;
+    hdr.albion.valid = true;
+    // Reduce irrelevant branching/state: keep register indices and address fields stable.
+    // (Put these in host.env rather than node.assume so they constrain host injection too.)
+    hdr.albion.CS_id_1 = 0;
+    hdr.albion.CS_id_2 = 0;
+    hdr.albion.CS_id_3 = 0;
+    hdr.albion.CS_offset_1 = 0;
+    hdr.albion.CS_offset_2 = 0;
+    hdr.albion.CS_offset_3 = 0;
+    hdr.albion.address_h = 0;
+    hdr.albion.address_l = 0;
+    hdr.albion.index = 0;
+    hdr.albion.num = 0;
+    hdr.albion.port = 0;
+    hdr.albion.request_id_high = 0;
+    hdr.albion.request_id_low = 0;
+    hdr.albion.time = 0;
+    hdr.albion_timer.valid = false;
+    // Gecko's write request does not carry albion_data in our abstraction.
+    hdr.albion_data.valid = false;
+    if (phase == 0) {
+      hdr.albion.operation = 10;
+      phase = 1;
+    } else {
+      // "tick" packets: advance the system without clearing pending writes.
+      hdr.albion.operation = 0;
+    }
+  }
+}
+
+node ta {
+  external_input = false;
+  assume {
+    // Keep assumptions minimal to avoid inflating the SMT problem.
+    hdr.ethernet.ether_type == 21845;
+    (hdr.albion.operation == 10 || hdr.albion.operation == 0 || hdr.albion.operation == 100);
+  };
+  if (hdr.albion.operation == 10) {
+    pending = 1;
+    steps = 0;
+  }
+  if (hdr.albion.operation == 100) {
+    pending = 0;
+    steps = 0;
+  }
+  if (pending == 1) {
+    steps += 1;
+  }
+  // Record switch->client packaging (port 144) for trace sanity.
+  if (ig_tm_md.ucast_egress_port == 144) {
+    client_seen = 1;
+  }
+}
+
+node tb {
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  // Use a deterministic round-robin scheduler in bounded, sequential harness mode.
+  // This is sound for bug-finding (if we find UNSAFE it's a real counterexample),
+  // and it avoids huge nondeterministic branching in TraceAbstraction.
+  deterministic_scheduler = true;
+  // Bound must account for both host injection steps and node pass steps.
+  // To reach steps=4 we need: host(op10), ta, 4*(host(op0), ta) => 10 scheduler steps,
+  // plus possible tb steps. Keep a small but safe margin.
+  max_steps = 16;
+  int pending = 0;
+  int steps = 0;
+  int client_seen = 0;
+  int phase = 0;
+  assert {
+    !(pending == 1 && steps > 3);
+  };
+}

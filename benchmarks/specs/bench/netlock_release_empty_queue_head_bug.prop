@@ -1,0 +1,71 @@
+// NetLock (P4_16 / TNA): spurious RELEASE corrupts the per-lock head pointer (functional).
+//
+// Root cause (in ReleaseLock.apply):
+//   update_head_table is applied unconditionally even when the switch queue is empty
+//   (`empty_slots_before_pop == size_of_queue`). This advances `head_register` and
+//   corrupts subsequent dequeue logic.
+//
+// Check:
+//   On a fresh lock with an empty switch queue, after the first RELEASE is processed,
+//   `head_register[0]` must remain 0.
+//
+// Any UNSAFE result must be validated by witness rerun.
+
+import sw from "../../datasets/NetLock/switch/p4/netlock.p4"
+  entries "netlock_min_entries.txt";
+
+topology {}
+
+host client {
+  connect sw;
+  env {
+    // Parser reachability to nlk_hdr via Ethernet/IPv4/UDP.
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.nlk_hdr.valid = true;
+
+    hdr.ethernet.etherType = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol = 17;        // IP_PROTOCOLS_UDP
+    hdr.udp.dstPort = 8888;        // LK_PORT
+
+    hdr.nlk_hdr.lock = 0;
+    hdr.nlk_hdr.client_id = 0;
+    hdr.nlk_hdr.tid = 0;
+    hdr.nlk_hdr.timestamp_lo = 0;
+    hdr.nlk_hdr.timestamp_hi = 0;
+    hdr.nlk_hdr.recirc_flag = 0;
+
+    // Fresh external packet (not resubmitted) and avoid unconditional mirror.emit clones.
+    ig_intr_md.resubmit_flag = 0;
+    ig_intr_dprsr_md.mirror_type = 0;
+
+    if (phase == 0) {
+      hdr.nlk_hdr.op = 1;   // RELEASE_LOCK
+      hdr.nlk_hdr.mode = 1; // EXCLUSIVE_LOCK
+      phase = 1;
+    } else {
+      // No more injections; keep env stable.
+      hdr.nlk_hdr.op = 1;
+      hdr.nlk_hdr.mode = 1;
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  max_steps = 3;
+
+  int phase = 0;
+
+  // Help the Boogie post-pass eliminate quantified register initializations:
+  // all register accesses in this spec are at lock_id == 0.
+  assume { sw_ig_md.lock_id == 0; };
+
+  // Immediately after the first RELEASE has been processed, head must still be 0.
+  assert { (phase != 1) || (sw_head_register[0] == 0); };
+}
+

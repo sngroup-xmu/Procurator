@@ -1,0 +1,93 @@
+// SwitchML (NSDI 2021 artifact): shadow-bitmap cross-clear duplicate count.
+//
+// The bitmap checker stores two shadow bitmaps in one register slot.  Updating
+// set0 ORs the current worker bit into first and clears it from second; updating
+// set1 does the inverse.  A set1 packet from the same worker can therefore
+// clear the set0 bitmap before a late duplicate for set0 arrives.  The late
+// duplicate is then treated as a fresh contribution and reaches both worker
+// counting and aggregation again.
+
+import sw from "../../datasets/external_switchml_nsdi21/switchml/dev_root/p4/switchml.p4";
+
+topology {}
+
+node sw {
+  int processed = 0;
+
+  assume {
+    Ingress_udp_receiver_receive_udp.action_run
+      == Ingress_udp_receiver_receive_udp.action.Ingress_udp_receiver_set_bitmap;
+    Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_type_13 == 1; // SWITCHML_UDP
+    Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_id_13 == 0;
+    Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.num_workers_13 == 2;
+    Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_bitmap_13 == 1;
+  };
+
+  if (pkt_external && hdr.switchml.valid) {
+    processed += 1;
+  }
+}
+
+host io {
+  connect sw;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.switchml.valid = true;
+    hdr.exponents.valid = true;
+    hdr.d0.valid = true;
+    hdr.d1.valid = true;
+
+    hdr.ethernet.ether_type = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol = 17;         // UDP
+    hdr.udp.dst_port = 48864;       // UDP_PORT_SWITCHML_BASE = 0xbee0
+    hdr.switchml.size = 1;          // IBV_MTU_256
+    hdr.switchml.msg_type = 0;
+    hdr.switchml.unused = 0;
+    hdr.switchml.job_number = 1;
+    hdr.switchml.tsi = 0;
+    hdr.exponents.e0 = 0;
+    hdr.exponents.e1 = 0;
+
+    hdr.d0.d00 = 1;
+    hdr.d1.d00 = 1;
+
+    if (phase == 0) {
+      // External MSB 0 becomes internal set0 for the shared base slot.
+      hdr.switchml.pool_index = 0;
+      phase = 1;
+    } else {
+      if (phase == 1) {
+        // Same base slot, external MSB 1 becomes internal set1 and clears set0.
+        hdr.switchml.pool_index = 32768;
+        phase = 2;
+      } else {
+        // Late duplicate for set0 from the same worker.
+        hdr.switchml.pool_index = 0;
+        phase = 3;
+      }
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  env_thread = false;
+  host_eager = true;
+  max_steps = 9;
+
+  int phase = 0;
+
+  assert {
+    (sw_dsl_processed < 3)
+      || !(sw_ig_md.switchml_md.map_result == 0
+           && sw_Ingress_workers_counter_count_workers.action_run
+              == sw_Ingress_workers_counter_count_workers.action.Ingress_workers_counter_count_workers_action
+           && sw_Ingress_value00_sum.action_run
+              == sw_Ingress_value00_sum.action.Ingress_value00_sum_read1_action
+           && sw_Ingress_update_and_check_worker_bitmap_update_and_check_worker_bitmap.action_run
+              == sw_Ingress_update_and_check_worker_bitmap_update_and_check_worker_bitmap.action.Ingress_update_and_check_worker_bitmap_update_worker_bitmap_set0_action);
+  };
+}

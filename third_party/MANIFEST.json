@@ -1,0 +1,16 @@
+{
+  "dependencies": [
+    {
+      "name": "ultimate",
+      "path": "third_party/ultimate",
+      "license": "LGPL-3.0-or-later and bundled third-party licenses",
+      "provenance": "Pinned local Ultimate/GemCutter source tree used by the evaluation workflow."
+    },
+    {
+      "name": "z3",
+      "path": "third_party/z3",
+      "license": "MIT",
+      "provenance": "Solver dependency used by Ultimate/GemCutter; distributed through the artifact environment or fetched by setup scripts."
+    }
+  ]
+}

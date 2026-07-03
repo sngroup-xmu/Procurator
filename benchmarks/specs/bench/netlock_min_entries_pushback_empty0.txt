@@ -1,0 +1,49 @@
+// Minimal control-plane configuration for NetLock (P4_16 / TNA) specs.
+//
+// Variant for PUSH_BACK underflow checks:
+//   Initialize slots_two_sides_register[0] so length_in_server == 0 and empty_slots == 0.
+//   A spurious PUSH_BACK should not decrement length_in_server below 0.
+//
+// NOTE:
+// - These are BMv2-style CLI commands consumed by p4c translator to initialize
+//   tables/registers in the Boogie model. They are not meant to be executed on hardware.
+//
+// Configure the switch to "own" lock 0 so SwitchIngress runs AcquireLock/ReleaseLock.
+//
+// IMPORTANT (TNA / nested controls):
+// The P4B Boogie translator qualifies nested control/table/action names with underscores
+// (e.g., `SwitchIngress_acquire_lock_dec_empty_slots_table`), so our "bmv2cmds" model
+// initialization must use those qualified names for table_add/table_set_default to take effect.
+table_add SwitchIngress_check_lock_exist_table SwitchIngress_check_lock_exist_action 0 => 0
+//
+// Select the correct AcquireLock sub-actions based on packet fields.
+// Without these, the tables may miss and leave critical metadata (e.g., ig_md.locked)
+// unconstrained, masking functional bugs.
+table_add SwitchIngress_acquire_lock_dec_empty_slots_table SwitchIngress_acquire_lock_dec_empty_slots_action 0 =>
+table_add SwitchIngress_acquire_lock_dec_empty_slots_table SwitchIngress_acquire_lock_push_back_action 2 =>
+table_add SwitchIngress_acquire_lock_acquire_lock_table SwitchIngress_acquire_lock_acquire_shared_lock_action 0 =>
+table_add SwitchIngress_acquire_lock_acquire_lock_table SwitchIngress_acquire_lock_acquire_exclusive_lock_action 1 =>
+//
+// Configure lock-0 queue bounds (small range) and queue op.
+register_write left_bound_register 0 0
+register_write right_bound_register 0 9
+register_write queue_size_op_register 0 0
+//
+// Initialize per-lock pointers (optional but keeps traces readable).
+register_write head_register 0 0
+register_write tail_register 0 0
+//
+// Initialize shared/exclusive lock counters for lock 0 (struct pair { lo; hi; }):
+// - lo (upper 32 bits) = exclusive_count
+// - hi (lower 32 bits) = shared_count
+//
+// Use a packed 64-bit value: (exclusive_count << 32) | shared_count.
+register_write shared_and_exclusive_count_register 0 0x0000000000000000
+//
+// Initialize slots_two_sides_register[0] (struct pair { lo; hi; }):
+// - lo (upper 32 bits) = empty_slots
+// - hi (lower 32 bits) = length_in_server
+//
+// Use a packed 64-bit value: (empty_slots << 32) | length_in_server.
+// Here: empty_slots=0, length_in_server=0.
+register_write slots_two_sides_register 0 0x0000000000000000

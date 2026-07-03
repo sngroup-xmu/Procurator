@@ -1,7 +1,0 @@
-.idea
-.vscode
-*.tar
-log
-*.o
-app
-.DS_Store

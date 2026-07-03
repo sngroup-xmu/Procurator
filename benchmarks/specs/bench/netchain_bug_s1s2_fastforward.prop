@@ -1,0 +1,77 @@
+// NetChain flip bug (2-node, fast-forward)
+//
+// This spec accelerates the deep wrap-around counterexample by modeling a reachable
+// mid-state: after many writes, both replicas have sequence_reg[0] == 65535.
+// The next head update wraps the 16-bit counter to 0 while the replica still
+// holds 65535, violating monotonicity.
+//
+// NOTE: This is not a control-plane initialization; it is a *reachability cut*.
+// It is useful to sanity-check that the translated semantics can exhibit the
+// expected wrap-around bug, and to ensure prune vs. no-prune agree on UNSAFE.
+
+import s1 from "../../datasets/Netchain/netchain_16.p4" entries "../../datasets/Netchain/commands_1.txt";
+import s2 from "../../datasets/Netchain/netchain_16.p4" entries "../../datasets/Netchain/commands_2.txt";
+
+topology {
+  link s1 -> s2 ALL;
+}
+
+node s1 {
+  external_input = true;
+
+  bool Booted = false;
+
+  // One-time "fast-forward" to a reachable high sequence state.
+  if (!Booted) {
+    s1_sequence_reg[0] = 65535;
+    s2_sequence_reg[0] = 65535;
+    Booted = true;
+  }
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.nc_hdr.valid == true;
+    hdr.udp.valid == true;
+    hdr.tcp.valid == false;
+    hdr.ipv4.protocol == 17;
+    hdr.overlay.0.valid == true;
+    hdr.overlay.1.valid == true;
+    hdr.overlay.2.valid == true;
+    hdr.overlay.3.valid == true;
+
+    hdr.ethernet.etherType == 2048;
+    hdr.ipv4.srcAddr == 1;
+    hdr.ipv4.dstAddr == 167797761;
+
+    hdr.overlay.0.swip == 167797761;
+    hdr.overlay.1.swip == 167797762;
+    hdr.overlay.2.swip == 0;
+    hdr.overlay.3.swip == 0;
+
+    hdr.nc_hdr.op == 12; // NC_WRITE_REQUEST
+    hdr.nc_hdr.key == 2024; // index 0
+  };
+}
+
+node s2 {}
+
+global {
+  queue_capacity = 1;
+  max_steps = 2;
+  deterministic_scheduler = true;
+
+  assume {
+    s1_meta.location.index == 0;
+    s2_meta.location.index == 0;
+    s1_find_index.hit == true;
+    s2_find_index.hit == true;
+    s1_meta.my_md.role == 100;
+    s2_meta.my_md.role == 101;
+    s1_standard_metadata.egress_port != 0;
+  };
+
+  assert {
+    s1_sequence_reg[0] >= s2_sequence_reg[0];
+  };
+}

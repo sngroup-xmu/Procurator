@@ -1,0 +1,85 @@
+// SwitchML (NSDI 2021 artifact): cross-job exponent-state reuse.
+//
+// Exponent maxima are keyed by pool_index, not by job_number.  If job 1 stores
+// a large exponent in a pool slot and job 2 reuses that slot, job 2's first
+// contribution from a different worker can take max(previous_job, current_job)
+// and expose job 1's exponent as job 2's output exponent.
+
+import sw from "../../datasets/external_switchml_nsdi21/switchml/dev_root/p4/switchml.p4";
+
+topology {}
+
+node sw {
+  int processed = 0;
+
+  if (pkt_external && hdr.switchml.valid) {
+    processed += 1;
+  }
+}
+
+host io {
+  connect sw;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.switchml.valid = true;
+    hdr.exponents.valid = true;
+    hdr.d0.valid = true;
+    hdr.d1.valid = true;
+
+    hdr.ethernet.ether_type = 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol = 17;         // UDP
+    hdr.udp.dst_port = 48864;       // UDP_PORT_SWITCHML_BASE = 0xbee0
+    hdr.switchml.size = 1;          // IBV_MTU_256
+    hdr.switchml.msg_type = 0;
+    hdr.switchml.unused = 0;
+    hdr.switchml.pool_index = 0;    // internal pool_index set0/base slot 0
+    hdr.switchml.tsi = 0;
+
+    hdr.d0.d00 = 1;
+    hdr.d1.d00 = 1;
+
+    sw_Ingress_udp_receiver_receive_udp.action_run
+      = sw_Ingress_udp_receiver_receive_udp.action.Ingress_udp_receiver_set_bitmap;
+    sw_Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_type_13 = 1; // SWITCHML_UDP
+    sw_Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.num_workers_13 = 2;
+
+    if (phase == 0) {
+      hdr.switchml.job_number = 1;
+      hdr.exponents.e0 = 100;
+      hdr.exponents.e1 = 0;
+      sw_Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_id_13 = 0;
+      sw_Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_bitmap_13 = 1;
+      phase = 1;
+    } else {
+      hdr.switchml.job_number = 2;
+      hdr.exponents.e0 = 1;
+      hdr.exponents.e1 = 0;
+      sw_Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_id_13 = 1;
+      sw_Ingress_udp_receiver_receive_udp.Ingress_udp_receiver_set_bitmap.worker_bitmap_13 = 2;
+      phase = 2;
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  env_thread = false;
+  host_eager = true;
+  max_steps = 6;
+
+  int phase = 0;
+
+  assert {
+    (sw_dsl_processed < 2)
+      || !(sw_hdr.switchml.job_number == 2
+           && sw_ig_md.switchml_md.worker_id == 1
+           && sw_ig_md.switchml_md.worker_bitmap_before == 1
+           && sw_ig_md.switchml_md.map_result == 0
+           && sw_Ingress_exponents_exponent_max.action_run
+              == sw_Ingress_exponents_exponent_max.action.Ingress_exponents_max_read0_action
+           && sw_ig_md.switchml_md.e0 == 100);
+  };
+}

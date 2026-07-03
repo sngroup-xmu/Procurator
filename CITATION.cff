@@ -1,0 +1,4 @@
+cff-version: 1.2.0
+title: "Procurator"
+message: "Please cite the SIGCOMM 2026 Procurator paper and this artifact release."
+type: software

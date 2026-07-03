@@ -1,0 +1,40 @@
+// Soter (SRDS 2022 / TDSC 2024 artifact): TNA decision-tree smoke.
+//
+// This is a conversion/harness baseline for the unmodified P4 detector.  The
+// data-plane program is a decision tree plus filter table; CPU-side state in
+// the artifact is outside this single-switch P4 smoke.
+
+import soter from "../../datasets/external_soter_srds22/Soter/Detection process/P4/simple_l3_test.p4";
+
+topology {}
+
+node soter {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+    hdr.udp.valid == false;
+
+    hdr.ethernet.ether_type == 2048; // ETHERTYPE_IPV4
+    hdr.ipv4.protocol == 6;          // TYPE_TCP
+    hdr.ipv4.ihl == 5;
+    hdr.ipv4.diffserv == 0;
+    hdr.ipv4.total_len == 64;
+    hdr.ipv4.ttl == 64;
+    hdr.tcp.srcPort == 1234;
+    hdr.tcp.dstPort == 443;
+    hdr.tcp.flags == 2;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  max_steps = 2;
+
+  assert {
+    soter_hdr.ipv4.valid == true;
+  };
+}

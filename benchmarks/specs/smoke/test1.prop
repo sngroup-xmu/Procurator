@@ -1,0 +1,32 @@
+import s1 from "D:\\work\\P4-verification\\code\\spec\\test\\input\\s1.pml";
+import s2 from "D:\\work\\P4-verification\\code\\spec\\test\\input\\s2.pml";
+import s3 from "D:\\work\\P4-verification\\code\\spec\\test\\input\\s3.pml";
+
+topology {
+  link s1 -> s2;
+  link s2 -> s3;
+}
+
+node s1 {
+    int PacketCounter = 0;
+    int BufferUsage = 0;
+    PacketCounter = reg3;
+    BufferUsage = 2;
+    assert {
+        BufferUsage < 100;
+        PacketCounter <= 1000;
+    };
+}
+
+node s2 {
+    count_processed_packets = 1000;
+    int PacketsProcessed = 0;
+    PacketsProcessed += count_processed_packets;
+    assert {
+        PacketsProcessed > 1000;
+    };
+}
+
+global {
+
+}

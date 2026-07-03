@@ -1,0 +1,7 @@
+{
+  "evidence_root": "artifact/evidence",
+  "notes": [
+    "Evidence files are release-facing summaries or archived raw artifacts.",
+    "Do not treat TIMEOUT, UNKNOWN, OOM, toolchain ERROR, missing witness, or unverified SAFE as bug absence."
+  ]
+}

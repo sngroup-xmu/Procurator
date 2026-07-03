@@ -1,0 +1,91 @@
+/*
+  Copyright 2021 Intel-KAUST-Microsoft
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+*/
+
+syntax = "proto3";
+
+package switchml_proto;
+
+service Session {
+  rpc RdmaSession (RdmaSessionRequest) returns (RdmaSessionResponse) {}
+  rpc UdpSession (UdpSessionRequest) returns (UdpSessionResponse) {}
+}
+
+service Sync {
+  rpc Barrier(BarrierRequest) returns (BarrierResponse) {}
+  rpc Broadcast(BroadcastRequest) returns (BroadcastResponse) {}
+}
+
+enum PacketSize {
+  MTU_128  = 0;
+  MTU_256  = 1;
+  MTU_512  = 2;
+  MTU_1024 = 3;
+}
+
+message RdmaSessionRequest {
+  uint32 session_id = 1;
+  uint32 rank = 2;
+  uint32 num_workers = 3;
+  uint64 mac = 4;
+  uint32 ipv4 = 5;
+  uint32 rkey = 6;
+  PacketSize packet_size = 7;
+  uint32 message_size = 8;
+  repeated uint32 qpns = 9;
+  repeated uint32 psns = 10;
+}
+
+message RdmaSessionResponse {
+  uint64 session_id = 1;
+  uint64 mac = 2;
+  uint32 ipv4 = 3;
+  uint32 rkey = 4;
+  repeated uint32 qpns = 5;
+  repeated uint32 psns = 6;
+}
+
+message UdpSessionRequest {
+  uint64 session_id = 1;
+  uint32 rank = 2;
+  uint32 num_workers = 3;
+  uint64 mac = 4;
+  uint32 ipv4 = 5;
+  PacketSize packet_size = 7;
+}
+
+message UdpSessionResponse {
+  uint64 session_id = 1;
+  uint64 mac = 2;
+  uint32 ipv4 = 3;
+}
+
+message BarrierRequest {
+  uint32 num_workers = 1;
+}
+
+message BarrierResponse {
+}
+
+message BroadcastRequest {
+  uint64 value = 1;
+  uint32 rank = 2;
+  uint32 num_workers = 3;
+  uint32 root = 4;
+}
+
+message BroadcastResponse {
+  uint64 value = 1;
+}

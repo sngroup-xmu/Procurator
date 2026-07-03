@@ -1,0 +1,157 @@
+import unittest
+from pathlib import Path
+
+from dslc.backends.boogie_seeds import build_slicing_plan
+from dslc.speclang.parse import parse_model
+from dslc.tests.helpers import legacy_bool_bpl, repo_root_from_test
+
+
+class TestBoogieSlicingSeeds(unittest.TestCase):
+    @staticmethod
+    def _repo_root() -> Path:
+        return repo_root_from_test(Path(__file__))
+
+    @classmethod
+    def _legacy_bool_bpl(cls) -> Path:
+        return legacy_bool_bpl()
+
+    def test_seed_policy_and_propagation(self) -> None:
+        bpl = self._legacy_bool_bpl()
+        self.assertTrue(bpl.exists())
+
+        spec_text = f'''
+import s1 from "{bpl.as_posix()}";
+import s2 from "{bpl.as_posix()}";
+
+topology {{
+  link s1 -> s2;
+}}
+
+node s1 {{
+  external_input = true;
+  // Assume-only packet field: should be tracked as required packet var, but
+  // should not become a slicing seed (avoid over-retaining unrelated logic).
+  assume {{ hdr.h.a == 1; }};
+}}
+
+node s2 {{
+  external_input = false;
+  // Property-relevant on-wire header: should seed s2 and propagate to s1.
+  assert {{ hdr.h.b == hdr.h.b; }};
+  // Node-local metadata: should NOT propagate backward.
+  assert {{ meta.x == meta.x; }};
+}}
+
+global {{
+}}
+'''
+
+        spec = parse_model(spec_text)
+        plan = build_slicing_plan(spec, enable_slicing=True)
+
+        s1_seeds = set(plan.slicing_vars.get("s1", []))
+        s2_seeds = set(plan.slicing_vars.get("s2", []))
+
+        self.assertIn("standard_metadata.egress_port", s1_seeds)
+        self.assertIn("standard_metadata.egress_port", s2_seeds)
+
+        self.assertIn("hdr.h.b", s2_seeds)
+        self.assertIn("hdr.h.b", s1_seeds)  # propagated along s1 -> s2
+
+        self.assertIn("meta.x", s2_seeds)
+        self.assertNotIn("meta.x", s1_seeds)  # not on-wire
+
+        self.assertNotIn("hdr.h.a", s1_seeds)  # assume-only; declaration tracked separately
+        self.assertIn("hdr.h.a", set(plan.required_packet_vars.get("s1", [])))
+
+    def test_disable_control_seeds_respected(self) -> None:
+        bpl = self._legacy_bool_bpl()
+        self.assertTrue(bpl.exists())
+
+        spec_text = f'''
+import s1 from "{bpl.as_posix()}";
+
+topology {{}}
+
+node s1 {{
+  assert {{ hdr.h.a == hdr.h.a; }};
+}}
+
+global {{}}
+'''
+        spec = parse_model(spec_text)
+
+        with_control = build_slicing_plan(spec, enable_slicing=True, keep_control_seeds=True)
+        without_control = build_slicing_plan(spec, enable_slicing=True, keep_control_seeds=False)
+
+        seeds_with = set(with_control.slicing_vars.get("s1", []))
+        seeds_without = set(without_control.slicing_vars.get("s1", []))
+
+        self.assertIn("p4b_recirculate", seeds_with)
+        self.assertIn("p4b_clone_i2i", seeds_with)
+        self.assertNotIn("p4b_recirculate", seeds_without)
+        self.assertNotIn("p4b_clone_i2i", seeds_without)
+        self.assertIn("hdr.h.a", seeds_without)
+
+    def test_global_assert_observed_table_action_kept_for_p4b_output(self) -> None:
+        spec_text = r'''
+import sw from "dummy.p4";
+
+topology {}
+
+node sw {}
+
+global {
+  assert {
+    sw_Ingress_tbl.action_run == sw_Ingress_tbl.action.Ingress_act
+    ;
+  };
+}
+'''
+        spec = parse_model(spec_text)
+        plan = build_slicing_plan(spec, enable_slicing=True)
+
+        seeds = set(plan.slicing_vars.get("sw", []))
+        keep = set(plan.slicing_keep_vars.get("sw", []))
+
+        self.assertIn("Ingress_tbl.action_run", seeds)
+        self.assertIn("Ingress_tbl.action.Ingress_act", seeds)
+        self.assertIn("Ingress_tbl.action_run", keep)
+        self.assertIn("Ingress_tbl.action.Ingress_act", keep)
+
+    def test_host_env_assume_table_action_is_keep_only(self) -> None:
+        spec_text = r'''
+import sw from "dummy.p4";
+
+topology {}
+
+host io {
+  connect sw;
+  env {
+    if (phase == 0) {
+      assume {
+        sw_Ingress_tbl.action_run == sw_Ingress_tbl.action.Ingress_act;
+      };
+    }
+  }
+}
+
+global {
+  int phase = 0;
+  assert { true; };
+}
+'''
+        spec = parse_model(spec_text)
+        plan = build_slicing_plan(spec, enable_slicing=True, keep_control_seeds=False)
+
+        seeds = set(plan.slicing_vars.get("sw", []))
+        keep = set(plan.slicing_keep_vars.get("sw", []))
+
+        self.assertNotIn("Ingress_tbl.action_run", seeds)
+        self.assertNotIn("Ingress_tbl.action.Ingress_act", seeds)
+        self.assertIn("Ingress_tbl.action_run", keep)
+        self.assertIn("Ingress_tbl.action.Ingress_act", keep)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,4 +1,0 @@
-table_add transport_tbl drop 1 =>
-table_add transport_tbl forward 0 => 1 0x8888
-table_add leader_tbl increase_instance 2 =>
-table_add leader_tbl reset_instance 5 =>

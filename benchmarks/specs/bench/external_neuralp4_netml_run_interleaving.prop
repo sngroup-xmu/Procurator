@@ -1,0 +1,113 @@
+// NeuralP4 (NOMS 2025 artifact): run-state interleaving candidate.
+//
+// The ANN program stores run progress in one global register slot:
+//   reg_run_id, reg_received_stimuli, reg_n_received_stimuli.
+// If packets from two ANN runs interleave, a different run_id resets the shared
+// progress registers.  The third packet below returns to run 1 after run 2 has
+// passed through; a per-run state machine would still remember run 1's first
+// stimulus, but the single-slot implementation resets and records only the
+// third packet's stimulus.
+
+import ann from "../../datasets/external_neuralp4_noms25/NeuralP4/p4-vm/netml-iot-16x32x2-q4-4/code/ANN.p4";
+
+topology {}
+
+node ann {
+  int processed = 0;
+  assume {
+    MyIngress_tab_expected_stimuli.action_run
+      == MyIngress_tab_expected_stimuli.action.MyIngress_set_expected_stimuli;
+    MyIngress_tab_expected_stimuli.MyIngress_set_expected_stimuli.expected_stimuli_1 == 3;
+
+    MyIngress_tab_agg_func.action_run
+      == MyIngress_tab_agg_func.action.MyIngress_set_agg_func;
+    MyIngress_tab_agg_func.MyIngress_set_agg_func.agg_func_1 == 2; // FUNC_IDENTITY
+
+    MyIngress_tab_n_expected_stimuli.action_run
+      == MyIngress_tab_n_expected_stimuli.action.MyIngress_set_n_expected_stimuli;
+    MyIngress_tab_n_expected_stimuli.MyIngress_set_n_expected_stimuli.n_expected_stimuli_1 == 3;
+  };
+  if (pkt_external && hdr.ann.valid) {
+    processed += 1;
+  }
+}
+
+host io {
+  connect ann;
+  env {
+    hdr.ethernet.valid = true;
+    hdr.ann.valid = true;
+    hdr.ethernet.etherType = 34997; // ET_ANN = 0x88B5
+
+    // Keep data-plane arithmetic deterministic; the state-machine part only
+    // depends on run_id and neuron_id.
+    hdr.ann.data_1 = 1;
+    hdr.ann.data_2 = 2;
+    hdr.ann.data_3 = 3;
+    hdr.ann.data_4 = 4;
+    hdr.ann.data_5 = 5;
+    hdr.ann.data_6 = 6;
+    hdr.ann.data_7 = 7;
+    hdr.ann.data_8 = 8;
+    hdr.ann.data_9 = 9;
+    hdr.ann.data_10 = 10;
+    hdr.ann.data_11 = 11;
+    hdr.ann.data_12 = 12;
+    hdr.ann.data_13 = 13;
+    hdr.ann.data_14 = 14;
+    hdr.ann.data_15 = 15;
+    hdr.ann.data_16 = 16;
+    hdr.ann.data_17 = 17;
+    hdr.ann.data_18 = 18;
+    hdr.ann.data_19 = 19;
+    hdr.ann.data_20 = 20;
+    hdr.ann.data_21 = 21;
+    hdr.ann.data_22 = 22;
+    hdr.ann.data_23 = 23;
+    hdr.ann.data_24 = 24;
+    hdr.ann.data_25 = 25;
+    hdr.ann.data_26 = 26;
+    hdr.ann.data_27 = 27;
+    hdr.ann.data_28 = 28;
+    hdr.ann.data_29 = 29;
+    hdr.ann.data_30 = 30;
+    hdr.ann.data_31 = 31;
+    hdr.ann.data_32 = 32;
+    hdr.ann.slack = 0;
+
+    if (phase == 0) {
+      hdr.ann.run_id = 1;
+      hdr.ann.neuron_id = 0;
+      phase = 1;
+    } else {
+      if (phase == 1) {
+        hdr.ann.run_id = 2;
+        hdr.ann.neuron_id = 0;
+        phase = 2;
+      } else {
+        hdr.ann.run_id = 1;
+        hdr.ann.neuron_id = 1;
+        phase = 3;
+      }
+    }
+  }
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  env_thread = false;
+  host_eager = true;
+  max_steps = 9;
+
+  int phase = 0;
+
+  assert {
+    (ann_dsl_processed < 3)
+      || !(ann_MyIngress_reg_received_stimuli__wrote_any
+           && ann_MyIngress_reg_n_received_stimuli__wrote_any
+           && ann_MyIngress_reg_run_id__last0_value == 1
+           && ann_MyIngress_reg_received_stimuli__last0_value == 2
+           && ann_MyIngress_reg_n_received_stimuli__last0_value == 1);
+  };
+}

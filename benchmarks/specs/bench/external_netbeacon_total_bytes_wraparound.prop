@@ -1,0 +1,57 @@
+// External candidate: NetBeacon in-network traffic classification pipeline.
+//
+// Candidate bug shape:
+//   Register_total_bytes is a 32-bit per-flow byte counter.  The steady
+//   existing-flow path adds the IPv4 total length on every packet and later
+//   derives average-size features from this accumulator.  A long-lived flow can
+//   wrap the accumulator to 0 while the update path remains active.
+//
+// This is a larger-prefix wraparound target.  Use direct checking only as a
+// bounded benchmark; a full wraparound claim requires the certified staged
+// manifest.
+
+import nb from "../../datasets/external_netbeacon_sec23/NetBeacon/switch/data_plane/switch.p4";
+
+topology {}
+
+node nb {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+    hdr.udp.valid == false;
+
+    hdr.ethernet.ether_type == 2048; // TYPE_IPV4
+    hdr.ipv4.protocol == 6;          // TCP
+    hdr.ipv4.ihl == 5;
+    hdr.ipv4.frag_offset == 0;
+    hdr.ipv4.total_len == 32768;
+    hdr.ipv4.src_addr == 167772161;  // 10.0.0.1
+    hdr.ipv4.dst_addr == 167772162;  // 10.0.0.2
+    hdr.ipv4.ttl == 64;
+    hdr.tcp.src_port == 1234;
+    hdr.tcp.dst_port == 443;
+    hdr.tcp.window == 1;
+    hdr.tcp.data_offset == 5;
+
+    ig_intr_md.resubmit_flag == 0;
+    ig_intr_md.ingress_port != 68;   // not recirculate_port
+    ig_prsr_md.global_tstamp == 1048576;
+
+    SwitchIngress_Flow_result.action_run == SwitchIngress_Flow_result.action.noaction_19;
+    SwitchIngress_Update_total_bytes_table.action_run == SwitchIngress_Update_total_bytes_table.action.SwitchIngress_Update_total_bytes;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+
+  assert {
+    !(nb_SwitchIngress_Update_total_bytes_table.action_run == nb_SwitchIngress_Update_total_bytes_table.action.SwitchIngress_Update_total_bytes
+      && nb_SwitchIngress_Register_total_bytes__wrote_any
+      && nb_SwitchIngress_Register_total_bytes__last_value == 0);
+  };
+}

@@ -1,0 +1,41 @@
+// Mousika (INFOCOM 2022 / ToN 2023 artifact): TNA flow-classifier smoke.
+//
+// This is a conversion/harness baseline for the unmodified TNA program.  The
+// program is primarily a stateless feature parser and classification table, so
+// this smoke is not counted as a wraparound/interleaving bug.
+
+import mousika from "../../datasets/external_mousika_infocom22/Mousika/P4/flowcontrol.p4";
+
+topology {}
+
+node mousika {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+    hdr.udp.valid == false;
+
+    hdr.ethernet.etherType == 2048; // TYPE_IPV4
+    hdr.ipv4.protocol == 6;         // TCP
+    hdr.ipv4.ihl == 5;
+    hdr.ipv4.diffserv == 0;
+    hdr.ipv4.totalLen == 64;
+    hdr.ipv4.ttl == 64;
+    hdr.tcp.srcPort == 1234;
+    hdr.tcp.dstPort == 443;
+    hdr.tcp.dataOffset == 5;
+    hdr.tcp.window == 1;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  max_steps = 2;
+
+  assert {
+    mousika_hdr.ipv4.valid == true;
+  };
+}

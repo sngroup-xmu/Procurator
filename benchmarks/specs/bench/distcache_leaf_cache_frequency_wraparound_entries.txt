@@ -1,0 +1,499 @@
+# Derived from: ../../datasets/distcache/leafswitch/flow_entries.txt
+# Added for verification: initialize latest_reg[7] = 1 so GETREQ_INSWITCH can take update_cache_frequency path.
+register_write latest_reg 7 1
+
+# Configuring RACK 0
+
+#  Setup
+# Configuring l2l3_forward_tbl
+table_add l2l3_forward_tbl l2l3_forward 00:00:00:00:00:02 10.0.0.2/32 => 0x3
+table_add l2l3_forward_tbl l2l3_forward 00:00:00:00:00:03 10.0.4.2/32 => 4
+# Configuring set_hot_threshold_tbl
+table_set_default set_hot_threshold_tbl set_hot_threshold 0x14
+# Configuring hash_for_partition_tbl
+table_add hash_for_partition_tbl hash_for_partition 0x30 =>
+table_add hash_for_partition_tbl hash_for_partition 0x7f =>
+table_add hash_for_partition_tbl hash_for_partition 0x1 =>
+table_add hash_for_partition_tbl hash_for_partition 0x40 =>
+table_add hash_for_partition_tbl hash_for_partition 0x0 =>
+table_add hash_for_partition_tbl hash_for_partition 0x310 =>
+table_add hash_for_partition_tbl hash_for_partition 0x24 =>
+table_add hash_for_partition_tbl hash_for_partition 0x3b =>
+table_add hash_for_partition_tbl hash_for_partition 0x54 =>
+table_add hash_for_partition_tbl hash_for_partition 0x2d0 =>
+table_add hash_for_partition_tbl hash_for_partition 0x15f =>
+# Configuring hash_partition_tbl
+table_add hash_partition_tbl hash_partition 0x30 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x7f 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x1 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x40 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x0 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x310 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x24 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x54 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x2d0 0x0->0xf => 0x480 4 
+table_add hash_partition_tbl hash_partition 0x15f 0x0->0xf => 0x480 4 
+# Configuring hash_spine_partition_tbl
+table_add hash_spine_partition_tbl hash_spine_partition 0x7f 0x0->0xf => 0x1e 0x3 
+table_add hash_spine_partition_tbl hash_spine_partition 0x3b 0x0->0xf => 0x1e 0x3 
+# Leave cache_lookup_tbl managed by controller in runtime
+# Configuring hash_for_seq_tbl
+table_add hash_for_seq_tbl hash_for_seq 0x1 =>
+table_add hash_for_seq_tbl hash_for_seq 0x40 =>
+table_add hash_for_seq_tbl hash_for_seq 0x2d0 =>
+# Configuring prepare_for_cachehit_tbl
+table_add prepare_for_cachehit_tbl set_client_sid 0x30 10.0.0.2/32 => 0xa
+table_add prepare_for_cachehit_tbl set_client_sid 0x0 10.0.0.2/32 => 0xa
+# Configuring ipv4_forward_tbl
+table_add ipv4_forward_tbl forward_normal_response 0x9 10.0.0.2/32 => 0x3
+table_add ipv4_forward_tbl forward_normal_response 0x8 10.0.0.2/32 => 0x3
+table_add ipv4_forward_tbl forward_normal_response 0x18 10.0.0.2/32 => 0x3
+table_add ipv4_forward_tbl forward_normal_response 0xd0 10.0.0.2/32 => 0x3
+table_add ipv4_forward_tbl forward_normal_response 0xe0 10.0.0.2/32 => 0x3
+table_add ipv4_forward_tbl forward_normal_response 0x300 10.0.0.2/32 => 0x3
+# Configuring sample_tbl
+table_add sample_tbl sample 0x30 =>
+# Configuring ig_port_forward_tbl
+table_add ig_port_forward_tbl update_getreq_to_getreq_inswitch 0x30 =>
+table_add ig_port_forward_tbl update_putreq_to_putreq_inswitch 0x1 =>
+table_add ig_port_forward_tbl update_delreq_to_delreq_inswitch 0x40 =>
+table_add ig_port_forward_tbl update_warmupreq_to_netcache_warmupreq_inswitch 0x0 =>
+table_add ig_port_forward_tbl update_netcache_valueupdate_to_netcache_valueupdate_inswitch 0x3b =>
+table_add ig_port_forward_tbl update_putreq_largevalue_to_putreq_largevalue_inswitch 0x2d0 =>
+# Configuring access_latest_tbl
+table_add access_latest_tbl set_and_get_latest 0x7f 0x0 0x0 =>  
+table_add access_latest_tbl reset_and_get_latest 0x15f 0x0 0x0 =>  
+table_add access_latest_tbl get_latest 0x4 0x1 0x0 =>  
+table_add access_latest_tbl reset_and_get_latest 0x5 0x1 0x0 =>  
+table_add access_latest_tbl reset_and_get_latest 0x14 0x1 0x0 =>  
+table_add access_latest_tbl set_and_get_latest 0x7f 0x1 0x0 =>  
+table_add access_latest_tbl set_and_get_latest 0x8f 0x1 0x0 =>  
+table_add access_latest_tbl reset_and_get_latest 0xa4 0x1 0x0 =>  
+table_add access_latest_tbl reset_and_get_latest 0x15f 0x1 0x0 =>  
+# Configuring access_seq_tbl
+table_add access_seq_tbl assign_seq 0x5 0x0 =>
+table_add access_seq_tbl assign_seq 0x14 0x0 =>
+table_add access_seq_tbl assign_seq 0xa4 0x0 =>
+# Configuring bypass_egress_tbl
+table_add bypass_egress_tbl set_bypass_egress 0x7f 0x0 =>
+table_add bypass_egress_tbl set_bypass_egress 0x3b 0x0 =>
+
+table_add cache_lookup_tbl cached_action 0xABCD0001 0 0 0 0 => 7
+
+# Configuring save_client_udpport_tbl
+table_add save_client_udpport_tbl save_client_udpport 0x4 =>
+table_add save_client_udpport_tbl save_client_udpport 0x64 =>
+table_add prepare_for_cachepop_tbl set_server_sid_and_port 0x4 4 => 0x14
+table_add prepare_for_cachepop_tbl NoAction 0x120 4 =>
+# Configuring is_hot_tbl
+table_add is_hot_tbl set_is_hot 0x2 0x2 0x2 0x2 =>
+# Configuring access_cache_frequency_tbl
+table_add access_cache_frequency_tbl update_cache_frequency 0x4 0x0 0x1 0x1 =>
+table_add access_cache_frequency_tbl update_cache_frequency 0x4 0x1 0x1 0x1 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x7f 0x0 0x0 0x0 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x15f 0x0 0x0 0x0 =>
+table_add access_cache_frequency_tbl get_cache_frequency 0x24 0x0 0x0 0x0 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x7f 0x0 0x0 0x1 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x15f 0x0 0x0 0x1 =>
+table_add access_cache_frequency_tbl get_cache_frequency 0x24 0x0 0x0 0x1 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x7f 0x0 0x1 0x0 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x15f 0x0 0x1 0x0 =>
+table_add access_cache_frequency_tbl get_cache_frequency 0x24 0x0 0x1 0x0 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x7f 0x0 0x1 0x1 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x15f 0x0 0x1 0x1 =>
+table_add access_cache_frequency_tbl get_cache_frequency 0x24 0x0 0x1 0x1 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x7f 0x1 0x0 0x0 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x15f 0x1 0x0 0x0 =>
+table_add access_cache_frequency_tbl get_cache_frequency 0x24 0x1 0x0 0x0 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x7f 0x1 0x0 0x1 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x15f 0x1 0x0 0x1 =>
+table_add access_cache_frequency_tbl get_cache_frequency 0x24 0x1 0x0 0x1 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x7f 0x1 0x1 0x0 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x15f 0x1 0x1 0x0 =>
+table_add access_cache_frequency_tbl get_cache_frequency 0x24 0x1 0x1 0x0 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x7f 0x1 0x1 0x1 =>
+table_add access_cache_frequency_tbl reset_cache_frequency 0x15f 0x1 0x1 0x1 =>
+table_add access_cache_frequency_tbl get_cache_frequency 0x24 0x1 0x1 0x1 =>
+# Configuring access_deleted_tbl
+table_add access_deleted_tbl set_and_get_deleted 0x7f 0x0 0x0 0x0 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x15f 0x0 0x0 0x0 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x7f 0x0 0x0 0x1 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x15f 0x0 0x0 0x1 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x7f 0x0 0x1 0x0 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x15f 0x0 0x1 0x0 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x7f 0x0 0x1 0x1 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x15f 0x0 0x1 0x1 =>  
+table_add access_deleted_tbl get_deleted 0x4 0x1 0x0 0x0 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x7f 0x1 0x0 0x0 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x15f 0x1 0x0 0x0 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x8f 0x1 0x0 0x0 =>  
+table_add access_deleted_tbl get_deleted 0x4 0x1 0x0 0x1 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x7f 0x1 0x0 0x1 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x15f 0x1 0x0 0x1 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x8f 0x1 0x0 0x1 =>  
+table_add access_deleted_tbl get_deleted 0x4 0x1 0x1 0x0 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x7f 0x1 0x1 0x0 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x15f 0x1 0x1 0x0 =>  
+table_add access_deleted_tbl set_and_get_deleted 0x8f 0x1 0x1 0x0 =>  
+table_add access_deleted_tbl get_deleted 0x4 0x1 0x1 0x1 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x7f 0x1 0x1 0x1 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x15f 0x1 0x1 0x1 =>  
+table_add access_deleted_tbl reset_and_get_deleted 0x8f 0x1 0x1 0x1 =>  
+# Configuring access_savedseq_tbl
+table_add access_savedseq_tbl set_and_get_savedseq 0x7f 0x0 0x0 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x15f 0x0 0x0 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x7f 0x0 0x1 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x15f 0x0 0x1 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x7f 0x1 0x0 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x15f 0x1 0x0 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x8f 0x1 0x0 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x7f 0x1 0x1 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x15f 0x1 0x1 =>
+table_add access_savedseq_tbl set_and_get_savedseq 0x8f 0x1 0x1 =>
+# Configuring update_vallen_tbl
+table_add update_vallen_tbl set_and_get_vallen 0x7f 0x0 0x0 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x15f 0x0 0x0 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x7f 0x0 0x1 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x15f 0x0 0x1 =>  
+table_add update_vallen_tbl get_vallen 0x4 0x1 0x0 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x7f 0x1 0x0 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x15f 0x1 0x0 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x8f 0x1 0x0 =>  
+table_add update_vallen_tbl get_vallen 0x4 0x1 0x1 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x7f 0x1 0x1 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x15f 0x1 0x1 =>  
+table_add update_vallen_tbl set_and_get_vallen 0x8f 0x1 0x1 =>  
+# Configuring is_report_tbl
+table_add is_report_tbl set_is_report 0x1 0x1 0x1 =>
+# Configuring update_vallo1_tbl
+table_add update_vallo1_tbl get_vallo1 0x1 =>  
+table_add update_vallo1_tbl set_and_get_vallo1 0x2 =>  
+table_add update_vallo1_tbl reset_and_get_vallo1 0x3 =>  
+# Configuring update_valhi1_tbl
+table_add update_valhi1_tbl get_valhi1 0x1 =>  
+table_add update_valhi1_tbl set_and_get_valhi1 0x2 =>  
+table_add update_valhi1_tbl reset_and_get_valhi1 0x3 =>  
+# Configuring update_vallo2_tbl
+table_add update_vallo2_tbl get_vallo2 0x1 =>  
+table_add update_vallo2_tbl set_and_get_vallo2 0x2 =>  
+table_add update_vallo2_tbl reset_and_get_vallo2 0x3 =>  
+# Configuring update_valhi2_tbl
+table_add update_valhi2_tbl get_valhi2 0x1 =>  
+table_add update_valhi2_tbl set_and_get_valhi2 0x2 =>  
+table_add update_valhi2_tbl reset_and_get_valhi2 0x3 =>  
+# Configuring update_vallo3_tbl
+table_add update_vallo3_tbl get_vallo3 0x1 =>  
+table_add update_vallo3_tbl set_and_get_vallo3 0x2 =>  
+table_add update_vallo3_tbl reset_and_get_vallo3 0x3 =>  
+# Configuring update_valhi3_tbl
+table_add update_valhi3_tbl get_valhi3 0x1 =>  
+table_add update_valhi3_tbl set_and_get_valhi3 0x2 =>  
+table_add update_valhi3_tbl reset_and_get_valhi3 0x3 =>  
+# Configuring update_vallo4_tbl
+table_add update_vallo4_tbl get_vallo4 0x1 =>  
+table_add update_vallo4_tbl set_and_get_vallo4 0x2 =>  
+table_add update_vallo4_tbl reset_and_get_vallo4 0x3 =>  
+# Configuring update_valhi4_tbl
+table_add update_valhi4_tbl get_valhi4 0x1 =>  
+table_add update_valhi4_tbl set_and_get_valhi4 0x2 =>  
+table_add update_valhi4_tbl reset_and_get_valhi4 0x3 =>  
+# Configuring update_vallo5_tbl
+table_add update_vallo5_tbl get_vallo5 0x1 =>  
+table_add update_vallo5_tbl set_and_get_vallo5 0x2 =>  
+table_add update_vallo5_tbl reset_and_get_vallo5 0x3 =>  
+# Configuring update_valhi5_tbl
+table_add update_valhi5_tbl get_valhi5 0x1 =>  
+table_add update_valhi5_tbl set_and_get_valhi5 0x2 =>  
+table_add update_valhi5_tbl reset_and_get_valhi5 0x3 =>  
+# Configuring update_vallo6_tbl
+table_add update_vallo6_tbl get_vallo6 0x1 =>  
+table_add update_vallo6_tbl set_and_get_vallo6 0x2 =>  
+table_add update_vallo6_tbl reset_and_get_vallo6 0x3 =>  
+# Configuring update_valhi6_tbl
+table_add update_valhi6_tbl get_valhi6 0x1 =>  
+table_add update_valhi6_tbl set_and_get_valhi6 0x2 =>  
+table_add update_valhi6_tbl reset_and_get_valhi6 0x3 =>  
+# Configuring update_vallo7_tbl
+table_add update_vallo7_tbl get_vallo7 0x1 =>  
+table_add update_vallo7_tbl set_and_get_vallo7 0x2 =>  
+table_add update_vallo7_tbl reset_and_get_vallo7 0x3 =>  
+# Configuring update_valhi7_tbl
+table_add update_valhi7_tbl get_valhi7 0x1 =>  
+table_add update_valhi7_tbl set_and_get_valhi7 0x2 =>  
+table_add update_valhi7_tbl reset_and_get_valhi7 0x3 =>  
+# Configuring update_vallo8_tbl
+table_add update_vallo8_tbl get_vallo8 0x1 =>  
+table_add update_vallo8_tbl set_and_get_vallo8 0x2 =>  
+table_add update_vallo8_tbl reset_and_get_vallo8 0x3 =>  
+# Configuring update_valhi8_tbl
+table_add update_valhi8_tbl get_valhi8 0x1 =>  
+table_add update_valhi8_tbl set_and_get_valhi8 0x2 =>  
+table_add update_valhi8_tbl reset_and_get_valhi8 0x3 =>  
+# Configuring update_vallo9_tbl
+table_add update_vallo9_tbl get_vallo9 0x1 =>  
+table_add update_vallo9_tbl set_and_get_vallo9 0x2 =>  
+table_add update_vallo9_tbl reset_and_get_vallo9 0x3 =>  
+# Configuring update_valhi9_tbl
+table_add update_valhi9_tbl get_valhi9 0x1 =>  
+table_add update_valhi9_tbl set_and_get_valhi9 0x2 =>  
+table_add update_valhi9_tbl reset_and_get_valhi9 0x3 =>  
+# Configuring update_vallo10_tbl
+table_add update_vallo10_tbl get_vallo10 0x1 =>  
+table_add update_vallo10_tbl set_and_get_vallo10 0x2 =>  
+table_add update_vallo10_tbl reset_and_get_vallo10 0x3 =>  
+# Configuring update_valhi10_tbl
+table_add update_valhi10_tbl get_valhi10 0x1 =>  
+table_add update_valhi10_tbl set_and_get_valhi10 0x2 =>  
+table_add update_valhi10_tbl reset_and_get_valhi10 0x3 =>  
+# Configuring update_vallo11_tbl
+table_add update_vallo11_tbl get_vallo11 0x1 =>  
+table_add update_vallo11_tbl set_and_get_vallo11 0x2 =>  
+table_add update_vallo11_tbl reset_and_get_vallo11 0x3 =>  
+# Configuring update_valhi11_tbl
+table_add update_valhi11_tbl get_valhi11 0x1 =>  
+table_add update_valhi11_tbl set_and_get_valhi11 0x2 =>  
+table_add update_valhi11_tbl reset_and_get_valhi11 0x3 =>  
+# Configuring update_vallo12_tbl
+table_add update_vallo12_tbl get_vallo12 0x1 =>  
+table_add update_vallo12_tbl set_and_get_vallo12 0x2 =>  
+table_add update_vallo12_tbl reset_and_get_vallo12 0x3 =>  
+# Configuring update_valhi12_tbl
+table_add update_valhi12_tbl get_valhi12 0x1 =>  
+table_add update_valhi12_tbl set_and_get_valhi12 0x2 =>  
+table_add update_valhi12_tbl reset_and_get_valhi12 0x3 =>  
+# Configuring update_vallo13_tbl
+table_add update_vallo13_tbl get_vallo13 0x1 =>  
+table_add update_vallo13_tbl set_and_get_vallo13 0x2 =>  
+table_add update_vallo13_tbl reset_and_get_vallo13 0x3 =>  
+# Configuring update_valhi13_tbl
+table_add update_valhi13_tbl get_valhi13 0x1 =>  
+table_add update_valhi13_tbl set_and_get_valhi13 0x2 =>  
+table_add update_valhi13_tbl reset_and_get_valhi13 0x3 =>  
+# Configuring update_vallo14_tbl
+table_add update_vallo14_tbl get_vallo14 0x1 =>  
+table_add update_vallo14_tbl set_and_get_vallo14 0x2 =>  
+table_add update_vallo14_tbl reset_and_get_vallo14 0x3 =>  
+# Configuring update_valhi14_tbl
+table_add update_valhi14_tbl get_valhi14 0x1 =>  
+table_add update_valhi14_tbl set_and_get_valhi14 0x2 =>  
+table_add update_valhi14_tbl reset_and_get_valhi14 0x3 =>  
+# Configuring update_vallo15_tbl
+table_add update_vallo15_tbl get_vallo15 0x1 =>  
+table_add update_vallo15_tbl set_and_get_vallo15 0x2 =>  
+table_add update_vallo15_tbl reset_and_get_vallo15 0x3 =>  
+# Configuring update_valhi15_tbl
+table_add update_valhi15_tbl get_valhi15 0x1 =>  
+table_add update_valhi15_tbl set_and_get_valhi15 0x2 =>  
+table_add update_valhi15_tbl reset_and_get_valhi15 0x3 =>  
+# Configuring update_vallo16_tbl
+table_add update_vallo16_tbl get_vallo16 0x1 =>  
+table_add update_vallo16_tbl set_and_get_vallo16 0x2 =>  
+table_add update_vallo16_tbl reset_and_get_vallo16 0x3 =>  
+# Configuring update_valhi16_tbl
+table_add update_valhi16_tbl get_valhi16 0x1 =>  
+table_add update_valhi16_tbl set_and_get_valhi16 0x2 =>  
+table_add update_valhi16_tbl reset_and_get_valhi16 0x3 =>  
+# Configuring lastclone_lastscansplit_tbl
+table_add lastclone_lastscansplit_tbl set_is_lastclone 0x120 0x0 =>
+table_add lastclone_lastscansplit_tbl set_is_lastclone 0x74 0x0 =>
+# Configuring eg_port_forward_tbl
+table_add eg_port_forward_tbl update_cache_pop_inswitch_to_cache_pop_inswitch_ack_drop_and_clone 0x7f 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_netcache_cache_pop_inswitch_nlatest_to_cache_pop_inswitch_ack_drop_and_clone 0x15f 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_putreq_inswitch_to_putreq_seq 0x5 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_delreq_inswitch_to_delreq_seq 0x14 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_netcache_valueupdate_inswitch_to_netcache_valueupdate_ack 0x8f 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_putreq_largevalue_inswitch_to_putreq_largevalue_seq 0xa4 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl forward_netcache_getreq_pop_clone_for_pktloss_and_getreq 0x120 0x0 0x0 0x0 0x0 0x0 0x0 0x0 0x14 => 0x14 
+table_add eg_port_forward_tbl update_netcache_getreq_pop_to_getreq_by_mirroring 0x120 0x0 0x0 0x0 0x0 0x0 0x0 0x1 0x14 => 0x14 
+table_add eg_port_forward_tbl update_netcache_warmupreq_inswitch_to_netcache_warmupreq_inswitch_pop_clone_for_pktloss_and_warmupack 0x64 0x0 0x0 0x0 0x0 0x0 0xa 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl forward_netcache_warmupreq_inswitch_pop_clone_for_pktloss_and_warmupack 0x74 0x0 0x0 0x0 0x0 0x0 0xa 0x0 0x0 => 0x14 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x0 0x0 0x0 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_netcache_warmupreq_inswitch_pop_to_warmupack_by_mirroring 0x74 0x0 0x0 0x0 0x0 0x0 0xa 0x1 0x0 => 0xa 0x480 
+table_add eg_port_forward_tbl update_cache_pop_inswitch_to_cache_pop_inswitch_ack_drop_and_clone 0x7f 0x0 0x0 0x0 0x0 0x1 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_netcache_cache_pop_inswitch_nlatest_to_cache_pop_inswitch_ack_drop_and_clone 0x15f 0x0 0x0 0x0 0x0 0x1 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_netcache_valueupdate_inswitch_to_netcache_valueupdate_ack 0x8f 0x0 0x0 0x0 0x0 0x1 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x0 0x0 0x0 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_cache_pop_inswitch_to_cache_pop_inswitch_ack_drop_and_clone 0x7f 0x0 0x0 0x0 0x1 0x0 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_netcache_cache_pop_inswitch_nlatest_to_cache_pop_inswitch_ack_drop_and_clone 0x15f 0x0 0x0 0x0 0x1 0x0 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_putreq_inswitch_to_putreq_seq 0x5 0x0 0x0 0x0 0x1 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_delreq_inswitch_to_delreq_seq 0x14 0x0 0x0 0x0 0x1 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_netcache_valueupdate_inswitch_to_netcache_valueupdate_ack 0x8f 0x0 0x0 0x0 0x1 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_putreq_largevalue_inswitch_to_putreq_largevalue_seq 0xa4 0x0 0x0 0x0 0x1 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x0 0x0 0x1 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_cache_pop_inswitch_to_cache_pop_inswitch_ack_drop_and_clone 0x7f 0x0 0x0 0x0 0x1 0x1 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_netcache_cache_pop_inswitch_nlatest_to_cache_pop_inswitch_ack_drop_and_clone 0x15f 0x0 0x0 0x0 0x1 0x1 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_netcache_valueupdate_inswitch_to_netcache_valueupdate_ack 0x8f 0x0 0x0 0x0 0x1 0x1 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x0 0x0 0x1 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x0 0x1 0x0 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x0 0x1 0x0 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x0 0x1 0x1 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x0 0x1 0x1 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_netcache_getreq_pop_clone_for_pktloss_and_getreq 0x4 0x0 0x1 0x0 0x0 0x0 0xa 0x0 0x14 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_netcache_getreq_pop_clone_for_pktloss_and_getreq 0x4 0x0 0x1 0x0 0x0 0x1 0xa 0x0 0x14 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_netcache_getreq_pop_clone_for_pktloss_and_getreq 0x4 0x0 0x1 0x0 0x1 0x0 0xa 0x0 0x14 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_netcache_getreq_pop_clone_for_pktloss_and_getreq 0x4 0x0 0x1 0x0 0x1 0x1 0xa 0x0 0x14 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x1 0x1 0x0 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x1 0x1 0x0 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x1 0x1 0x1 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x0 0x1 0x1 0x1 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_putreq_inswitch_to_netcache_putreq_seq_cached 0x5 0x1 0x0 0x0 0x0 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_delreq_inswitch_to_netcache_delreq_seq_cached 0x14 0x1 0x0 0x0 0x0 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_cache_evict_loadfreq_inswitch_to_cache_evict_loadfreq_inswitch_ack_drop_and_clone 0x24 0x1 0x0 0x0 0x0 0x0 0x0 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_netcache_valueupdate_inswitch_to_netcache_valueupdate_ack 0x8f 0x1 0x0 0x0 0x0 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_putreq_largevalue_inswitch_to_putreq_largevalue_seq_cached 0xa4 0x1 0x0 0x0 0x0 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_netcache_warmupreq_inswitch_to_netcache_warmupreq_inswitch_pop_clone_for_pktloss_and_warmupack 0x64 0x1 0x0 0x0 0x0 0x0 0xa 0x0 0x0 => 0x14 0x1390 
+table_add eg_port_forward_tbl forward_netcache_warmupreq_inswitch_pop_clone_for_pktloss_and_warmupack 0x74 0x1 0x0 0x0 0x0 0x0 0xa 0x0 0x0 => 0x14 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x1 0x0 0x0 0x0 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_netcache_warmupreq_inswitch_pop_to_warmupack_by_mirroring 0x74 0x1 0x0 0x0 0x0 0x0 0xa 0x1 0x0 => 0xa 0x480 
+table_add eg_port_forward_tbl update_netcache_valueupdate_inswitch_to_netcache_valueupdate_ack 0x8f 0x1 0x0 0x0 0x0 0x1 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x1 0x0 0x0 0x0 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_putreq_inswitch_to_netcache_putreq_seq_cached 0x5 0x1 0x0 0x0 0x1 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_delreq_inswitch_to_netcache_delreq_seq_cached 0x14 0x1 0x0 0x0 0x1 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_netcache_valueupdate_inswitch_to_netcache_valueupdate_ack 0x8f 0x1 0x0 0x0 0x1 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_putreq_largevalue_inswitch_to_putreq_largevalue_seq_cached 0xa4 0x1 0x0 0x0 0x1 0x0 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 0x1 0x0 0x0 0x1 0x0 0xa 0x0 0x14 => 0xa 0x480 0x1 
+table_add eg_port_forward_tbl update_netcache_valueupdate_inswitch_to_netcache_valueupdate_ack 0x8f 0x1 0x0 0x0 0x1 0x1 0x0 0x0 0x0 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 0x1 0x0 0x0 0x1 0x1 0xa 0x0 0x14 => 0xa 0x480 0x0 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x1 0x0 0x1 0x0 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x1 0x0 0x1 0x0 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 0x1 0x0 0x1 0x1 0x0 0xa 0x0 0x14 => 0xa 0x480 0x1 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 0x1 0x0 0x1 0x1 0x1 0xa 0x0 0x14 => 0xa 0x480 0x0 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_netcache_getreq_pop_clone_for_pktloss_and_getreq 0x4 0x1 0x1 0x0 0x0 0x0 0xa 0x0 0x14 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_netcache_getreq_pop_clone_for_pktloss_and_getreq 0x4 0x1 0x1 0x0 0x0 0x1 0xa 0x0 0x14 => 0x14 0x1390 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 0x1 0x1 0x0 0x1 0x0 0xa 0x0 0x14 => 0xa 0x480 0x1 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 0x1 0x1 0x0 0x1 0x1 0xa 0x0 0x14 => 0xa 0x480 0x0 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x1 0x1 0x1 0x0 0x0 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getreq 0x4 0x1 0x1 0x1 0x0 0x1 0xa 0x0 0x14 =>  
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 0x1 0x1 0x1 0x1 0x0 0xa 0x0 0x14 => 0xa 0x480 0x1 
+table_add eg_port_forward_tbl update_getreq_inswitch_to_getres_by_mirroring 0x4 0x1 0x1 0x1 0x1 0x1 0xa 0x0 0x14 => 0xa 0x480 0x0 
+# Configuring update_pktlen_tbl
+table_add update_pktlen_tbl update_pktlen 0x9 0x0->0x0 => 0x22 0x36 
+table_add update_pktlen_tbl update_pktlen 0x3 0x0->0x0 => 0x22 0x36 
+table_add update_pktlen_tbl update_pktlen 0x43 0x0->0x0 => 0x22 0x36 
+table_add update_pktlen_tbl update_pktlen 0x9 0x1->0x8 => 0x2a 0x3e 
+table_add update_pktlen_tbl update_pktlen 0x3 0x1->0x8 => 0x2a 0x3e 
+table_add update_pktlen_tbl update_pktlen 0x43 0x1->0x8 => 0x2a 0x3e 
+table_add update_pktlen_tbl update_pktlen 0x9 0x9->0x10 => 0x32 0x46 
+table_add update_pktlen_tbl update_pktlen 0x3 0x9->0x10 => 0x32 0x46 
+table_add update_pktlen_tbl update_pktlen 0x43 0x9->0x10 => 0x32 0x46 
+table_add update_pktlen_tbl update_pktlen 0x9 0x11->0x18 => 0x3a 0x4e 
+table_add update_pktlen_tbl update_pktlen 0x3 0x11->0x18 => 0x3a 0x4e 
+table_add update_pktlen_tbl update_pktlen 0x43 0x11->0x18 => 0x3a 0x4e 
+table_add update_pktlen_tbl update_pktlen 0x9 0x19->0x20 => 0x42 0x56 
+table_add update_pktlen_tbl update_pktlen 0x3 0x19->0x20 => 0x42 0x56 
+table_add update_pktlen_tbl update_pktlen 0x43 0x19->0x20 => 0x42 0x56 
+table_add update_pktlen_tbl update_pktlen 0x9 0x21->0x28 => 0x4a 0x5e 
+table_add update_pktlen_tbl update_pktlen 0x3 0x21->0x28 => 0x4a 0x5e 
+table_add update_pktlen_tbl update_pktlen 0x43 0x21->0x28 => 0x4a 0x5e 
+table_add update_pktlen_tbl update_pktlen 0x9 0x29->0x30 => 0x52 0x66 
+table_add update_pktlen_tbl update_pktlen 0x3 0x29->0x30 => 0x52 0x66 
+table_add update_pktlen_tbl update_pktlen 0x43 0x29->0x30 => 0x52 0x66 
+table_add update_pktlen_tbl update_pktlen 0x9 0x31->0x38 => 0x5a 0x6e 
+table_add update_pktlen_tbl update_pktlen 0x3 0x31->0x38 => 0x5a 0x6e 
+table_add update_pktlen_tbl update_pktlen 0x43 0x31->0x38 => 0x5a 0x6e 
+table_add update_pktlen_tbl update_pktlen 0x9 0x39->0x40 => 0x62 0x76 
+table_add update_pktlen_tbl update_pktlen 0x3 0x39->0x40 => 0x62 0x76 
+table_add update_pktlen_tbl update_pktlen 0x43 0x39->0x40 => 0x62 0x76 
+table_add update_pktlen_tbl update_pktlen 0x9 0x41->0x48 => 0x6a 0x7e 
+table_add update_pktlen_tbl update_pktlen 0x3 0x41->0x48 => 0x6a 0x7e 
+table_add update_pktlen_tbl update_pktlen 0x43 0x41->0x48 => 0x6a 0x7e 
+table_add update_pktlen_tbl update_pktlen 0x9 0x49->0x50 => 0x72 0x86 
+table_add update_pktlen_tbl update_pktlen 0x3 0x49->0x50 => 0x72 0x86 
+table_add update_pktlen_tbl update_pktlen 0x43 0x49->0x50 => 0x72 0x86 
+table_add update_pktlen_tbl update_pktlen 0x9 0x51->0x58 => 0x7a 0x8e 
+table_add update_pktlen_tbl update_pktlen 0x3 0x51->0x58 => 0x7a 0x8e 
+table_add update_pktlen_tbl update_pktlen 0x43 0x51->0x58 => 0x7a 0x8e 
+table_add update_pktlen_tbl update_pktlen 0x9 0x59->0x60 => 0x82 0x96 
+table_add update_pktlen_tbl update_pktlen 0x3 0x59->0x60 => 0x82 0x96 
+table_add update_pktlen_tbl update_pktlen 0x43 0x59->0x60 => 0x82 0x96 
+table_add update_pktlen_tbl update_pktlen 0x9 0x61->0x68 => 0x8a 0x9e 
+table_add update_pktlen_tbl update_pktlen 0x3 0x61->0x68 => 0x8a 0x9e 
+table_add update_pktlen_tbl update_pktlen 0x43 0x61->0x68 => 0x8a 0x9e 
+table_add update_pktlen_tbl update_pktlen 0x9 0x69->0x70 => 0x92 0xa6 
+table_add update_pktlen_tbl update_pktlen 0x3 0x69->0x70 => 0x92 0xa6 
+table_add update_pktlen_tbl update_pktlen 0x43 0x69->0x70 => 0x92 0xa6 
+table_add update_pktlen_tbl update_pktlen 0x9 0x71->0x78 => 0x9a 0xae 
+table_add update_pktlen_tbl update_pktlen 0x3 0x71->0x78 => 0x9a 0xae 
+table_add update_pktlen_tbl update_pktlen 0x43 0x71->0x78 => 0x9a 0xae 
+table_add update_pktlen_tbl update_pktlen 0x9 0x79->0x80 => 0xa2 0xb6 
+table_add update_pktlen_tbl update_pktlen 0x3 0x79->0x80 => 0xa2 0xb6 
+table_add update_pktlen_tbl update_pktlen 0x43 0x79->0x80 => 0xa2 0xb6 
+table_add update_pktlen_tbl update_pktlen 0x70 0x0->0x80 => 0x1a 0x2e 
+table_add update_pktlen_tbl update_pktlen 0x30 0x0->0x80 => 0x1a 0x2e 
+table_add update_pktlen_tbl update_pktlen 0xd0 0x0->0x80 => 0x1a 0x2e 
+table_add update_pktlen_tbl update_pktlen 0x190 0x0->0x80 => 0x1a 0x2e 
+table_add update_pktlen_tbl update_pktlen 0x2 0x0->0x80 => 0x20 0x34 
+table_add update_pktlen_tbl update_pktlen 0x22 0x0->0x80 => 0x20 0x34 
+table_add update_pktlen_tbl update_pktlen 0x100 0x0->0x80 => 0x1e 0x32 
+table_add update_pktlen_tbl update_pktlen 0x120 0x0->0x80 => 0x22 0x36 
+table_add update_pktlen_tbl update_pktlen 0x74 0x0->0x80 => 0x40 0x54 
+table_add update_pktlen_tbl add_pktlen 0x32 0x0->0xffff => 0x6 0x6 
+table_add update_pktlen_tbl add_pktlen 0x42 0x0->0xffff => 0x6 0x6 
+# Configuring update_ipmac_srcport_tbl
+table_add update_ipmac_srcport_tbl update_ipmac_srcport_server2client 0xd0 0x1 => 00:00:00:00:00:02 00:00:00:00:00:03 10.0.0.2 10.0.4.2 0x480 
+table_add update_ipmac_srcport_tbl update_ipmac_srcport_server2client 0xe0 0x1 => 00:00:00:00:00:02 00:00:00:00:00:03 10.0.0.2 10.0.4.2 0x480 
+table_add update_ipmac_srcport_tbl update_dstipmac_client2server 0x30 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_dstipmac_client2server 0x3 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_dstipmac_client2server 0x43 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_dstipmac_client2server 0x2 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_dstipmac_client2server 0x22 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_dstipmac_client2server 0x310 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_dstipmac_client2server 0x32 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_dstipmac_client2server 0x42 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_ipmac_srcport_client2server 0x190 4 => 00:00:00:00:00:02 00:00:00:00:00:03 10.0.0.2 10.0.4.2 0x7b 
+table_add update_ipmac_srcport_tbl update_ipmac_srcport_switch2switchos 0x70 4 => 00:00:00:00:00:02 00:00:00:00:00:03 10.0.0.2 10.0.4.2 0x7b 
+table_add update_ipmac_srcport_tbl update_ipmac_srcport_switch2switchos 0x100 4 => 00:00:00:00:00:02 00:00:00:00:00:03 10.0.0.2 10.0.4.2 0x7b 
+table_add update_ipmac_srcport_tbl update_dstipmac_switch2switchos 0x120 4 => 00:00:00:00:00:03 10.0.4.2 
+table_add update_ipmac_srcport_tbl update_dstipmac_switch2switchos 0x74 4 => 00:00:00:00:00:03 10.0.4.2 
+# Configuring add_and_remove_value_header_tbl
+table_add add_and_remove_value_header_tbl add_only_vallen 0x3 0x0->0x0 =>  
+table_add add_and_remove_value_header_tbl add_to_val1 0x3 0x1->0x8 =>  
+table_add add_and_remove_value_header_tbl add_to_val2 0x3 0x9->0x10 =>  
+table_add add_and_remove_value_header_tbl add_to_val3 0x3 0x11->0x18 =>  
+table_add add_and_remove_value_header_tbl add_to_val4 0x3 0x19->0x20 =>  
+table_add add_and_remove_value_header_tbl add_to_val5 0x3 0x21->0x28 =>  
+table_add add_and_remove_value_header_tbl add_to_val6 0x3 0x29->0x30 =>  
+table_add add_and_remove_value_header_tbl add_to_val7 0x3 0x31->0x38 =>  
+table_add add_and_remove_value_header_tbl add_to_val8 0x3 0x39->0x40 =>  
+table_add add_and_remove_value_header_tbl add_to_val9 0x3 0x41->0x48 =>  
+table_add add_and_remove_value_header_tbl add_to_val10 0x3 0x49->0x50 =>  
+table_add add_and_remove_value_header_tbl add_to_val11 0x3 0x51->0x58 =>  
+table_add add_and_remove_value_header_tbl add_to_val12 0x3 0x59->0x60 =>  
+table_add add_and_remove_value_header_tbl add_to_val13 0x3 0x61->0x68 =>  
+table_add add_and_remove_value_header_tbl add_to_val14 0x3 0x69->0x70 =>  
+table_add add_and_remove_value_header_tbl add_to_val15 0x3 0x71->0x78 =>  
+table_add add_and_remove_value_header_tbl add_to_val16 0x3 0x79->0x80 =>  
+table_add add_and_remove_value_header_tbl add_only_vallen 0x43 0x0->0x0 =>  
+table_add add_and_remove_value_header_tbl add_to_val1 0x43 0x1->0x8 =>  
+table_add add_and_remove_value_header_tbl add_to_val2 0x43 0x9->0x10 =>  
+table_add add_and_remove_value_header_tbl add_to_val3 0x43 0x11->0x18 =>  
+table_add add_and_remove_value_header_tbl add_to_val4 0x43 0x19->0x20 =>  
+table_add add_and_remove_value_header_tbl add_to_val5 0x43 0x21->0x28 =>  
+table_add add_and_remove_value_header_tbl add_to_val6 0x43 0x29->0x30 =>  
+table_add add_and_remove_value_header_tbl add_to_val7 0x43 0x31->0x38 =>  
+table_add add_and_remove_value_header_tbl add_to_val8 0x43 0x39->0x40 =>  
+table_add add_and_remove_value_header_tbl add_to_val9 0x43 0x41->0x48 =>  
+table_add add_and_remove_value_header_tbl add_to_val10 0x43 0x49->0x50 =>  
+table_add add_and_remove_value_header_tbl add_to_val11 0x43 0x51->0x58 =>  
+table_add add_and_remove_value_header_tbl add_to_val12 0x43 0x59->0x60 =>  
+table_add add_and_remove_value_header_tbl add_to_val13 0x43 0x61->0x68 =>  
+table_add add_and_remove_value_header_tbl add_to_val14 0x43 0x69->0x70 =>  
+table_add add_and_remove_value_header_tbl add_to_val15 0x43 0x71->0x78 =>  
+table_add add_and_remove_value_header_tbl add_to_val16 0x43 0x79->0x80 =>  
+table_add add_and_remove_value_header_tbl add_only_vallen 0x9 0x0->0x0 =>  
+table_add add_and_remove_value_header_tbl add_to_val1 0x9 0x1->0x8 =>  
+table_add add_and_remove_value_header_tbl add_to_val2 0x9 0x9->0x10 =>  
+table_add add_and_remove_value_header_tbl add_to_val3 0x9 0x11->0x18 =>  
+table_add add_and_remove_value_header_tbl add_to_val4 0x9 0x19->0x20 =>  
+table_add add_and_remove_value_header_tbl add_to_val5 0x9 0x21->0x28 =>  
+table_add add_and_remove_value_header_tbl add_to_val6 0x9 0x29->0x30 =>  
+table_add add_and_remove_value_header_tbl add_to_val7 0x9 0x31->0x38 =>  
+table_add add_and_remove_value_header_tbl add_to_val8 0x9 0x39->0x40 =>  
+table_add add_and_remove_value_header_tbl add_to_val9 0x9 0x41->0x48 =>  
+table_add add_and_remove_value_header_tbl add_to_val10 0x9 0x49->0x50 =>  
+table_add add_and_remove_value_header_tbl add_to_val11 0x9 0x51->0x58 =>  
+table_add add_and_remove_value_header_tbl add_to_val12 0x9 0x59->0x60 =>  
+table_add add_and_remove_value_header_tbl add_to_val13 0x9 0x61->0x68 =>  
+table_add add_and_remove_value_header_tbl add_to_val14 0x9 0x69->0x70 =>  
+table_add add_and_remove_value_header_tbl add_to_val15 0x9 0x71->0x78 =>  
+table_add add_and_remove_value_header_tbl add_to_val16 0x9 0x79->0x80 =>  

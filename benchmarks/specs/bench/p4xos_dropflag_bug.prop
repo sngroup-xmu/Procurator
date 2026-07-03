@@ -1,0 +1,72 @@
+// P4xos: local "drop_flag not correctly set" bug (reported by prior work; NSDI Table 1).
+//
+// Root cause:
+//   In `learner.p4`, `read_round()` sets `meta.paxos_metadata.set_drop = 1`, but the program
+//   never clears it before calling `transport_tbl` when a majority quorum is reached. As a
+//   result, `transport_tbl` always takes the drop branch (or default drop), and the decided
+//   value is never forwarded.
+//
+// Modeling choice:
+//   This is a *role-local* bug in the learner, so we verify `learner.p4` in isolation and
+//   directly inject two Paxos 2B packets with distinct acceptor IDs. After the second packet,
+//   `ack_acceptors` becomes a majority mask (0b011), triggering `transport_tbl` while
+//   `set_drop` is still 1.
+
+import learner from "../../datasets/P4xos/learner.p4" entries "../../datasets/P4xos/control_plane/config-learner.txt";
+
+topology {
+  // Single-node role-local spec.
+}
+
+host client {
+  connect learner;
+  env {
+    // Force parser reachability to Paxos header.
+    hdr.ethernet.valid = true;
+    hdr.ipv4.valid = true;
+    hdr.udp.valid = true;
+    hdr.paxos.valid = true;
+
+    hdr.ethernet.etherType = 2048; // IPv4
+    hdr.ipv4.protocol = 17;        // UDP
+    hdr.udp.dstPort = 34952;       // 0x8888 (PAXOS_PROTOCOL)
+
+    // Inject a Paxos 2B vote for inst==0, rnd==0 (so learner_tbl applies, not reset_consensus_instance).
+    hdr.paxos.msgtype = 3; // PAXOS_2B
+    hdr.paxos.inst = 0;
+    hdr.paxos.rnd = 0;
+    hdr.paxos.paxosval = 1;
+
+    // Two-phase host script: send acptid=0 then acptid=1 to reach majority mask 0b011.
+    if (phase == 0) {
+      hdr.paxos.acptid = 0;
+      phase = 1;
+    } else {
+      hdr.paxos.acptid = 1;
+    }
+  }
+}
+
+node learner { external_input = false; }
+
+global {
+  queue_capacity = 1;
+  env_thread = false;
+  host_eager = true;
+  deterministic_scheduler = true;
+  // With one host and one node, two deterministic rounds are enough:
+  //   round0: acptid=0, round1: acptid=1 -> majority.
+  max_steps = 8;
+
+  int phase = 0;
+
+  // Functional check:
+  // When majority is detected (ack_acceptors in {3,5,6}), the learner must clear set_drop
+  // so transport_tbl can forward, not drop.
+  assert {
+    (learner_meta.paxos_metadata.ack_acceptors != 3)
+      && (learner_meta.paxos_metadata.ack_acceptors != 5)
+      && (learner_meta.paxos_metadata.ack_acceptors != 6)
+      || (learner_meta.paxos_metadata.set_drop == 0);
+  };
+}

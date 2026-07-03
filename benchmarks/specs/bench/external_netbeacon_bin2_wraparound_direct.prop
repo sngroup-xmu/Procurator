@@ -1,0 +1,59 @@
+// External candidate: NetBeacon in-network traffic classification pipeline.
+//
+// Candidate bug shape:
+//   Register_bin2 is an 8-bit per-flow feature bin.  On the steady existing
+//   flow path, Update_Register_bin2 increments it by one for every selected
+//   packet-length-bin hit.  A long-lived flow can therefore wrap this feature
+//   back to 0, aliasing the "empty / unseen bin" value while the update path is
+//   still active.
+//
+// The assertion is guarded by both the selected update action and the P4B
+// register-write mirror, so a counterexample must include an actual Update_bin2
+// write that stores 0.  Use `--max-steps` only as a direct-check benchmark
+// bound; the default verifier path remains unbounded.
+
+import nb from "../../datasets/external_netbeacon_sec23/NetBeacon/switch/data_plane/switch.p4";
+
+topology {}
+
+node nb {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+    hdr.udp.valid == false;
+
+    hdr.ethernet.ether_type == 2048; // TYPE_IPV4
+    hdr.ipv4.protocol == 6;          // TCP
+    hdr.ipv4.ihl == 5;
+    hdr.ipv4.frag_offset == 0;
+    hdr.ipv4.total_len == 64;
+    hdr.ipv4.src_addr == 167772161;  // 10.0.0.1
+    hdr.ipv4.dst_addr == 167772162;  // 10.0.0.2
+    hdr.ipv4.ttl == 64;
+    hdr.tcp.src_port == 1234;
+    hdr.tcp.dst_port == 443;
+    hdr.tcp.window == 1;
+    hdr.tcp.data_offset == 5;
+
+    ig_intr_md.resubmit_flag == 0;
+    ig_intr_md.ingress_port != 68;   // not recirculate_port
+    ig_prsr_md.global_tstamp == 1048576;
+
+    SwitchIngress_Flow_result.action_run == SwitchIngress_Flow_result.action.noaction_19;
+    SwitchIngress_pkt_bin2.action_run == SwitchIngress_pkt_bin2.action.SwitchIngress_Update_bin2;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+
+  assert {
+    !(nb_SwitchIngress_pkt_bin2.action_run == nb_SwitchIngress_pkt_bin2.action.SwitchIngress_Update_bin2
+      && nb_SwitchIngress_Register_bin2__wrote_any
+      && nb_SwitchIngress_Register_bin2__last_value == 0);
+  };
+}

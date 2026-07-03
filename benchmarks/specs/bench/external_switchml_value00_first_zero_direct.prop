@@ -1,0 +1,29 @@
+// External candidate: SwitchML (NSDI 2021) TNA aggregation pipeline.
+//
+// Candidate shape:
+//   value00.values is a packed Register<value_pair_t>.  The first 32-bit field
+//   is either initialized from a packet value or incremented by a packet value.
+//   This direct check looks for a real write that stores zero in that field
+//   (for example by bitvector wraparound), using a bit-slice assertion.
+
+import sw from "../../datasets/external_switchml_nsdi21/switchml/dev_root/p4/switchml.p4";
+
+topology {}
+
+node sw {
+  external_input = true;
+
+  assume {
+    Ingress_value00_sum.action_run == Ingress_value00_sum.action.Ingress_value00_sum_read1_action;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+
+  assert {
+    !(sw_Ingress_value00_values__wrote_any
+      && sw_Ingress_value00_values__last_value[64:32] == 0);
+  };
+}

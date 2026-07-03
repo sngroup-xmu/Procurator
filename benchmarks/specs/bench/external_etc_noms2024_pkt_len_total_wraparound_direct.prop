@@ -1,0 +1,48 @@
+// External candidate: ETC_NOMS_2024 in-switch encrypted traffic classification.
+//
+// Bug shape:
+//   reg_pkt_len_total is a 16-bit per-flow accumulated packet-length feature.
+//   Two 32768-byte packets for the same flow write 0 to the feature register.
+//
+// The target-flow table is constrained to set final_class=0 after the parser
+// initializes it to 10, forcing the packet into the unclassified-flow feature
+// update path. The assertion is guarded by the P4B register write mirror.
+
+import etc from "../../datasets/external_etc_noms2024/noms_20_5_4.p4";
+
+topology {}
+
+node etc {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.tcp.valid == true;
+    hdr.recirc.valid == false;
+
+    hdr.ethernet.ether_type == 2048; // TYPE_IPV4
+    hdr.ipv4.protocol == 6;          // TCP
+    hdr.ipv4.total_len == 32768;     // two packets overflow the 16-bit total
+    hdr.ipv4.src_addr == 167772161;  // 10.0.0.1
+    hdr.ipv4.dst_addr == 167772162;  // 10.0.0.2
+    hdr.tcp.src_port == 1234;
+    hdr.tcp.dst_port == 443;
+    ig_intr_md.resubmit_flag == 0;
+    ig_prsr_md.global_tstamp == 1;
+
+    Ingress_target_flows_table.action_run == Ingress_target_flows_table.action.Ingress_set_flow_class;
+    Ingress_target_flows_table.Ingress_set_flow_class.f_class == 0;
+  };
+}
+
+global {
+  queue_capacity = 1;
+  deterministic_scheduler = true;
+  max_steps = 4;
+
+  assert {
+    !(etc_Ingress_reg_pkt_len_total__wrote_any
+      && etc_Ingress_reg_pkt_len_total__last_value == 0);
+  };
+}

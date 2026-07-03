@@ -1,0 +1,81 @@
+// NetChain flip bug (2-node focused)
+//
+// Goal: reproduce the 16-bit sequence number wrap-around bug quickly by only
+// tracking the s1->s2 relation:
+//   [](s1_sequence_reg[0] >= s2_sequence_reg[0])
+//
+// This spec matches the Promela host shape (dstAddr=167797761 / s1) but removes
+// s3 to reduce state and make prune vs. no-prune comparisons easier.
+
+import s1 from "../../datasets/Netchain/netchain_16.p4" entries "../../datasets/Netchain/commands_1.txt";
+import s2 from "../../datasets/Netchain/netchain_16.p4" entries "../../datasets/Netchain/commands_2.txt";
+
+topology {
+  link s1 -> s2 ALL;
+}
+
+node s1 {
+  external_input = true;
+
+  assume {
+    hdr.ethernet.valid == true;
+    hdr.ipv4.valid == true;
+    hdr.nc_hdr.valid == true;
+    hdr.udp.valid == true;
+    hdr.tcp.valid == false;
+    hdr.ipv4.protocol == 17;
+    hdr.overlay.0.valid == true;
+    hdr.overlay.1.valid == true;
+    hdr.overlay.2.valid == true;
+    hdr.overlay.3.valid == true;
+
+    hdr.ethernet.etherType == 2048;
+    hdr.ipv4.srcAddr == 1;
+    hdr.ipv4.dstAddr == 167797761;
+
+    // Promela shape: element_0=s1, element_1=s2; remaining elements are host(0).
+    hdr.overlay.0.swip == 167797761;
+    hdr.overlay.1.swip == 167797762;
+    hdr.overlay.2.swip == 0;
+    hdr.overlay.3.swip == 0;
+    // Parser terminator for the overlay header stack.
+    hdr.overlay.last.swip == 0;
+
+    hdr.nc_hdr.op == 12; // NC_WRITE_REQUEST
+    hdr.nc_hdr.key == 2024; // index 0
+    // Tighten irrelevant payload fields to reduce SMT/search complexity.
+    // The flip bug only depends on the sequence register semantics.
+    hdr.nc_hdr.value == 0;
+    hdr.nc_hdr.sc == 0;
+    hdr.nc_hdr.vgroup == 0;
+    hdr.nc_hdr.seq == 0;
+    hdr.udp.len == 0;
+    hdr.ipv4.totalLen == 0;
+    hdr.ipv4.ttl == 64;
+  };
+}
+
+node s2 {}
+
+global {
+  queue_capacity = 1;
+
+  // Deterministic round-robin scheduler with 3 actions (env->s1->s2):
+  // wrap happens at s1-pass step 196606, so max_steps = 196607 is sufficient.
+  max_steps = 196607;
+  deterministic_scheduler = true;
+
+  assume {
+    s1_meta.location.index == 0;
+    s2_meta.location.index == 0;
+    s1_find_index.hit == true;
+    s2_find_index.hit == true;
+    s1_meta.my_md.role == 100;
+    s2_meta.my_md.role == 101;
+    s1_standard_metadata.egress_port != 0;
+  };
+
+  assert {
+    s1_sequence_reg[0] >= s2_sequence_reg[0];
+  };
+}

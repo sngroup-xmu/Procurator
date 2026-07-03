@@ -1,0 +1,10 @@
+{
+  "artifact": "Procurator SIGCOMM26 AE package",
+  "profiles": [
+    "smoke",
+    "core_28",
+    "wraparound_4",
+    "full"
+  ],
+  "status": "skeleton; evidence and scripts must be completed before archival"
+}

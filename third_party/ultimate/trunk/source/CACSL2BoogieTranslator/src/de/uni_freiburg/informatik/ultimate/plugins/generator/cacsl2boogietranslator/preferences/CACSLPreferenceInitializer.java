@@ -1,0 +1,382 @@
+/*
+ * Copyright (C) 2014-2015 Alexander Nutz (nutz@informatik.uni-freiburg.de)
+ * Copyright (C) 2015 University of Freiburg
+ *
+ * This file is part of the ULTIMATE CACSL2BoogieTranslator plug-in.
+ *
+ * The ULTIMATE CACSL2BoogieTranslator plug-in is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published
+ * by the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * The ULTIMATE CACSL2BoogieTranslator plug-in is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with the ULTIMATE CACSL2BoogieTranslator plug-in. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Additional permission under GNU GPL version 3 section 7:
+ * If you modify the ULTIMATE CACSL2BoogieTranslator plug-in, or any covered work, by linking
+ * or combining it with Eclipse RCP (or a modified version of Eclipse RCP),
+ * containing parts covered by the terms of the Eclipse Public License, the
+ * licensors of the ULTIMATE CACSL2BoogieTranslator plug-in grant you additional permission
+ * to convey the resulting work.
+ */
+package de.uni_freiburg.informatik.ultimate.plugins.generator.cacsl2boogietranslator.preferences;
+
+import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.base.chandler.MemoryModelDeclarations;
+import de.uni_freiburg.informatik.ultimate.cdt.translation.implementation.base.expressiontranslation.BitvectorTranslation.SmtRoundingMode;
+import de.uni_freiburg.informatik.ultimate.core.lib.preferences.UltimatePreferenceInitializer;
+import de.uni_freiburg.informatik.ultimate.core.model.preferences.BaseUltimatePreferenceItem;
+import de.uni_freiburg.informatik.ultimate.core.model.preferences.PreferenceType;
+import de.uni_freiburg.informatik.ultimate.core.model.preferences.UltimatePreferenceItem;
+import de.uni_freiburg.informatik.ultimate.core.model.preferences.UltimatePreferenceItem.Level;
+import de.uni_freiburg.informatik.ultimate.core.model.preferences.UltimatePreferenceItemGroup;
+import de.uni_freiburg.informatik.ultimate.plugins.generator.cacsl2boogietranslator.Activator;
+
+/**
+ * Defines preference page for C translation.
+ *
+ * Check https://wiki.debian.org/ArchitectureSpecificsMemo to find our which setting for typesizes you want to use.
+ *
+ * @author Matthias Heizmann
+ *
+ */
+public class CACSLPreferenceInitializer extends UltimatePreferenceInitializer {
+
+	private static final String MAINPROC_DESC =
+			"Specify the entry function of the program. " + "Use an empty string for library mode "
+					+ "(i.e., assume all globals are non-deterministic and verify each function in isolation).";
+	public static final String LABEL_ERROR = "Check unreachability of reach_error function";
+	private static final String DESC_ERROR =
+			"Check if every call to reach_error is unreachable. This is used for the ReachSafety category of SV-COMP. "
+					+ "Note: If a function reach_error is defined, it is automatically overridden.";
+	public static final String MAINPROC_LABEL = "Entry function";
+	private static final String MAINPROC_DEFAULT = "main";
+	public static final String LABEL_CHECK_ASSERTIONS = "Check assertions from assert.h";
+	private static final String DESC_CHECK_ASSERTIONS =
+			"Check if the assertions from assert.h (currently supported: assert, static_assert, _Static_assert, "
+					+ "__assert_fail, __assert_func) never fail.";
+	public static final String LABEL_CHECK_POINTER_DEREF_VALIDITY = "Pointer dereference validity";
+	public static final String DESC_CHECK_POINTER_DEREF_VALIDITY =
+			"If set to CHECK, we analyze for each pointer dereference or array access whether the memory at the target "
+					+ "address is allocated. If set to ASSUME, we presume that all such memory accesses are valid. "
+					+ "If this assumption does not hold, the analysis becomes unsound — not just for this property, "
+					+ "but for other properties as well. If set to IGNORE, the analyzer performs no checks and makes "
+					+ "no assumptions regarding the validity of memory accesses through pointers or arrays.";
+	public static final String LABEL_CHECK_ACSL = "Check ACSL annotations";
+	private static final String DESC_CHECK_ACSL =
+			"Check if the annotations in ACSL (assert, loop invariant, function contracts) are valid. "
+					+ "In addition, ghost code is also considered.";
+	public static final String LABEL_CHECK_FREE_VALID = "Check if freed pointer was valid";
+	public static final String LABEL_CHECK_MEMORY_NEUTRALITY = "Check memory neutrality";
+	public static final String DESC_CHECK_MEMORY_NEUTRALITY =
+			"Specify a comma-separated list of functions to be checked for memory neutrality. A function is memory "
+					+ "neutral if all dynamically allocated memory is freed before it returns. Note that a violation "
+					+ "of memory neutrality does not necessarily indicate a memory leak, as the caller may still "
+					+ "deallocate the memory. Even for the main function a violation of memory neutrality is not "
+					+ "considered undefined behavior according to the C standard. The mem-cleanup property at the "
+					+ "Software Verification Competition (SV-COMP) corresponds to checking memory neutrality of main. "
+					+ "Warning: this check is computationally expensive and may often lead to timeouts.";
+	public static final String LABEL_SVCOMP_MEMTRACK_COMPATIBILITY_MODE = "SV-COMP memtrack compatibility mode";
+	public static final String DESC_SVCOMP_MEMTRACK_COMPATIBILITY_MODE = "Report UNKNOWN instead of UNSAFE if not all "
+			+ "allocated memory was freed at the end of the main procedure. Rationale: at the SV-COMP we have to check "
+			+ "if the program lost track of allocated memory. If this is set to false we are unsound (at SV-COMP) in "
+			+ "cases where not all memory is freed but pointers to that memory are live at the end of the "
+			+ "main procedure.";
+	public static final String LABEL_MEMORY_STRUCTURE = "Memory structure";
+	public static final String LABEL_POINTER_INTEGER_CONVERSION = "Pointer-integer casts";
+	public static final String LABEL_REPORT_UNSOUNDNESS_WARNING = "Report unsoundness warnings";
+	public static final String LABEL_BITPRECISE_BITFIELDS = "Bitprecise bitfields";
+	public static final String LABEL_CHECK_POINTER_SUBTRACTION_AND_COMPARISON_VALIDITY =
+			"If two pointers are subtracted or compared they have the same base address";
+	public static final String LABEL_UNSIGNED_TREATMENT = "How to treat unsigned ints differently from normal ones";
+	public static final String LABEL_CHECK_DIVISION_BY_ZERO_OF_INTEGER_TYPES = "Check division by zero";
+	public static final String LABEL_CHECK_DIVISION_BY_ZERO_OF_FLOATING_TYPES =
+			"Check division by zero for floating types";
+	public static final String LABEL_CHECK_SIGNED_INTEGER_BOUNDS = "Check absence of signed integer overflows";
+	public static final String LABEL_CHECK_DATA_RACES = "Check absence of data races in concurrent programs";
+	public static final String LABEL_ASSUME_NONDET_VALUES_IN_RANGE = "Assume nondeterminstic values are in range";
+	public static final String LABEL_BITVECTOR_TRANSLATION = "Use bitvectors instead of ints";
+	public static final String LABEL_OVERAPPROXIMATE_FLOATS = "Overapproximate operations on floating types";
+	private static final String DESC_OVERAPPROXIMATE_FLOATS =
+			"Overapproximate all operations on floats (including plus, minus, multiplication, conversions, etc.) by "
+					+ "havoc. The resulting analysis will be fast and sound, but the result is UNKNOWN if such an "
+					+ "operation occurs in a counterexample.";
+	public static final String LABEL_FP_TO_IEEE_BV_EXTENSION = "Use Z3's non-standard fp.to_ieee_bv extension";
+
+	public static final String LABEL_FP_ROUNDING_MODE_INITIAL = "Initial rounding mode";
+	private static final String DESC_FP_ROUNDING_MODE_INITIAL =
+			"Use the specified rounding mode as initial float rounding mode.";
+	private static final FloatingPointRoundingMode DEF_FP_ROUNDING_MODE_INITIAL =
+			FloatingPointRoundingMode.FE_TONEAREST;
+
+	public static final String LABEL_FP_ROUNDING_MODE_ENABLE_FESETROUND = "Let fesetround change the rounding mode";
+	private static final boolean DEF_FP_ROUNDING_MODE_ENABLE_FESETROUND = true;
+	private static final String DESC_FP_ROUNDING_MODE_ENABLE_FESETROUND =
+			"If enabled, fesetround can change the current rounding mode. If disabled, fesetround does nothing and "
+					+ "always returns non-zero (no success).";
+
+	public static final String LABEL_SMT_BOOL_ARRAYS_WORKAROUND = "SMT bool arrays workaround";
+
+	// typesize stuff
+	public static final String LABEL_USE_EXPLICIT_TYPESIZES =
+			"Use the constants given below as storage sizes for the correponding types";
+	public static final String LABEL_EXPLICIT_TYPESIZE_BOOL = "sizeof _Bool";
+	public static final String LABEL_EXPLICIT_TYPESIZE_CHAR = "sizeof char";
+	public static final String LABEL_EXPLICIT_TYPESIZE_SHORT = "sizeof short";
+	public static final String LABEL_EXPLICIT_TYPESIZE_INT = "sizeof int";
+	public static final String LABEL_EXPLICIT_TYPESIZE_LONG = "sizeof long";
+	public static final String LABEL_EXPLICIT_TYPESIZE_LONGLONG = "sizeof long long";
+	public static final String LABEL_EXPLICIT_TYPESIZE_FLOAT = "sizeof float";
+	public static final String LABEL_EXPLICIT_TYPESIZE_DOUBLE = "sizeof double";
+	public static final String LABEL_EXPLICIT_TYPESIZE_LONGDOUBLE = "sizeof long double";
+	public static final String LABEL_EXPLICIT_TYPESIZE_POINTER = "sizeof POINTER";
+	// public static final String LABEL_EXPLICIT_TYPESIZE_CHAR16 = "sizeof char16";
+	// public static final String LABEL_EXPLICIT_TYPESIZE_CHAR32 = "sizeof char32";
+	public static final String LABEL_SIGNEDNESS_CHAR = "signedness of char";
+	public static final String LABEL_USE_CONSTANT_ARRAYS = "Use constant arrays";
+	private static final String DESC_USE_CONSTANT_ARRAYS =
+			"Use SMT constant arrays for default initialization of variables.";
+	public static final String LABEL_USE_STORE_CHAINS = "Use store chains";
+
+	public static final String LABEL_ADAPT_MEMORY_MODEL_ON_POINTER_CASTS =
+			"Adapt memory model on pointer casts if necessary";
+	public static final String DESC_ADAPT_MEMORY_MODEL_ON_POINTER_CASTS = "When a pointer to a value with a small type "
+			+ "(e.g. char) is cast to a larger pointer type (e.g. int*), and the memory model resolution is larger than "
+			+ "the values's pointed to type size (for char: 1 Byte), the memory model is unsound. When this setting is "
+			+ "on we attempt to detect this case, and automatically set the memory model to a higher resolution.";
+
+	public static final String LABEL_STRING_OVERAPPROXIMATION_THRESHOLD = "String overapproximation threshold";
+	public static final String DESC_STRING_OVERAPPROXIMATION_THRESHOLD = "String literals that require this number of "
+			+ "bytes or more are overapproximated, i.e., Ultimate assumes that the string can contain arbitrary bytes.";
+	private static final int DEFAULT_STRING_OVERAPPROXIMATION_THRESHOLD = 9;
+
+	public static final String LABEL_BEHAVIOUR_UNDEFINED_FUNCTIONS = "Behaviour of calls to undefined functions";
+	private static final String DESC_BEHAVIOUR_UNDEFINED_FUNCTIONS =
+			"Specify how the calls to undefined functions should be modeled (crash, overapproximate, non-deterministic return value).";
+
+	public static final String LABEL_ENFORCE_IF_FOR_CONDITIONAL =
+			"Always translate conditional expressions to if-statements";
+	private static final String DESC_ENFORCE_IF_FOR_CONDITIONAL =
+			"If this setting is enabled, we try to translate conditional expressions to if-statements in Boogie. "
+					+ "Otherwise, we try to translate them to conditionals expressions in Boogie instead";
+
+	public static final String LABEL_MEMORY_ADDRESSING = "Memory addressing";
+	private static final String DESC_MEMOY_ADDRESSING = "Whether a 2D or 1D memory model should be used.";
+
+	/**
+	 * See {@link MemoryModelDeclarations#ULTIMATE_ALLOC_INIT}.
+	 */
+	public static final String LABEL_FIXED_ADDRESSES_FOR_INITIALIZATION = "Fixed addresses for initialization";
+	private static final String DESC_FIXED_ADDRESSES_FOR_INITIALIZATION =
+			"Whether allocInit should be used to for initial allocations."
+					+ "This speeds up the verification if there is a high amount of allocations that can be made initially.";
+
+	public enum CheckMode {
+		IGNORE, ASSUME, CHECK
+	}
+
+	public enum Signedness {
+		SIGNED, UNSIGNED
+	}
+
+	public enum MemoryStructure {
+		HoenickeLindenmann_Original, // one data array for each boogie type
+
+		HoenickeLindenmann_1ByteResolution,
+
+		HoenickeLindenmann_2ByteResolution,
+
+		HoenickeLindenmann_4ByteResolution,
+
+		HoenickeLindenmann_8ByteResolution;
+
+		public int getByteSize() {
+			return switch (this) {
+			case HoenickeLindenmann_1ByteResolution -> 1;
+			case HoenickeLindenmann_2ByteResolution -> 2;
+			case HoenickeLindenmann_4ByteResolution -> 4;
+			case HoenickeLindenmann_8ByteResolution -> 8;
+			case HoenickeLindenmann_Original ->
+					throw new AssertionError("HoenickeLindenmann_Original has no associated byte size");
+			};
+		}
+
+		public boolean isBitVectorRepresentation() {
+			return switch (this) {
+			case HoenickeLindenmann_1ByteResolution, HoenickeLindenmann_2ByteResolution,
+					HoenickeLindenmann_4ByteResolution, HoenickeLindenmann_8ByteResolution -> true;
+			case HoenickeLindenmann_Original -> false;
+			};
+		}
+
+		public static MemoryStructure getPreciseEnoughMemoryStructureFor(final int byteSize) {
+			if (byteSize >= 8) {
+				return HoenickeLindenmann_8ByteResolution;
+			}
+			if (byteSize >= 4) {
+				return HoenickeLindenmann_4ByteResolution;
+			}
+			if (byteSize >= 2) {
+				return HoenickeLindenmann_2ByteResolution;
+			} else if (byteSize >= 1) {
+				return HoenickeLindenmann_1ByteResolution;
+			} else {
+				throw new IllegalArgumentException("byte size smaller than 1 makes no sense");
+			}
+		}
+	}
+
+	public enum PointerIntegerConversion {
+		Overapproximate, NonBijectiveMapping,
+	}
+
+	public enum FloatingPointRoundingMode {
+		/**
+		 * rounding towards negative infinity
+		 */
+		FE_DOWNWARD(SmtRoundingMode.RTN),
+		/**
+		 * rounding towards nearest integer
+		 *
+		 * TODO: Is RNE really the correct SMT rounding mode?
+		 */
+		FE_TONEAREST(SmtRoundingMode.RNE),
+		/**
+		 * rounding towards zero
+		 */
+		FE_TOWARDZERO(SmtRoundingMode.RTZ),
+		/**
+		 * rounding towards positive infinity
+		 */
+		FE_UPWARD(SmtRoundingMode.RTP);
+
+		private final SmtRoundingMode mSmtRoundingMode;
+
+		FloatingPointRoundingMode(final SmtRoundingMode smtRoundingMode) {
+			mSmtRoundingMode = smtRoundingMode;
+		}
+
+		public SmtRoundingMode getSmtRoundingMode() {
+			return mSmtRoundingMode;
+		}
+
+	}
+
+	public enum UndefinedFunctionBehaviour {
+		/**
+		 * Model using the return values non-deterministically
+		 */
+		NON_DETERMINISTIC_RETURN,
+
+		/**
+		 * Crash if undefined functions are called (might be unreachable)
+		 */
+		CRASH,
+
+		/**
+		 * Overapproximate the behaviour. We model this using {@code while (true) assert false;}, as arbitrary global
+		 * variables might be modified. This means, we report unknown if the call is reachable.
+		 */
+		OVERAPPROXIMATE_BEHAVIOUR
+	}
+
+	public enum MemoryAddressing {
+		One_Dimensional, Two_Dimensional
+	}
+
+	public CACSLPreferenceInitializer() {
+		super(Activator.PLUGIN_ID, "C+ACSL to Boogie Translator");
+	}
+
+	@Override
+	protected BaseUltimatePreferenceItem[] initDefaultPreferences() {
+		return new BaseUltimatePreferenceItem[] { new UltimatePreferenceItemGroup("Specification",
+				new UltimatePreferenceItem<>(LABEL_ERROR, true, DESC_ERROR, PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(MAINPROC_LABEL, MAINPROC_DEFAULT, MAINPROC_DESC, PreferenceType.String),
+				new UltimatePreferenceItem<>(LABEL_CHECK_ASSERTIONS, false, DESC_CHECK_ASSERTIONS, Level.BASIC,
+						PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_CHECK_ACSL, true, DESC_CHECK_ACSL, Level.BASIC,
+						PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_CHECK_POINTER_DEREF_VALIDITY, CheckMode.CHECK,
+						DESC_CHECK_POINTER_DEREF_VALIDITY, Level.BASIC, PreferenceType.Combo, CheckMode.values()),
+				new UltimatePreferenceItem<>(LABEL_CHECK_FREE_VALID, true, PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_CHECK_MEMORY_NEUTRALITY, "", DESC_CHECK_MEMORY_NEUTRALITY,
+						Level.EXPERT, PreferenceType.String),
+				new UltimatePreferenceItem<>(LABEL_SVCOMP_MEMTRACK_COMPATIBILITY_MODE, false,
+						DESC_SVCOMP_MEMTRACK_COMPATIBILITY_MODE, PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_CHECK_POINTER_SUBTRACTION_AND_COMPARISON_VALIDITY, CheckMode.CHECK,
+						PreferenceType.Combo, CheckMode.values()),
+				new UltimatePreferenceItem<>(LABEL_CHECK_DIVISION_BY_ZERO_OF_INTEGER_TYPES, CheckMode.CHECK,
+						PreferenceType.Combo, CheckMode.values()),
+				new UltimatePreferenceItem<>(LABEL_CHECK_DIVISION_BY_ZERO_OF_FLOATING_TYPES, CheckMode.IGNORE,
+						PreferenceType.Combo, CheckMode.values()),
+				new UltimatePreferenceItem<>(LABEL_CHECK_SIGNED_INTEGER_BOUNDS, CheckMode.IGNORE, PreferenceType.Combo,
+						CheckMode.values()),
+				new UltimatePreferenceItem<>(LABEL_CHECK_DATA_RACES, false, PreferenceType.Boolean)),
+
+				new UltimatePreferenceItemGroup("Target Architecture",
+						// typesize stuff
+						new UltimatePreferenceItem<>(LABEL_USE_EXPLICIT_TYPESIZES, true, PreferenceType.Boolean),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_BOOL, 1, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_CHAR, 1, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_SHORT, 2, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_INT, 4, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_LONG, 8, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_LONGLONG, 8, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_FLOAT, 4, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_DOUBLE, 8, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_LONGDOUBLE, 16, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_EXPLICIT_TYPESIZE_POINTER, 8, PreferenceType.Integer),
+						// more exotic types
+						// new UltimatePreferenceItem<Integer>(
+						// LABEL_EXPLICIT_TYPESIZE_CHAR16, 2, PreferenceType.Integer),
+						// new UltimatePreferenceItem<Integer>(
+						// LABEL_EXPLICIT_TYPESIZE_CHAR32, 4, PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_SIGNEDNESS_CHAR, Signedness.SIGNED, PreferenceType.Combo,
+								Signedness.values()),
+						new UltimatePreferenceItem<>(LABEL_FP_ROUNDING_MODE_ENABLE_FESETROUND,
+								DEF_FP_ROUNDING_MODE_ENABLE_FESETROUND, DESC_FP_ROUNDING_MODE_ENABLE_FESETROUND,
+								PreferenceType.Boolean),
+						new UltimatePreferenceItem<>(LABEL_FP_ROUNDING_MODE_INITIAL, DEF_FP_ROUNDING_MODE_INITIAL,
+								DESC_FP_ROUNDING_MODE_INITIAL, PreferenceType.Combo,
+								FloatingPointRoundingMode.values())),
+
+				new UltimatePreferenceItemGroup("Semantics",
+						new UltimatePreferenceItem<>(LABEL_POINTER_INTEGER_CONVERSION,
+								PointerIntegerConversion.NonBijectiveMapping, PreferenceType.Combo,
+								PointerIntegerConversion.values()),
+						new UltimatePreferenceItem<>(LABEL_MEMORY_STRUCTURE,
+								MemoryStructure.HoenickeLindenmann_Original, PreferenceType.Combo,
+								MemoryStructure.values()),
+						new UltimatePreferenceItem<>(LABEL_MEMORY_ADDRESSING, MemoryAddressing.Two_Dimensional,
+								DESC_MEMOY_ADDRESSING, PreferenceType.Combo, MemoryAddressing.values()),
+						new UltimatePreferenceItem<>(LABEL_ADAPT_MEMORY_MODEL_ON_POINTER_CASTS, false,
+								DESC_ADAPT_MEMORY_MODEL_ON_POINTER_CASTS, PreferenceType.Boolean),
+						new UltimatePreferenceItem<>(LABEL_REPORT_UNSOUNDNESS_WARNING, true, PreferenceType.Boolean),
+						new UltimatePreferenceItem<>(LABEL_BITPRECISE_BITFIELDS, false, PreferenceType.Boolean),
+						new UltimatePreferenceItem<>(LABEL_ASSUME_NONDET_VALUES_IN_RANGE, true, PreferenceType.Boolean),
+						new UltimatePreferenceItem<>(LABEL_OVERAPPROXIMATE_FLOATS, false, DESC_OVERAPPROXIMATE_FLOATS,
+								PreferenceType.Boolean),
+						new UltimatePreferenceItem<>(LABEL_STRING_OVERAPPROXIMATION_THRESHOLD,
+								DEFAULT_STRING_OVERAPPROXIMATION_THRESHOLD, DESC_STRING_OVERAPPROXIMATION_THRESHOLD,
+								PreferenceType.Integer),
+						new UltimatePreferenceItem<>(LABEL_BEHAVIOUR_UNDEFINED_FUNCTIONS,
+								UndefinedFunctionBehaviour.NON_DETERMINISTIC_RETURN, DESC_BEHAVIOUR_UNDEFINED_FUNCTIONS,
+								PreferenceType.Combo, UndefinedFunctionBehaviour.values())),
+				new UltimatePreferenceItem<>(LABEL_BITVECTOR_TRANSLATION, false, PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_FP_TO_IEEE_BV_EXTENSION, false, PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_SMT_BOOL_ARRAYS_WORKAROUND, true, PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_USE_CONSTANT_ARRAYS, false, DESC_USE_CONSTANT_ARRAYS,
+						PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_USE_STORE_CHAINS, false, "Only for benchmarking -- do not use",
+						PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_ENFORCE_IF_FOR_CONDITIONAL, false, DESC_ENFORCE_IF_FOR_CONDITIONAL,
+						PreferenceType.Boolean),
+				new UltimatePreferenceItem<>(LABEL_FIXED_ADDRESSES_FOR_INITIALIZATION, true,
+						DESC_FIXED_ADDRESSES_FOR_INITIALIZATION, PreferenceType.Boolean) };
+	}
+}

@@ -1,5 +1,11 @@
 * text=auto eol=lf
 
+# Preserve upstream/evidence formatting without making git diff --check block on
+# historical trailing whitespace in imported artifacts.
+artifact/evidence/** -whitespace
+benchmarks/datasets/** -whitespace
+benchmarks/specs/** -whitespace
+third_party/** -whitespace
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.ps1 text eol=crlf
