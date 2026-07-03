@@ -36,6 +36,7 @@ from dslc.toolchain.ultimate_runner import extract_result_line as ultimate_extra
 from dslc.toolchain.ultimate_runner import run_ultimate
 from dslc.utils.repo import repo_root
 from dslc.workflows.wraparound_support.distcache import (
+    _abstract_distcache_partition_hashes_to_caps,
     _apply_hash_caps_to_bpl,
     _infer_distcache_cache_frequency_get_optype,
     _infer_distcache_cache_frequency_update_profile,
@@ -928,13 +929,27 @@ def run_wraparound_cegis(
     partition_ports: Dict[str, int] = {}
     if _is_distcache_like(spec_text):
         caps = _infer_distcache_hash_caps(spec_text, spec_dir=spec_path.parent)
+        partition_ports = _infer_distcache_partition_eports(spec_text, spec_dir=spec_path.parent)
         if caps:
             node_prefixes = sorted(set(re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)_meta\.", base_text)))
-            patched = _apply_hash_caps_to_bpl(base_text, node_prefixes=node_prefixes, caps=caps)
+            abstract_caps = {
+                suffix: cap
+                for suffix, cap in caps.items()
+                if (suffix == "hashval_for_partition" and "leaf_eport" in partition_ports)
+                or (suffix == "hashval_for_spine_partition" and "spine_eport" in partition_ports)
+            }
+            patched = base_text
+            if abstract_caps:
+                patched = _abstract_distcache_partition_hashes_to_caps(
+                    patched,
+                    node_prefixes=node_prefixes,
+                    caps=abstract_caps,
+                )
+            remaining_caps = {suffix: cap for suffix, cap in caps.items() if suffix not in abstract_caps}
+            patched = _apply_hash_caps_to_bpl(patched, node_prefixes=node_prefixes, caps=remaining_caps)
             if patched != base_text:
                 base_text = patched
                 base_bpl.write_text(base_text, encoding="utf-8")
-        partition_ports = _infer_distcache_partition_eports(spec_text, spec_dir=spec_path.parent)
 
     # 4) Infer candidates from spec/meta unless caller provided an explicit candidate.
     if candidate is None:
@@ -1126,13 +1141,27 @@ def run_wraparound_cegis_multi(
     partition_ports: Dict[str, int] = {}
     if _is_distcache_like(spec_text):
         caps = _infer_distcache_hash_caps(spec_text, spec_dir=spec_path.parent)
+        partition_ports = _infer_distcache_partition_eports(spec_text, spec_dir=spec_path.parent)
         if caps:
             node_prefixes = sorted(set(re.findall(r"\b([A-Za-z_][A-Za-z0-9_]*)_meta\.", base_text)))
-            patched = _apply_hash_caps_to_bpl(base_text, node_prefixes=node_prefixes, caps=caps)
+            abstract_caps = {
+                suffix: cap
+                for suffix, cap in caps.items()
+                if (suffix == "hashval_for_partition" and "leaf_eport" in partition_ports)
+                or (suffix == "hashval_for_spine_partition" and "spine_eport" in partition_ports)
+            }
+            patched = base_text
+            if abstract_caps:
+                patched = _abstract_distcache_partition_hashes_to_caps(
+                    patched,
+                    node_prefixes=node_prefixes,
+                    caps=abstract_caps,
+                )
+            remaining_caps = {suffix: cap for suffix, cap in caps.items() if suffix not in abstract_caps}
+            patched = _apply_hash_caps_to_bpl(patched, node_prefixes=node_prefixes, caps=remaining_caps)
             if patched != base_text:
                 base_text = patched
                 base_bpl.write_text(base_text, encoding="utf-8")
-        partition_ports = _infer_distcache_partition_eports(spec_text, spec_dir=spec_path.parent)
 
     cands = infer_wraparound_candidates(
         spec_text=spec_text,

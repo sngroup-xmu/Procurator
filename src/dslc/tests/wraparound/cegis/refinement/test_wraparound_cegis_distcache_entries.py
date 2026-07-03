@@ -6,6 +6,7 @@ from pathlib import Path
 
 from dslc.utils.repo import repo_root
 from dslc.workflows.wraparound_cegis import (
+    _abstract_distcache_partition_hashes_to_caps,
     _infer_distcache_cache_frequency_get_optype,
     _infer_distcache_cache_frequency_update_profile,
     _infer_distcache_cache_lookup_idx,
@@ -58,6 +59,34 @@ class TestWraparoundCegisDistCacheEntries(unittest.TestCase):
             ports = _infer_distcache_partition_eports(spec_text, spec_dir=d)
             self.assertEqual(ports.get("leaf_eport"), 0x480)
             self.assertEqual(ports.get("spine_eport"), 0x1E)
+
+    def test_abstracts_precise_partition_hashes_to_capped_havoc(self) -> None:
+        bpl = "\n".join(
+            [
+                "procedure {:inline 1} clientTrack_partitionswitchIngress_hash_for_partition()",
+                "  modifies clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition;",
+                "{",
+                "  clientTrack_meta.hashval_for_partition := clientTrack___p4b_crc32_bmv2_byte(4294967295bv32, 0bv8)[16:0];",
+                "  assume(buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16) && bule.bv16(clientTrack_meta.hashval_for_partition, 32767bv16));",
+                "  clientTrack_meta.hashval_for_spine_partition := clientTrack_hash_csum16$bv16$bv32(0bv16, 0bv32);",
+                "  assume(buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16) && bule.bv16(clientTrack_meta.hashval_for_spine_partition, 32767bv16));",
+                "}",
+                "",
+            ]
+        )
+
+        out = _abstract_distcache_partition_hashes_to_caps(
+            bpl,
+            node_prefixes=["clientTrack"],
+            caps={"hashval_for_partition": 15, "hashval_for_spine_partition": 15},
+        )
+
+        self.assertNotIn("__p4b_crc32_bmv2_byte", out)
+        self.assertNotIn("clientTrack_hash_csum16", out)
+        self.assertIn("havoc clientTrack_meta.hashval_for_partition;", out)
+        self.assertIn("assume(bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16));", out)
+        self.assertIn("havoc clientTrack_meta.hashval_for_spine_partition;", out)
+        self.assertIn("assume(bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16));", out)
 
 
 if __name__ == "__main__":

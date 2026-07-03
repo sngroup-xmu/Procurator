@@ -69,7 +69,7 @@ def _infer_distcache_hash_caps(spec_text: str, *, spec_dir: Path) -> Dict[str, i
 
 
 def _infer_distcache_partition_eports(spec_text: str, *, spec_dir: Path) -> Dict[str, int]:
-    ports: Dict[str, int] = {}
+    seen: Dict[str, set[int]] = {}
     entries_paths = [m.group(1) for m in _RE_PROP_IMPORT_ENTRIES.finditer(spec_text)]
     for rel in entries_paths:
         p = (spec_dir / rel).resolve()
@@ -80,10 +80,10 @@ def _infer_distcache_partition_eports(spec_text: str, *, spec_dir: Path) -> Dict
             table = m.group("table")
             eport = int(m.group("eport"), 16)
             if "hash_leaf_partition_tbl" in table:
-                ports["leaf_eport"] = eport
+                seen.setdefault("leaf_eport", set()).add(eport)
             if "hash_spine_partition_tbl" in table:
-                ports["spine_eport"] = eport
-    return ports
+                seen.setdefault("spine_eport", set()).add(eport)
+    return {k: next(iter(v)) for k, v in seen.items() if len(v) == 1}
 
 
 def _infer_distcache_cache_lookup_idx(spec_text: str, *, spec_dir: Path) -> Optional[int]:
@@ -235,3 +235,57 @@ def _apply_hash_caps_to_bpl(bpl_text: str, *, node_prefixes: Sequence[str], caps
             break
 
     return "".join(out_lines)
+
+
+def _abstract_distcache_partition_hashes_to_caps(
+    bpl_text: str,
+    *,
+    node_prefixes: Sequence[str],
+    caps: Dict[str, int],
+) -> str:
+    """
+    Summarize DistCache partition hashes when table-observable behavior is fixed.
+
+    This is intentionally narrower than a generic hash downgrade.  The caller only
+    invokes it after the control-plane entries show that the corresponding
+    partition table maps the configured hash range to a single eport.  In that
+    setting the downstream table behavior depends on membership in the capped
+    range, not on the exact CRC/checksum expression.
+    """
+
+    if not caps:
+        return bpl_text
+
+    wanted: Dict[str, int] = {}
+    for suffix, cap in caps.items():
+        for pref in node_prefixes:
+            wanted[f"{pref}_meta.{suffix}"] = cap
+
+    if not wanted:
+        return bpl_text
+
+    assign_re = re.compile(r"^(?P<indent>\s*)(?P<lhs>[A-Za-z_][A-Za-z0-9_.]*)\s*:=\s*(?P<rhs>.*);\s*$")
+    out_lines: List[str] = []
+    changed = False
+    for line in bpl_text.splitlines(keepends=True):
+        m = assign_re.match(line.rstrip("\n"))
+        if not m:
+            out_lines.append(line)
+            continue
+        lhs = m.group("lhs")
+        cap = wanted.get(lhs)
+        rhs = m.group("rhs")
+        if cap is None or not _looks_like_distcache_hash_expr(rhs):
+            out_lines.append(line)
+            continue
+        indent = m.group("indent")
+        out_lines.append(f"{indent}havoc {lhs};\n")
+        out_lines.append(f"{indent}assume(buge.bv16({lhs}, 0bv16));\n")
+        out_lines.append(f"{indent}assume(bule.bv16({lhs}, {cap}bv16));\n")
+        changed = True
+
+    return "".join(out_lines) if changed else bpl_text
+
+
+def _looks_like_distcache_hash_expr(expr: str) -> bool:
+    return "__p4b_crc" in expr or "hash_csum" in expr or "_hash_" in expr
