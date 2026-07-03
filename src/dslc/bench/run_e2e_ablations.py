@@ -730,8 +730,9 @@ def main(argv: list[str]) -> int:
             use_spec_max_steps=False,
             extra_args=["--no-slicing-control-seeds"],
             notes="",
-            # Base run tends to OOM under the 2GB/4GB Z3 profiles; prefer the 8GB profile first.
-            base_settings="src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf",
+            # Base run OOMs under the 2GB/4GB profiles and can still OOM in
+            # TraceAbstraction under plain 8GB; use 8GB small-blocks.
+            base_settings="src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
         Bench(
             name="NetLock: push_back length_in_server underflow",
