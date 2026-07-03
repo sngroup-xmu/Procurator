@@ -992,6 +992,36 @@ def _bool_expr_known_false(
     )
 
 
+_RE_DIRECT_ARRAY_READ = re.compile(
+    r"(?P<name>[A-Za-z_][A-Za-z0-9_.]*)\[(?P<idx>[^\[\]]+)\]"
+)
+
+
+def _replace_known_array_reads(
+    expr: str,
+    *,
+    arrays: Dict[str, Dict[Tuple[int, int], BvValue]],
+    array_default: Dict[str, BvValue],
+    const_eq: Dict[str, int],
+    var_types: Dict[str, str],
+) -> str:
+    def repl(match: re.Match[str]) -> str:
+        name = match.group("name")
+        reg_decl = _RE_REG_ARRAY_TYPE.match(var_types.get(name, ""))
+        if reg_decl is None:
+            return match.group(0)
+        index = eval_bv_expr(match.group("idx").strip(), const_eq=const_eq, var_types=var_types)
+        expected_index_width = bv_width(reg_decl.group("idx"))
+        if index is None or expected_index_width != index.width:
+            return match.group(0)
+        value = arrays.get(name, {}).get((index.width, index.value), array_default.get(name))
+        if value is None:
+            return match.group(0)
+        return f"{value.value}bv{value.width}"
+
+    return _RE_DIRECT_ARRAY_READ.sub(repl, expr)
+
+
 class _FocusedTextualReplay:
     def __init__(
         self,
@@ -1463,6 +1493,27 @@ class _BoundedDslTextualReplay:
             self.stop_current = prev_stop
         return result
 
+    def _expr_with_known_array_reads(self, expr: str) -> str:
+        return _replace_known_array_reads(
+            expr,
+            arrays=self.arrays,
+            array_default=self.array_default,
+            const_eq=self.const_eq,
+            var_types=self.var_types,
+        )
+
+    def _bool_expr_value(self, expr: str) -> Optional[bool]:
+        return _bool_expr_value(
+            self._expr_with_known_array_reads(expr),
+            const_eq=self.const_eq,
+            bool_eq=self.bool_eq,
+            int_eq=self.int_eq,
+            var_types=self.var_types,
+        )
+
+    def _bool_expr_known_false(self, expr: str) -> bool:
+        return self._bool_expr_value(expr) is False
+
     def run_lines(self, lines: Sequence[str], *, depth: int = 0) -> bool:
         if depth > _FOCUSED_REPLAY_MAX_DEPTH:
             self.unsupported = True
@@ -1516,13 +1567,7 @@ class _BoundedDslTextualReplay:
             if cond is not None and "{" in raw:
                 then_body, next_i, tail = _split_block_lines_with_tail(lines, i)
                 else_chain, after_else = _else_chain_branches(lines, next_i=next_i, inline_tail=tail)
-                cond_value = _bool_expr_value(
-                    cond,
-                    const_eq=self.const_eq,
-                    bool_eq=self.bool_eq,
-                    int_eq=self.int_eq,
-                    var_types=self.var_types,
-                )
+                cond_value = self._bool_expr_value(cond)
                 selected: Optional[List[str]] = None
                 if cond_value is True:
                     selected = then_body
@@ -1531,13 +1576,7 @@ class _BoundedDslTextualReplay:
                         if else_cond is None:
                             selected = else_body
                             break
-                        else_value = _bool_expr_value(
-                            else_cond,
-                            const_eq=self.const_eq,
-                            bool_eq=self.bool_eq,
-                            int_eq=self.int_eq,
-                            var_types=self.var_types,
-                        )
+                        else_value = self._bool_expr_value(else_cond)
                         if else_value is True:
                             selected = else_body
                             break
@@ -1593,13 +1632,7 @@ class _BoundedDslTextualReplay:
 
         m_latch = _RE_PROCURATOR_BAD_LATCH.match(stripped)
         if m_latch:
-            if _bool_expr_known_false(
-                m_latch.group("expr"),
-                const_eq=self.const_eq,
-                bool_eq=self.bool_eq,
-                int_eq=self.int_eq,
-                var_types=self.var_types,
-            ):
+            if self._bool_expr_known_false(m_latch.group("expr")):
                 self.bool_eq["procurator_bad"] = True
             return False
 
@@ -1642,13 +1675,7 @@ class _BoundedDslTextualReplay:
 
         m_assert = _RE_ASSERT.match(stripped)
         if m_assert:
-            value = _bool_expr_value(
-                m_assert.group("expr"),
-                const_eq=self.const_eq,
-                bool_eq=self.bool_eq,
-                int_eq=self.int_eq,
-                var_types=self.var_types,
-            )
+            value = self._bool_expr_value(m_assert.group("expr"))
             if value is False:
                 self.path_found = True
                 return True
@@ -1686,13 +1713,7 @@ class _BoundedDslTextualReplay:
         return False
 
     def _apply_assume(self, expr: str) -> bool:
-        value = _bool_expr_value(
-            expr,
-            const_eq=self.const_eq,
-            bool_eq=self.bool_eq,
-            int_eq=self.int_eq,
-            var_types=self.var_types,
-        )
+        value = self._bool_expr_value(expr)
         if value is False:
             self.unsupported = True
             return False
@@ -1760,13 +1781,7 @@ class _BoundedDslTextualReplay:
             if value is not None and value.width == lhs_width:
                 self.const_eq[lhs] = value.value
             return
-        bool_value = _bool_expr_value(
-            rhs,
-            const_eq=self.const_eq,
-            bool_eq=self.bool_eq,
-            int_eq=self.int_eq,
-            var_types=self.var_types,
-        )
+        bool_value = self._bool_expr_value(rhs)
         int_value = _int_expr_value(rhs, int_eq=self.int_eq)
         self.const_eq.pop(lhs, None)
         self.bool_eq.pop(lhs, None)
@@ -1869,13 +1884,7 @@ class _BoundedDslTextualReplay:
 
     def _accept_known_bad_guard(self) -> bool:
         for expr in self.bad_guard_exprs:
-            if _bool_expr_known_false(
-                expr,
-                const_eq=self.const_eq,
-                bool_eq=self.bool_eq,
-                int_eq=self.int_eq,
-                var_types=self.var_types,
-            ):
+            if self._bool_expr_known_false(expr):
                 self.bool_eq["procurator_bad"] = True
                 self.path_found = True
                 return True

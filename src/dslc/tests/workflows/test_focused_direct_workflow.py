@@ -344,6 +344,40 @@ procedure ULTIMATE.start() returns()
 """
 
 
+def _bounded_dsl_guard_with_direct_array_read_before_unknown_tail_bpl(*, known_default: bool = True) -> str:
+    default_assume = "  assume (forall i:bv32 :: counter[i] == 0bv32);\n" if known_default else ""
+    return """\
+var procurator_bad:bool;
+var cached:bv1;
+var src:bv32;
+var counter:[bv32]bv32;
+
+procedure p4_tail() returns()
+  modifies src;
+{
+  if (src == 1bv32) {
+    src := 2bv32;
+  }
+}
+
+procedure mainProcedure() returns()
+  modifies procurator_bad, cached, src, counter;
+{
+  procurator_bad := false;
+  cached := 1bv1;
+""" + default_assume + """  call p4_tail();
+  if (!((cached == 0bv1) || (counter[7bv32] != 0bv32))) { procurator_bad := true; }
+  assert !procurator_bad;
+}
+
+procedure ULTIMATE.start() returns()
+  modifies procurator_bad, cached, src, counter;
+{
+  call mainProcedure();
+}
+"""
+
+
 def _run_prepass(
     tmp: Path,
     *,
@@ -485,6 +519,34 @@ class TestFocusedDirectWorkflow(unittest.TestCase):
 
             self.assertEqual(rc, 1)
             self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_accepts_direct_array_guard_before_unknown_tail(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(
+                _bounded_dsl_guard_with_direct_array_read_before_unknown_tail_bpl(),
+                encoding="utf-8",
+            )
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 1)
+            self.assertIsNotNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
+
+    def test_bounded_dsl_replay_rejects_direct_array_guard_with_unknown_slot(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bpl = tmp / "case.bpl"
+            bpl.write_text(
+                _bounded_dsl_guard_with_direct_array_read_before_unknown_tail_bpl(known_default=False),
+                encoding="utf-8",
+            )
+
+            rc = run_bounded_dsl_replay_prepass(bpl_path=bpl, log_dir=tmp, emit=lambda _msg: None)
+
+            self.assertEqual(rc, 0)
+            self.assertIsNone(bounded_dsl_replay_marker_for_bpl(out_dir=tmp, bpl_path=bpl))
 
     def test_bounded_dsl_replay_rejects_unknown_tail_when_final_guard_is_unknown(self) -> None:
         with tempfile.TemporaryDirectory() as td:
