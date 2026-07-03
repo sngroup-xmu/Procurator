@@ -50,7 +50,7 @@ class TestClosureTableSpecialization(unittest.TestCase):
 
         table_body = _proc_body(out, "tbl.apply")
         self.assertIn("goto action_set, action_noaction;", table_body)
-        self.assertIn("call set_result", table_body)
+        self.assertIn("result := 7bv8;", table_body)
         self.assertIn("call noaction();", table_body)
 
     def test_closure_does_not_specialize_unfixed_table(self) -> None:
@@ -65,7 +65,7 @@ class TestClosureTableSpecialization(unittest.TestCase):
 
         table_body = _proc_body(out, "tbl.apply")
         self.assertIn("goto action_set, action_noaction;", table_body)
-        self.assertIn("call set_result", table_body)
+        self.assertIn("result := 7bv8;", table_body)
         self.assertIn("call noaction();", table_body)
 
     def test_closure_keeps_table_body_when_fixed_value_has_no_branch(self) -> None:
@@ -81,7 +81,7 @@ class TestClosureTableSpecialization(unittest.TestCase):
 
         table_body = _proc_body(out, "tbl.apply")
         self.assertIn("goto action_set, action_noaction;", table_body)
-        self.assertIn("call set_result", table_body)
+        self.assertIn("result := 7bv8;", table_body)
         self.assertIn("call noaction();", table_body)
 
 

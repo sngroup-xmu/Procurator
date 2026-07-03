@@ -6,6 +6,8 @@ from typing import Optional, Sequence
 
 from .boogie.closure_simplify import (
     eliminate_identity_register_writebacks,
+    expand_register_write_calls,
+    inline_simple_procedure_calls,
     simplify_deterministic_closure_blocks,
     specialize_fixed_table_branches,
 )
@@ -460,6 +462,8 @@ def instrument_bpl_text(
         simplify_bv_constant_assignments(lines, var_types=var_types)
         specialize_fixed_table_branches(lines, assumptions=extra_assumes or (), var_types=var_types)
         eliminate_identity_register_writebacks(lines, var_types=var_types)
+        expand_register_write_calls(lines, var_types=var_types)
+        inline_simple_procedure_calls(lines)
         simplify_deterministic_closure_blocks(lines, var_types=var_types)
         no_nl_lines = [ln.rstrip("\n") for ln in lines]
         unrolled = "".join(lines)

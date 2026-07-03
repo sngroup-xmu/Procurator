@@ -185,6 +185,71 @@ def eliminate_identity_register_writebacks(lines: List[str], *, var_types: Dict[
         i += 1
 
 
+def expand_register_write_calls(lines: List[str], *, var_types: Dict[str, str]) -> None:
+    """Inline remaining register write helpers in closure proof tasks.
+
+    Ultimate's procedure-contract pass may derive caller ensures that mention
+    register-write helper formals.  Expanding writes keeps the proof task in
+    terms of globals and call-site expressions only.
+    """
+
+    i = 0
+    while i < len(lines):
+        mwrite = _RE_WRITE_CALL.match(lines[i])
+        if not mwrite:
+            i += 1
+            continue
+        reg = mwrite.group("reg")
+        idx_expr = mwrite.group("idx").strip()
+        value_expr = mwrite.group("value").strip()
+        replacement = _expanded_register_write_lines(
+            reg=reg,
+            idx_expr=idx_expr,
+            value_expr=value_expr,
+            indent=mwrite.group("indent"),
+            var_types=var_types,
+        )
+        if not replacement:
+            i += 1
+            continue
+        lines[i : i + 1] = replacement
+        i += len(replacement)
+
+
+def inline_simple_procedure_calls(lines: List[str]) -> None:
+    """Inline simple parameterized helpers to keep closure contracts global-only."""
+
+    procs = _simple_inline_procs(lines)
+    if not procs:
+        return
+
+    i = 0
+    while i < len(lines):
+        mcall = _RE_CALL_PROC.match(lines[i].strip())
+        if not mcall or mcall.group("lhs"):
+            i += 1
+            continue
+        proc = mcall.group("proc")
+        body = procs.get(proc)
+        if body is None:
+            i += 1
+            continue
+        args = _split_csv(mcall.group("args"))
+        params, body_lines = body
+        if len(args) != len(params):
+            i += 1
+            continue
+        subst = dict(zip(params, args))
+        indent = re.match(r"^\s*", lines[i]).group(0)
+        replacement = [
+            f"{indent}{_substitute_formals(stmt.strip(), subst)}\n"
+            for stmt in body_lines
+            if stmt.strip()
+        ]
+        lines[i : i + 1] = replacement
+        i += len(replacement)
+
+
 def simplify_deterministic_closure_blocks(lines: List[str], *, var_types: Dict[str, str]) -> None:
     """Fold straight-line deterministic harness branches inside mainProcedure."""
 
@@ -620,6 +685,81 @@ def _mirror_only_writeback_lines(
             lines.append(f"{indent}    {reg}__last0_value := {value_expr};\n")
         lines.append(f"{indent}}}\n")
     return lines
+
+
+def _expanded_register_write_lines(
+    *,
+    reg: str,
+    idx_expr: str,
+    value_expr: str,
+    indent: str,
+    var_types: Dict[str, str],
+) -> List[str]:
+    mirror_lines = _mirror_only_writeback_lines(
+        reg=reg,
+        idx_expr=idx_expr,
+        value_expr=value_expr,
+        indent=indent,
+        var_types=var_types,
+    )
+    if not mirror_lines:
+        return []
+    store_line = f"{indent}{reg}[{idx_expr}] := {value_expr};\n"
+    if mirror_lines and f"{reg}__last_old_value :=" in mirror_lines[0]:
+        return [mirror_lines[0], store_line, *mirror_lines[1:]]
+    return [store_line, *mirror_lines]
+
+
+def _simple_inline_procs(lines: Sequence[str]) -> Dict[str, Tuple[List[str], List[str]]]:
+    out: Dict[str, Tuple[List[str], List[str]]] = {}
+    i = 0
+    while i < len(lines):
+        if "{:inline 1}" not in lines[i]:
+            i += 1
+            continue
+        msig = _RE_PROC_SIG.match(lines[i])
+        if not msig or msig.group("returns"):
+            i += 1
+            continue
+        proc = msig.group("name")
+        if proc.endswith(".write"):
+            i += 1
+            continue
+        params = [name for name, _typ in _parse_typed_names(msig.group("params") or "")]
+        if not params:
+            i += 1
+            continue
+        block = _procedure_block(lines, i)
+        if block is None:
+            i += 1
+            continue
+        _start, open_idx, close_idx = block
+        body = lines[open_idx + 1 : close_idx]
+        if _is_simple_inline_body(body):
+            out[proc] = (params, list(body))
+        i = close_idx + 1
+    return out
+
+
+def _is_simple_inline_body(body: Sequence[str]) -> bool:
+    for line in body:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.endswith(":"):
+            return False
+        if stripped.startswith(_CONTROL_FLOW_PREFIXES):
+            return False
+        if stripped.startswith("call "):
+            return False
+    return True
+
+
+def _substitute_formals(stmt: str, subst: Dict[str, str]) -> str:
+    out = stmt
+    for name, value in sorted(subst.items(), key=lambda item: len(item[0]), reverse=True):
+        out = re.sub(rf"\b{re.escape(name)}\b", value, out)
+    return out
 
 
 def _previous_statement_index(lines: Sequence[str], start: int) -> Optional[int]:
