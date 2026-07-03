@@ -813,17 +813,54 @@ cstring Translator::translate(const IR::MethodCallExpression *methodCallExpressi
             return res;
         }
 
+        const auto *outExpr = (*methodCallExpression->arguments)[0]->expression;
         cstring arg0 = translate((*methodCallExpression->arguments)[0]);  // return addr
-
-        currentProcedure->addModifiedGlobalVariables(arg0);
         const auto *idxExpr = (*methodCallExpression->arguments)[1]->expression;
         cstring arg1 = translate((*methodCallExpression->arguments)[1]);  // index
         std::string assumeExpr = regIndexAssume(reg.c_str(), idxExpr, arg1.c_str());
         if (!assumeExpr.empty()) {
             res += getIndent() + "assume (" + assumeExpr + ");\n";
         }
-        res += arg0 + " := " + method + "(";
-        res += reg + ", " + arg1 + ")";
+        cstring readExpr = method + "(" + reg + ", " + arg1 + ")";
+
+        if (auto slice = outExpr != nullptr ? outExpr->to<IR::Slice>() : nullptr) {
+            cstring left = translate(slice->e0);
+            if (slice->e0 != nullptr && slice->e0->type != nullptr) {
+                if (auto typeBits = slice->e0->type->to<IR::Type_Bits>()) {
+                    updateModifiedVariables(left);
+                    updateMaxBitvectorSize(typeBits);
+
+                    int size, l, r;
+                    size = typeBits->size;
+                    std::stringstream ss;
+                    ss << translate(slice->e1);
+                    ss >> l;
+                    std::stringstream ss2;
+                    ss2 << translate(slice->e2);
+                    ss2 >> r;
+                    l++;
+
+                    res += left + " := ";
+                    if (options.ultimateAutomizer) {
+                        res += left + "-" + left + "%power_2_" + toString(l) + "() + "
+                            + readExpr + " * power_2_" + toString(r) + "() + "
+                            + left + " % power_2_" + toString(r) + "()";
+                    } else {
+                        if (l < size) {
+                            res += left + "[" + std::to_string(size) + ":" + std::to_string(l) + "]++";
+                        }
+                        res += readExpr;
+                        if (r > 0) {
+                            res += "++" + left + "[" + std::to_string(r) + ":0]";
+                        }
+                    }
+                    return res;
+                }
+            }
+        }
+
+        currentProcedure->addModifiedGlobalVariables(arg0);
+        res += arg0 + " := " + readExpr;
         return res;
     }
 

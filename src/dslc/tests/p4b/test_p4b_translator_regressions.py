@@ -13,6 +13,8 @@ from dslc.backends.boogie.node.p4b import _detect_missing_read_write_decls
 class TestP4BTranslatorRegressions(unittest.TestCase):
     def _p4b_bin(self, repo_root: Path) -> Path:
         candidates = [
+            repo_root / "src" / "p4b" / "source" / "build-host" / "backends" / "verify" / "p4c-translator",
+            repo_root / "src" / "p4b" / "source" / "build-host" / "p4c-translator",
             repo_root / "third_party" / "p4c" / "source" / "build-host" / "backends" / "verify" / "p4c-translator",
             repo_root / "third_party" / "p4c" / "source" / "build-host" / "p4c-translator",
         ]
@@ -20,6 +22,46 @@ class TestP4BTranslatorRegressions(unittest.TestCase):
             if p.exists():
                 return p
         return candidates[0]
+
+    def test_register_read_into_slice_lvalue_splices_whole_bitvector(self) -> None:
+        """Register read out-params must not emit invalid Boogie slice assignments."""
+
+        repo_root = repo_root_from_test(Path(__file__))
+        p4b_bin = self._p4b_bin(repo_root)
+        if not p4b_bin.exists():
+            self.skipTest("p4c translator not built")
+
+        p4 = repo_root / "benchmarks" / "datasets" / "P4NIS" / "P4NIS.p4"
+        entries = repo_root / "benchmarks" / "datasets" / "P4NIS" / "commands_bug2_tunnel_state_leakage_seed.txt"
+        p4include = repo_root / "src" / "p4b" / "source" / "p4include"
+        if not p4.exists() or not entries.exists() or not p4include.is_dir():
+            self.skipTest("missing P4NIS dataset, commands, or p4include")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_bpl = Path(td) / "p4nis.bpl"
+            cmd = [
+                str(p4b_bin),
+                "--std",
+                "p4-16",
+                "-I",
+                str(p4include),
+                "--goto",
+                "--bmv2cmds",
+                str(entries),
+                "-o",
+                str(out_bpl),
+                str(p4),
+            ]
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+            text = out_bpl.read_text(encoding="utf-8", errors="replace")
+
+        self.assertNotRegex(text, r"\b[A-Za-z0-9_]*hdr\.tcp\.(?:sequence|ackseq)\[[0-9]+:[0-9]+\]\s*:=")
+        self.assertRegex(
+            text,
+            r"(?:s1_)?hdr\.tcp\.sequence\s*:=\s*(?:s1_)?hdr\.tcp\.sequence\[32:8\]\+\+"
+            r"(?:s1_)?es_box\.read\((?:s1_)?es_box,\s*0bv24\+\+(?:s1_)?hdr\.tcp\.sequence\[8:0\]\)",
+        )
 
     def test_atp_register_slicing_emits_register_decls(self) -> None:
         """Regression: slicing must not leave dangling register reads/writes without decls."""
