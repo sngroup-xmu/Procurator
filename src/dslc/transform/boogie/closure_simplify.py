@@ -34,7 +34,9 @@ _RE_WRITE_CALL = re.compile(
     r"^(?P<indent>\s*)call\s+(?P<reg>[A-Za-z_][A-Za-z0-9_.]*)\.write"
     r"\(\s*(?P<idx>.+?)\s*,\s*(?P<value>.+?)\s*\)\s*;\s*$"
 )
-_RE_REG_TYPE = re.compile(r"^\s*\[\s*bv(?P<idx>\d+)\s*\]\s*bv(?P<elem>\d+)\s*$")
+_RE_REG_TYPE = re.compile(r"^\s*\[\s*(?P<idx>[^]]+)\s*\]\s*(?P<elem>\S+)\s*$")
+_RE_TYPE_ALIAS = re.compile(r"^\s*type\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?P<rhs>[^;]+)\s*;\s*$")
+_RE_BV_TYPE = re.compile(r"^bv(?P<w>\d+)$")
 _RE_IF_HEADER = re.compile(r"^\s*if\s*\((?P<cond>.*)\)\s*\{\s*$")
 _RE_INT_LIT_ASSIGN = re.compile(r"^\s*(?P<var>[A-Za-z_][A-Za-z0-9_.]*)\s*:=\s*(?P<value>-?\d+)\s*;\s*$")
 _RE_BOOL_LIT_ASSIGN = re.compile(
@@ -118,6 +120,7 @@ def eliminate_identity_register_writebacks(lines: List[str], *, var_types: Dict[
     identity_apply = _identity_first_return_apply_procs(lines)
     if not identity_apply:
         return
+    type_aliases = _collect_bv_type_aliases(lines)
 
     i = 0
     while i < len(lines):
@@ -177,6 +180,7 @@ def eliminate_identity_register_writebacks(lines: List[str], *, var_types: Dict[
             value_expr=value_var,
             indent=mwrite.group("indent"),
             var_types=var_types,
+            type_aliases=type_aliases,
         )
         if replacement:
             lines[write_idx : write_idx + 1] = replacement
@@ -193,6 +197,7 @@ def expand_register_write_calls(lines: List[str], *, var_types: Dict[str, str]) 
     terms of globals and call-site expressions only.
     """
 
+    type_aliases = _collect_bv_type_aliases(lines)
     i = 0
     while i < len(lines):
         mwrite = _RE_WRITE_CALL.match(lines[i])
@@ -208,6 +213,7 @@ def expand_register_write_calls(lines: List[str], *, var_types: Dict[str, str]) 
             value_expr=value_expr,
             indent=mwrite.group("indent"),
             var_types=var_types,
+            type_aliases=type_aliases,
         )
         if not replacement:
             i += 1
@@ -657,11 +663,12 @@ def _mirror_only_writeback_lines(
     value_expr: str,
     indent: str,
     var_types: Dict[str, str],
+    type_aliases: Dict[str, str],
 ) -> List[str]:
-    mtyp = _RE_REG_TYPE.match(var_types.get(reg, ""))
-    if not mtyp:
+    widths = _register_type_widths(var_types.get(reg, ""), type_aliases=type_aliases)
+    if widths is None:
         return []
-    idx_width = int(mtyp.group("idx"))
+    idx_width, _elem_width = widths
     lines: List[str] = []
 
     def has(suffix: str) -> bool:
@@ -697,6 +704,7 @@ def _expanded_register_write_lines(
     value_expr: str,
     indent: str,
     var_types: Dict[str, str],
+    type_aliases: Dict[str, str],
 ) -> List[str]:
     mirror_lines = _mirror_only_writeback_lines(
         reg=reg,
@@ -704,6 +712,7 @@ def _expanded_register_write_lines(
         value_expr=value_expr,
         indent=indent,
         var_types=var_types,
+        type_aliases=type_aliases,
     )
     if not mirror_lines:
         return []
@@ -711,6 +720,43 @@ def _expanded_register_write_lines(
     if mirror_lines and f"{reg}__last_old_value :=" in mirror_lines[0]:
         return [mirror_lines[0], store_line, *mirror_lines[1:]]
     return [store_line, *mirror_lines]
+
+
+def _collect_bv_type_aliases(lines: Sequence[str]) -> Dict[str, str]:
+    aliases: Dict[str, str] = {}
+    for line in lines:
+        m = _RE_TYPE_ALIAS.match(line)
+        if not m:
+            continue
+        aliases[m.group("name")] = m.group("rhs").strip()
+    return aliases
+
+
+def _register_type_widths(type_text: str, *, type_aliases: Dict[str, str]) -> Optional[Tuple[int, int]]:
+    mtyp = _RE_REG_TYPE.match(type_text)
+    if not mtyp:
+        return None
+    idx_width = _resolve_bv_type_width(mtyp.group("idx").strip(), type_aliases)
+    elem_width = _resolve_bv_type_width(mtyp.group("elem").strip(), type_aliases)
+    if idx_width is None or elem_width is None:
+        return None
+    return idx_width, elem_width
+
+
+def _resolve_bv_type_width(type_text: str, aliases: Dict[str, str]) -> Optional[int]:
+    cur = type_text.strip()
+    seen: set[str] = set()
+    while True:
+        m = _RE_BV_TYPE.match(cur)
+        if m:
+            return int(m.group("w"))
+        if cur in seen:
+            return None
+        seen.add(cur)
+        nxt = aliases.get(cur)
+        if nxt is None:
+            return None
+        cur = nxt.strip()
 
 
 def _simple_inline_procs(lines: Sequence[str]) -> Dict[str, Tuple[List[str], List[str]]]:
