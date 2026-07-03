@@ -31,11 +31,19 @@ class ArtifactEntrypointTests(unittest.TestCase):
                 self.assertEqual(data.get("profile"), path.name.removesuffix(".expected.json"))
 
     def test_shell_entrypoints_are_not_skeletons(self) -> None:
-        for name in ("run_core_28.sh", "run_wraparound_4.sh", "run_compile_runtime.sh"):
+        for name in (
+            "run_benchmark_case.sh",
+            "run_core_28.sh",
+            "run_wraparound_4.sh",
+            "run_compile_runtime.sh",
+        ):
             with self.subTest(script=name):
                 text = (ARTIFACT / "scripts" / name).read_text(encoding="utf-8")
                 self.assertNotIn("runner skeleton", text)
-                self.assertNotIn("exit 2", text)
+                if name == "run_benchmark_case.sh":
+                    self.assertIn("--bench", text)
+                    self.assertIn("validate_benchmark_case.py", text)
+                    self.assertNotIn("\n  --resume \\\n", text)
 
     def test_check_expected_rejects_pending_profiles(self) -> None:
         mod = _load_script("check_expected.py")
@@ -83,6 +91,68 @@ class ArtifactEntrypointTests(unittest.TestCase):
             )
             findings = mod.validate_actual(expected, actual)
             self.assertEqual([], findings)
+
+    def test_validate_benchmark_case_accepts_conclusive_nonwraparound_case(self) -> None:
+        mod = _load_script("validate_benchmark_case.py")
+        actual = {
+            "results": {
+                "benchmarks/specs/bench/atp_bug.prop": {
+                    "category": "implementation",
+                    "name": "ATP bound bug",
+                    "slicing": {
+                        "result": {
+                            "status": "UNSAFE",
+                            "sanity": "OK",
+                            "out_dir": "/tmp/procurator/atp",
+                        }
+                    },
+                }
+            }
+        }
+
+        findings = mod.validate_case_actual(actual, bench="atp_bug", only="slicing")
+        self.assertEqual([], findings)
+
+    def test_validate_benchmark_case_load_json_success_returns_no_findings(self) -> None:
+        mod = _load_script("validate_benchmark_case.py")
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "case.actual.json"
+            path.write_text(json.dumps({"results": {}}) + "\n", encoding="utf-8")
+
+            actual, findings = mod._load_json(path)
+
+        self.assertEqual({"results": {}}, actual)
+        self.assertEqual([], findings)
+
+    def test_validate_benchmark_case_rejects_inconclusive_status(self) -> None:
+        mod = _load_script("validate_benchmark_case.py")
+        actual = {
+            "results": {
+                "benchmarks/specs/bench/atp_bug.prop": {
+                    "category": "implementation",
+                    "name": "ATP bound bug",
+                    "slicing": {"result": {"status": "TIMEOUT", "sanity": "NA"}},
+                }
+            }
+        }
+
+        findings = mod.validate_case_actual(actual, bench="atp_bug", only="slicing")
+        self.assertTrue(any("inconclusive status TIMEOUT" in f.message for f in findings), findings)
+
+    def test_validate_benchmark_case_rejects_safe_wraparound_case(self) -> None:
+        mod = _load_script("validate_benchmark_case.py")
+        actual = {
+            "results": {
+                "benchmarks/specs/bench/netchain_wraparound_bug.prop": {
+                    "category": "wraparound",
+                    "name": "NetChain wrap-around bug",
+                    "slicing": {"result": {"status": "SAFE", "sanity": "NA"}},
+                }
+            }
+        }
+
+        findings = mod.validate_case_actual(actual, bench="netchain_wraparound_bug", only="slicing")
+        self.assertTrue(any("wraparound status SAFE is not UNSAFE" in f.message for f in findings), findings)
 
 
 if __name__ == "__main__":

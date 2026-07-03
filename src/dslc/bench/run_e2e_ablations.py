@@ -71,12 +71,16 @@ class RunResult:
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "src" / "dslc").is_dir() and (parent / "artifact").is_dir():
+            return parent
+    return here.parents[3]
 
 
 def _find_default_ultimate(root: Path) -> Optional[Path]:
-    # Keep in sync with USAGE.md "Common Ultimate settings".
-    candidates = [
+    candidates = sorted(root.glob(".tmp/orphan-worktree-*/UGemCutter-linux/Ultimate")) + [
+        # Legacy local layouts used by older run notes.
         root / ".tmp" / "orphan-worktree-20260129-005608" / "UGemCutter-linux" / "Ultimate",
         root / "UGemCutter-linux" / "Ultimate",
     ]

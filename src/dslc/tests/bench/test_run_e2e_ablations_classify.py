@@ -60,6 +60,33 @@ class TestRunE2EAblationsClassify(unittest.TestCase):
             "ERROR",
         )
 
+    def test_find_default_ultimate_accepts_setup_gemcutter_install_path(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from dslc.bench.run_e2e_ablations import _find_default_ultimate
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            ultimate = (
+                root
+                / ".tmp"
+                / "orphan-worktree-20260703-gemcutter"
+                / "UGemCutter-linux"
+                / "Ultimate"
+            )
+            ultimate.parent.mkdir(parents=True)
+            ultimate.write_text("#!/bin/sh\n", encoding="utf-8")
+
+            self.assertEqual(ultimate, _find_default_ultimate(root))
+
+    def test_repo_root_resolves_release_tree_root_after_src_move(self) -> None:
+        from pathlib import Path
+
+        from dslc.bench.run_e2e_ablations import _repo_root
+
+        self.assertEqual(Path(__file__).resolve().parents[4], _repo_root())
+
     def test_sanity_check_accepts_fresh_focused_marker(self) -> None:
         import hashlib
         import json

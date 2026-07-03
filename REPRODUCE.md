@@ -14,6 +14,18 @@ artifact/scripts/setup_gemcutter.sh
 artifact/scripts/run_smoke.sh
 ```
 
+Case-by-case benchmark reproduction:
+
+```bash
+artifact/scripts/run_benchmark_case.sh --bench netchain_wraparound_bug --only slicing
+artifact/scripts/run_benchmark_case.sh --bench netchain_wraparound_bug --only noslicing
+```
+
+Use this form while tuning or validating implementation changes. It writes one
+actual JSON under `.tmp/procurator/artifact/cases/` and checks only that case,
+without weakening fail-closed semantics. Re-run already-passing cases after a
+fix before expanding the regression set.
+
 Full profiles:
 
 ```bash
