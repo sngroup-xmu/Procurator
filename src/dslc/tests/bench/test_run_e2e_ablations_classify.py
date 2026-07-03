@@ -230,6 +230,39 @@ class TestRunE2EAblationsClassify(unittest.TestCase):
             dry_line,
         )
 
+    def test_gecko_bug2_dry_run_uses_base_smallblocks_profile(self) -> None:
+        import io
+        from contextlib import redirect_stdout
+        from pathlib import Path
+        from unittest import mock
+
+        from dslc.bench import run_e2e_ablations
+
+        ultimate = Path("/tmp/fake-ultimate")
+        with mock.patch.object(Path, "exists", return_value=True):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = run_e2e_ablations.main(
+                    [
+                        "--ultimate",
+                        str(ultimate),
+                        "--only",
+                        "noslicing",
+                        "--bench",
+                        "gecko_bug2",
+                        "--dry-run",
+                    ]
+                )
+
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        dry_line = next(line for line in out.splitlines() if line.startswith("[DRY]"))
+        self.assertIn("--no-slicing --no-env-prune", dry_line)
+        self.assertIn(
+            "--settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
+            dry_line,
+        )
+
     def test_ddosd_dry_run_uses_opt_smallblocks_profile(self) -> None:
         import io
         from contextlib import redirect_stdout

@@ -652,7 +652,11 @@ def main(argv: list[str]) -> int:
             # The sliced side can OOM in Z3 RCFG construction under the
             # default 2GB profile; use the same stable profile as the other
             # large Gecko cases.
+            # The unsliced/base side fails for the same reason during RCFG
+            # construction, so pin it to the same high-memory small-blocks
+            # profile instead of treating OOM as evidence.
             opt_settings="src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
+            base_settings="src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
         ),
         Bench(
             name="Gecko bug3: Improper Timer Initialization (NSDI)",
