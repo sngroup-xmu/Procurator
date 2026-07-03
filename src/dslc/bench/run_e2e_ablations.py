@@ -162,6 +162,10 @@ def _refine_error_from_log(*, status: str, log_path: Optional[str]) -> str:
         return "OOM"
     if "result: ultimate could not prove your program: timeout" in lo:
         return "TIMEOUT"
+    if "cannot interrupt operation gracefully because timeout expired" in lo:
+        return "TIMEOUT"
+    if "timeout expired. forcing shutdown" in lo:
+        return "TIMEOUT"
     return status
 
 

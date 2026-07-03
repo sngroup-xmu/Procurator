@@ -60,6 +60,22 @@ class TestRunE2EAblationsClassify(unittest.TestCase):
             "ERROR",
         )
 
+    def test_refine_error_from_forced_shutdown_timeout_log(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from dslc.bench.run_e2e_ablations import _refine_error_from_log
+
+        with tempfile.TemporaryDirectory() as td:
+            log = Path(td) / "gemcutter.log"
+            log.write_text(
+                "Received shutdown request...\n"
+                "Cannot interrupt operation gracefully because timeout expired. Forcing shutdown\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(_refine_error_from_log(status="ERROR", log_path=str(log)), "TIMEOUT")
+
     def test_find_default_ultimate_accepts_setup_gemcutter_install_path(self) -> None:
         import tempfile
         from pathlib import Path
