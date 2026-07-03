@@ -558,13 +558,16 @@ def _find_plain_if_end(lines: Sequence[str], if_idx: int) -> Optional[int]:
     depth = 0
     saw_open = False
     for i in range(if_idx, len(lines)):
-        for ch in _strip_attrs(lines[i]):
+        line = _strip_attrs(lines[i])
+        for pos, ch in enumerate(line):
             if ch == "{":
                 depth += 1
                 saw_open = True
             elif ch == "}":
                 depth -= 1
                 if saw_open and depth == 0:
+                    if re.match(r"^\s*else\b", line[pos + 1 :]):
+                        return None
                     if i + 1 < len(lines) and lines[i + 1].lstrip().startswith("else"):
                         return None
                     return i
