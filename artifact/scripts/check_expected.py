@@ -25,6 +25,12 @@ class Finding:
     message: str
 
 
+def _remove_suffix(text: str, suffix: str) -> str:
+    if suffix and text.endswith(suffix):
+        return text[: -len(suffix)]
+    return text
+
+
 def _load_json(path: Path) -> tuple[Any | None, list[Finding]]:
     if not path.exists():
         return None, [Finding(f"missing JSON file: {path}")]
@@ -37,7 +43,7 @@ def _load_json(path: Path) -> tuple[Any | None, list[Finding]]:
 def _profile_from_expected(path: Path, data: Any) -> str:
     if isinstance(data, dict) and isinstance(data.get("profile"), str):
         return str(data["profile"])
-    return path.name.removesuffix(".expected.json")
+    return _remove_suffix(path.name, ".expected.json")
 
 
 def _validate_expected_json(path: Path) -> list[Finding]:
@@ -49,7 +55,7 @@ def _validate_expected_json(path: Path) -> list[Finding]:
 
     out: list[Finding] = []
     profile = _profile_from_expected(path, data)
-    expected_profile = path.name.removesuffix(".expected.json")
+    expected_profile = _remove_suffix(path.name, ".expected.json")
     if profile != expected_profile:
         out.append(Finding(f"{path} profile {profile!r} does not match filename {expected_profile!r}"))
 
@@ -226,7 +232,7 @@ def validate_actual(expected_file: Path, actual_file: Path) -> list[Finding]:
 
 
 def _default_actual_for(expected_file: Path) -> Path:
-    profile = expected_file.name.removesuffix(".expected.json")
+    profile = _remove_suffix(expected_file.name, ".expected.json")
     return Path(".tmp") / "procurator" / "artifact" / f"{profile}.actual.json"
 
 

@@ -14,6 +14,12 @@ ROOT = Path(__file__).resolve().parents[4]
 ARTIFACT = ROOT / "artifact"
 
 
+def _remove_suffix(text: str, suffix: str) -> str:
+    if suffix and text.endswith(suffix):
+        return text[: -len(suffix)]
+    return text
+
+
 def _load_script(name: str):
     path = ARTIFACT / "scripts" / name
     spec = importlib.util.spec_from_file_location(name.replace(".", "_"), path)
@@ -30,7 +36,7 @@ class ArtifactEntrypointTests(unittest.TestCase):
             with self.subTest(path=path.name):
                 data = json.loads(path.read_text(encoding="utf-8"))
                 self.assertNotIn(data.get("status"), {"pending", "skeleton"})
-                self.assertEqual(data.get("profile"), path.name.removesuffix(".expected.json"))
+                self.assertEqual(data.get("profile"), _remove_suffix(path.name, ".expected.json"))
                 if data.get("profile") == "core_28":
                     notes = data.get("notes", "")
                     self.assertIn("casewise", notes)

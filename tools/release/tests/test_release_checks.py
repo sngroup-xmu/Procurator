@@ -10,7 +10,8 @@ TOOLS_DIR = REPO_ROOT / "tools" / "release"
 
 def load_script(name: str):
     path = TOOLS_DIR / name
-    spec = importlib.util.spec_from_file_location(name.removesuffix(".py"), path)
+    module_name = name[:-3] if name.endswith(".py") else name
+    spec = importlib.util.spec_from_file_location(module_name, path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     sys.modules[spec.name] = module
