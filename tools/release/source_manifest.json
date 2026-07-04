@@ -51,7 +51,6 @@
     "docs/superpowers/**",
     "third_party/legacy-translator/**",
     "benchmarks/datasets/Blink/**",
-    "benchmarks/datasets/clone_fanout/**",
     "benchmarks/datasets/external_henna/**",
     "benchmarks/datasets/farreach/**",
     "benchmarks/datasets/horus-p4/**",

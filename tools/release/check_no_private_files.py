@@ -60,8 +60,6 @@ FORBIDDEN_PATTERNS = (
     "OPERATE.md",
     "benchmarks/datasets/Blink",
     "benchmarks/datasets/Blink/**",
-    "benchmarks/datasets/clone_fanout",
-    "benchmarks/datasets/clone_fanout/**",
     "benchmarks/datasets/external_henna",
     "benchmarks/datasets/external_henna/**",
     "benchmarks/datasets/farreach",

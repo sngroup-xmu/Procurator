@@ -65,7 +65,6 @@ docs/legacy/
 
 # Legacy benchmark source drops not referenced by retained specs.
 /benchmarks/datasets/Blink/
-/benchmarks/datasets/clone_fanout/
 /benchmarks/datasets/external_henna/
 /benchmarks/datasets/farreach/
 /benchmarks/datasets/horus-p4/
