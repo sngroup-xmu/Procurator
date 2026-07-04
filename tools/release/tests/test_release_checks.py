@@ -172,7 +172,6 @@ def test_license_manifest_requires_core_third_party_entries(tmp_path):
     third_party = tmp_path / "third_party"
     third_party.mkdir()
     manifest = third_party / "MANIFEST.json"
-    license_notes = third_party / "LICENSES.md"
     manifest.write_text(
         json.dumps(
             {
@@ -194,8 +193,6 @@ def test_license_manifest_requires_core_third_party_entries(tmp_path):
         ),
         encoding="utf-8",
     )
-    license_notes.write_text("p4c\nUltimate\n", encoding="utf-8")
-
     findings = checker.validate_license_manifest(tmp_path)
 
     assert any("z3" in finding.message for finding in findings)
@@ -227,8 +224,6 @@ def test_license_manifest_does_not_require_p4b_as_third_party(tmp_path):
         ),
         encoding="utf-8",
     )
-    (third_party / "LICENSES.md").write_text("Ultimate\nZ3\n", encoding="utf-8")
-
     findings = checker.validate_license_manifest(tmp_path)
 
     assert not any("p4c" in finding.message.lower() for finding in findings)

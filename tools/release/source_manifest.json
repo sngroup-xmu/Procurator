@@ -3,7 +3,6 @@
     "src/**",
     "third_party/MANIFEST.json",
     "third_party/README.md",
-    "third_party/LICENSES.md",
     "third_party/ultimate/**",
     "third_party/z3/**",
     "benchmarks/specs/**",
