@@ -64,8 +64,7 @@ artifact/scripts/run_smoke.sh
 The GemCutter runtime is downloaded into ignored `.tmp/` local state. The smoke
 script records short solver outcomes honestly; `TIMEOUT` remains inconclusive.
 
-For artifact-oriented workflows, start from `ARTIFACT.md` and
-`artifact/README.md`.
+For artifact-oriented workflows, start from `artifact/README.md`.
 
 ## Evidence Rules
 

@@ -25,17 +25,21 @@ def test_private_path_checker_flags_forbidden_release_inputs():
         [
             "src/dslc/compiler.py",
             "AGENTS.md",
+            "ARTIFACT.md",
             "doc/rebuttal_answer.pdf",
             ".tmp/procurator/run.log",
             "p4rt-ovs/README.md",
+            "benchmarks/datasets/Blink/p4src/old.p4",
         ]
     )
 
     assert {finding.path for finding in findings} == {
         "AGENTS.md",
+        "ARTIFACT.md",
         "doc/rebuttal_answer.pdf",
         ".tmp/procurator/run.log",
         "p4rt-ovs/README.md",
+        "benchmarks/datasets/Blink/p4src/old.p4",
     }
 
 
@@ -168,7 +172,7 @@ def test_license_manifest_requires_core_third_party_entries(tmp_path):
     third_party = tmp_path / "third_party"
     third_party.mkdir()
     manifest = third_party / "MANIFEST.json"
-    third_party_doc = tmp_path / "THIRD_PARTY.md"
+    license_notes = third_party / "LICENSES.md"
     manifest.write_text(
         json.dumps(
             {
@@ -190,7 +194,7 @@ def test_license_manifest_requires_core_third_party_entries(tmp_path):
         ),
         encoding="utf-8",
     )
-    third_party_doc.write_text("p4c\nUltimate\n", encoding="utf-8")
+    license_notes.write_text("p4c\nUltimate\n", encoding="utf-8")
 
     findings = checker.validate_license_manifest(tmp_path)
 
@@ -223,7 +227,7 @@ def test_license_manifest_does_not_require_p4b_as_third_party(tmp_path):
         ),
         encoding="utf-8",
     )
-    (tmp_path / "THIRD_PARTY.md").write_text("Ultimate\nZ3\n", encoding="utf-8")
+    (third_party / "LICENSES.md").write_text("Ultimate\nZ3\n", encoding="utf-8")
 
     findings = checker.validate_license_manifest(tmp_path)
 

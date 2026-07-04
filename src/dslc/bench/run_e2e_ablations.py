@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Run end-to-end (E2E) bug-finding + slicing/no-slicing ablations for a curated
-set of Procurator (NSDI-style) benchmarks, then write a markdown table to USAGE.md.
+set of Procurator (NSDI-style) benchmarks. A legacy developer option can update
+an ignored local USAGE.md table when that file is present.
 
 Key policy:
   - Use ONLY `procurator verify` (wraparound is integrated; no legacy `procurator wraparound`).
@@ -353,7 +354,7 @@ def main(argv: list[str]) -> int:
         default=0,
         help="Stop after executing this many new benches (0 = no limit).",
     )
-    ap.add_argument("--update-usage", action="store_true", help="Update USAGE.md in-place")
+    ap.add_argument("--update-usage", action="store_true", help="Update the ignored local USAGE.md in-place")
     ap.add_argument("--only", choices=["all", "slicing", "noslicing"], default="all", help="Subset to run")
     ap.add_argument(
         "--bench",
@@ -1239,7 +1240,7 @@ def main(argv: list[str]) -> int:
         start = "<!-- E2E_ABLATIONS_START -->"
         end = "<!-- E2E_ABLATIONS_END -->"
         if start not in txt or end not in txt:
-            raise SystemExit("USAGE.md missing E2E_ABLATIONS markers")
+            raise SystemExit("local USAGE.md missing E2E_ABLATIONS markers")
         pre, rest = txt.split(start, 1)
         _, post = rest.split(end, 1)
         new_txt = pre + start + "\n\n" + block + "\n\n" + end + post

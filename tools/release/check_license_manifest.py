@@ -35,7 +35,7 @@ def _load_json(path: Path) -> tuple[dict[str, Any] | None, list[Finding]]:
 def validate_license_manifest(repo: Path) -> list[Finding]:
     repo = repo.resolve()
     manifest_path = repo / "third_party" / "MANIFEST.json"
-    third_party_doc = repo / "THIRD_PARTY.md"
+    license_notes = repo / "third_party" / "LICENSES.md"
     data, findings = _load_json(manifest_path)
     if data is None:
         return findings
@@ -62,13 +62,13 @@ def validate_license_manifest(repo: Path) -> list[Finding]:
         if required not in by_name:
             findings.append(Finding(f"missing required third-party dependency entry: {required}"))
 
-    if not third_party_doc.exists():
-        findings.append(Finding("missing THIRD_PARTY.md"))
+    if not license_notes.exists():
+        findings.append(Finding("missing third_party/LICENSES.md"))
     else:
-        doc_text = third_party_doc.read_text(encoding="utf-8", errors="replace").lower()
+        doc_text = license_notes.read_text(encoding="utf-8", errors="replace").lower()
         for required in REQUIRED_DEPENDENCIES:
             if required not in doc_text:
-                findings.append(Finding(f"THIRD_PARTY.md does not mention {required}"))
+                findings.append(Finding(f"third_party/LICENSES.md does not mention {required}"))
 
     return findings
 

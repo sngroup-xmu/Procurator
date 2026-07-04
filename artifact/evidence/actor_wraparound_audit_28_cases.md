@@ -2,7 +2,10 @@
 
 ## Scope
 
-This audit only covers the 28 curated cases in the `USAGE.md` `E2E Ablations` table, i.e. the cases used by the main experiment table.
+This audit only covers the 28 curated cases enumerated by
+`src/dslc/bench/run_e2e_ablations.py --list` and checked by
+`artifact/expected/core_28.expected.json`, i.e. the cases used by the main
+experiment table.
 
 Out of scope:
 
@@ -11,7 +14,8 @@ Out of scope:
 
 Audit sources used here:
 
-- `USAGE.md` lines 297-324 for the authoritative 28-case list and audited run artifacts
+- `src/dslc/bench/run_e2e_ablations.py --list` for the authoritative 28-case list
+- `artifact/evidence/core_28_casewise_reproduction_20260704.md` for the audited run artifacts
 - the corresponding `.prop` specs under `benchmarks/specs/bench`
 - existing witness / wraparound-manifest artifacts under `.tmp/procurator/verify/...`
 - the paper PDFs and the repository's current actor / wraparound implementation
@@ -89,4 +93,3 @@ Important rule for borderline cases:
 - `p4nis_bug2_tunnel_state_leakage`: audited as `Actor = No` because this one is just a local encapsulation bug in a single pass.
 - `netlock_release_empty_queue_head_bug`: audited as `Actor = Yes` after review. Although the current witness observes the bad head pointer immediately, the bug is about corrupting subsequent queue interaction semantics.
 - NetLock underflow / overflow family except `netlock_pkt_type_bug`: audited as `Actor = No`, `Wraparound = No`. They are bitvector wrap bugs, but they fire in one local step and do not need the deep wraparound pipeline.
-

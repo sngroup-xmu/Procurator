@@ -14,12 +14,7 @@
     "docs/troubleshooting/**",
     "tools/release/**",
     "README.md",
-    "INSTALL.md",
-    "ARTIFACT.md",
-    "REPRODUCE.md",
-    "THIRD_PARTY.md",
     "CITATION.cff",
-    "CHANGELOG.md",
     ".gitignore"
   ],
   "exclude": [
@@ -43,11 +38,33 @@
     "p4rt-ovs/**",
     "ubpf/**",
     "AGENTS.md",
+    "ARTIFACT.md",
+    "CHANGELOG.md",
     "HARDRULES.md",
+    "INSTALL.md",
     "OPERATE.md",
     "README_PROCURATOR_PML.md",
+    "README_zh.md",
+    "REPRODUCE.md",
+    "THIRD_PARTY.md",
+    "USAGE.md",
     "docs/superpowers/**",
-    "third_party/legacy-translator/**"
+    "third_party/legacy-translator/**",
+    "benchmarks/datasets/Blink/**",
+    "benchmarks/datasets/clone_fanout/**",
+    "benchmarks/datasets/external_henna/**",
+    "benchmarks/datasets/farreach/**",
+    "benchmarks/datasets/horus-p4/**",
+    "benchmarks/datasets/KDR/**",
+    "benchmarks/datasets/NetLock-netx/**",
+    "benchmarks/datasets/P4DB-bmv2/**",
+    "benchmarks/datasets/P4DB-src/**",
+    "benchmarks/datasets/P4DB-system/**",
+    "benchmarks/datasets/P4-timer-1ms/**",
+    "benchmarks/datasets/recirc_fanout/**",
+    "benchmarks/datasets/switchv2p/**",
+    "benchmarks/datasets/tofinoTest/**",
+    "benchmarks/datasets/V1modelTest/**"
   ],
   "needs_license_review": [
     "src/p4b/source/**",
@@ -55,8 +72,6 @@
     "benchmarks/datasets/**"
   ],
   "needs_reference_check": [
-    "USAGE.md",
-    "README_zh.md",
     "docs/evaluation/**",
     "artifact/evidence/**"
   ]
