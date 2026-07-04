@@ -32,6 +32,23 @@ class ArtifactEntrypointTests(unittest.TestCase):
                 self.assertNotIn(data.get("status"), {"pending", "skeleton"})
                 self.assertEqual(data.get("profile"), path.name.removesuffix(".expected.json"))
 
+    def test_artifact_manifest_is_release_facing_not_placeholder(self) -> None:
+        data = json.loads((ARTIFACT / "MANIFEST.json").read_text(encoding="utf-8"))
+        manifest_text = json.dumps(data).lower()
+        for marker in ("skeleton", "pending", "placeholder"):
+            self.assertNotIn(marker, manifest_text)
+
+        self.assertEqual("Procurator SIGCOMM26 AE package", data.get("artifact"))
+        profile_names = [profile["name"] for profile in data.get("profiles", [])]
+        self.assertEqual(["smoke", "core_28", "wraparound_4", "full"], profile_names)
+        self.assertIn("artifact/evidence/MANIFEST.json", data.get("evidence_manifest", ""))
+
+        policy = data.get("large_benchmark_policy", "")
+        self.assertIn("casewise", policy)
+        self.assertIn("run_benchmark_case.sh", policy)
+        self.assertIn("run_core_28_casewise.sh", policy)
+        self.assertIn("ALLOW_BATCH_CORE_28=1", policy)
+
     def test_shell_entrypoints_are_not_skeletons(self) -> None:
         for name in (
             "run_benchmark_case.sh",

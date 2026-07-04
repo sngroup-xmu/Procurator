@@ -1,10 +1,42 @@
 {
   "artifact": "Procurator SIGCOMM26 AE package",
+  "status": "release-facing artifact workflow with fail-closed expected-profile gates",
+  "large_benchmark_policy": "Large benchmark profiles are casewise by default: use run_benchmark_case.sh for one benchmark/mode, or run_core_28_casewise.sh for the curated profile. The compatibility run_core_28.sh entrypoint delegates to casewise unless ALLOW_BATCH_CORE_28=1 is set for an explicitly legacy all-at-once run.",
   "profiles": [
-    "smoke",
-    "core_28",
-    "wraparound_4",
-    "full"
+    {
+      "name": "smoke",
+      "entrypoint": "artifact/scripts/run_smoke.sh",
+      "expected": "artifact/expected/smoke.expected.json",
+      "actual": ".tmp/procurator/artifact/smoke.actual.json"
+    },
+    {
+      "name": "core_28",
+      "entrypoint": "artifact/scripts/run_core_28_casewise.sh",
+      "expected": "artifact/expected/core_28.expected.json",
+      "actual": ".tmp/procurator/artifact/core_28.casewise.actual.json"
+    },
+    {
+      "name": "wraparound_4",
+      "entrypoint": "artifact/scripts/run_wraparound_4.sh",
+      "expected": "artifact/expected/wraparound_4.expected.json",
+      "actual": ".tmp/procurator/artifact/wraparound_4.actual.json"
+    },
+    {
+      "name": "full",
+      "entrypoints": [
+        "artifact/scripts/run_core_28_casewise.sh",
+        "artifact/scripts/run_wraparound_4.sh",
+        "artifact/scripts/run_compile_runtime.sh"
+      ],
+      "expected": [
+        "artifact/expected/core_28.expected.json",
+        "artifact/expected/wraparound_4.expected.json",
+        "artifact/expected/compile_runtime.expected.json"
+      ]
+    }
   ],
-  "status": "skeleton; evidence and scripts must be completed before archival"
+  "evidence_manifest": "artifact/evidence/MANIFEST.json",
+  "expected_root": "artifact/expected",
+  "transient_output_root": ".tmp/procurator/artifact",
+  "release_checksums": "artifact/CHECKSUMS.sha256"
 }
