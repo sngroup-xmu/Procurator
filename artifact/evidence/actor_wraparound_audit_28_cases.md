@@ -4,8 +4,8 @@
 
 This audit only covers the 28 curated cases enumerated by
 `src/dslc/bench/run_e2e_ablations.py --list` and checked by
-`artifact/expected/core_28.expected.json`, i.e. the cases used by the main
-experiment table.
+`artifact/expected/core_28.expected.json`, i.e. the cases used by the curated
+result dataset.
 
 Out of scope:
 
@@ -18,11 +18,12 @@ Audit sources used here:
 - `artifact/evidence/core_28_casewise_reproduction_20260704.md` for the audited run artifacts
 - the corresponding `.prop` specs under `benchmarks/specs/bench`
 - archived witness / wraparound-manifest artifacts under `artifact/results/core_28/e/...`
-- the paper PDFs and the repository's current actor / wraparound implementation
+- original system descriptions and the repository's current actor / wraparound implementation
 
 ## Judgment Rules
 
-This audit uses the paper-facing criterion, not the "current localized spec might be checkable in isolation" criterion.
+This audit uses the system-bug criterion, not the "current localized spec might
+be checkable in isolation" criterion.
 
 `Need Actor Semantics = Yes` iff the underlying bug mechanism fundamentally crosses an interaction boundary, namely at least one of:
 
@@ -91,6 +92,6 @@ Important rule for borderline cases:
 - `p4nis_bug1_forwarding_sequence_desync`: audited as `Actor = Yes` because the original bug mechanism is forwarding-sequence desynchronization, even though the current spec localizes it by seeding a bad local state.
 - `p4xos_bug`: audited as `Actor = Yes` for the same reason: the current `max-env` benchmark localizes a distributed property, but the original bug mechanism is still protocol-level.
 - `p4nis_bug2_tunnel_state_leakage`: audited as `Actor = No` because this one is just a local encapsulation bug in a single pass.
-- `netlock_release_empty_queue_head_bug`: audited as `Actor = Yes` after review. Although the current witness observes the bad head pointer immediately, the bug is about corrupting subsequent queue interaction semantics.
+- `netlock_release_empty_queue_head_bug`: audited as `Actor = Yes` after the mechanism audit. Although the current witness observes the bad head pointer immediately, the bug is about corrupting subsequent queue interaction semantics.
 - NetLock underflow / overflow family except `netlock_pkt_type_bug`: audited as `Actor = No`, `Wraparound = No`. They are bitvector wrap bugs, but they fire in one local step and do not need the deep wraparound pipeline.
 

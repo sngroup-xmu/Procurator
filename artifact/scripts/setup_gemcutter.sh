@@ -6,7 +6,7 @@ VERSION="${VERSION:-v0.3.1}"
 SHA256="${SHA256:-6c9f663bd00758185baaf2878a44891c53d7a0d5ac2193113d95752eb0453b16}"
 URL="${URL:-https://github.com/ultimate-pa/ultimate/releases/download/${VERSION}/UltimateGemCutter-linux.zip}"
 DOWNLOAD_DIR="${DOWNLOAD_DIR:-${ROOT}/.tmp/downloads}"
-INSTALL_ROOT="${INSTALL_ROOT:-${ROOT}/.tmp/orphan-worktree-20260703-gemcutter}"
+INSTALL_ROOT="${INSTALL_ROOT:-${ROOT}/.tmp/procurator/toolchains/gemcutter}"
 ZIP="${DOWNLOAD_DIR}/UltimateGemCutter-linux-${VERSION}.zip"
 
 mkdir -p "${DOWNLOAD_DIR}" "${INSTALL_ROOT}"

@@ -568,7 +568,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default="legacy_closure_assumes",
         help=(
             "Wraparound CEGAR implementation mode. "
-            "schedule_replay is the paper-aligned ENTRY -> NEAR_WRAP -> CLOSURE loop; "
+            "schedule_replay is the ENTRY -> NEAR_WRAP -> CLOSURE replay loop; "
             "legacy_closure_assumes keeps the existing closure-only refinement path."
         ),
     )

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate reviewer-facing summary tables from artifact actual JSON files."""
+"""Generate summary tables from actual JSON files."""
 
 from __future__ import annotations
 

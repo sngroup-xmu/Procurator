@@ -20,7 +20,8 @@
     }
   ],
   "notes": [
-    "Evidence files are release-facing summaries or archived raw artifacts.",
+    "Evidence files are readable summaries or archived raw artifacts.",
+    "The archived core-28 result contains 28 curated benchmarks, 56 per-mode records, and repository-resident BPL, witness, log, and wraparound-manifest evidence under artifact/results/core_28/.",
     "Do not treat TIMEOUT, UNKNOWN, OOM, toolchain ERROR, missing witness, or unverified SAFE as bug absence."
   ]
 }

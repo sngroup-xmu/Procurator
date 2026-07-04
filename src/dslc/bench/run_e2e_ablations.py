@@ -80,7 +80,9 @@ def _repo_root() -> Path:
 
 
 def _find_default_ultimate(root: Path) -> Optional[Path]:
-    candidates = sorted(root.glob(".tmp/orphan-worktree-*/UGemCutter-linux/Ultimate")) + [
+    candidates = [
+        root / ".tmp" / "procurator" / "toolchains" / "gemcutter" / "UGemCutter-linux" / "Ultimate",
+    ] + sorted(root.glob(".tmp/orphan-worktree-*/UGemCutter-linux/Ultimate")) + [
         # Legacy local layouts used by older run notes.
         root / ".tmp" / "orphan-worktree-20260129-005608" / "UGemCutter-linux" / "Ultimate",
         root / "UGemCutter-linux" / "Ultimate",

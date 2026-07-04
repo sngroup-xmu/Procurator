@@ -87,6 +87,28 @@ class TestRunE2EAblationsClassify(unittest.TestCase):
             ultimate = (
                 root
                 / ".tmp"
+                / "procurator"
+                / "toolchains"
+                / "gemcutter"
+                / "UGemCutter-linux"
+                / "Ultimate"
+            )
+            ultimate.parent.mkdir(parents=True)
+            ultimate.write_text("#!/bin/sh\n", encoding="utf-8")
+
+            self.assertEqual(ultimate, _find_default_ultimate(root))
+
+    def test_find_default_ultimate_accepts_legacy_orphan_worktree_path(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from dslc.bench.run_e2e_ablations import _find_default_ultimate
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            ultimate = (
+                root
+                / ".tmp"
                 / "orphan-worktree-20260703-gemcutter"
                 / "UGemCutter-linux"
                 / "Ultimate"

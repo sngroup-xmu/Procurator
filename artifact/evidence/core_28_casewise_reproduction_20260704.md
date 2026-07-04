@@ -2,16 +2,15 @@
 
 ## Scope
 
-This file records the fresh camera-ready reproduction pass for the 28 curated E2E benchmarks. Each benchmark was run case by case and mode by mode: `slicing` first, then `noslicing`. The combined checker input was assembled from the per-case JSON files; `artifact/scripts/run_core_28.sh` was not used to launch all cases together.
+This file records the 2026-07-04 reproduction pass for the 28 curated E2E benchmarks. Each benchmark was run case by case and mode by mode: `slicing` first, then `noslicing`. The combined checker input was assembled from the per-case JSON files; `artifact/scripts/run_core_28.sh` was not used to launch all cases together.
 
 Fail-closed rule: `TIMEOUT`, `UNKNOWN`, OOM, toolchain `ERROR`, missing witness, and unverified `SAFE` are inconclusive and are not counted as bug absence. No such inconclusive result appears in this pass.
 
 ## Verification
 
-- Checkout: `/home/smy/p4-verify-camera-ready`
-- Branch: `camera-ready`
+- Source checkout: recorded in the archived actual JSON and result manifest
 - Python: `.venv-wsl/bin/python3`
-- Ultimate: `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`
+- Ultimate: pinned GemCutter runtime installed by `artifact/scripts/setup_gemcutter.sh`
 - Archived evidence root: `artifact/results/core_28/e/`
 - Archived result manifest: `artifact/results/core_28/MANIFEST.json`
 - Archived per-case actual JSON root: `artifact/results/core_28/cases/`

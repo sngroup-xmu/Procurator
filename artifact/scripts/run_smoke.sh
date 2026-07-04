@@ -48,6 +48,7 @@ fi
 
 if [[ -z "${ULTIMATE}" ]]; then
   for candidate in \
+    "${ROOT}/.tmp/procurator/toolchains/gemcutter/UGemCutter-linux/Ultimate" \
     "${ROOT}"/.tmp/orphan-worktree-*/UGemCutter-linux/Ultimate \
     "${ROOT}/third_party/ultimate/UGemCutter-linux/Ultimate" \
     "${ROOT}/Ultimate"; do

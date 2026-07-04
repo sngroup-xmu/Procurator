@@ -1,106 +1,118 @@
-# Artifact Workflow
+# Examples and result data
 
-This directory is the reviewer-facing layer for the SIGCOMM26 artifact. It is
-separate from `src/` so that source code, benchmark inputs, and reproducibility
-machinery remain auditable.
+`artifact/` contains reproducible workflows, expected profiles, and archived
+result data for Procurator.
 
-Entrypoints:
+It is useful for three tasks:
 
-- `scripts/setup_gemcutter.sh`: download the pinned Ultimate GemCutter Linux
-  release into ignored `.tmp/` local state.
-- `scripts/run_smoke.sh`: short CLI, P4B compile, and optional solver smoke.
-- `scripts/run_benchmark_case.sh`: run and check one benchmark selector at a
-  time, optionally for only `slicing` or `noslicing`.
-- `scripts/run_core_28_casewise.sh`: run the curated 28-case experiment one
-  benchmark/mode at a time, merge the per-case JSON files, and check the
-  combined result fail-closed.
-- `scripts/run_core_28.sh`: compatibility wrapper that delegates to the
-  casewise runner by default. The legacy all-at-once runner requires
-  `ALLOW_BATCH_CORE_28=1` and is not the artifact regression path.
-- `scripts/run_wraparound_4.sh`: wraparound certification runner.
-- `scripts/merge_case_results.py`: merge `.tmp/procurator/artifact/cases/*.actual.json`
-  files into a combined `core_28` checker input.
-- `scripts/make_tables.py`: regenerate paper-facing tables from raw evidence.
-- `scripts/check_expected.py`: fail-closed checker for expected/actual JSON.
+- installing the pinned Ultimate/GemCutter runtime;
+- running smoke, single-case, and curated benchmark workflows;
+- inspecting archived result evidence without rerunning the solver.
 
-Archived results included in this repository:
+## Entrypoints
 
-- `results/core_28/core_28.casewise.actual.json`: normalized checker input
-  for the 2026-07-04 casewise reproduction of all 28 curated benchmarks.
-- `results/core_28/cases/`: the 56 per-benchmark/per-mode actual JSON files
-  used to assemble the combined checker input.
-- `results/core_28/e/`: archived evidence directories for each reproduced
-  benchmark/mode run. `result.out_dir` and `result.log_path` in the archived
-  JSON point here; the original WSL `.tmp` paths are preserved separately as
-  `original_out_dir` and `original_log_path`.
-- `results/core_28/logs/`: wrapper provenance logs for the casewise runner.
-  Files named `dryrun` are retained as command/provenance records only; they
-  are not solver certification by themselves.
-
-Typical local setup:
-
-```bash
-artifact/scripts/setup_gemcutter.sh
-artifact/scripts/run_smoke.sh
+```text
+scripts/setup_gemcutter.sh              install pinned Ultimate/GemCutter
+scripts/run_smoke.sh                    run CLI, compile, and optional solver smoke
+scripts/run_benchmark_case.sh           run one benchmark and one mode
+scripts/run_core_28_casewise.sh         run the curated 28-case suite case by case
+scripts/run_wraparound_4.sh             run the four wraparound benchmarks
+scripts/run_compile_runtime.sh          measure compile/runtime data from results
+scripts/check_expected.py               compare actual JSON against expected profiles
+scripts/merge_case_results.py           merge per-case actual JSON files
+scripts/make_tables.py                  generate CSV summaries
+scripts/validate_witnesses.py           validate UNSAFE evidence paths
+scripts/validate_wraparound_manifests.py validate wraparound certificates
 ```
 
-The smoke profile writes `.tmp/procurator/artifact/smoke.actual.json`. It
-requires CLI help and P4B-to-Boogie compilation to pass. A short solver smoke is
-recorded when Ultimate is available, but `TIMEOUT`, `UNKNOWN`, OOM, toolchain
-errors, missing witnesses, and unverified `SAFE` remain inconclusive.
+Large workflows are casewise by default. A single case is easier to inspect,
+resume, and report than one monolithic solver campaign.
 
-For development and regression work, run large benchmarks one case at a time:
+## Archived core dataset
 
-```bash
-artifact/scripts/run_benchmark_case.sh --bench netchain_wraparound_bug --only slicing
-artifact/scripts/run_benchmark_case.sh --bench netchain_wraparound_bug --only noslicing
+The repository includes the 2026-07-04 casewise result dataset for the curated
+28 benchmarks.
+
+```text
+results/core_28/core_28.casewise.actual.json   combined checker input
+results/core_28/cases/                         56 per-benchmark/per-mode JSON files
+results/core_28/e/                             BPL, witnesses, logs, replay records, manifests
+results/core_28/MANIFEST.json                  machine-readable inventory
+evidence/core_28_casewise_reproduction_20260704.md
+evidence/actor_wraparound_audit_28_cases.md
 ```
 
-Single-case runs write `.tmp/procurator/artifact/cases/*.actual.json` and then
-validate that case fail-closed. After tuning one case, re-run previously passed
-case JSONs with the same script before moving on.
+The archived dataset contains 28 benchmark specs and 56 mode records. Each mode
+record stores the command, status, sanity classification, run id, runtime, and
+evidence path.
 
-For a complete core-28 reproduction that keeps this case-by-case discipline,
-use:
-
-```bash
-artifact/scripts/run_core_28_casewise.sh
-```
-
-This wrapper does not launch all 28 cases as one solver campaign. It discovers
-the curated benchmark list, runs each benchmark in `slicing` and then
-`noslicing` mode through `run_benchmark_case.sh`, merges the resulting per-case
-JSON files into `.tmp/procurator/artifact/core_28.casewise.actual.json`, and
-checks that combined file against `artifact/expected/core_28.expected.json`.
-The older `run_core_28.sh` entrypoint now delegates here unless
-`ALLOW_BATCH_CORE_28=1` is set for an explicitly legacy all-at-once run.
-`run_compile_runtime.sh` uses that casewise JSON by default when it exists; set
-`RESULTS_JSON=<path>` only when you intentionally want a different E2E result
-file.
-
-Full profiles may take hours and should be run in WSL or Linux:
-
-```bash
-artifact/scripts/run_core_28_casewise.sh
-artifact/scripts/run_wraparound_4.sh
-artifact/scripts/run_compile_runtime.sh
-```
-
-`run_wraparound_4.sh` follows the same casewise pattern for the four
-wraparound-certification benchmarks: each benchmark is run in `slicing` and
-then `noslicing` mode through `run_benchmark_case.sh`, the resulting per-case
-JSON files are merged into `.tmp/procurator/artifact/wraparound_4.actual.json`,
-and certified manifests are checked after the expected-profile gate.
-
-Each script writes an actual JSON under `.tmp/procurator/artifact/` and then
-checks it against `artifact/expected/`. The checkers fail closed: focused
-diagnostics are not accepted as wraparound certification, and a missing witness
-or manifest is a failed artifact check.
-
-To re-check the archived core-28 result included with the repository:
+Check it in place:
 
 ```bash
 artifact/scripts/check_expected.py \
   --expected artifact/expected/core_28.expected.json \
   --actual artifact/results/core_28/core_28.casewise.actual.json
 ```
+
+Generate a CSV summary:
+
+```bash
+artifact/scripts/make_tables.py \
+  --results-json artifact/results/core_28/core_28.casewise.actual.json \
+  --out-csv .tmp/procurator/artifact/core_28_summary.csv
+```
+
+Validate UNSAFE evidence paths:
+
+```bash
+PYTHONPATH=src:src/p4b/python artifact/scripts/validate_witnesses.py \
+  --results-json artifact/results/core_28/core_28.casewise.actual.json
+```
+
+Validate wraparound manifests:
+
+```bash
+PYTHONPATH=src:src/p4b/python artifact/scripts/validate_wraparound_manifests.py \
+  --results-json artifact/results/core_28/core_28.casewise.actual.json
+```
+
+## Run a single case
+
+```bash
+artifact/scripts/run_benchmark_case.sh \
+  --bench netchain_wraparound_bug \
+  --only slicing \
+  --ultimate "$ULTIMATE"
+```
+
+`--only` accepts `slicing`, `noslicing`, or `all`. The script writes an actual
+JSON file under `.tmp/procurator/artifact/cases/` and validates that file.
+
+## Run the curated suite
+
+```bash
+artifact/scripts/run_core_28_casewise.sh
+```
+
+The wrapper discovers the curated benchmark list, runs each benchmark in
+`slicing` and `noslicing` mode, merges the per-case actual JSON files, and
+checks the combined profile.
+
+`run_core_28.sh` is a compatibility wrapper. It delegates to
+`run_core_28_casewise.sh` unless `ALLOW_BATCH_CORE_28=1` is set.
+
+## Result policy
+
+The checkers are conservative.
+
+```text
+UNSAFE   accepted when the required witness or manifest exists
+SAFE     accepted only when the expected profile allows it
+TIMEOUT  rejected as inconclusive
+UNKNOWN  rejected as inconclusive
+ERROR    rejected as inconclusive
+MISSING  rejected
+```
+
+Do not count `TIMEOUT`, `UNKNOWN`, OOM, toolchain errors, missing witnesses, or
+unaudited `SAFE` as bug absence.

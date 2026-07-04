@@ -59,10 +59,13 @@ def find_default_ultimate() -> Optional[Path]:
     Best-effort resolver for a usable Ultimate CLI executable.
 
     Preference order:
-      1) A vendored Ultimate under `.tmp/orphan-worktree-*/UGemCutter-linux/Ultimate`
+      1) The default setup_gemcutter.sh install path under
+         `.tmp/procurator/toolchains/gemcutter/UGemCutter-linux/Ultimate`.
+      2) A legacy vendored Ultimate under
+         `.tmp/orphan-worktree-*/UGemCutter-linux/Ultimate`
          (we pick the most recently modified one).
-      2) `UGemCutter-linux/Ultimate` at repo root.
-      3) `Ultimate` at repo root (legacy).
+      3) `UGemCutter-linux/Ultimate` at repo root.
+      4) `Ultimate` at repo root (legacy).
     """
 
     root = repo_root()
@@ -76,7 +79,10 @@ def find_default_ultimate() -> Optional[Path]:
     orphan_candidates.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
 
     candidates = (
-        orphan_candidates
+        [
+            root / ".tmp" / "procurator" / "toolchains" / "gemcutter" / "UGemCutter-linux" / "Ultimate",
+        ]
+        + orphan_candidates
         + [
             root / "third_party" / "ultimate" / "UGemCutter-linux" / "Ultimate",
             root / "Ultimate",

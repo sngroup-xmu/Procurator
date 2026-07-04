@@ -37,13 +37,14 @@ class ArtifactEntrypointTests(unittest.TestCase):
                     self.assertIn("run_core_28_casewise.sh", notes)
                     self.assertNotIn("run_e2e_ablations.py actual JSON", notes)
 
-    def test_artifact_manifest_is_release_facing_not_placeholder(self) -> None:
+    def test_artifact_manifest_is_product_facing_not_placeholder(self) -> None:
         data = json.loads((ARTIFACT / "MANIFEST.json").read_text(encoding="utf-8"))
         manifest_text = json.dumps(data).lower()
         for marker in ("skeleton", "pending", "placeholder"):
             self.assertNotIn(marker, manifest_text)
 
-        self.assertEqual("Procurator SIGCOMM26 AE package", data.get("artifact"))
+        self.assertEqual("Procurator examples and result data", data.get("artifact"))
+        self.assertIn("result-data workflow", data.get("status", ""))
         profile_names = [profile["name"] for profile in data.get("profiles", [])]
         self.assertEqual(["smoke", "core_28", "wraparound_4", "full"], profile_names)
         self.assertIn("artifact/evidence/MANIFEST.json", data.get("evidence_manifest", ""))

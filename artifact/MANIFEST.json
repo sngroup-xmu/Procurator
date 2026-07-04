@@ -1,6 +1,19 @@
 {
+  "archived_result_summary": {
+    "all_mode_status": "UNSAFE",
+    "archived_at_utc": "2026-07-04T06:27:44Z",
+    "archived_payload_bytes": 257268741,
+    "archived_payload_file_count": 387,
+    "case_count": 28,
+    "combined_actual": "artifact/results/core_28/core_28.casewise.actual.json",
+    "evidence_root": "artifact/results/core_28/e",
+    "manifest": "artifact/results/core_28/MANIFEST.json",
+    "mode_result_count": 56,
+    "notes": "Repository-resident evidence from the 2026-07-04 casewise reproduction. Every archived mode record is UNSAFE with sanity OK; wraparound records include certified manifests.",
+    "profile": "core_28"
+  },
   "archived_results_root": "artifact/results",
-  "artifact": "Procurator SIGCOMM26 AE package",
+  "artifact": "Procurator examples and result data",
   "evidence_manifest": "artifact/evidence/MANIFEST.json",
   "expected_root": "artifact/expected",
   "large_benchmark_policy": "Large benchmark profiles are casewise by default: use run_benchmark_case.sh for one benchmark/mode, or run_core_28_casewise.sh for the curated profile. The compatibility run_core_28.sh entrypoint delegates to casewise unless ALLOW_BATCH_CORE_28=1 is set for an explicitly legacy all-at-once run.",
@@ -47,6 +60,6 @@
     }
   ],
   "release_checksums": "artifact/CHECKSUMS.sha256",
-  "status": "release-facing artifact workflow with fail-closed expected-profile gates",
+  "status": "examples and result-data workflow with fail-closed expected-profile gates",
   "transient_output_root": ".tmp/procurator/artifact"
 }
