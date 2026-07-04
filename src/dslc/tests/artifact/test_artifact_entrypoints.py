@@ -31,6 +31,11 @@ class ArtifactEntrypointTests(unittest.TestCase):
                 data = json.loads(path.read_text(encoding="utf-8"))
                 self.assertNotIn(data.get("status"), {"pending", "skeleton"})
                 self.assertEqual(data.get("profile"), path.name.removesuffix(".expected.json"))
+                if data.get("profile") == "core_28":
+                    notes = data.get("notes", "")
+                    self.assertIn("casewise", notes)
+                    self.assertIn("run_core_28_casewise.sh", notes)
+                    self.assertNotIn("run_e2e_ablations.py actual JSON", notes)
 
     def test_artifact_manifest_is_release_facing_not_placeholder(self) -> None:
         data = json.loads((ARTIFACT / "MANIFEST.json").read_text(encoding="utf-8"))

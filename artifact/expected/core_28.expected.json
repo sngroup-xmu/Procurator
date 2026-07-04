@@ -13,5 +13,5 @@
   ],
   "allow_inconclusive": false,
   "require_unsafe_sanity_ok": true,
-  "notes": "Full core results must come from run_e2e_ablations.py actual JSON. TIMEOUT, UNKNOWN, OOM, ERROR, missing witnesses, and unaudited SAFE are not accepted as reproduced evidence."
+  "notes": "Full core results must come from the casewise merged actual JSON produced by run_core_28_casewise.sh. TIMEOUT, UNKNOWN, OOM, ERROR, missing witnesses, and unaudited SAFE are not accepted as reproduced evidence."
 }
