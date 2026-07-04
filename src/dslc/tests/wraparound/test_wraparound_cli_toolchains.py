@@ -27,7 +27,7 @@ class TestWraparoundCliToolchains(unittest.TestCase):
             cegar_mode="schedule_replay",
         )
         self.assertTrue(toolchain.name.endswith("ReachSafety.xml"), toolchain)
-        self.assertTrue(settings.name.endswith("ReachSafety-32bit-GemCutter-ALL.epf"), settings)
+        self.assertTrue(settings.name.endswith("ReachSafety-32bit-GemCutter-internal.epf"), settings)
         self.assertTrue(closure_toolchain.name.endswith("ClosureCheck-ReachSafety.xml"), closure_toolchain)
         self.assertTrue(closure_settings.name.endswith(".epf"), closure_settings)
 

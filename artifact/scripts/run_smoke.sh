@@ -70,7 +70,7 @@ if [[ -n "${ULTIMATE}" && -x "${ULTIMATE}" && "${compile_status}" == "ok" ]]; th
     --ultimate-timeout-seconds "${ULTIMATE_TIMEOUT_SECONDS:-30}" \
     --ultimate-xmx-gb "${ULTIMATE_XMX_GB:-2}" \
     --toolchain "${ROOT}/src/dslc/toolchain/ultimate/ReachSafety.xml" \
-    --settings "${ROOT}/src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf" \
+    --settings "${ROOT}/src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal.epf" \
     --log "${SOLVER_LOG}" 2>&1)"
   solver_rc=$?
   set -e

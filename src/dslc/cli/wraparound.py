@@ -235,7 +235,7 @@ def _resolve_cegis_toolchain_settings(
             if tc_no_witness.exists():
                 toolchain = tc_no_witness.resolve()
         if not settings_arg:
-            st_no_witness = ultimate_asset(root, "ReachSafety-32bit-GemCutter-ALL.epf")
+            st_no_witness = ultimate_asset(root, "ReachSafety-32bit-GemCutter-internal.epf")
             if st_no_witness.exists():
                 settings = st_no_witness.resolve()
         if int(ultimate_xmx_gb) >= 8:

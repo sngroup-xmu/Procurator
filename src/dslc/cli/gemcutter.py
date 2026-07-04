@@ -491,7 +491,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     ap.add_argument(
         "--settings",
         default="",
-        help="Ultimate settings EPF (default: src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf)",
+        help="Ultimate settings EPF (default: src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal.epf)",
     )
     ap.add_argument("--log", default="", help="Log file path (default: <out>.gemcutter.log)")
     ap.add_argument(
@@ -637,10 +637,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # profiles by default; users can opt into larger profiles via --settings.
         candidates = ultimate_assets(root, [
             # Low-memory (default) profiles.
-            "ReachSafety-32bit-GemCutter-ALL.epf",
-            "ReachSafety-32bit-GemCutter-ALL-no-por.epf",
             "ReachSafety-32bit-GemCutter-internal.epf",
             "ReachSafety-32bit-GemCutter-internal-no-por.epf",
+            "ReachSafety-32bit-GemCutter-ALL.epf",
+            "ReachSafety-32bit-GemCutter-ALL-no-por.epf",
             # Higher-memory fallbacks (use explicitly on machines that can handle it).
             "ReachSafety-32bit-GemCutter-ALL-8g-noz3timeout.epf",
             "ReachSafety-32bit-GemCutter-ALL-8g.epf",

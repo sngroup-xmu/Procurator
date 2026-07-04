@@ -381,8 +381,8 @@ def main(argv: list[str]) -> int:
     # regressions we want a stable result classification; we re-run UNSAFE cases with
     # witness enabled for auditability.
     verify_toolchain = "src/dslc/toolchain/ultimate/ReachSafety.xml"
-    # WSL safety: prefer the low-memory (~2GB Z3) profiles by default.
-    verify_settings = "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf"
+    # WSL safety: prefer the default low-memory internal profile.
+    verify_settings = "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal.epf"
 
     witness_toolchain = "src/dslc/toolchain/ultimate/ReachSafety-Witness.xml"
 
