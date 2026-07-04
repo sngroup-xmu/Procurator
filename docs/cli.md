@@ -12,6 +12,8 @@ procurator wraparound
 procurator ablation
 ```
 
+All commands accept `-h` or `--help` and print their local option set.
+
 ## Output policy
 
 When no output path is supplied, Procurator creates a fresh run directory. It
@@ -46,6 +48,7 @@ Common options:
 | `--work-dir <path>` | Stores P4B intermediate files. |
 | `--p4b-bin <path>` | Uses a specific P4-to-Boogie translator. |
 | `--p4c-translator-bin <path>` | Uses a specific translator for Promela imports. |
+| `--clean` | Removes the Promela output directory before emitting a new Promela model. |
 | `--env spec` | Applies DSL assumptions to external inputs. This is the default. |
 | `--env max` | Makes external inputs fully nondeterministic. |
 | `--no-prune` | Disables DAG slicing and environment-input pruning. |
@@ -200,22 +203,37 @@ Main options:
 | Option | Effect |
 | --- | --- |
 | `--spec <path>` | Selects the `.prop` input. Required. |
+| `--tag <name>` | Appends a tag to the spec stem when naming output files. |
 | `--out-dir <path>` | Writes all stage files under a stable directory. |
 | `--p4b-bin <path>` | Uses a specific P4B translator. |
 | `--ultimate <path>` | Runs Ultimate. Without it, stage Boogie files are emitted but not solved. |
+| `--ultimate-xmx-gb <n>` | Sets the Java heap for each Ultimate stage. Default: `4`. |
 | `--toolchain <xml>` | Toolchain for bug-finding stages. |
 | `--closure-toolchain <xml>` | Toolchain for closure checks. |
 | `--settings <epf>` | Settings for bug-finding stages. |
 | `--closure-settings <epf>` | Settings for closure checks. |
 | `--timeout-seconds <n>` | Timeout per stage. Default: `1200`. |
+| `--cegis` | Deprecated compatibility flag; CEGIS is already the default when `--ultimate` is provided. |
 | `--legacy` | Uses the old non-iterative multi-stage pipeline. |
 | `--cegis-max-iters <n>` | Limits CEGIS refinements. |
+| `--wraparound-cegar-mode <mode>` | Chooses `legacy_closure_assumes` or `schedule_replay`. |
 | `--wraparound-stop-after <stage>` | Emits an incremental manifest and stops. |
+| `--stages <list>` | Selects legacy stages from `closure_check,pump,accel,confirm`. |
+| `--soundness closure` | Requires `CLOSURE_CHECK == SAFE` before confirm. This is the default. |
+| `--soundness cegis` | Requires a pump-stage repeatable +1 cycle before confirm. |
+| `--soundness none` | Runs confirm as diagnostics without a soundness gate. |
 | `--pump-reg <name>` | Selects the Boogie register to pump. |
 | `--accel-regs <names>` | Selects registers to fast-forward. |
 | `--index <n>` | Selects a register index. |
+| `--confirm-unroll <n>` | Sets the confirm-stage unroll bound. Default: `3`. |
+| `--pump-unroll <n>` | Sets the pump-stage loop unroll bound. `0` keeps the loop. |
+| `--accel-unroll <n>` | Sets the accel-stage loop unroll bound. `0` keeps the loop. |
+| `--no-slicing` | Disables P4 slicing and pruning in the base compile. |
+| `--no-two-stage` | Disables inferred ingress/egress two-stage scheduling. |
+| `--drop-dsl-asserts` | Deprecated no-op; the wraparound transform strips unrelated assertions itself. |
 | `--proj-vars <names>` | Overrides projection variables. |
 | `--allow-unsound-confirm` | Allows diagnostic confirm without closure proof. |
+| `--no-resource-limits` | Disables CPU and IO niceness wrappers for stage solver runs. |
 
 ## `procurator ablation`
 
@@ -235,8 +253,13 @@ Options:
 
 | Option | Effect |
 | --- | --- |
+| `--spec <path>` | Selects the `.prop` input. Required. |
 | `--system <name>` | Labels output rows. Default: spec stem. |
 | `--out-root <path>` | Writes results under a stable directory. |
+| `--ultimate <path>` | Runs the selected Ultimate executable. Required. |
+| `--toolchain <xml>` | Selects the Ultimate toolchain XML. Required. |
+| `--settings <epf>` | Selects the Ultimate settings EPF. Required. |
+| `--p4b-bin <path>` | Uses a specific P4-to-Boogie translator. Required. |
 | `--timeout-s <n>` | Timeout per run. Default: `1200`. |
 | `--env spec|max` | Selects environment input mode. |
 | `--max-nodes <n>` | Limits nodes per decomposed property. |
