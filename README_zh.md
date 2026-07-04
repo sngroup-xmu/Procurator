@@ -27,6 +27,22 @@ Procurator 是一个面向分布式、有状态 P4 系统的开源验证器。
 
 涉及 P4B 或 solver 的运行建议使用 Linux 或 WSL。
 
+在最小 Ubuntu 20.04/22.04 环境中，先安装系统依赖：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+  git ca-certificates curl wget unzip \
+  python3 python3-venv \
+  build-essential cmake pkg-config bison flex libfl-dev \
+  libgc-dev libgmp-dev \
+  libboost-dev libboost-iostreams-dev libboost-graph-dev \
+  openjdk-11-jre-headless
+```
+
+`src/p4b/source/build-host` 和 `.tmp/procurator/` 会占用数 GB 空间，建议放在
+空间充足的 Linux 文件系统上。
+
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate

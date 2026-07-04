@@ -2,6 +2,7 @@
 
 Ultimate/GemCutter requires a compatible Java runtime and solver setup. Public
 artifact scripts should use the pinned paths recorded under `third_party/`.
+On Ubuntu, `openjdk-11-jre-headless` is sufficient for the pinned runtime.
 
 `procurator verify` defaults to `ReachSafety-32bit-GemCutter-internal.epf`,
 which is stored under

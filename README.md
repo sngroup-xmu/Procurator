@@ -30,6 +30,22 @@ New here? Start with the [tutorial](docs/tutorial.md), then keep
 
 Use Linux or WSL for P4B-dependent and solver-heavy runs.
 
+On a minimal Ubuntu 20.04/22.04 machine, install system packages first:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y --no-install-recommends \
+  git ca-certificates curl wget unzip \
+  python3 python3-venv \
+  build-essential cmake pkg-config bison flex libfl-dev \
+  libgc-dev libgmp-dev \
+  libboost-dev libboost-iostreams-dev libboost-graph-dev \
+  openjdk-11-jre-headless
+```
+
+Use a filesystem with several GB of free space for `src/p4b/source/build-host`
+and `.tmp/procurator/`; P4B and Ultimate/GemCutter are not small.
+
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
