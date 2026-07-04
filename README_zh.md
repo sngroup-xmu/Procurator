@@ -37,7 +37,7 @@ sudo apt-get install -y --no-install-recommends \
   build-essential cmake pkg-config bison flex libfl-dev \
   libgc-dev libgmp-dev \
   libboost-dev libboost-iostreams-dev libboost-graph-dev \
-  openjdk-21-jre-headless
+  openjdk-21-jre-headless z3
 ```
 
 `src/p4b/source/build-host` 和 `.tmp/procurator/` 会占用数 GB 空间，建议放在

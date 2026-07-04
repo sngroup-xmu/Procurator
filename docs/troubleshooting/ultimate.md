@@ -2,7 +2,8 @@
 
 Ultimate/GemCutter requires a compatible Java runtime and solver setup. Public
 artifact scripts should use the pinned paths recorded under `third_party/`.
-On Ubuntu, install `openjdk-21-jre-headless` for the pinned runtime.
+On Ubuntu, install `openjdk-21-jre-headless` for the pinned runtime and `z3`
+for the external SMT solver invoked by the GemCutter profiles.
 
 `procurator verify` defaults to `ReachSafety-32bit-GemCutter-internal.epf`,
 which is stored under
