@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -51,6 +53,9 @@ class ArtifactEntrypointTests(unittest.TestCase):
                     self.assertIn("--timeout \"${TIMEOUT_SECONDS:-3600}\"", text)
                     self.assertIn("--ultimate-xmx-gb \"${ULTIMATE_XMX_GB:-4}\"", text)
                     self.assertNotIn("run_core_28.sh", text)
+                if name == "run_core_28.sh":
+                    self.assertIn("run_core_28_casewise.sh", text)
+                    self.assertIn("ALLOW_BATCH_CORE_28", text)
                 if name == "run_wraparound_4.sh":
                     self.assertIn("run_benchmark_case.sh", text)
                     self.assertIn("merge_case_results.py", text)
@@ -59,6 +64,34 @@ class ArtifactEntrypointTests(unittest.TestCase):
                 if name == "run_compile_runtime.sh":
                     self.assertIn("core_28.casewise.actual.json", text)
                     self.assertIn("run_core_28_casewise.sh", text)
+
+    @unittest.skipIf(sys.platform == "win32", "artifact shell entrypoints require WSL/Linux")
+    def test_run_core_28_defaults_to_casewise_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            env = os.environ.copy()
+            env["OUT_DIR"] = str(Path(td) / "artifact")
+            env["PYTHON"] = sys.executable
+            env["PYTHONPATH"] = (
+                f"{ROOT / 'src'}:{ROOT / 'src' / 'p4b' / 'python'}"
+                f"{':' + env['PYTHONPATH'] if env.get('PYTHONPATH') else ''}"
+            )
+
+            result = subprocess.run(
+                [str(ARTIFACT / "scripts" / "run_core_28.sh"), "--dry-run"],
+                cwd=ROOT,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=60,
+                check=False,
+            )
+
+        combined = result.stdout + result.stderr
+        self.assertEqual(0, result.returncode, combined)
+        self.assertIn("run_core_28_casewise.sh", combined)
+        self.assertIn("core_28 casewise dry-run", combined)
+        self.assertEqual(56, combined.count("[DRY]"), combined)
 
     def test_check_expected_rejects_pending_profiles(self) -> None:
         mod = _load_script("check_expected.py")

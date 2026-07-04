@@ -14,7 +14,9 @@ Entrypoints:
 - `scripts/run_core_28_casewise.sh`: run the curated 28-case experiment one
   benchmark/mode at a time, merge the per-case JSON files, and check the
   combined result fail-closed.
-- `scripts/run_core_28.sh`: curated 28-case experiment runner.
+- `scripts/run_core_28.sh`: compatibility wrapper that delegates to the
+  casewise runner by default. The legacy all-at-once runner requires
+  `ALLOW_BATCH_CORE_28=1` and is not the artifact regression path.
 - `scripts/run_wraparound_4.sh`: wraparound certification runner.
 - `scripts/merge_case_results.py`: merge `.tmp/procurator/artifact/cases/*.actual.json`
   files into a combined `core_28` checker input.
@@ -56,6 +58,8 @@ the curated benchmark list, runs each benchmark in `slicing` and then
 `noslicing` mode through `run_benchmark_case.sh`, merges the resulting per-case
 JSON files into `.tmp/procurator/artifact/core_28.casewise.actual.json`, and
 checks that combined file against `artifact/expected/core_28.expected.json`.
+The older `run_core_28.sh` entrypoint now delegates here unless
+`ALLOW_BATCH_CORE_28=1` is set for an explicitly legacy all-at-once run.
 `run_compile_runtime.sh` uses that casewise JSON by default when it exists; set
 `RESULTS_JSON=<path>` only when you intentionally want a different E2E result
 file.
