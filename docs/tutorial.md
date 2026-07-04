@@ -188,7 +188,7 @@ Run:
   --spec benchmarks/specs/bench/netchain_wraparound_bug.prop \
   --ultimate "$ULTIMATE" \
   --toolchain ReachSafety.xml \
-  --settings ReachSafety-32bit-GemCutter-ALL.epf \
+  --settings ReachSafety-32bit-GemCutter-internal.epf \
   --wraparound auto
 ```
 

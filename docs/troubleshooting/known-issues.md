@@ -1,4 +1,4 @@
-# Known Issues
+# Known issues
 
 - Short timeouts are inconclusive.
 - Missing witnesses are not negative evidence.

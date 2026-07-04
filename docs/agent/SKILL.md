@@ -58,7 +58,7 @@ Use `verify` for normal runs:
   --spec <spec.prop> \
   --ultimate "$ULTIMATE" \
   --toolchain ReachSafety.xml \
-  --settings ReachSafety-32bit-GemCutter-ALL.epf
+  --settings ReachSafety-32bit-GemCutter-internal.epf
 ```
 
 Use `--wraparound auto` for specs with counter wraparound; it is the default.
@@ -117,7 +117,7 @@ Verify the wraparound case:
   --spec benchmarks/specs/bench/netchain_wraparound_bug.prop \
   --ultimate "$ULTIMATE" \
   --toolchain ReachSafety.xml \
-  --settings ReachSafety-32bit-GemCutter-ALL.epf
+  --settings ReachSafety-32bit-GemCutter-internal.epf
 ```
 
 Inspect archived evidence:
@@ -134,14 +134,14 @@ Start with:
 
 ```text
 --toolchain ReachSafety.xml
---settings ReachSafety-32bit-GemCutter-ALL.epf
+--settings ReachSafety-32bit-GemCutter-internal.epf
 --ultimate-timeout-seconds 900
 --ultimate-xmx-gb 4
 ```
 
 Use witness settings when main-run witness generation is required. Use
-`smallblocks`, `no-por`, 8g, or 12g settings only when the run needs that
-profile and the machine has enough memory.
+`ALL`, `smallblocks`, `no-por`, 8g, or 12g settings only when the run needs
+that profile and the machine has enough memory.
 
 ## Failure handling
 

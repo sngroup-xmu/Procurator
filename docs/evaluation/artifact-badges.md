@@ -1,4 +1,4 @@
-# Example And Result Data
+# Examples and result data
 
 The repository contains runnable examples and archived result data. The curated
 28-benchmark dataset is stored under `artifact/results/core_28/`.

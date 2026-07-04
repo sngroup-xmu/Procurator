@@ -16,6 +16,7 @@
     "docs/troubleshooting/**",
     "tools/release/**",
     "README.md",
+    "README_zh.md",
     "CITATION.cff",
     ".gitignore"
   ],
@@ -46,7 +47,6 @@
     "INSTALL.md",
     "OPERATE.md",
     "README_PROCURATOR_PML.md",
-    "README_zh.md",
     "REPRODUCE.md",
     "THIRD_PARTY.md",
     "USAGE.md",

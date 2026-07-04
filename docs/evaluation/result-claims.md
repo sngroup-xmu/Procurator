@@ -1,4 +1,4 @@
-# Result Interpretation
+# Result interpretation
 
 Every result statement must distinguish compiled, smoked, solver `UNSAFE`,
 witness rerun, certified closure, timeout, unknown, and skipped outcomes.

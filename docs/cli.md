@@ -245,7 +245,7 @@ measurement command, not the normal user verification path.
   --spec <file.prop> \
   --ultimate "$ULTIMATE" \
   --toolchain ReachSafety.xml \
-  --settings ReachSafety-32bit-GemCutter-ALL.epf \
+  --settings ReachSafety-32bit-GemCutter-internal.epf \
   --p4b-bin src/p4b/source/build-host/backends/verify/p4c-translator
 ```
 
@@ -284,6 +284,8 @@ ReachSafety-Transformed-Witness.xml
 Common GemCutter settings:
 
 ```text
+ReachSafety-32bit-GemCutter-internal.epf
+ReachSafety-32bit-GemCutter-internal-no-por.epf
 ReachSafety-32bit-GemCutter-ALL.epf
 ReachSafety-32bit-GemCutter-ALL-no-por.epf
 ReachSafety-32bit-GemCutter-ALL-4g.epf
@@ -294,7 +296,11 @@ ReachSafety-32bit-GemCutter-ALL-witness.epf
 
 Selection guidance:
 
-- Start with `ReachSafety.xml` and `ReachSafety-32bit-GemCutter-ALL.epf`.
+- Start with `ReachSafety.xml` and `ReachSafety-32bit-GemCutter-internal.epf`.
+  This is the default for `procurator verify` and is the recommended
+  low-memory GemCutter profile for ordinary runs.
+- Use `ALL` settings only when a run needs the broader GemCutter configuration
+  and the machine has enough memory.
 - Use witness settings only when witness generation is needed on the main run.
   `verify` can run witness generation as a second pass after `UNSAFE`.
 - Use `smallblocks` settings when large blocks cause solver memory pressure.

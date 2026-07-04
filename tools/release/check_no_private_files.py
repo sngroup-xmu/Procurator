@@ -53,7 +53,6 @@ FORBIDDEN_PATTERNS = (
     "REPRODUCE.md",
     "THIRD_PARTY.md",
     "USAGE.md",
-    "README_zh.md",
     "README_PROCURATOR_PML.md",
     "AGENTS.md",
     "HARDRULES.md",

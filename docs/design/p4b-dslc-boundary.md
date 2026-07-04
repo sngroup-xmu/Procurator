@@ -1,4 +1,4 @@
-# P4B / DSLC Boundary
+# P4B / DSLC boundary
 
 P4-local semantics belong in the p4c fork: parser/control/package handling,
 extern lowering, hash semantics, register writes, table semantics,

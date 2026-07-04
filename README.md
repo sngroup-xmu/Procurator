@@ -1,5 +1,7 @@
 # Procurator
 
+[English](README.md) | [中文](README_zh.md)
+
 Procurator is an open-source verifier for distributed, stateful P4 systems.
 
 It reads a declarative `.prop` network specification, translates imported P4
@@ -76,7 +78,7 @@ Verify the NetChain wraparound example:
   --spec benchmarks/specs/bench/netchain_wraparound_bug.prop \
   --ultimate "$ULTIMATE" \
   --toolchain ReachSafety.xml \
-  --settings ReachSafety-32bit-GemCutter-ALL.epf
+  --settings ReachSafety-32bit-GemCutter-internal.epf
 ```
 
 `UNSAFE` means Procurator found a violating execution in the generated model.
@@ -98,6 +100,11 @@ procurator ablation    Run symmetry, splitting, and slicing ablations.
 
 See [docs/cli.md](docs/cli.md) for command parameters, execution effects,
 Boogie generation, GemCutter invocation, and Ultimate profile selection.
+
+By default, `procurator verify` uses `ReachSafety.xml` with
+`ReachSafety-32bit-GemCutter-internal.epf`, the in-repository GemCutter profile
+kept under `src/dslc/toolchain/ultimate/settings/gemcutter/base/`. Larger `ALL`,
+8g, and witness profiles are available for runs that explicitly need them.
 
 ## Docs by goal
 

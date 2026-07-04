@@ -1,4 +1,4 @@
-# Benchmark Suite
+# Benchmark suite
 
 The public benchmark suite is rooted at `benchmarks/`. The curated core suite
 contains 28 bug benchmarks, each run in `slicing` and `noslicing` mode. The
