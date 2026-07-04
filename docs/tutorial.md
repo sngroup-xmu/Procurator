@@ -124,7 +124,7 @@ sudo apt-get install -y --no-install-recommends \
   build-essential cmake pkg-config bison flex libfl-dev \
   libgc-dev libgmp-dev \
   libboost-dev libboost-iostreams-dev libboost-graph-dev \
-  openjdk-11-jre-headless
+  openjdk-21-jre-headless
 ```
 
 Use a filesystem with several GB of free space for `src/p4b/source/build-host`

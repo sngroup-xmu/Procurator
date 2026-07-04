@@ -25,10 +25,11 @@ def _structural_smoke_check(*, bpl_text: str, harness: str) -> list[str]:
             errs.append("missing any fork statements (no concurrency)")
         if not re.search(r"\batomic\s*\{", bpl_text):
             errs.append("missing any atomic blocks (pass-atomic modeling likely broken)")
-
-    # Basic check shared across harnesses: mainProcedure is the harness entry loop.
-    if not re.search(r"\bprocedure\s+mainProcedure\s*\(", bpl_text):
-        errs.append("missing procedure mainProcedure()")
+    else:
+        # Sequential harnesses use a single mainProcedure loop. Concurrent
+        # harnesses enter through ULTIMATE.start and spawn per-actor threads.
+        if not re.search(r"\bprocedure\s+mainProcedure\s*\(", bpl_text):
+            errs.append("missing procedure mainProcedure()")
 
     return errs
 
