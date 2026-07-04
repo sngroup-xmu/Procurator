@@ -68,6 +68,12 @@ artifact/scripts/run_wraparound_4.sh
 artifact/scripts/run_compile_runtime.sh
 ```
 
+`run_wraparound_4.sh` follows the same casewise pattern for the four
+wraparound-certification benchmarks: each benchmark is run in `slicing` and
+then `noslicing` mode through `run_benchmark_case.sh`, the resulting per-case
+JSON files are merged into `.tmp/procurator/artifact/wraparound_4.actual.json`,
+and certified manifests are checked after the expected-profile gate.
+
 Each script writes an actual JSON under `.tmp/procurator/artifact/` and then
 checks it against `artifact/expected/`. The checkers fail closed: focused
 diagnostics are not accepted as wraparound certification, and a missing witness

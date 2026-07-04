@@ -49,6 +49,11 @@ class ArtifactEntrypointTests(unittest.TestCase):
                     self.assertIn("run_benchmark_case.sh", text)
                     self.assertIn("merge_case_results.py", text)
                     self.assertNotIn("run_core_28.sh", text)
+                if name == "run_wraparound_4.sh":
+                    self.assertIn("run_benchmark_case.sh", text)
+                    self.assertIn("merge_case_results.py", text)
+                    self.assertIn("--profile wraparound_4", text)
+                    self.assertNotIn("run_e2e_ablations.py", text)
                 if name == "run_compile_runtime.sh":
                     self.assertIn("core_28.casewise.actual.json", text)
                     self.assertIn("run_core_28_casewise.sh", text)
