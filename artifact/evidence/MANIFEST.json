@@ -1,17 +1,26 @@
 {
+  "archived_results_root": "artifact/results",
   "evidence_root": "artifact/evidence",
+  "files": [
+    {
+      "description": "Actor-semantics and wraparound-acceleration audit for the 28 curated E2E cases.",
+      "path": "artifact/evidence/actor_wraparound_audit_28_cases.md"
+    },
+    {
+      "description": "Fresh casewise reproduction evidence for all 28 curated E2E cases, with slicing and noslicing runs recorded separately.",
+      "path": "artifact/evidence/core_28_casewise_reproduction_20260704.md"
+    },
+    {
+      "description": "Machine-readable inventory for the archived 2026-07-04 core-28 actual results and evidence files.",
+      "path": "artifact/results/core_28/MANIFEST.json"
+    },
+    {
+      "description": "Repository-resident combined actual JSON for the archived 2026-07-04 core-28 casewise run.",
+      "path": "artifact/results/core_28/core_28.casewise.actual.json"
+    }
+  ],
   "notes": [
     "Evidence files are release-facing summaries or archived raw artifacts.",
     "Do not treat TIMEOUT, UNKNOWN, OOM, toolchain ERROR, missing witness, or unverified SAFE as bug absence."
-  ],
-  "files": [
-    {
-      "path": "artifact/evidence/actor_wraparound_audit_28_cases.md",
-      "description": "Actor-semantics and wraparound-acceleration audit for the 28 curated E2E cases."
-    },
-    {
-      "path": "artifact/evidence/core_28_casewise_reproduction_20260704.md",
-      "description": "Fresh casewise reproduction evidence for all 28 curated E2E cases, with slicing and noslicing runs recorded separately."
-    }
   ]
 }

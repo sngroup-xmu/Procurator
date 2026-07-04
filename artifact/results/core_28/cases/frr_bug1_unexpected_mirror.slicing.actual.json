@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "archived_at_utc": "2026-07-04T06:27:51Z",
+    "archived_case_file": "artifact/results/core_28/cases/frr_bug1_unexpected_mirror.slicing.actual.json",
+    "archived_evidence_root": "artifact/results/core_28/e",
+    "archived_from_actual": "/home/smy/p4-verify-camera-ready/.tmp/procurator/artifact/core_28.casewise.actual.json",
+    "archived_from_checkout": "/home/smy/p4-verify-camera-ready",
+    "archived_results_root": "artifact/results/core_28",
+    "default_timeout_s": 900,
+    "ultimate": "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+    "ultimate_xmx_gb": 4,
+    "updated_at": "2026-07-04T08:49:42"
+  },
+  "results": {
+    "benchmarks/specs/bench/frr_bug1_unexpected_mirror.prop": {
+      "category": "implementation",
+      "name": "FRR bug1: unexpected mirror (NSDI)",
+      "slicing": {
+        "cmd": [
+          "./src/bin/procurator",
+          "verify",
+          "--boogie-harness",
+          "sequential",
+          "--no-two-stage",
+          "--ultimate",
+          "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+          "--toolchain",
+          "src/dslc/toolchain/ultimate/ReachSafety.xml",
+          "--settings",
+          "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf",
+          "--use-spec-max-steps",
+          "--env",
+          "spec",
+          "--wraparound",
+          "off",
+          "--ultimate-timeout-seconds",
+          "900",
+          "--ultimate-xmx-gb",
+          "4",
+          "--no-slicing-control-seeds",
+          "--spec",
+          "benchmarks/specs/bench/frr_bug1_unexpected_mirror.prop"
+        ],
+        "result": {
+          "artifact_evidence_dir": "artifact/results/core_28/e/frr_bug1_unexpected_mirror/20260704-084919-7dda",
+          "log_path": "artifact/results/core_28/e/frr_bug1_unexpected_mirror/20260704-084919-7dda/gemcutter.witness.log",
+          "original_log_path": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084919-7dda/gemcutter.witness.log",
+          "original_out_dir": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084919-7dda",
+          "out_dir": "artifact/results/core_28/e/frr_bug1_unexpected_mirror/20260704-084919-7dda",
+          "sanity": "OK",
+          "status": "UNSAFE",
+          "wall_s": 23.156346930000836
+        }
+      },
+      "spec": "benchmarks/specs/bench/frr_bug1_unexpected_mirror.prop"
+    }
+  }
+}

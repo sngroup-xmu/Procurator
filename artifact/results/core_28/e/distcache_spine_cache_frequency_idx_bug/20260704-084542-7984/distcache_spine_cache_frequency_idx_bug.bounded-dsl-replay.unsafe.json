@@ -1,0 +1,14 @@
+{
+  "assert_line": 2151,
+  "assert_lines": [
+    2151
+  ],
+  "bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_spine_cache_frequency_idx_bug/20260704-084542-7984/distcache_spine_cache_frequency_idx_bug.bpl",
+  "focused_bpl_sha256": "64c75715126cc6a66da9baa8a82e962434f09b74197e3ada830c6ab77b133818",
+  "kind": "bounded_dsl_replay_under_approx",
+  "log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_spine_cache_frequency_idx_bug/20260704-084542-7984/distcache_spine_cache_frequency_idx_bug.bounded-dsl-replay.textual.log",
+  "note": "UNSAFE by deterministic bounded DSL replay of procurator_bad. This is an UNSAFE-only under-approximation; unsupported, SAFE, UNKNOWN, TIMEOUT, or missing replay evidence falls back to the solver.",
+  "result_line": "RESULT: UNSAFE",
+  "source_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_spine_cache_frequency_idx_bug/20260704-084542-7984/distcache_spine_cache_frequency_idx_bug.bpl",
+  "source_bpl_sha256": "64c75715126cc6a66da9baa8a82e962434f09b74197e3ada830c6ab77b133818"
+}

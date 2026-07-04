@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "archived_at_utc": "2026-07-04T06:27:58Z",
+    "archived_case_file": "artifact/results/core_28/cases/p4db_router_ttl_expiry_bug.slicing.actual.json",
+    "archived_evidence_root": "artifact/results/core_28/e",
+    "archived_from_actual": "/home/smy/p4-verify-camera-ready/.tmp/procurator/artifact/core_28.casewise.actual.json",
+    "archived_from_checkout": "/home/smy/p4-verify-camera-ready",
+    "archived_results_root": "artifact/results/core_28",
+    "default_timeout_s": 900,
+    "ultimate": "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+    "ultimate_xmx_gb": 4,
+    "updated_at": "2026-07-04T07:12:54"
+  },
+  "results": {
+    "benchmarks/specs/bench/p4db_router_ttl_expiry_bug.prop": {
+      "category": "implementation",
+      "name": "P4DB router: TTL expiry",
+      "slicing": {
+        "cmd": [
+          "./src/bin/procurator",
+          "verify",
+          "--boogie-harness",
+          "sequential",
+          "--no-two-stage",
+          "--ultimate",
+          "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+          "--toolchain",
+          "src/dslc/toolchain/ultimate/ReachSafety.xml",
+          "--settings",
+          "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf",
+          "--env",
+          "spec",
+          "--wraparound",
+          "off",
+          "--ultimate-timeout-seconds",
+          "900",
+          "--ultimate-xmx-gb",
+          "4",
+          "--max-steps",
+          "3",
+          "--no-slicing-control-seeds",
+          "--no-reg-debug",
+          "--spec",
+          "benchmarks/specs/bench/p4db_router_ttl_expiry_bug.prop"
+        ],
+        "result": {
+          "artifact_evidence_dir": "artifact/results/core_28/e/p4db_router_ttl_expiry_bug/20260704-071254-01c5",
+          "log_path": "artifact/results/core_28/e/p4db_router_ttl_expiry_bug/20260704-071254-01c5/p4db_router_ttl_expiry_bug.bounded-dsl-replay.textual.log",
+          "original_log_path": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_router_ttl_expiry_bug/20260704-071254-01c5/p4db_router_ttl_expiry_bug.bounded-dsl-replay.textual.log",
+          "original_out_dir": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_router_ttl_expiry_bug/20260704-071254-01c5",
+          "out_dir": "artifact/results/core_28/e/p4db_router_ttl_expiry_bug/20260704-071254-01c5",
+          "sanity": "OK",
+          "status": "UNSAFE",
+          "wall_s": 0.5317372970000633
+        }
+      },
+      "spec": "benchmarks/specs/bench/p4db_router_ttl_expiry_bug.prop"
+    }
+  }
+}

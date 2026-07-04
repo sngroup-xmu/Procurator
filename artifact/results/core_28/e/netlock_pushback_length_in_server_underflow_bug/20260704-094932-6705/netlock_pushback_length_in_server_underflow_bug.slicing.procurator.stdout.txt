@@ -1,0 +1,6 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/gemcutter.log
+[RESULT] RESULT: UNSAFE (witness rerun)
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/gemcutter.witness.log
+[CEX] dsl_assert: DSL global assertion violated (accumulator flag set; netlock_pushback_length_in_server_underflow_bug.bpl-witness.graphml)

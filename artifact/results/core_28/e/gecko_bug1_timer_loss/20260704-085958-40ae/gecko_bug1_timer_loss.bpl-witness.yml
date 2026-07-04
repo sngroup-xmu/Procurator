@@ -1,0 +1,1481 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: d6616387-8814-4c21-81a7-70f9c5904b19
+    creation_time: '2026-07-04T09:04:52+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+      input_file_hashes:
+        ? /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+        : UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6506
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5057
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5190
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5334
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5338
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5342
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5346
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5349
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5352
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 829
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 731
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1562
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5352
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5353
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5359
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5365
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5371
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5377
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 4671
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5377
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5379
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5383
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5418
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5551
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5695
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5699
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5703
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5707
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5710
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5713
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 829
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 731
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1562
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5713
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5714
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5720
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5726
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5732
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5738
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 4671
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5738
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5740
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5744
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5779
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 5912
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6056
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6060
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6064
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6068
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6071
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6074
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 829
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 731
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1562
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6074
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6075
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6081
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6087
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6093
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6099
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 4671
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6099
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6101
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6105
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6140
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6273
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6417
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6421
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6425
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6429
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6432
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6435
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 829
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 731
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1562
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6435
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6436
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6442
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6448
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6454
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6460
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 4671
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6460
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6462
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6466
+          column: 6
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+          line: 6499

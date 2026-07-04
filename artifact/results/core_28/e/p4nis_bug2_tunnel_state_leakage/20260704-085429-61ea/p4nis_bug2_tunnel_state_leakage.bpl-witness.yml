@@ -1,0 +1,385 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: 07818ef7-121c-4e6e-89cd-b7d8b9d47e50
+    creation_time: '2026-07-04T08:54:49+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+      input_file_hashes:
+        ? /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+        : UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 565
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 468
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 516
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 519
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 389
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 369
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 333
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 333
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 369
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 370
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 370
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 371
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 169
+          column: 8
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 170
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 176
+          column: 15
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 177
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 177
+          column: 16
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 178
+          column: 20
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 187
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 188
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 188
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 192
+          column: 20
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 360
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 192
+          column: 20
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 197
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 371
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 372
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 372
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 373
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 373
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 374
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 389
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 519
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 520
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 526
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 532
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 538
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 544
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 431
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 544
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 555
+          column: 7
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl
+          line: 558

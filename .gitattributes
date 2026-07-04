@@ -3,6 +3,7 @@
 # Preserve upstream/evidence formatting without making git diff --check block on
 # historical trailing whitespace in imported artifacts.
 artifact/evidence/** -whitespace
+artifact/results/** -whitespace
 benchmarks/datasets/** -whitespace
 benchmarks/specs/** -whitespace
 third_party/** -whitespace

@@ -1,0 +1,228 @@
+{
+  "attempts": [
+    {
+      "artifacts": {
+        "closure_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.closure_check.bpl",
+        "closure_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.closure_check.log",
+        "closure_log_retry": "",
+        "confirm_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.confirm.unroll3.bpl",
+        "confirm_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.confirm.unroll3.log",
+        "enable_bpl": "",
+        "enable_log": "",
+        "entry_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.entry_check.bpl",
+        "entry_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.entry_check.log",
+        "source_confirm_bpl": "",
+        "source_confirm_log": ""
+      },
+      "certified": false,
+      "cfg": {
+        "accel_regs": [
+          "s1_sequence_reg",
+          "s2_sequence_reg"
+        ],
+        "attempt": 0,
+        "closure_assumes": [],
+        "cutpoint_cond": null,
+        "env_shape_assumes": [],
+        "index_expr": null,
+        "index_value": 0,
+        "notes": [
+          "deterministic_scheduler_period=4",
+          "closure_timeout=900"
+        ],
+        "proj_exprs": [],
+        "proj_predicate_sources": [],
+        "proj_predicates": [],
+        "proj_vars": [
+          "h1_inbox_count",
+          "procurator_phase",
+          "s1_inbox_count",
+          "s2_inbox_count"
+        ],
+        "projection_complete": true,
+        "pump_reg": "s1_sequence_reg",
+        "step_delta": 1,
+        "step_op": "add"
+      },
+      "closure": null,
+      "closure_retry": null,
+      "confirm": null,
+      "diagnostic": "",
+      "entry": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "entry_check",
+        "wall_time_s": 3.4800798892974854
+      },
+      "near_wrap": null,
+      "schedule": null
+    },
+    {
+      "artifacts": {
+        "closure_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.closure_check.bpl",
+        "closure_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.closure_check.log",
+        "closure_log_retry": "",
+        "confirm_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.confirm.unroll1.bpl",
+        "confirm_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.confirm.unroll1.log",
+        "enable_bpl": "",
+        "enable_log": "",
+        "entry_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.entry_check.bpl",
+        "entry_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.entry_check.log",
+        "source_confirm_bpl": "",
+        "source_confirm_log": ""
+      },
+      "certified": false,
+      "cfg": {
+        "accel_regs": [
+          "s1_sequence_reg",
+          "s2_sequence_reg"
+        ],
+        "attempt": 0,
+        "closure_assumes": [],
+        "cutpoint_cond": null,
+        "env_shape_assumes": [],
+        "index_expr": null,
+        "index_value": 0,
+        "notes": [
+          "deterministic_scheduler_period=4",
+          "closure_timeout=900",
+          "confirm_unroll=1",
+          "confirm_steps=4"
+        ],
+        "proj_exprs": [],
+        "proj_predicate_sources": [],
+        "proj_predicates": [],
+        "proj_vars": [
+          "h1_inbox_count",
+          "procurator_phase",
+          "s1_inbox_count",
+          "s2_inbox_count"
+        ],
+        "projection_complete": true,
+        "pump_reg": "s1_sequence_reg",
+        "step_delta": 1,
+        "step_op": "add"
+      },
+      "closure": null,
+      "closure_retry": null,
+      "confirm": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "confirm",
+        "wall_time_s": 19.810696125030518
+      },
+      "diagnostic": "",
+      "entry": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "entry_check",
+        "wall_time_s": 3.4800798892974854
+      },
+      "near_wrap": null,
+      "schedule": null
+    },
+    {
+      "artifacts": {
+        "closure_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.closure_check.bpl",
+        "closure_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.closure_check.log",
+        "closure_log_retry": "",
+        "confirm_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.confirm.unroll1.bpl",
+        "confirm_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.confirm.unroll1.log",
+        "enable_bpl": "",
+        "enable_log": "",
+        "entry_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.entry_check.bpl",
+        "entry_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/target.00.s1_sequence_reg/netchain_wraparound_bug.cegis.00.entry_check.log",
+        "source_confirm_bpl": "",
+        "source_confirm_log": ""
+      },
+      "certified": false,
+      "cfg": {
+        "accel_regs": [
+          "s1_sequence_reg",
+          "s2_sequence_reg"
+        ],
+        "attempt": 0,
+        "closure_assumes": [],
+        "cutpoint_cond": null,
+        "env_shape_assumes": [],
+        "index_expr": null,
+        "index_value": 0,
+        "notes": [
+          "deterministic_scheduler_period=4",
+          "closure_timeout=900",
+          "confirm_unroll=1",
+          "confirm_steps=4"
+        ],
+        "proj_exprs": [],
+        "proj_predicate_sources": [],
+        "proj_predicates": [],
+        "proj_vars": [
+          "h1_inbox_count",
+          "procurator_phase",
+          "s1_inbox_count",
+          "s2_inbox_count"
+        ],
+        "projection_complete": true,
+        "pump_reg": "s1_sequence_reg",
+        "step_delta": 1,
+        "step_op": "add"
+      },
+      "closure": {
+        "result_line": "RESULT: Ultimate proved your program to be correct!",
+        "returncode": 0,
+        "stage": "closure_check",
+        "wall_time_s": 50.26659893989563
+      },
+      "closure_retry": null,
+      "confirm": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "confirm",
+        "wall_time_s": 19.810696125030518
+      },
+      "diagnostic": "",
+      "entry": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "entry_check",
+        "wall_time_s": 3.4800798892974854
+      },
+      "near_wrap": null,
+      "schedule": null
+    }
+  ],
+  "base_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/netchain_wraparound_bug.base.bpl",
+  "base_bpl_sha256": "",
+  "blockers": [],
+  "candidate": {
+    "accel_regs": [
+      "s1_sequence_reg",
+      "s2_sequence_reg"
+    ],
+    "cutpoint_cond": null,
+    "index_expr": null,
+    "index_value": 0,
+    "proj_vars": [
+      "h1_inbox_count",
+      "procurator_phase",
+      "s1_inbox_count",
+      "s2_inbox_count"
+    ],
+    "pump_reg": "s1_sequence_reg",
+    "reason": "global_asserts",
+    "stable_substitutions": [],
+    "step_delta": 1,
+    "step_op": "add"
+  },
+  "candidate_reason": "global_asserts",
+  "cegar_mode": "legacy_closure_assumes",
+  "certified": false,
+  "diagnostic": "",
+  "paper_stages": {
+    "stage1": "ENTRY_CHECK",
+    "stage2": "NEAR_WRAP",
+    "stage3": "CLOSURE_CHECK"
+  },
+  "spec": "/home/smy/p4-verify-camera-ready/benchmarks/specs/bench/netchain_wraparound_bug.prop",
+  "work_dir": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netchain_wraparound_bug/20260704-071632-dee1/wraparound/work"
+}

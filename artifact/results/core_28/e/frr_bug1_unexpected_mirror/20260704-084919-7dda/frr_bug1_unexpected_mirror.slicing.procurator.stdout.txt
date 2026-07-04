@@ -1,0 +1,6 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084919-7dda/frr_bug1_unexpected_mirror.bpl
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084919-7dda/gemcutter.log
+[RESULT] RESULT: UNSAFE (witness rerun)
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084919-7dda/gemcutter.witness.log
+[CEX] dsl_assert: DSL global assertion violated (accumulator flag set; frr_bug1_unexpected_mirror.bpl-witness.graphml)

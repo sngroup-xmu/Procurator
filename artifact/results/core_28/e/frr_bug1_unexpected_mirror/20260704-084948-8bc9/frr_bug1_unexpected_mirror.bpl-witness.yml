@@ -1,0 +1,401 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: e151d349-b472-47a8-b5d2-145db5a851ef
+    creation_time: '2026-07-04T08:50:13+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+      input_file_hashes:
+        ? /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+        : UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1339
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1220
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1274
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1277
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 747
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 727
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 402
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 402
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 727
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 728
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 728
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 729
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 639
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 640
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 647
+          column: 15
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 651
+          column: 19
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 652
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 512
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 512
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 652
+          column: 20
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 690
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 693
+          column: 12
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 694
+          column: 12
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 841
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 841
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 694
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 696
+          column: 11
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 729
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 730
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 730
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 731
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 731
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 732
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 747
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1277
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1278
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1284
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1290
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1296
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1302
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1159
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1302
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1329
+          column: 7
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug1_unexpected_mirror/20260704-084948-8bc9/frr_bug1_unexpected_mirror.bpl
+          line: 1332

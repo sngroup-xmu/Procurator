@@ -1,0 +1,14 @@
+{
+  "assert_line": 940,
+  "assert_lines": [
+    940
+  ],
+  "bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/cheetah_slot_index_collision_bug/20260704-094720-bf43/cheetah_slot_index_collision_bug.bpl",
+  "focused_bpl_sha256": "3182e9ca1de5b4a8f5a3bb99371c35f185cb4d49e249d506e498d384700551da",
+  "kind": "bounded_dsl_replay_under_approx",
+  "log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/cheetah_slot_index_collision_bug/20260704-094720-bf43/cheetah_slot_index_collision_bug.bounded-dsl-replay.textual.log",
+  "note": "UNSAFE by deterministic bounded DSL replay of procurator_bad. This is an UNSAFE-only under-approximation; unsupported, SAFE, UNKNOWN, TIMEOUT, or missing replay evidence falls back to the solver.",
+  "result_line": "RESULT: UNSAFE",
+  "source_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/cheetah_slot_index_collision_bug/20260704-094720-bf43/cheetah_slot_index_collision_bug.bpl",
+  "source_bpl_sha256": "3182e9ca1de5b4a8f5a3bb99371c35f185cb4d49e249d506e498d384700551da"
+}

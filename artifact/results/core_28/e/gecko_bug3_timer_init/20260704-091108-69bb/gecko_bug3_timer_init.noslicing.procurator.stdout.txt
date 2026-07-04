@@ -1,0 +1,5 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug3_timer_init/20260704-091108-69bb/gecko_bug3_timer_init.bpl
+[FOCUS] bounded DSL replay found deterministic procurator_bad violation; original run skipped.
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug3_timer_init/20260704-091108-69bb/gecko_bug3_timer_init.bounded-dsl-replay.textual.log
+[CEX] bounded_dsl_replay_under_approx: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug3_timer_init/20260704-091108-69bb/gecko_bug3_timer_init.bounded-dsl-replay.unsafe.json

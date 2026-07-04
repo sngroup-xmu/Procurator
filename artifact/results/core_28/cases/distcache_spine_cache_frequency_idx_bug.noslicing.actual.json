@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "archived_at_utc": "2026-07-04T06:27:49Z",
+    "archived_case_file": "artifact/results/core_28/cases/distcache_spine_cache_frequency_idx_bug.noslicing.actual.json",
+    "archived_evidence_root": "artifact/results/core_28/e",
+    "archived_from_actual": "/home/smy/p4-verify-camera-ready/.tmp/procurator/artifact/core_28.casewise.actual.json",
+    "archived_from_checkout": "/home/smy/p4-verify-camera-ready",
+    "archived_results_root": "artifact/results/core_28",
+    "default_timeout_s": 900,
+    "ultimate": "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+    "ultimate_xmx_gb": 4,
+    "updated_at": "2026-07-04T08:46:06"
+  },
+  "results": {
+    "benchmarks/specs/bench/distcache_spine_cache_frequency_idx_bug.prop": {
+      "category": "implementation",
+      "name": "DistCache spine cache_frequency idx",
+      "noslicing": {
+        "cmd": [
+          "./src/bin/procurator",
+          "verify",
+          "--no-slicing",
+          "--no-env-prune",
+          "--boogie-harness",
+          "sequential",
+          "--no-two-stage",
+          "--ultimate",
+          "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+          "--toolchain",
+          "src/dslc/toolchain/ultimate/ReachSafety.xml",
+          "--settings",
+          "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf",
+          "--use-spec-max-steps",
+          "--env",
+          "spec",
+          "--wraparound",
+          "off",
+          "--ultimate-timeout-seconds",
+          "900",
+          "--ultimate-xmx-gb",
+          "4",
+          "--settings",
+          "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
+          "--spec",
+          "benchmarks/specs/bench/distcache_spine_cache_frequency_idx_bug.prop"
+        ],
+        "result": {
+          "artifact_evidence_dir": "artifact/results/core_28/e/distcache_spine_cache_frequency_idx_bug/20260704-084556-bc3b",
+          "log_path": "artifact/results/core_28/e/distcache_spine_cache_frequency_idx_bug/20260704-084556-bc3b/distcache_spine_cache_frequency_idx_bug.bounded-dsl-replay.textual.log",
+          "original_log_path": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_spine_cache_frequency_idx_bug/20260704-084556-bc3b/distcache_spine_cache_frequency_idx_bug.bounded-dsl-replay.textual.log",
+          "original_out_dir": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_spine_cache_frequency_idx_bug/20260704-084556-bc3b",
+          "out_dir": "artifact/results/core_28/e/distcache_spine_cache_frequency_idx_bug/20260704-084556-bc3b",
+          "sanity": "OK",
+          "status": "UNSAFE",
+          "wall_s": 11.780628419000095
+        }
+      },
+      "spec": "benchmarks/specs/bench/distcache_spine_cache_frequency_idx_bug.prop"
+    }
+  }
+}

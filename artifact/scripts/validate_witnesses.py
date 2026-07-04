@@ -13,7 +13,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from dslc.bench.validate_counterexample import summarize_witness
+from dslc.bench.validate_counterexample import summarize_witness, validate_wraparound_manifest
 
 
 def _default_results_json(out_dir: Path = Path(".tmp/procurator/artifact")) -> Path:
@@ -45,6 +45,21 @@ def _iter_unsafe_out_dirs(results_json: Path):
                 yield spec, mode, Path(out_dir)
 
 
+def _validate_wraparound_evidence(out_dir: Path) -> tuple[bool, str]:
+    wrap = out_dir / "wraparound"
+    if not wrap.exists():
+        return False, ""
+    findings: list[str] = []
+    for manifest in sorted(wrap.glob("target.*/wraparound.cegis.manifest.json")):
+        ok, msg = validate_wraparound_manifest(manifest)
+        if ok:
+            return True, f"{manifest}: {msg}"
+        findings.append(f"{manifest}: {msg}")
+    if findings:
+        return False, "; ".join(findings)
+    return False, f"no wraparound.cegis.manifest.json under {wrap}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -56,10 +71,18 @@ def main() -> int:
 
     findings: list[str] = []
     checked = 0
+    wraparound_checked = 0
     for spec, mode, out_dir in _iter_unsafe_out_dirs(args.results_json):
         checked += 1
         if not out_dir.exists():
             findings.append(f"{spec}/{mode}: missing out_dir {out_dir}")
+            continue
+        wraparound_ok, wraparound_msg = _validate_wraparound_evidence(out_dir)
+        if wraparound_ok:
+            wraparound_checked += 1
+            continue
+        if wraparound_msg:
+            findings.append(f"{spec}/{mode}: wraparound evidence invalid: {wraparound_msg}")
             continue
         summary = summarize_witness(out_dir=out_dir)
         if not summary.ok:
@@ -69,7 +92,7 @@ def main() -> int:
         print(finding, file=sys.stderr)
     if findings:
         return 1
-    print(f"validated UNSAFE witness records: {checked}")
+    print(f"validated UNSAFE witness records: {checked} (wraparound manifests: {wraparound_checked})")
     return 0
 
 

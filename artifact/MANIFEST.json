@@ -1,28 +1,38 @@
 {
+  "archived_results_root": "artifact/results",
   "artifact": "Procurator SIGCOMM26 AE package",
-  "status": "release-facing artifact workflow with fail-closed expected-profile gates",
+  "evidence_manifest": "artifact/evidence/MANIFEST.json",
+  "expected_root": "artifact/expected",
   "large_benchmark_policy": "Large benchmark profiles are casewise by default: use run_benchmark_case.sh for one benchmark/mode, or run_core_28_casewise.sh for the curated profile. The compatibility run_core_28.sh entrypoint delegates to casewise unless ALLOW_BATCH_CORE_28=1 is set for an explicitly legacy all-at-once run.",
+  "notes": [
+    "Archived results are repository-resident evidence from completed runs; transient_output_root is used only for new local reruns.",
+    "TIMEOUT, UNKNOWN, OOM, toolchain ERROR, missing witness, and unverified SAFE are inconclusive and must not be counted as bug absence."
+  ],
   "profiles": [
     {
-      "name": "smoke",
+      "actual": ".tmp/procurator/artifact/smoke.actual.json",
       "entrypoint": "artifact/scripts/run_smoke.sh",
       "expected": "artifact/expected/smoke.expected.json",
-      "actual": ".tmp/procurator/artifact/smoke.actual.json"
+      "name": "smoke"
     },
     {
-      "name": "core_28",
+      "actual": "artifact/results/core_28/core_28.casewise.actual.json",
+      "archived_actual": "artifact/results/core_28/core_28.casewise.actual.json",
+      "archived_case_actual_root": "artifact/results/core_28/cases",
+      "archived_evidence_root": "artifact/results/core_28/e",
+      "archived_manifest": "artifact/results/core_28/MANIFEST.json",
       "entrypoint": "artifact/scripts/run_core_28_casewise.sh",
       "expected": "artifact/expected/core_28.expected.json",
-      "actual": ".tmp/procurator/artifact/core_28.casewise.actual.json"
+      "name": "core_28",
+      "transient_actual": ".tmp/procurator/artifact/core_28.casewise.actual.json"
     },
     {
-      "name": "wraparound_4",
+      "actual": ".tmp/procurator/artifact/wraparound_4.actual.json",
       "entrypoint": "artifact/scripts/run_wraparound_4.sh",
       "expected": "artifact/expected/wraparound_4.expected.json",
-      "actual": ".tmp/procurator/artifact/wraparound_4.actual.json"
+      "name": "wraparound_4"
     },
     {
-      "name": "full",
       "entrypoints": [
         "artifact/scripts/run_core_28_casewise.sh",
         "artifact/scripts/run_wraparound_4.sh",
@@ -32,11 +42,11 @@
         "artifact/expected/core_28.expected.json",
         "artifact/expected/wraparound_4.expected.json",
         "artifact/expected/compile_runtime.expected.json"
-      ]
+      ],
+      "name": "full"
     }
   ],
-  "evidence_manifest": "artifact/evidence/MANIFEST.json",
-  "expected_root": "artifact/expected",
-  "transient_output_root": ".tmp/procurator/artifact",
-  "release_checksums": "artifact/CHECKSUMS.sha256"
+  "release_checksums": "artifact/CHECKSUMS.sha256",
+  "status": "release-facing artifact workflow with fail-closed expected-profile gates",
+  "transient_output_root": ".tmp/procurator/artifact"
 }

@@ -1,0 +1,6 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/gemcutter.log
+[RESULT] RESULT: UNSAFE (witness rerun)
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/gemcutter.witness.log
+[CEX] dsl_assert: witness hits DSL global assert (p4xos_bug.bpl-witness.graphml)

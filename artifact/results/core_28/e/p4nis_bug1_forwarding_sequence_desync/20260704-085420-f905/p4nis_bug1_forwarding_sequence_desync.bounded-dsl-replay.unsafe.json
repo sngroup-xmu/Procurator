@@ -1,0 +1,14 @@
+{
+  "assert_line": 894,
+  "assert_lines": [
+    894
+  ],
+  "bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug1_forwarding_sequence_desync/20260704-085420-f905/p4nis_bug1_forwarding_sequence_desync.bpl",
+  "focused_bpl_sha256": "e364401b5ed9090b0cb0e4628965e7090c09a9103334de64820e654f7415919a",
+  "kind": "bounded_dsl_replay_under_approx",
+  "log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug1_forwarding_sequence_desync/20260704-085420-f905/p4nis_bug1_forwarding_sequence_desync.bounded-dsl-replay.textual.log",
+  "note": "UNSAFE by deterministic bounded DSL replay of procurator_bad. This is an UNSAFE-only under-approximation; unsupported, SAFE, UNKNOWN, TIMEOUT, or missing replay evidence falls back to the solver.",
+  "result_line": "RESULT: UNSAFE",
+  "source_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug1_forwarding_sequence_desync/20260704-085420-f905/p4nis_bug1_forwarding_sequence_desync.bpl",
+  "source_bpl_sha256": "e364401b5ed9090b0cb0e4628965e7090c09a9103334de64820e654f7415919a"
+}

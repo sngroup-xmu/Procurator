@@ -1,0 +1,63 @@
+{
+  "meta": {
+    "archived_at_utc": "2026-07-04T06:27:46Z",
+    "archived_case_file": "artifact/results/core_28/cases/distcache_cm34_write_bug.noslicing.actual.json",
+    "archived_evidence_root": "artifact/results/core_28/e",
+    "archived_from_actual": "/home/smy/p4-verify-camera-ready/.tmp/procurator/artifact/core_28.casewise.actual.json",
+    "archived_from_checkout": "/home/smy/p4-verify-camera-ready",
+    "archived_results_root": "artifact/results/core_28",
+    "default_timeout_s": 900,
+    "ultimate": "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+    "ultimate_xmx_gb": 4,
+    "updated_at": "2026-07-04T08:45:30"
+  },
+  "results": {
+    "benchmarks/specs/bench/distcache_cm34_write_bug.prop": {
+      "category": "implementation",
+      "name": "DistCache CM3/CM4 write wiring",
+      "noslicing": {
+        "cmd": [
+          "./src/bin/procurator",
+          "verify",
+          "--no-slicing",
+          "--no-env-prune",
+          "--boogie-harness",
+          "sequential",
+          "--no-two-stage",
+          "--ultimate",
+          "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+          "--toolchain",
+          "src/dslc/toolchain/ultimate/ReachSafety.xml",
+          "--settings",
+          "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf",
+          "--use-spec-max-steps",
+          "--env",
+          "spec",
+          "--wraparound",
+          "off",
+          "--ultimate-timeout-seconds",
+          "900",
+          "--ultimate-xmx-gb",
+          "4",
+          "--settings",
+          "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf",
+          "--no-reg-debug",
+          "--no-slicing-control-seeds",
+          "--spec",
+          "benchmarks/specs/bench/distcache_cm34_write_bug.prop"
+        ],
+        "result": {
+          "artifact_evidence_dir": "artifact/results/core_28/e/distcache_cm34_write_bug/20260704-084427-4de3",
+          "log_path": "artifact/results/core_28/e/distcache_cm34_write_bug/20260704-084427-4de3/distcache_cm34_write_bug.bounded-dsl-replay.textual.log",
+          "original_log_path": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_cm34_write_bug/20260704-084427-4de3/distcache_cm34_write_bug.bounded-dsl-replay.textual.log",
+          "original_out_dir": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_cm34_write_bug/20260704-084427-4de3",
+          "out_dir": "artifact/results/core_28/e/distcache_cm34_write_bug/20260704-084427-4de3",
+          "sanity": "OK",
+          "status": "UNSAFE",
+          "wall_s": 66.57231496500026
+        }
+      },
+      "spec": "benchmarks/specs/bench/distcache_cm34_write_bug.prop"
+    }
+  }
+}

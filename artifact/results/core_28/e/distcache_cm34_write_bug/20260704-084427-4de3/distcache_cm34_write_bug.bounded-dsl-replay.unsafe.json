@@ -1,0 +1,14 @@
+{
+  "assert_line": 8866,
+  "assert_lines": [
+    8866
+  ],
+  "bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_cm34_write_bug/20260704-084427-4de3/distcache_cm34_write_bug.bpl",
+  "focused_bpl_sha256": "9c02ab45d1b64d609e85a95b26000315947fedabb5527abb8b57ba807750ab37",
+  "kind": "bounded_dsl_replay_under_approx",
+  "log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_cm34_write_bug/20260704-084427-4de3/distcache_cm34_write_bug.bounded-dsl-replay.textual.log",
+  "note": "UNSAFE by deterministic bounded DSL replay of procurator_bad. This is an UNSAFE-only under-approximation; unsupported, SAFE, UNKNOWN, TIMEOUT, or missing replay evidence falls back to the solver.",
+  "result_line": "RESULT: UNSAFE",
+  "source_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_cm34_write_bug/20260704-084427-4de3/distcache_cm34_write_bug.bpl",
+  "source_bpl_sha256": "9c02ab45d1b64d609e85a95b26000315947fedabb5527abb8b57ba807750ab37"
+}

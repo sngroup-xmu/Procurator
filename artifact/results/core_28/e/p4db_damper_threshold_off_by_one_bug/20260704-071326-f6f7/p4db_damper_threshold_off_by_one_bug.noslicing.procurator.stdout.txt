@@ -1,0 +1,5 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260704-071326-f6f7/p4db_damper_threshold_off_by_one_bug.bpl
+[FOCUS] bounded DSL replay found deterministic procurator_bad violation; original run skipped.
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260704-071326-f6f7/p4db_damper_threshold_off_by_one_bug.bounded-dsl-replay.textual.log
+[CEX] bounded_dsl_replay_under_approx: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260704-071326-f6f7/p4db_damper_threshold_off_by_one_bug.bounded-dsl-replay.unsafe.json

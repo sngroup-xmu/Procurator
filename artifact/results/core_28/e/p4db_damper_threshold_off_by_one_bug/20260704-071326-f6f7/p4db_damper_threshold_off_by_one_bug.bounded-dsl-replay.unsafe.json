@@ -1,0 +1,14 @@
+{
+  "assert_line": 827,
+  "assert_lines": [
+    827
+  ],
+  "bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260704-071326-f6f7/p4db_damper_threshold_off_by_one_bug.bpl",
+  "focused_bpl_sha256": "d22a4dea20f5b84153c34579fa257771cea202cb1f9616456294d6ef3bf5c167",
+  "kind": "bounded_dsl_replay_under_approx",
+  "log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260704-071326-f6f7/p4db_damper_threshold_off_by_one_bug.bounded-dsl-replay.textual.log",
+  "note": "UNSAFE by deterministic bounded DSL replay of procurator_bad. This is an UNSAFE-only under-approximation; unsupported, SAFE, UNKNOWN, TIMEOUT, or missing replay evidence falls back to the solver.",
+  "result_line": "RESULT: UNSAFE",
+  "source_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_damper_threshold_off_by_one_bug/20260704-071326-f6f7/p4db_damper_threshold_off_by_one_bug.bpl",
+  "source_bpl_sha256": "d22a4dea20f5b84153c34579fa257771cea202cb1f9616456294d6ef3bf5c167"
+}

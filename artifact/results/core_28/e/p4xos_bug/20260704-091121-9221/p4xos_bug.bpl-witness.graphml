@@ -1,0 +1,1436 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+<key id="programfile" attr.name="programfile" for="graph"/>
+<key id="sourcecodelang" attr.name="sourcecodelang" for="graph"/>
+<key id="creationtime" attr.name="creationtime" for="graph"/>
+<key id="witness-type" attr.name="witness-type" for="graph"/>
+<key id="entry" attr.name="entry" for="node">
+<default>false</default>
+</key>
+<key id="nodetype" attr.name="nodetype" for="node">
+<default>path</default>
+</key>
+<key id="violation" attr.name="violation" for="node">
+<default>false</default>
+</key>
+<key id="cyclehead" attr.name="cyclehead" for="node">
+<default>false</default>
+</key>
+<key id="invariant" attr.name="invariant" for="node">
+<default>true</default>
+</key>
+<key id="threadId" attr.name="threadId" for="edge"/>
+<key id="endline" attr.name="endline" for="edge"/>
+<key id="enterLoopHead" attr.name="enterLoopHead" for="edge">
+<default>false</default>
+</key>
+<key id="createThread" attr.name="createThread" for="edge"/>
+<key id="enterFunction" attr.name="enterFunction" for="edge"/>
+<key id="startline" attr.name="startline" for="edge"/>
+<key id="returnFrom" attr.name="returnFrom" for="edge"/>
+<key id="assumption" attr.name="assumption" for="edge"/>
+<key id="tokens" attr.name="tokens" for="edge"/>
+<key id="control" attr.name="control" for="edge"/>
+<key id="originfile" attr.name="originfile" for="edge">
+<default>/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</default>
+</key>
+<key id="sourcecode" attr.name="sourcecode" for="edge"/>
+<graph edgedefault="directed">
+<data key="programfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecodelang">C</data>
+<data key="creationtime">2026-07-04T01:12:00Z</data>
+<data key="witness-type">violation_witness</data>
+<node id="N0">
+<data key="entry">true</data>
+</node>
+<node id="N1"/>
+<node id="N2"/>
+<node id="N3"/>
+<node id="N4"/>
+<node id="N5"/>
+<node id="N6"/>
+<node id="N7"/>
+<node id="N8"/>
+<node id="N9"/>
+<node id="N10"/>
+<node id="N11"/>
+<node id="N12"/>
+<node id="N13"/>
+<node id="N14"/>
+<node id="N15"/>
+<node id="N16"/>
+<node id="N17"/>
+<node id="N18"/>
+<node id="N19"/>
+<node id="N20"/>
+<node id="N21"/>
+<node id="N22"/>
+<node id="N23"/>
+<node id="N24"/>
+<node id="N25"/>
+<node id="N26"/>
+<node id="N27"/>
+<node id="N28"/>
+<node id="N29"/>
+<node id="N30"/>
+<node id="N31"/>
+<node id="N32"/>
+<node id="N33"/>
+<node id="N34"/>
+<node id="N35"/>
+<node id="N36"/>
+<node id="N37"/>
+<node id="N38"/>
+<node id="N39"/>
+<node id="N40"/>
+<node id="N41"/>
+<node id="N42"/>
+<node id="N43"/>
+<node id="N44"/>
+<node id="N45"/>
+<node id="N46"/>
+<node id="N47"/>
+<node id="N48"/>
+<node id="N49"/>
+<node id="N50"/>
+<node id="N51"/>
+<node id="N52"/>
+<node id="N53"/>
+<node id="N54"/>
+<node id="N55"/>
+<node id="N56"/>
+<node id="N57"/>
+<node id="N58"/>
+<node id="N59"/>
+<node id="N60"/>
+<node id="N61"/>
+<node id="N62"/>
+<node id="N63"/>
+<node id="N64"/>
+<node id="N65"/>
+<node id="N66"/>
+<node id="N67"/>
+<node id="N68"/>
+<node id="N69"/>
+<node id="N70"/>
+<node id="N71"/>
+<node id="N72"/>
+<node id="N73"/>
+<node id="N74"/>
+<node id="N75"/>
+<node id="N76"/>
+<node id="N77"/>
+<node id="N78"/>
+<node id="N79"/>
+<node id="N80"/>
+<node id="N81"/>
+<node id="N82"/>
+<node id="N83"/>
+<node id="N84"/>
+<node id="N85"/>
+<node id="N86"/>
+<node id="N87"/>
+<node id="N88"/>
+<node id="N89"/>
+<node id="N90"/>
+<node id="N91"/>
+<node id="N92"/>
+<node id="N93"/>
+<node id="N94"/>
+<node id="N95"/>
+<node id="N96"/>
+<node id="N97"/>
+<node id="N98"/>
+<node id="N99"/>
+<node id="N100"/>
+<node id="N101"/>
+<node id="N102"/>
+<node id="N103"/>
+<node id="N104"/>
+<node id="N105"/>
+<node id="N106"/>
+<node id="N107"/>
+<node id="N108"/>
+<node id="N109"/>
+<node id="N110"/>
+<node id="N111"/>
+<node id="N112"/>
+<node id="N113"/>
+<node id="N114"/>
+<node id="N115"/>
+<node id="N116"/>
+<node id="N117"/>
+<node id="N118"/>
+<node id="N119"/>
+<node id="N120"/>
+<node id="N121"/>
+<node id="N122"/>
+<node id="N123"/>
+<node id="N124"/>
+<node id="N125"/>
+<node id="N126"/>
+<node id="N127"/>
+<node id="N128"/>
+<node id="N129"/>
+<node id="N130"/>
+<node id="N131"/>
+<node id="N132"/>
+<node id="N133"/>
+<node id="N134"/>
+<node id="N135"/>
+<node id="N136"/>
+<node id="N137"/>
+<node id="N138"/>
+<node id="N139"/>
+<node id="N140"/>
+<node id="N141"/>
+<node id="N142"/>
+<node id="N143"/>
+<node id="N144"/>
+<node id="N145"/>
+<node id="N146"/>
+<node id="N147"/>
+<node id="N148"/>
+<node id="N149"/>
+<node id="N150"/>
+<node id="N151"/>
+<node id="N152"/>
+<node id="N153"/>
+<node id="N154"/>
+<node id="N155"/>
+<node id="N156"/>
+<node id="N157"/>
+<node id="N158"/>
+<node id="N159"/>
+<node id="N160"/>
+<node id="N161"/>
+<node id="N162"/>
+<node id="N163"/>
+<node id="N164"/>
+<node id="N165"/>
+<node id="N166"/>
+<node id="N167"/>
+<node id="N168"/>
+<node id="N169"/>
+<node id="N170"/>
+<node id="N171"/>
+<node id="N172"/>
+<node id="N173"/>
+<node id="N174"/>
+<node id="N175"/>
+<node id="N176"/>
+<node id="N177"/>
+<node id="N178"/>
+<node id="N179"/>
+<node id="N180"/>
+<node id="N181"/>
+<node id="N182"/>
+<node id="N183"/>
+<node id="N184"/>
+<node id="N185"/>
+<node id="N186"/>
+<node id="N187"/>
+<node id="N188"/>
+<node id="N189"/>
+<node id="N190"/>
+<node id="N191"/>
+<node id="N192"/>
+<node id="N193">
+<data key="violation">true</data>
+</node>
+<edge id="E0" source="N0" target="N1">
+<data key="endline">2393</data>
+<data key="enterFunction">mainProcedure</data>
+<data key="startline">2393</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call mainProcedure();</data>
+</edge>
+<edge id="E1" source="N1" target="N2">
+<data key="endline">2281</data>
+<data key="startline">2281</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_inbox_count := 0;</data>
+</edge>
+<edge id="E2" source="N2" target="N3">
+<data key="endline">2282</data>
+<data key="startline">2282</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_pkt_external := false;</data>
+</edge>
+<edge id="E3" source="N3" target="N4">
+<data key="endline">2283</data>
+<data key="startline">2283</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_inbox_count := 0;</data>
+</edge>
+<edge id="E4" source="N4" target="N5">
+<data key="endline">2284</data>
+<data key="startline">2284</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_pkt_external := false;</data>
+</edge>
+<edge id="E5" source="N5" target="N6">
+<data key="endline">2285</data>
+<data key="startline">2285</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_inbox_count := 0;</data>
+</edge>
+<edge id="E6" source="N6" target="N7">
+<data key="endline">2286</data>
+<data key="startline">2286</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_pkt_external := false;</data>
+</edge>
+<edge id="E7" source="N7" target="N8">
+<data key="endline">2287</data>
+<data key="startline">2287</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_inbox_count := 0;</data>
+</edge>
+<edge id="E8" source="N8" target="N9">
+<data key="endline">2288</data>
+<data key="startline">2288</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_pkt_external := false;</data>
+</edge>
+<edge id="E9" source="N9" target="N10">
+<data key="endline">2289</data>
+<data key="startline">2289</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">learner_inbox_count := 0;</data>
+</edge>
+<edge id="E10" source="N10" target="N11">
+<data key="endline">2290</data>
+<data key="startline">2290</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">learner_pkt_external := false;</data>
+</edge>
+<edge id="E11" source="N11" target="N12">
+<data key="endline">2292</data>
+<data key="startline">2292</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E12" source="N12" target="N13">
+<data key="endline">2293</data>
+<data key="startline">2293</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E13" source="N13" target="N14">
+<data key="endline">2294</data>
+<data key="startline">2294</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E14" source="N14" target="N15">
+<data key="endline">2295</data>
+<data key="startline">2295</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_recirculate := false;</data>
+</edge>
+<edge id="E15" source="N15" target="N16">
+<data key="endline">2296</data>
+<data key="startline">2296</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E16" source="N16" target="N17">
+<data key="endline">2297</data>
+<data key="startline">2297</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E17" source="N17" target="N18">
+<data key="endline">2298</data>
+<data key="startline">2298</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E18" source="N18" target="N19">
+<data key="endline">2299</data>
+<data key="startline">2299</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_p4b_recirculate := false;</data>
+</edge>
+<edge id="E19" source="N19" target="N20">
+<data key="endline">2300</data>
+<data key="startline">2300</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E20" source="N20" target="N21">
+<data key="endline">2301</data>
+<data key="startline">2301</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E21" source="N21" target="N22">
+<data key="endline">2302</data>
+<data key="startline">2302</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E22" source="N22" target="N23">
+<data key="endline">2303</data>
+<data key="startline">2303</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_p4b_recirculate := false;</data>
+</edge>
+<edge id="E23" source="N23" target="N24">
+<data key="endline">2304</data>
+<data key="startline">2304</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E24" source="N24" target="N25">
+<data key="endline">2305</data>
+<data key="startline">2305</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E25" source="N25" target="N26">
+<data key="endline">2306</data>
+<data key="startline">2306</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E26" source="N26" target="N27">
+<data key="endline">2307</data>
+<data key="startline">2307</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_p4b_recirculate := false;</data>
+</edge>
+<edge id="E27" source="N27" target="N28">
+<data key="endline">2308</data>
+<data key="startline">2308</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">learner_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E28" source="N28" target="N29">
+<data key="endline">2309</data>
+<data key="startline">2309</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">learner_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E29" source="N29" target="N30">
+<data key="endline">2310</data>
+<data key="startline">2310</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">learner_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E30" source="N30" target="N31">
+<data key="endline">2311</data>
+<data key="startline">2311</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">learner_p4b_recirculate := false;</data>
+</edge>
+<edge id="E31" source="N31" target="N32">
+<data key="endline">2314</data>
+<data key="startline">2314</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume (forall i : bv32 :: acceptor0_ingress_registerRound[i] == 0bv16);</data>
+</edge>
+<edge id="E32" source="N32" target="N33">
+<data key="endline">2315</data>
+<data key="startline">2315</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume acceptor0_ingress_registerRound[0bv32] == 0bv16;</data>
+</edge>
+<edge id="E33" source="N33" target="N34">
+<data key="endline">2316</data>
+<data key="startline">2316</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume (forall i : bv32 :: acceptor0_ingress_registerVRound[i] == 0bv16);</data>
+</edge>
+<edge id="E34" source="N34" target="N35">
+<data key="endline">2317</data>
+<data key="startline">2317</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume acceptor0_ingress_registerVRound[0bv32] == 0bv16;</data>
+</edge>
+<edge id="E35" source="N35" target="N36">
+<data key="endline">2318</data>
+<data key="startline">2318</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume (forall i : bv32 :: acceptor1_ingress_registerRound[i] == 0bv16);</data>
+</edge>
+<edge id="E36" source="N36" target="N37">
+<data key="endline">2319</data>
+<data key="startline">2319</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume acceptor1_ingress_registerRound[0bv32] == 0bv16;</data>
+</edge>
+<edge id="E37" source="N37" target="N38">
+<data key="endline">2320</data>
+<data key="startline">2320</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume (forall i : bv32 :: acceptor1_ingress_registerVRound[i] == 0bv16);</data>
+</edge>
+<edge id="E38" source="N38" target="N39">
+<data key="endline">2321</data>
+<data key="startline">2321</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume acceptor1_ingress_registerVRound[0bv32] == 0bv16;</data>
+</edge>
+<edge id="E39" source="N39" target="N40">
+<data key="endline">2322</data>
+<data key="startline">2322</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume (forall i : bv32 :: acceptor2_ingress_registerRound[i] == 0bv16);</data>
+</edge>
+<edge id="E40" source="N40" target="N41">
+<data key="endline">2323</data>
+<data key="startline">2323</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume acceptor2_ingress_registerRound[0bv32] == 0bv16;</data>
+</edge>
+<edge id="E41" source="N41" target="N42">
+<data key="endline">2324</data>
+<data key="startline">2324</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume (forall i : bv32 :: acceptor2_ingress_registerVRound[i] == 0bv16);</data>
+</edge>
+<edge id="E42" source="N42" target="N43">
+<data key="endline">2325</data>
+<data key="startline">2325</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume acceptor2_ingress_registerVRound[0bv32] == 0bv16;</data>
+</edge>
+<edge id="E43" source="N43" target="N44">
+<data key="endline">2327</data>
+<data key="startline">2327</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last_index := 0bv32;</data>
+</edge>
+<edge id="E44" source="N44" target="N45">
+<data key="endline">2328</data>
+<data key="startline">2328</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last_value := 0bv16;</data>
+</edge>
+<edge id="E45" source="N45" target="N46">
+<data key="endline">2329</data>
+<data key="startline">2329</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last_old_value := 0bv16;</data>
+</edge>
+<edge id="E46" source="N46" target="N47">
+<data key="endline">2330</data>
+<data key="startline">2330</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__wrote_any := false;</data>
+</edge>
+<edge id="E47" source="N47" target="N48">
+<data key="endline">2331</data>
+<data key="startline">2331</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__wrote_index0 := false;</data>
+</edge>
+<edge id="E48" source="N48" target="N49">
+<data key="endline">2332</data>
+<data key="startline">2332</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__next_write_site := 0;</data>
+</edge>
+<edge id="E49" source="N49" target="N50">
+<data key="endline">2333</data>
+<data key="startline">2333</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last_write_site := 0;</data>
+</edge>
+<edge id="E50" source="N50" target="N51">
+<data key="endline">2334</data>
+<data key="startline">2334</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last0_old_value := 0bv16;</data>
+</edge>
+<edge id="E51" source="N51" target="N52">
+<data key="endline">2335</data>
+<data key="startline">2335</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last0_value := 0bv16;</data>
+</edge>
+<edge id="E52" source="N52" target="N53">
+<data key="endline">2336</data>
+<data key="startline">2336</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last_index := 0bv32;</data>
+</edge>
+<edge id="E53" source="N53" target="N54">
+<data key="endline">2337</data>
+<data key="startline">2337</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last_value := 0bv16;</data>
+</edge>
+<edge id="E54" source="N54" target="N55">
+<data key="endline">2338</data>
+<data key="startline">2338</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last_old_value := 0bv16;</data>
+</edge>
+<edge id="E55" source="N55" target="N56">
+<data key="endline">2339</data>
+<data key="startline">2339</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__wrote_any := false;</data>
+</edge>
+<edge id="E56" source="N56" target="N57">
+<data key="endline">2340</data>
+<data key="startline">2340</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__wrote_index0 := false;</data>
+</edge>
+<edge id="E57" source="N57" target="N58">
+<data key="endline">2341</data>
+<data key="startline">2341</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__next_write_site := 0;</data>
+</edge>
+<edge id="E58" source="N58" target="N59">
+<data key="endline">2342</data>
+<data key="startline">2342</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last_write_site := 0;</data>
+</edge>
+<edge id="E59" source="N59" target="N60">
+<data key="endline">2343</data>
+<data key="startline">2343</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last0_old_value := 0bv16;</data>
+</edge>
+<edge id="E60" source="N60" target="N61">
+<data key="endline">2344</data>
+<data key="startline">2344</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last0_value := 0bv16;</data>
+</edge>
+<edge id="E61" source="N61" target="N62">
+<data key="endline">2345</data>
+<data key="startline">2345</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last_index := 0bv32;</data>
+</edge>
+<edge id="E62" source="N62" target="N63">
+<data key="endline">2346</data>
+<data key="startline">2346</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last_value := 0bv16;</data>
+</edge>
+<edge id="E63" source="N63" target="N64">
+<data key="endline">2347</data>
+<data key="startline">2347</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last_old_value := 0bv16;</data>
+</edge>
+<edge id="E64" source="N64" target="N65">
+<data key="endline">2348</data>
+<data key="startline">2348</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__wrote_any := false;</data>
+</edge>
+<edge id="E65" source="N65" target="N66">
+<data key="endline">2349</data>
+<data key="startline">2349</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__wrote_index0 := false;</data>
+</edge>
+<edge id="E66" source="N66" target="N67">
+<data key="endline">2350</data>
+<data key="startline">2350</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__next_write_site := 0;</data>
+</edge>
+<edge id="E67" source="N67" target="N68">
+<data key="endline">2351</data>
+<data key="startline">2351</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last_write_site := 0;</data>
+</edge>
+<edge id="E68" source="N68" target="N69">
+<data key="endline">2352</data>
+<data key="startline">2352</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last0_old_value := 0bv16;</data>
+</edge>
+<edge id="E69" source="N69" target="N70">
+<data key="endline">2353</data>
+<data key="startline">2353</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last0_value := 0bv16;</data>
+</edge>
+<edge id="E70" source="N70" target="N71">
+<data key="endline">2354</data>
+<data key="startline">2354</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last_index := 0bv32;</data>
+</edge>
+<edge id="E71" source="N71" target="N72">
+<data key="endline">2355</data>
+<data key="startline">2355</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last_value := 0bv16;</data>
+</edge>
+<edge id="E72" source="N72" target="N73">
+<data key="endline">2356</data>
+<data key="startline">2356</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last_old_value := 0bv16;</data>
+</edge>
+<edge id="E73" source="N73" target="N74">
+<data key="endline">2357</data>
+<data key="startline">2357</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__wrote_any := false;</data>
+</edge>
+<edge id="E74" source="N74" target="N75">
+<data key="endline">2358</data>
+<data key="startline">2358</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__wrote_index0 := false;</data>
+</edge>
+<edge id="E75" source="N75" target="N76">
+<data key="endline">2359</data>
+<data key="startline">2359</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__next_write_site := 0;</data>
+</edge>
+<edge id="E76" source="N76" target="N77">
+<data key="endline">2360</data>
+<data key="startline">2360</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last_write_site := 0;</data>
+</edge>
+<edge id="E77" source="N77" target="N78">
+<data key="endline">2361</data>
+<data key="startline">2361</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last0_old_value := 0bv16;</data>
+</edge>
+<edge id="E78" source="N78" target="N79">
+<data key="endline">2362</data>
+<data key="startline">2362</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last0_value := 0bv16;</data>
+</edge>
+<edge id="E79" source="N79" target="N80">
+<data key="endline">2363</data>
+<data key="startline">2363</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last_index := 0bv32;</data>
+</edge>
+<edge id="E80" source="N80" target="N81">
+<data key="endline">2364</data>
+<data key="startline">2364</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last_value := 0bv16;</data>
+</edge>
+<edge id="E81" source="N81" target="N82">
+<data key="endline">2365</data>
+<data key="startline">2365</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last_old_value := 0bv16;</data>
+</edge>
+<edge id="E82" source="N82" target="N83">
+<data key="endline">2366</data>
+<data key="startline">2366</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__wrote_any := false;</data>
+</edge>
+<edge id="E83" source="N83" target="N84">
+<data key="endline">2367</data>
+<data key="startline">2367</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__wrote_index0 := false;</data>
+</edge>
+<edge id="E84" source="N84" target="N85">
+<data key="endline">2368</data>
+<data key="startline">2368</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__next_write_site := 0;</data>
+</edge>
+<edge id="E85" source="N85" target="N86">
+<data key="endline">2369</data>
+<data key="startline">2369</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last_write_site := 0;</data>
+</edge>
+<edge id="E86" source="N86" target="N87">
+<data key="endline">2370</data>
+<data key="startline">2370</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last0_old_value := 0bv16;</data>
+</edge>
+<edge id="E87" source="N87" target="N88">
+<data key="endline">2371</data>
+<data key="startline">2371</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last0_value := 0bv16;</data>
+</edge>
+<edge id="E88" source="N88" target="N89">
+<data key="endline">2372</data>
+<data key="startline">2372</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last_index := 0bv32;</data>
+</edge>
+<edge id="E89" source="N89" target="N90">
+<data key="endline">2373</data>
+<data key="startline">2373</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last_value := 0bv16;</data>
+</edge>
+<edge id="E90" source="N90" target="N91">
+<data key="endline">2374</data>
+<data key="startline">2374</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last_old_value := 0bv16;</data>
+</edge>
+<edge id="E91" source="N91" target="N92">
+<data key="endline">2375</data>
+<data key="startline">2375</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__wrote_any := false;</data>
+</edge>
+<edge id="E92" source="N92" target="N93">
+<data key="endline">2376</data>
+<data key="startline">2376</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__wrote_index0 := false;</data>
+</edge>
+<edge id="E93" source="N93" target="N94">
+<data key="endline">2377</data>
+<data key="startline">2377</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__next_write_site := 0;</data>
+</edge>
+<edge id="E94" source="N94" target="N95">
+<data key="endline">2378</data>
+<data key="startline">2378</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last_write_site := 0;</data>
+</edge>
+<edge id="E95" source="N95" target="N96">
+<data key="endline">2379</data>
+<data key="startline">2379</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last0_old_value := 0bv16;</data>
+</edge>
+<edge id="E96" source="N96" target="N97">
+<data key="endline">2380</data>
+<data key="startline">2380</data>
+<data key="assumption">leader_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor0_pkt_external == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; procurator_step == 0 &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; leader_pkt_external == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last0_value := 0bv16;</data>
+</edge>
+<edge id="E97" source="N97" target="N98">
+<data key="endline">2382</data>
+<data key="startline">2382</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">procurator_step := 0;</data>
+</edge>
+<edge id="E98" source="N98" target="N99">
+<data key="endline">2384</data>
+<data key="enterFunction">main</data>
+<data key="startline">2384</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call main();</data>
+</edge>
+<edge id="E99" source="N99" target="N100">
+<data key="endline">1809</data>
+<data key="startline">1809</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume leader_inbox_count &lt; 3;</data>
+</edge>
+<edge id="E100" source="N100" target="N101">
+<data key="endline">1810</data>
+<data key="startline">1810</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_pkt_external := true;</data>
+</edge>
+<edge id="E101" source="N101" target="N102">
+<data key="endline">1811</data>
+<data key="startline">1811</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">havoc leader_hdr.ethernet.etherType;</data>
+</edge>
+<edge id="E102" source="N102" target="N103">
+<data key="endline">1812</data>
+<data key="startline">1812</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">havoc leader_hdr.ipv4.protocol;</data>
+</edge>
+<edge id="E103" source="N103" target="N104">
+<data key="endline">1813</data>
+<data key="startline">1813</data>
+<data key="assumption">acceptor2_inbox_count == 0 &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; procurator_step == 0 &amp;&amp; leader_inbox_count == 1 &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; learner_pkt_external == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">havoc leader_hdr.udp.dstPort;</data>
+</edge>
+<edge id="E104" source="N104" target="N105">
+<data key="endline">1814</data>
+<data key="startline">1814</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_inbox_count := leader_inbox_count + 1;</data>
+</edge>
+<edge id="E105" source="N105" target="N106">
+<data key="endline">2384</data>
+<data key="startline">2384</data>
+<data key="returnFrom">main</data>
+<data key="assumption">acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_pkt_external == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; leader_inbox_count == 1 &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; procurator_step == 1 &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_p4b_clone_i2i == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call main();</data>
+</edge>
+<edge id="E106" source="N106" target="N107">
+<data key="endline">2385</data>
+<data key="startline">2385</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">procurator_step := procurator_step + 1;</data>
+</edge>
+<edge id="E107" source="N107" target="N108">
+<data key="endline">2384</data>
+<data key="enterFunction">main</data>
+<data key="startline">2384</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call main();</data>
+</edge>
+<edge id="E108" source="N108" target="N109">
+<data key="endline">1859</data>
+<data key="startline">1859</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume leader_inbox_count &gt; 0;</data>
+</edge>
+<edge id="E109" source="N109" target="N110">
+<data key="endline">1860</data>
+<data key="startline">1860</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_inbox_count := leader_inbox_count - 1;</data>
+</edge>
+<edge id="E110" source="N110" target="N111">
+<data key="endline">1861</data>
+<data key="enterFunction">leader_mainProcedure</data>
+<data key="startline">1861</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_mainProcedure();</data>
+</edge>
+<edge id="E111" source="N111" target="N112">
+<data key="endline">1407</data>
+<data key="startline">1407</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_checksum_error := false;</data>
+</edge>
+<edge id="E112" source="N112" target="N113">
+<data key="endline">1408</data>
+<data key="startline">1408</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_checksum_updated := false;</data>
+</edge>
+<edge id="E113" source="N113" target="N114">
+<data key="endline">1409</data>
+<data key="startline">1409</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_checksum_verified := false;</data>
+</edge>
+<edge id="E114" source="N114" target="N115">
+<data key="endline">1410</data>
+<data key="startline">1410</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_digest := false;</data>
+</edge>
+<edge id="E115" source="N115" target="N116">
+<data key="endline">1411</data>
+<data key="startline">1411</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_recirculate := false;</data>
+</edge>
+<edge id="E116" source="N116" target="N117">
+<data key="endline">1412</data>
+<data key="startline">1412</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E117" source="N117" target="N118">
+<data key="endline">1413</data>
+<data key="startline">1413</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E118" source="N118" target="N119">
+<data key="endline">1414</data>
+<data key="startline">1414</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E119" source="N119" target="N120">
+<data key="endline">1415</data>
+<data key="enterFunction">leader_main</data>
+<data key="startline">1415</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_main();</data>
+</edge>
+<edge id="E120" source="N120" target="N121">
+<data key="endline">1395</data>
+<data key="enterFunction">leader_TopParser</data>
+<data key="startline">1395</data>
+<data key="assumption">acceptor0_pkt_external == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; leader_p4b_digest == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; procurator_step == 1 &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; acceptor0_p4b_recirculate == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_TopParser();</data>
+</edge>
+<edge id="E121" source="N121" target="N122">
+<data key="endline">1309</data>
+<data key="startline">1309</data>
+<data key="assumption">acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; learner_pkt_external == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; procurator_step == 1 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_packet_in.extract(leader_hdr.ethernet);</data>
+</edge>
+<edge id="E122" source="N122" target="N123">
+<data key="endline">1321</data>
+<data key="startline">1321</data>
+<data key="assumption">acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_drop == true &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; procurator_step == 1 &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; learner_p4b_recirculate == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; learner_pkt_external == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; leader_p4b_digest == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assume !(leader_hdr.ethernet.etherType == 2054bv16) &amp;&amp; !(leader_hdr.ethernet.etherType == 2048bv16);</data>
+</edge>
+<edge id="E123" source="N123" target="N124">
+<data key="endline">1369</data>
+<data key="startline">1369</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_reject();</data>
+</edge>
+<edge id="E124" source="N124" target="N125">
+<data key="endline">1395</data>
+<data key="startline">1395</data>
+<data key="returnFrom">leader_TopParser</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_TopParser();</data>
+</edge>
+<edge id="E125" source="N125" target="N126">
+<data key="endline">1396</data>
+<data key="startline">1396</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_verifyChecksum();</data>
+</edge>
+<edge id="E126" source="N126" target="N127">
+<data key="endline">1397</data>
+<data key="startline">1397</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_ingress();</data>
+</edge>
+<edge id="E127" source="N127" target="N128">
+<data key="endline">1398</data>
+<data key="startline">1398</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_egress();</data>
+</edge>
+<edge id="E128" source="N128" target="N129">
+<data key="endline">1399</data>
+<data key="startline">1399</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_computeChecksum();</data>
+</edge>
+<edge id="E129" source="N129" target="N130">
+<data key="endline">1400</data>
+<data key="startline">1400</data>
+<data key="assumption">acceptor1_pkt_external == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; leader_forward == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_drop == true &amp;&amp; procurator_step == 1 &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_pkt_external == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_p4b_checksum_verified == false</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">[leader_forward == false]</data>
+</edge>
+<edge id="E130" source="N130" target="N131">
+<data key="endline">1401</data>
+<data key="startline">1401</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_drop := true;</data>
+</edge>
+<edge id="E131" source="N131" target="N132">
+<data key="endline">1415</data>
+<data key="startline">1415</data>
+<data key="returnFrom">leader_main</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_main();</data>
+</edge>
+<edge id="E132" source="N132" target="N133">
+<data key="endline">1861</data>
+<data key="startline">1861</data>
+<data key="returnFrom">leader_mainProcedure</data>
+<data key="assumption">learner_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; leader_drop == true &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; leader_p4b_digest == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; leader_forward == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_pkt_external == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; procurator_step == 1 &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor2_pkt_external == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_mainProcedure();</data>
+</edge>
+<edge id="E133" source="N133" target="N134">
+<data key="endline">1862</data>
+<data key="startline">1862</data>
+<data key="assumption">acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_pkt_external == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor2_pkt_external == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; procurator_step == 1 &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; leader_pkt_external == true &amp;&amp; leader_drop == true &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; leader_p4b_recirculate == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_forward == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">[!(leader_p4b_clone_i2e)]</data>
+</edge>
+<edge id="E134" source="N134" target="N135">
+<data key="endline">1867</data>
+<data key="startline">1867</data>
+<data key="assumption">leader_forward == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; leader_p4b_recirculate == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; procurator_step == 1 &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; leader_drop == true &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E135" source="N135" target="N136">
+<data key="endline">1868</data>
+<data key="startline">1868</data>
+<data key="assumption">leader_forward == false &amp;&amp; leader_drop == true &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; procurator_step == 1 &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_pkt_external == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; learner_p4b_clone_i2i == false</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">[!(leader_p4b_clone_e2e)]</data>
+</edge>
+<edge id="E136" source="N136" target="N137">
+<data key="endline">1873</data>
+<data key="startline">1873</data>
+<data key="assumption">acceptor0_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_drop == true &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; leader_forward == false &amp;&amp; leader_pkt_external == true &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_pkt_external == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_pkt_external == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; procurator_step == 1 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E137" source="N137" target="N138">
+<data key="endline">1874</data>
+<data key="startline">1874</data>
+<data key="assumption">acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; leader_drop == true &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; leader_forward == false &amp;&amp; leader_p4b_digest == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_pkt_external == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; procurator_step == 1 &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; leader_p4b_recirculate == false</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">[!(leader_p4b_clone_i2i)]</data>
+</edge>
+<edge id="E138" source="N138" target="N139">
+<data key="endline">1879</data>
+<data key="startline">1879</data>
+<data key="assumption">acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_recirculate == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; learner_p4b_recirculate == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; procurator_step == 1 &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor2_pkt_external == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_forward == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; leader_drop == true &amp;&amp; acceptor0_pkt_external == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E139" source="N139" target="N140">
+<data key="endline">1880</data>
+<data key="startline">1880</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">[!(leader_p4b_recirculate)]</data>
+</edge>
+<edge id="E140" source="N140" target="N141">
+<data key="endline">1885</data>
+<data key="startline">1885</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">leader_p4b_recirculate := false;</data>
+</edge>
+<edge id="E141" source="N141" target="N142">
+<data key="endline">1886</data>
+<data key="enterFunction">leader_Forward</data>
+<data key="startline">1886</data>
+<data key="assumption">acceptor0_p4b_clone_i2e == false &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_drop == true &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_pkt_external == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_forward == false &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; procurator_step == 1 &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor2_pkt_external == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_Forward();</data>
+</edge>
+<edge id="E142" source="N142" target="N143">
+<data key="endline">1746</data>
+<data key="startline">1746</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">[leader_standard_metadata.egress_port == 0bv9]</data>
+</edge>
+<edge id="E143" source="N143" target="N144">
+<data key="endline">1886</data>
+<data key="startline">1886</data>
+<data key="returnFrom">leader_Forward</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">call leader_Forward();</data>
+</edge>
+<edge id="E144" source="N144" target="N145">
+<data key="endline">1888</data>
+<data key="startline">1888</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__dbg0 := acceptor0_ingress_registerRound[0bv32];</data>
+</edge>
+<edge id="E145" source="N145" target="N146">
+<data key="endline">1889</data>
+<data key="startline">1889</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last_index__dbg := acceptor0_ingress_registerRound__last_index;</data>
+</edge>
+<edge id="E146" source="N146" target="N147">
+<data key="endline">1890</data>
+<data key="startline">1890</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last_value__dbg := acceptor0_ingress_registerRound__last_value;</data>
+</edge>
+<edge id="E147" source="N147" target="N148">
+<data key="endline">1891</data>
+<data key="startline">1891</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last_old_value__dbg := acceptor0_ingress_registerRound__last_old_value;</data>
+</edge>
+<edge id="E148" source="N148" target="N149">
+<data key="endline">1892</data>
+<data key="startline">1892</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__wrote_any__dbg := acceptor0_ingress_registerRound__wrote_any;</data>
+</edge>
+<edge id="E149" source="N149" target="N150">
+<data key="endline">1893</data>
+<data key="startline">1893</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__wrote_index0__dbg := acceptor0_ingress_registerRound__wrote_index0;</data>
+</edge>
+<edge id="E150" source="N150" target="N151">
+<data key="endline">1894</data>
+<data key="startline">1894</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last0_old_value__dbg := acceptor0_ingress_registerRound__last0_old_value;</data>
+</edge>
+<edge id="E151" source="N151" target="N152">
+<data key="endline">1895</data>
+<data key="startline">1895</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerRound__last0_value__dbg := acceptor0_ingress_registerRound__last0_value;</data>
+</edge>
+<edge id="E152" source="N152" target="N153">
+<data key="endline">1896</data>
+<data key="startline">1896</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__dbg0 := acceptor0_ingress_registerVRound[0bv32];</data>
+</edge>
+<edge id="E153" source="N153" target="N154">
+<data key="endline">1897</data>
+<data key="startline">1897</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last_index__dbg := acceptor0_ingress_registerVRound__last_index;</data>
+</edge>
+<edge id="E154" source="N154" target="N155">
+<data key="endline">1898</data>
+<data key="startline">1898</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last_value__dbg := acceptor0_ingress_registerVRound__last_value;</data>
+</edge>
+<edge id="E155" source="N155" target="N156">
+<data key="endline">1899</data>
+<data key="startline">1899</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last_old_value__dbg := acceptor0_ingress_registerVRound__last_old_value;</data>
+</edge>
+<edge id="E156" source="N156" target="N157">
+<data key="endline">1900</data>
+<data key="startline">1900</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__wrote_any__dbg := acceptor0_ingress_registerVRound__wrote_any;</data>
+</edge>
+<edge id="E157" source="N157" target="N158">
+<data key="endline">1901</data>
+<data key="startline">1901</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__wrote_index0__dbg := acceptor0_ingress_registerVRound__wrote_index0;</data>
+</edge>
+<edge id="E158" source="N158" target="N159">
+<data key="endline">1902</data>
+<data key="startline">1902</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last0_old_value__dbg := acceptor0_ingress_registerVRound__last0_old_value;</data>
+</edge>
+<edge id="E159" source="N159" target="N160">
+<data key="endline">1903</data>
+<data key="startline">1903</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor0_ingress_registerVRound__last0_value__dbg := acceptor0_ingress_registerVRound__last0_value;</data>
+</edge>
+<edge id="E160" source="N160" target="N161">
+<data key="endline">1904</data>
+<data key="startline">1904</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__dbg0 := acceptor1_ingress_registerRound[0bv32];</data>
+</edge>
+<edge id="E161" source="N161" target="N162">
+<data key="endline">1905</data>
+<data key="startline">1905</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last_index__dbg := acceptor1_ingress_registerRound__last_index;</data>
+</edge>
+<edge id="E162" source="N162" target="N163">
+<data key="endline">1906</data>
+<data key="startline">1906</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last_value__dbg := acceptor1_ingress_registerRound__last_value;</data>
+</edge>
+<edge id="E163" source="N163" target="N164">
+<data key="endline">1907</data>
+<data key="startline">1907</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last_old_value__dbg := acceptor1_ingress_registerRound__last_old_value;</data>
+</edge>
+<edge id="E164" source="N164" target="N165">
+<data key="endline">1908</data>
+<data key="startline">1908</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__wrote_any__dbg := acceptor1_ingress_registerRound__wrote_any;</data>
+</edge>
+<edge id="E165" source="N165" target="N166">
+<data key="endline">1909</data>
+<data key="startline">1909</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__wrote_index0__dbg := acceptor1_ingress_registerRound__wrote_index0;</data>
+</edge>
+<edge id="E166" source="N166" target="N167">
+<data key="endline">1910</data>
+<data key="startline">1910</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last0_old_value__dbg := acceptor1_ingress_registerRound__last0_old_value;</data>
+</edge>
+<edge id="E167" source="N167" target="N168">
+<data key="endline">1911</data>
+<data key="startline">1911</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerRound__last0_value__dbg := acceptor1_ingress_registerRound__last0_value;</data>
+</edge>
+<edge id="E168" source="N168" target="N169">
+<data key="endline">1912</data>
+<data key="startline">1912</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__dbg0 := acceptor1_ingress_registerVRound[0bv32];</data>
+</edge>
+<edge id="E169" source="N169" target="N170">
+<data key="endline">1913</data>
+<data key="startline">1913</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last_index__dbg := acceptor1_ingress_registerVRound__last_index;</data>
+</edge>
+<edge id="E170" source="N170" target="N171">
+<data key="endline">1914</data>
+<data key="startline">1914</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last_value__dbg := acceptor1_ingress_registerVRound__last_value;</data>
+</edge>
+<edge id="E171" source="N171" target="N172">
+<data key="endline">1915</data>
+<data key="startline">1915</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last_old_value__dbg := acceptor1_ingress_registerVRound__last_old_value;</data>
+</edge>
+<edge id="E172" source="N172" target="N173">
+<data key="endline">1916</data>
+<data key="startline">1916</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__wrote_any__dbg := acceptor1_ingress_registerVRound__wrote_any;</data>
+</edge>
+<edge id="E173" source="N173" target="N174">
+<data key="endline">1917</data>
+<data key="startline">1917</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__wrote_index0__dbg := acceptor1_ingress_registerVRound__wrote_index0;</data>
+</edge>
+<edge id="E174" source="N174" target="N175">
+<data key="endline">1918</data>
+<data key="startline">1918</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last0_old_value__dbg := acceptor1_ingress_registerVRound__last0_old_value;</data>
+</edge>
+<edge id="E175" source="N175" target="N176">
+<data key="endline">1919</data>
+<data key="startline">1919</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor1_ingress_registerVRound__last0_value__dbg := acceptor1_ingress_registerVRound__last0_value;</data>
+</edge>
+<edge id="E176" source="N176" target="N177">
+<data key="endline">1920</data>
+<data key="startline">1920</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__dbg0 := acceptor2_ingress_registerRound[0bv32];</data>
+</edge>
+<edge id="E177" source="N177" target="N178">
+<data key="endline">1921</data>
+<data key="startline">1921</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last_index__dbg := acceptor2_ingress_registerRound__last_index;</data>
+</edge>
+<edge id="E178" source="N178" target="N179">
+<data key="endline">1922</data>
+<data key="startline">1922</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last_value__dbg := acceptor2_ingress_registerRound__last_value;</data>
+</edge>
+<edge id="E179" source="N179" target="N180">
+<data key="endline">1923</data>
+<data key="startline">1923</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last_old_value__dbg := acceptor2_ingress_registerRound__last_old_value;</data>
+</edge>
+<edge id="E180" source="N180" target="N181">
+<data key="endline">1924</data>
+<data key="startline">1924</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__wrote_any__dbg := acceptor2_ingress_registerRound__wrote_any;</data>
+</edge>
+<edge id="E181" source="N181" target="N182">
+<data key="endline">1925</data>
+<data key="startline">1925</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__wrote_index0__dbg := acceptor2_ingress_registerRound__wrote_index0;</data>
+</edge>
+<edge id="E182" source="N182" target="N183">
+<data key="endline">1926</data>
+<data key="startline">1926</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last0_old_value__dbg := acceptor2_ingress_registerRound__last0_old_value;</data>
+</edge>
+<edge id="E183" source="N183" target="N184">
+<data key="endline">1927</data>
+<data key="startline">1927</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerRound__last0_value__dbg := acceptor2_ingress_registerRound__last0_value;</data>
+</edge>
+<edge id="E184" source="N184" target="N185">
+<data key="endline">1928</data>
+<data key="startline">1928</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__dbg0 := acceptor2_ingress_registerVRound[0bv32];</data>
+</edge>
+<edge id="E185" source="N185" target="N186">
+<data key="endline">1929</data>
+<data key="startline">1929</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last_index__dbg := acceptor2_ingress_registerVRound__last_index;</data>
+</edge>
+<edge id="E186" source="N186" target="N187">
+<data key="endline">1930</data>
+<data key="startline">1930</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last_value__dbg := acceptor2_ingress_registerVRound__last_value;</data>
+</edge>
+<edge id="E187" source="N187" target="N188">
+<data key="endline">1931</data>
+<data key="startline">1931</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last_old_value__dbg := acceptor2_ingress_registerVRound__last_old_value;</data>
+</edge>
+<edge id="E188" source="N188" target="N189">
+<data key="endline">1932</data>
+<data key="startline">1932</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__wrote_any__dbg := acceptor2_ingress_registerVRound__wrote_any;</data>
+</edge>
+<edge id="E189" source="N189" target="N190">
+<data key="endline">1933</data>
+<data key="startline">1933</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__wrote_index0__dbg := acceptor2_ingress_registerVRound__wrote_index0;</data>
+</edge>
+<edge id="E190" source="N190" target="N191">
+<data key="endline">1934</data>
+<data key="startline">1934</data>
+<data key="assumption">acceptor0_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_p4b_recirculate == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; leader_inbox_count == 0 &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any__dbg == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; leader_drop == true &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; leader_forward == false &amp;&amp; procurator_step == 1 &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any__dbg == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerRound__wrote_any__dbg == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor2_pkt_external == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; learner_pkt_external == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last0_old_value__dbg := acceptor2_ingress_registerVRound__last0_old_value;</data>
+</edge>
+<edge id="E191" source="N191" target="N192">
+<data key="endline">1935</data>
+<data key="startline">1935</data>
+<data key="assumption">procurator_step == 1 &amp;&amp; acceptor0_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; leader_forward == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; leader_drop == true &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_any__dbg == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any__dbg == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any__dbg == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor2_p4b_recirculate == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">acceptor2_ingress_registerVRound__last0_value__dbg := acceptor2_ingress_registerVRound__last0_value;</data>
+</edge>
+<edge id="E192" source="N192" target="N193">
+<data key="endline">1937</data>
+<data key="startline">1937</data>
+<data key="assumption">procurator_step == 1 &amp;&amp; acceptor0_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any == false &amp;&amp; leader_p4b_clone_i2e == false &amp;&amp; acceptor1_pkt_external == false &amp;&amp; learner_p4b_clone_i2e == false &amp;&amp; acceptor2_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor1_p4b_clone_e2e == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; leader_forward == false &amp;&amp; acceptor1_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_any == false &amp;&amp; leader_drop == true &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor2_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor0_ingress_registerRound__wrote_any__dbg == false &amp;&amp; leader_p4b_clone_e2e == false &amp;&amp; acceptor0_p4b_recirculate == false &amp;&amp; leader_p4b_checksum_updated == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; learner_p4b_clone_e2e == false &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; acceptor2_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_recirculate == false &amp;&amp; leader_p4b_checksum_error == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any__dbg == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; acceptor2_ingress_registerRound__last_write_site == 0 &amp;&amp; learner_inbox_count == 0 &amp;&amp; acceptor1_p4b_recirculate == false &amp;&amp; acceptor0_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor0_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; acceptor1_ingress_registerRound__wrote_any__dbg == false &amp;&amp; acceptor0_inbox_count == 0 &amp;&amp; acceptor1_ingress_registerRound__wrote_index0__dbg == false &amp;&amp; acceptor2_p4b_clone_e2e == false &amp;&amp; acceptor0_ingress_registerRound__wrote_any == false &amp;&amp; acceptor1_ingress_registerRound__wrote_index0 == false &amp;&amp; learner_pkt_external == false &amp;&amp; acceptor2_p4b_clone_i2e == false &amp;&amp; acceptor0_p4b_clone_i2e == false &amp;&amp; learner_p4b_clone_i2i == false &amp;&amp; acceptor2_ingress_registerRound__wrote_any == false &amp;&amp; acceptor0_p4b_clone_i2i == false &amp;&amp; leader_p4b_digest == false &amp;&amp; acceptor2_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor0_ingress_registerRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_any__dbg == false &amp;&amp; acceptor0_ingress_registerVRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__next_write_site == 0 &amp;&amp; leader_p4b_clone_i2i == false &amp;&amp; acceptor0_p4b_clone_e2e == false &amp;&amp; acceptor0_pkt_external == false &amp;&amp; acceptor0_ingress_registerVRound__next_write_site == 0 &amp;&amp; acceptor1_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_inbox_count == 0 &amp;&amp; leader_inbox_count == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0 == false &amp;&amp; acceptor1_p4b_clone_i2i == false &amp;&amp; acceptor1_ingress_registerVRound__next_write_site == 0 &amp;&amp; learner_p4b_recirculate == false &amp;&amp; acceptor1_ingress_registerVRound__last_write_site == 0 &amp;&amp; leader_pkt_external == true &amp;&amp; acceptor2_pkt_external == false &amp;&amp; acceptor0_ingress_registerRound__wrote_index0 == false &amp;&amp; acceptor1_p4b_clone_i2e == false &amp;&amp; acceptor1_ingress_registerRound__last_write_site == 0 &amp;&amp; acceptor2_ingress_registerVRound__wrote_index0__dbg == false &amp;&amp; acceptor0_ingress_registerVRound__wrote_any == false &amp;&amp; leader_p4b_checksum_verified == false &amp;&amp; acceptor2_inbox_count == 0 &amp;&amp; acceptor2_p4b_clone_i2i == false &amp;&amp; acceptor2_p4b_recirculate == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091121-9221/p4xos_bug.bpl</data>
+<data key="sourcecode">assert bvule.bv32$builtin(acceptor0_hdr.paxos.inst, 300bv32) &amp;&amp; acceptor0_hdr.paxos.inst != 300bv32;</data>
+</edge>
+</graph>
+</graphml>

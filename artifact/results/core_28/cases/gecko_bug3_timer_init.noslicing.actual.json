@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "archived_at_utc": "2026-07-04T06:27:54Z",
+    "archived_case_file": "artifact/results/core_28/cases/gecko_bug3_timer_init.noslicing.actual.json",
+    "archived_evidence_root": "artifact/results/core_28/e",
+    "archived_from_actual": "/home/smy/p4-verify-camera-ready/.tmp/procurator/artifact/core_28.casewise.actual.json",
+    "archived_from_checkout": "/home/smy/p4-verify-camera-ready",
+    "archived_results_root": "artifact/results/core_28",
+    "default_timeout_s": 900,
+    "ultimate": "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+    "ultimate_xmx_gb": 4,
+    "updated_at": "2026-07-04T09:11:12"
+  },
+  "results": {
+    "benchmarks/specs/bench/gecko_bug3_timer_init.prop": {
+      "category": "implementation",
+      "name": "Gecko bug3: Improper Timer Initialization (NSDI)",
+      "noslicing": {
+        "cmd": [
+          "./src/bin/procurator",
+          "verify",
+          "--no-slicing",
+          "--no-env-prune",
+          "--boogie-harness",
+          "sequential",
+          "--no-two-stage",
+          "--ultimate",
+          "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+          "--toolchain",
+          "src/dslc/toolchain/ultimate/ReachSafety.xml",
+          "--settings",
+          "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf",
+          "--use-spec-max-steps",
+          "--env",
+          "spec",
+          "--wraparound",
+          "off",
+          "--ultimate-timeout-seconds",
+          "900",
+          "--ultimate-xmx-gb",
+          "4",
+          "--no-reg-debug",
+          "--spec",
+          "benchmarks/specs/bench/gecko_bug3_timer_init.prop"
+        ],
+        "result": {
+          "artifact_evidence_dir": "artifact/results/core_28/e/gecko_bug3_timer_init/20260704-091108-69bb",
+          "log_path": "artifact/results/core_28/e/gecko_bug3_timer_init/20260704-091108-69bb/gecko_bug3_timer_init.bounded-dsl-replay.textual.log",
+          "original_log_path": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug3_timer_init/20260704-091108-69bb/gecko_bug3_timer_init.bounded-dsl-replay.textual.log",
+          "original_out_dir": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug3_timer_init/20260704-091108-69bb",
+          "out_dir": "artifact/results/core_28/e/gecko_bug3_timer_init/20260704-091108-69bb",
+          "sanity": "OK",
+          "status": "UNSAFE",
+          "wall_s": 4.131939316000171
+        }
+      },
+      "spec": "benchmarks/specs/bench/gecko_bug3_timer_init.prop"
+    }
+  }
+}

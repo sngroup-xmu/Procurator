@@ -1,0 +1,280 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: 9400c8a1-25ec-491f-9812-5d0145478a42
+    creation_time: '2026-07-04T09:14:08+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+      input_file_hashes:
+        /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl: UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 5735
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 5726
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 5726
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 5726
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4097
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2919
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2899
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2899
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2900
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2900
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2901
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2782
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2901
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2902
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2761
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2761
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2902
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2903
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2744
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2903
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2904
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 2919
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4097
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4098
+          column: 8
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4104
+          column: 8
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4110
+          column: 8
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4116
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4122
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 3748
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4122
+          column: 4
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_bug/20260704-091208-4480/p4xos_bug.bpl
+          line: 4349

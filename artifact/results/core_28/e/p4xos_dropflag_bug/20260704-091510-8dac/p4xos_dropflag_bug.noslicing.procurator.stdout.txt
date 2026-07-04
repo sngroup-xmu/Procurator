@@ -1,0 +1,6 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_dropflag_bug/20260704-091510-8dac/p4xos_dropflag_bug.bpl
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_dropflag_bug/20260704-091510-8dac/gemcutter.log
+[RESULT] RESULT: UNSAFE (witness rerun)
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_dropflag_bug/20260704-091510-8dac/gemcutter.witness.log
+[CEX] dsl_assert: DSL global assertion violated (accumulator flag set; p4xos_dropflag_bug.bpl-witness.graphml)

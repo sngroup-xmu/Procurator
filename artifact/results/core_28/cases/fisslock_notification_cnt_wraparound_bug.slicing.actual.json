@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "archived_at_utc": "2026-07-04T06:27:50Z",
+    "archived_case_file": "artifact/results/core_28/cases/fisslock_notification_cnt_wraparound_bug.slicing.actual.json",
+    "archived_evidence_root": "artifact/results/core_28/e",
+    "archived_from_actual": "/home/smy/p4-verify-camera-ready/.tmp/procurator/artifact/core_28.casewise.actual.json",
+    "archived_from_checkout": "/home/smy/p4-verify-camera-ready",
+    "archived_results_root": "artifact/results/core_28",
+    "default_timeout_s": 900,
+    "ultimate": "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+    "ultimate_xmx_gb": 4,
+    "updated_at": "2026-07-04T08:33:50"
+  },
+  "results": {
+    "benchmarks/specs/bench/fisslock_notification_cnt_wraparound_bug.prop": {
+      "category": "wraparound",
+      "name": "FissLock: premature TRANSFER after notification_cnt wrap-around",
+      "slicing": {
+        "cmd": [
+          "./src/bin/procurator",
+          "verify",
+          "--boogie-harness",
+          "sequential",
+          "--no-two-stage",
+          "--ultimate",
+          "/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate",
+          "--toolchain",
+          "src/dslc/toolchain/ultimate/ReachSafety.xml",
+          "--settings",
+          "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf",
+          "--env",
+          "spec",
+          "--wraparound",
+          "auto",
+          "--ultimate-timeout-seconds",
+          "900",
+          "--ultimate-xmx-gb",
+          "4",
+          "--wraparound-stage-order",
+          "entry_confirm_closure",
+          "--wraparound-max-targets",
+          "1",
+          "--wraparound-confirm-unroll",
+          "3",
+          "--wraparound-max-confirm-unroll",
+          "0",
+          "--wraparound-closure-timeout-cap",
+          "0",
+          "--no-slicing-control-seeds",
+          "--no-reg-debug",
+          "--spec",
+          "benchmarks/specs/bench/fisslock_notification_cnt_wraparound_bug.prop"
+        ],
+        "result": {
+          "artifact_evidence_dir": "artifact/results/core_28/e/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068",
+          "log_path": null,
+          "original_out_dir": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068",
+          "out_dir": "artifact/results/core_28/e/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068",
+          "sanity": "OK",
+          "status": "UNSAFE",
+          "wall_s": 223.30069461599942
+        }
+      },
+      "spec": "benchmarks/specs/bench/fisslock_notification_cnt_wraparound_bug.prop"
+    }
+  }
+}

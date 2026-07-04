@@ -1,0 +1,14 @@
+{
+  "assert_line": 4727,
+  "assert_lines": [
+    4727
+  ],
+  "bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_release_empty_queue_head_bug/20260704-071213-cb25/netlock_release_empty_queue_head_bug.bpl",
+  "focused_bpl_sha256": "94be1796df5458d62aaaa6dcbe64c31d1914b73b03dc4a47a070d6ed717bacf9",
+  "kind": "bounded_dsl_replay_under_approx",
+  "log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_release_empty_queue_head_bug/20260704-071213-cb25/netlock_release_empty_queue_head_bug.bounded-dsl-replay.textual.log",
+  "note": "UNSAFE by deterministic bounded DSL replay of procurator_bad. This is an UNSAFE-only under-approximation; unsupported, SAFE, UNKNOWN, TIMEOUT, or missing replay evidence falls back to the solver.",
+  "result_line": "RESULT: UNSAFE",
+  "source_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_release_empty_queue_head_bug/20260704-071213-cb25/netlock_release_empty_queue_head_bug.bpl",
+  "source_bpl_sha256": "94be1796df5458d62aaaa6dcbe64c31d1914b73b03dc4a47a070d6ed717bacf9"
+}

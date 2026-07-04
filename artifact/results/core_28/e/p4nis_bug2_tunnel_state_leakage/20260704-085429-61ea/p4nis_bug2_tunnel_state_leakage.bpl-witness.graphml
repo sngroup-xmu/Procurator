@@ -1,0 +1,1248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+<key id="programfile" attr.name="programfile" for="graph"/>
+<key id="sourcecodelang" attr.name="sourcecodelang" for="graph"/>
+<key id="creationtime" attr.name="creationtime" for="graph"/>
+<key id="witness-type" attr.name="witness-type" for="graph"/>
+<key id="entry" attr.name="entry" for="node">
+<default>false</default>
+</key>
+<key id="nodetype" attr.name="nodetype" for="node">
+<default>path</default>
+</key>
+<key id="violation" attr.name="violation" for="node">
+<default>false</default>
+</key>
+<key id="cyclehead" attr.name="cyclehead" for="node">
+<default>false</default>
+</key>
+<key id="invariant" attr.name="invariant" for="node">
+<default>true</default>
+</key>
+<key id="threadId" attr.name="threadId" for="edge"/>
+<key id="endline" attr.name="endline" for="edge"/>
+<key id="enterLoopHead" attr.name="enterLoopHead" for="edge">
+<default>false</default>
+</key>
+<key id="createThread" attr.name="createThread" for="edge"/>
+<key id="enterFunction" attr.name="enterFunction" for="edge"/>
+<key id="startline" attr.name="startline" for="edge"/>
+<key id="returnFrom" attr.name="returnFrom" for="edge"/>
+<key id="assumption" attr.name="assumption" for="edge"/>
+<key id="tokens" attr.name="tokens" for="edge"/>
+<key id="control" attr.name="control" for="edge"/>
+<key id="originfile" attr.name="originfile" for="edge">
+<default>/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</default>
+</key>
+<key id="sourcecode" attr.name="sourcecode" for="edge"/>
+<graph edgedefault="directed">
+<data key="programfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecodelang">C</data>
+<data key="creationtime">2026-07-04T00:54:49Z</data>
+<data key="witness-type">violation_witness</data>
+<node id="N0">
+<data key="entry">true</data>
+</node>
+<node id="N1"/>
+<node id="N2"/>
+<node id="N3"/>
+<node id="N4"/>
+<node id="N5"/>
+<node id="N6"/>
+<node id="N7"/>
+<node id="N8"/>
+<node id="N9"/>
+<node id="N10"/>
+<node id="N11"/>
+<node id="N12"/>
+<node id="N13"/>
+<node id="N14"/>
+<node id="N15"/>
+<node id="N16"/>
+<node id="N17"/>
+<node id="N18"/>
+<node id="N19"/>
+<node id="N20"/>
+<node id="N21"/>
+<node id="N22"/>
+<node id="N23"/>
+<node id="N24"/>
+<node id="N25"/>
+<node id="N26"/>
+<node id="N27"/>
+<node id="N28"/>
+<node id="N29"/>
+<node id="N30"/>
+<node id="N31"/>
+<node id="N32"/>
+<node id="N33"/>
+<node id="N34"/>
+<node id="N35"/>
+<node id="N36"/>
+<node id="N37"/>
+<node id="N38"/>
+<node id="N39"/>
+<node id="N40"/>
+<node id="N41"/>
+<node id="N42"/>
+<node id="N43"/>
+<node id="N44"/>
+<node id="N45"/>
+<node id="N46"/>
+<node id="N47"/>
+<node id="N48"/>
+<node id="N49"/>
+<node id="N50"/>
+<node id="N51"/>
+<node id="N52"/>
+<node id="N53"/>
+<node id="N54"/>
+<node id="N55"/>
+<node id="N56"/>
+<node id="N57"/>
+<node id="N58"/>
+<node id="N59"/>
+<node id="N60"/>
+<node id="N61"/>
+<node id="N62"/>
+<node id="N63"/>
+<node id="N64"/>
+<node id="N65"/>
+<node id="N66"/>
+<node id="N67"/>
+<node id="N68"/>
+<node id="N69"/>
+<node id="N70"/>
+<node id="N71"/>
+<node id="N72"/>
+<node id="N73"/>
+<node id="N74"/>
+<node id="N75"/>
+<node id="N76"/>
+<node id="N77"/>
+<node id="N78"/>
+<node id="N79"/>
+<node id="N80"/>
+<node id="N81"/>
+<node id="N82"/>
+<node id="N83"/>
+<node id="N84"/>
+<node id="N85"/>
+<node id="N86"/>
+<node id="N87"/>
+<node id="N88"/>
+<node id="N89"/>
+<node id="N90"/>
+<node id="N91"/>
+<node id="N92"/>
+<node id="N93"/>
+<node id="N94"/>
+<node id="N95"/>
+<node id="N96"/>
+<node id="N97"/>
+<node id="N98"/>
+<node id="N99"/>
+<node id="N100"/>
+<node id="N101"/>
+<node id="N102"/>
+<node id="N103"/>
+<node id="N104"/>
+<node id="N105"/>
+<node id="N106"/>
+<node id="N107"/>
+<node id="N108"/>
+<node id="N109"/>
+<node id="N110"/>
+<node id="N111"/>
+<node id="N112"/>
+<node id="N113"/>
+<node id="N114"/>
+<node id="N115"/>
+<node id="N116"/>
+<node id="N117"/>
+<node id="N118"/>
+<node id="N119"/>
+<node id="N120"/>
+<node id="N121"/>
+<node id="N122"/>
+<node id="N123"/>
+<node id="N124"/>
+<node id="N125"/>
+<node id="N126"/>
+<node id="N127"/>
+<node id="N128"/>
+<node id="N129"/>
+<node id="N130"/>
+<node id="N131"/>
+<node id="N132"/>
+<node id="N133"/>
+<node id="N134"/>
+<node id="N135"/>
+<node id="N136"/>
+<node id="N137"/>
+<node id="N138"/>
+<node id="N139"/>
+<node id="N140"/>
+<node id="N141"/>
+<node id="N142"/>
+<node id="N143"/>
+<node id="N144"/>
+<node id="N145"/>
+<node id="N146"/>
+<node id="N147"/>
+<node id="N148"/>
+<node id="N149"/>
+<node id="N150"/>
+<node id="N151"/>
+<node id="N152"/>
+<node id="N153"/>
+<node id="N154"/>
+<node id="N155"/>
+<node id="N156"/>
+<node id="N157"/>
+<node id="N158"/>
+<node id="N159"/>
+<node id="N160"/>
+<node id="N161"/>
+<node id="N162">
+<data key="violation">true</data>
+</node>
+<edge id="E0" source="N0" target="N1">
+<data key="endline">565</data>
+<data key="enterFunction">mainProcedure</data>
+<data key="startline">565</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call mainProcedure();</data>
+</edge>
+<edge id="E1" source="N1" target="N2">
+<data key="endline">444</data>
+<data key="startline">444</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_inbox_count := 0;</data>
+</edge>
+<edge id="E2" source="N2" target="N3">
+<data key="endline">445</data>
+<data key="startline">445</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_pkt_external := false;</data>
+</edge>
+<edge id="E3" source="N3" target="N4">
+<data key="endline">447</data>
+<data key="startline">447</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E4" source="N4" target="N5">
+<data key="endline">448</data>
+<data key="startline">448</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E5" source="N5" target="N6">
+<data key="endline">449</data>
+<data key="startline">449</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E6" source="N6" target="N7">
+<data key="endline">450</data>
+<data key="startline">450</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_recirculate := false;</data>
+</edge>
+<edge id="E7" source="N7" target="N8">
+<data key="endline">453</data>
+<data key="startline">453</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_count[0bv32] == 1bv32;</data>
+</edge>
+<edge id="E8" source="N8" target="N9">
+<data key="endline">455</data>
+<data key="startline">455</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_index := 0bv32;</data>
+</edge>
+<edge id="E9" source="N9" target="N10">
+<data key="endline">456</data>
+<data key="startline">456</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_value := 0bv32;</data>
+</edge>
+<edge id="E10" source="N10" target="N11">
+<data key="endline">457</data>
+<data key="startline">457</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_old_value := 0bv32;</data>
+</edge>
+<edge id="E11" source="N11" target="N12">
+<data key="endline">458</data>
+<data key="startline">458</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__wrote_any := false;</data>
+</edge>
+<edge id="E12" source="N12" target="N13">
+<data key="endline">459</data>
+<data key="startline">459</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__wrote_index0 := false;</data>
+</edge>
+<edge id="E13" source="N13" target="N14">
+<data key="endline">460</data>
+<data key="startline">460</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__next_write_site := 0;</data>
+</edge>
+<edge id="E14" source="N14" target="N15">
+<data key="endline">461</data>
+<data key="startline">461</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_write_site := 0;</data>
+</edge>
+<edge id="E15" source="N15" target="N16">
+<data key="endline">462</data>
+<data key="startline">462</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last0_old_value := 0bv32;</data>
+</edge>
+<edge id="E16" source="N16" target="N17">
+<data key="endline">463</data>
+<data key="startline">463</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last0_value := 0bv32;</data>
+</edge>
+<edge id="E17" source="N17" target="N18">
+<data key="endline">465</data>
+<data key="startline">465</data>
+<data key="assumption">s1_p4b_clone_i2i == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; procurator_step == 0 &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; procurator_bad == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_pkt_external == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">procurator_step := 0;</data>
+</edge>
+<edge id="E18" source="N18" target="N19">
+<data key="endline">466</data>
+<data key="startline">466</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">procurator_bad := false;</data>
+</edge>
+<edge id="E19" source="N19" target="N20">
+<data key="endline">468</data>
+<data key="startline">468</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[s1_inbox_count &lt; 1]</data>
+</edge>
+<edge id="E20" source="N20" target="N21">
+<data key="endline">469</data>
+<data key="startline">469</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_inbox_count &lt; 1;</data>
+</edge>
+<edge id="E21" source="N21" target="N22">
+<data key="endline">470</data>
+<data key="startline">470</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_pkt_external := true;</data>
+</edge>
+<edge id="E22" source="N22" target="N23">
+<data key="endline">471</data>
+<data key="startline">471</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_standard_metadata.ingress_port;</data>
+</edge>
+<edge id="E23" source="N23" target="N24">
+<data key="endline">472</data>
+<data key="startline">472</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ethernet.valid;</data>
+</edge>
+<edge id="E24" source="N24" target="N25">
+<data key="endline">473</data>
+<data key="startline">473</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ethernet.dstAddr;</data>
+</edge>
+<edge id="E25" source="N25" target="N26">
+<data key="endline">474</data>
+<data key="startline">474</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ethernet.srcAddr;</data>
+</edge>
+<edge id="E26" source="N26" target="N27">
+<data key="endline">475</data>
+<data key="startline">475</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ethernet.etherType;</data>
+</edge>
+<edge id="E27" source="N27" target="N28">
+<data key="endline">476</data>
+<data key="startline">476</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv6.nextheader;</data>
+</edge>
+<edge id="E28" source="N28" target="N29">
+<data key="endline">477</data>
+<data key="startline">477</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.version;</data>
+</edge>
+<edge id="E29" source="N29" target="N30">
+<data key="endline">478</data>
+<data key="startline">478</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.ihl;</data>
+</edge>
+<edge id="E30" source="N30" target="N31">
+<data key="endline">479</data>
+<data key="startline">479</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.diffserv;</data>
+</edge>
+<edge id="E31" source="N31" target="N32">
+<data key="endline">480</data>
+<data key="startline">480</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.totalLen;</data>
+</edge>
+<edge id="E32" source="N32" target="N33">
+<data key="endline">481</data>
+<data key="startline">481</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.identification;</data>
+</edge>
+<edge id="E33" source="N33" target="N34">
+<data key="endline">482</data>
+<data key="startline">482</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.flags;</data>
+</edge>
+<edge id="E34" source="N34" target="N35">
+<data key="endline">483</data>
+<data key="startline">483</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.fragOffset;</data>
+</edge>
+<edge id="E35" source="N35" target="N36">
+<data key="endline">484</data>
+<data key="startline">484</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.ttl;</data>
+</edge>
+<edge id="E36" source="N36" target="N37">
+<data key="endline">485</data>
+<data key="startline">485</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.protocol;</data>
+</edge>
+<edge id="E37" source="N37" target="N38">
+<data key="endline">486</data>
+<data key="startline">486</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.srcAddr;</data>
+</edge>
+<edge id="E38" source="N38" target="N39">
+<data key="endline">487</data>
+<data key="startline">487</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4_tunnel.dstAddr;</data>
+</edge>
+<edge id="E39" source="N39" target="N40">
+<data key="endline">488</data>
+<data key="startline">488</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.valid;</data>
+</edge>
+<edge id="E40" source="N40" target="N41">
+<data key="endline">489</data>
+<data key="startline">489</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.version;</data>
+</edge>
+<edge id="E41" source="N41" target="N42">
+<data key="endline">490</data>
+<data key="startline">490</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.diffserv;</data>
+</edge>
+<edge id="E42" source="N42" target="N43">
+<data key="endline">491</data>
+<data key="startline">491</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.totalLen;</data>
+</edge>
+<edge id="E43" source="N43" target="N44">
+<data key="endline">492</data>
+<data key="startline">492</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.identification;</data>
+</edge>
+<edge id="E44" source="N44" target="N45">
+<data key="endline">493</data>
+<data key="startline">493</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.flags;</data>
+</edge>
+<edge id="E45" source="N45" target="N46">
+<data key="endline">494</data>
+<data key="startline">494</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.fragOffset;</data>
+</edge>
+<edge id="E46" source="N46" target="N47">
+<data key="endline">495</data>
+<data key="startline">495</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.ttl;</data>
+</edge>
+<edge id="E47" source="N47" target="N48">
+<data key="endline">496</data>
+<data key="startline">496</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.protocol;</data>
+</edge>
+<edge id="E48" source="N48" target="N49">
+<data key="endline">497</data>
+<data key="startline">497</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.srcAddr;</data>
+</edge>
+<edge id="E49" source="N49" target="N50">
+<data key="endline">498</data>
+<data key="startline">498</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.ipv4.dstAddr;</data>
+</edge>
+<edge id="E50" source="N50" target="N51">
+<data key="endline">499</data>
+<data key="startline">499</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.tcp.valid;</data>
+</edge>
+<edge id="E51" source="N51" target="N52">
+<data key="endline">500</data>
+<data key="startline">500</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.udp_tunnel.srcport;</data>
+</edge>
+<edge id="E52" source="N52" target="N53">
+<data key="endline">501</data>
+<data key="startline">501</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.udp_tunnel.dstport;</data>
+</edge>
+<edge id="E53" source="N53" target="N54">
+<data key="endline">502</data>
+<data key="startline">502</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.udp_tunnel.userlength;</data>
+</edge>
+<edge id="E54" source="N54" target="N55">
+<data key="endline">503</data>
+<data key="startline">503</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_hdr.udp_tunnel.checksum;</data>
+</edge>
+<edge id="E55" source="N55" target="N56">
+<data key="endline">504</data>
+<data key="startline">504</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_standard_metadata.ingress_port == 0bv9;</data>
+</edge>
+<edge id="E56" source="N56" target="N57">
+<data key="endline">505</data>
+<data key="startline">505</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_hdr.ethernet.valid == true;</data>
+</edge>
+<edge id="E57" source="N57" target="N58">
+<data key="endline">506</data>
+<data key="startline">506</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_hdr.ipv4.valid == true;</data>
+</edge>
+<edge id="E58" source="N58" target="N59">
+<data key="endline">507</data>
+<data key="startline">507</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_hdr.tcp.valid == true;</data>
+</edge>
+<edge id="E59" source="N59" target="N60">
+<data key="endline">508</data>
+<data key="startline">508</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_hdr.ipv4.dstAddr != 2071690107bv32;</data>
+</edge>
+<edge id="E60" source="N60" target="N61">
+<data key="endline">509</data>
+<data key="startline">509</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_hdr.ethernet.dstAddr != 281474976710655bv48;</data>
+</edge>
+<edge id="E61" source="N61" target="N62">
+<data key="endline">510</data>
+<data key="startline">510</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_hdr.ethernet.srcAddr != 0bv48;</data>
+</edge>
+<edge id="E62" source="N62" target="N63">
+<data key="endline">511</data>
+<data key="startline">511</data>
+<data key="assumption">s1_hdr.ethernet.valid == true &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_inbox_count == 1 &amp;&amp; procurator_bad == false &amp;&amp; procurator_step == 0 &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_p4b_clone_i2e == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_hdr.ipv4.srcAddr == 16843009bv32;</data>
+</edge>
+<edge id="E63" source="N63" target="N64">
+<data key="endline">512</data>
+<data key="startline">512</data>
+<data key="assumption">s1_p4b_clone_i2e == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_inbox_count == 1 &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; procurator_step == 1 &amp;&amp; procurator_bad == false &amp;&amp; s1_count__wrote_index0 == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_inbox_count := s1_inbox_count + 1;</data>
+</edge>
+<edge id="E64" source="N64" target="N65">
+<data key="endline">514</data>
+<data key="startline">514</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">procurator_step := procurator_step + 1;</data>
+</edge>
+<edge id="E65" source="N65" target="N66">
+<data key="endline">516</data>
+<data key="startline">516</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[s1_inbox_count &gt; 0]</data>
+</edge>
+<edge id="E66" source="N66" target="N67">
+<data key="endline">517</data>
+<data key="startline">517</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume s1_inbox_count &gt; 0;</data>
+</edge>
+<edge id="E67" source="N67" target="N68">
+<data key="endline">518</data>
+<data key="startline">518</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_inbox_count := s1_inbox_count - 1;</data>
+</edge>
+<edge id="E68" source="N68" target="N69">
+<data key="endline">519</data>
+<data key="enterFunction">s1_mainProcedure</data>
+<data key="startline">519</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_mainProcedure();</data>
+</edge>
+<edge id="E69" source="N69" target="N70">
+<data key="endline">381</data>
+<data key="startline">381</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_checksum_error := false;</data>
+</edge>
+<edge id="E70" source="N70" target="N71">
+<data key="endline">382</data>
+<data key="startline">382</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_checksum_updated := false;</data>
+</edge>
+<edge id="E71" source="N71" target="N72">
+<data key="endline">383</data>
+<data key="startline">383</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_checksum_verified := false;</data>
+</edge>
+<edge id="E72" source="N72" target="N73">
+<data key="endline">384</data>
+<data key="startline">384</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_digest := false;</data>
+</edge>
+<edge id="E73" source="N73" target="N74">
+<data key="endline">385</data>
+<data key="startline">385</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_recirculate := false;</data>
+</edge>
+<edge id="E74" source="N74" target="N75">
+<data key="endline">386</data>
+<data key="startline">386</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E75" source="N75" target="N76">
+<data key="endline">387</data>
+<data key="startline">387</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E76" source="N76" target="N77">
+<data key="endline">388</data>
+<data key="startline">388</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E77" source="N77" target="N78">
+<data key="endline">389</data>
+<data key="enterFunction">s1_main</data>
+<data key="startline">389</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_main();</data>
+</edge>
+<edge id="E78" source="N78" target="N79">
+<data key="endline">369</data>
+<data key="enterFunction">s1_MyParser</data>
+<data key="startline">369</data>
+<data key="assumption">s1_inbox_count == 0 &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_count__wrote_any == false &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; procurator_step == 1 &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_clone_i2i == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyParser();</data>
+</edge>
+<edge id="E79" source="N79" target="N80">
+<data key="endline">262</data>
+<data key="startline">262</data>
+<data key="assumption">s1_p4b_clone_i2i == false &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_digest == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_packet_in.extract(s1_hdr.ethernet);</data>
+</edge>
+<edge id="E80" source="N80" target="N81">
+<data key="endline">274</data>
+<data key="startline">274</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume !(s1_hdr.ethernet.etherType == 34525bv16) &amp;&amp; !(s1_hdr.ethernet.etherType == 2048bv16);</data>
+</edge>
+<edge id="E81" source="N81" target="N82">
+<data key="endline">333</data>
+<data key="startline">333</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_accept();</data>
+</edge>
+<edge id="E82" source="N82" target="N83">
+<data key="endline">369</data>
+<data key="startline">369</data>
+<data key="returnFrom">s1_MyParser</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyParser();</data>
+</edge>
+<edge id="E83" source="N83" target="N84">
+<data key="endline">370</data>
+<data key="startline">370</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyVerifyChecksum();</data>
+</edge>
+<edge id="E84" source="N84" target="N85">
+<data key="endline">371</data>
+<data key="enterFunction">s1_MyIngress</data>
+<data key="startline">371</data>
+<data key="assumption">s1_p4b_recirculate == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_hdr.ipv4.valid == true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyIngress();</data>
+</edge>
+<edge id="E85" source="N85" target="N86">
+<data key="endline">168</data>
+<data key="startline">168</data>
+<data key="assumption">s1_hdr.ipv4.valid == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; procurator_bad == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_p4b_clone_i2i == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">havoc s1_temp_0;</data>
+</edge>
+<edge id="E86" source="N86" target="N87">
+<data key="endline">169</data>
+<data key="startline">169</data>
+<data key="assumption">s1_hdr.tcp.valid == true &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; procurator_bad == false &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; s1_p4b_clone_i2e == false</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[s1_standard_metadata.ingress_port == 0bv9]</data>
+</edge>
+<edge id="E87" source="N87" target="N88">
+<data key="endline">170</data>
+<data key="startline">170</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_hdr.ipv4.dstAddr == 2071690107bv32)]</data>
+</edge>
+<edge id="E88" source="N88" target="N89">
+<data key="endline">176</data>
+<data key="startline">176</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[s1_hdr.ethernet.dstAddr != 281474976710655bv48 &amp;&amp; s1_hdr.ethernet.srcAddr != 0bv48]</data>
+</edge>
+<edge id="E89" source="N89" target="N90">
+<data key="endline">177</data>
+<data key="enterFunction">s1_MyIngress_do_read_count</data>
+<data key="startline">177</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyIngress_do_read_count();</data>
+</edge>
+<edge id="E90" source="N90" target="N91">
+<data key="endline">251</data>
+<data key="startline">251</data>
+<data key="assumption">s1_p4b_clone_i2e == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_count__next_write_site == 0</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume 0bv32 == 0bv32;</data>
+</edge>
+<edge id="E91" source="N91" target="N92">
+<data key="endline">252</data>
+<data key="startline">252</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_temp_0 := s1_count[0bv32];</data>
+</edge>
+<edge id="E92" source="N92" target="N93">
+<data key="endline">177</data>
+<data key="startline">177</data>
+<data key="returnFrom">s1_MyIngress_do_read_count</data>
+<data key="assumption">s1_count__wrote_any == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_count__next_write_site == 0</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyIngress_do_read_count();</data>
+</edge>
+<edge id="E93" source="N93" target="N94">
+<data key="endline">178</data>
+<data key="startline">178</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_temp_0 == 0bv32)]</data>
+</edge>
+<edge id="E94" source="N94" target="N95">
+<data key="endline">187</data>
+<data key="startline">187</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[s1_temp_0 == 1bv32]</data>
+</edge>
+<edge id="E95" source="N95" target="N96">
+<data key="endline">188</data>
+<data key="enterFunction">s1_MyIngress_creatmytunnel</data>
+<data key="startline">188</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyIngress_creatmytunnel();</data>
+</edge>
+<edge id="E96" source="N96" target="N97">
+<data key="endline">226</data>
+<data key="startline">226</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_setValid(s1_hdr.ipv4_tunnel);</data>
+</edge>
+<edge id="E97" source="N97" target="N98">
+<data key="endline">227</data>
+<data key="startline">227</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.version := s1_hdr.ipv4.version;</data>
+</edge>
+<edge id="E98" source="N98" target="N99">
+<data key="endline">228</data>
+<data key="startline">228</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.ihl := 5bv4;</data>
+</edge>
+<edge id="E99" source="N99" target="N100">
+<data key="endline">229</data>
+<data key="startline">229</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.diffserv := s1_hdr.ipv4.diffserv;</data>
+</edge>
+<edge id="E100" source="N100" target="N101">
+<data key="endline">230</data>
+<data key="startline">230</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.totalLen := add.bv16(s1_hdr.ipv4.totalLen, 28bv16);</data>
+</edge>
+<edge id="E101" source="N101" target="N102">
+<data key="endline">231</data>
+<data key="startline">231</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.identification := s1_hdr.ipv4.identification;</data>
+</edge>
+<edge id="E102" source="N102" target="N103">
+<data key="endline">232</data>
+<data key="startline">232</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.flags := s1_hdr.ipv4.flags;</data>
+</edge>
+<edge id="E103" source="N103" target="N104">
+<data key="endline">233</data>
+<data key="startline">233</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.fragOffset := s1_hdr.ipv4.fragOffset;</data>
+</edge>
+<edge id="E104" source="N104" target="N105">
+<data key="endline">234</data>
+<data key="startline">234</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.ttl := s1_hdr.ipv4.ttl;</data>
+</edge>
+<edge id="E105" source="N105" target="N106">
+<data key="endline">235</data>
+<data key="startline">235</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.protocol := 17bv8;</data>
+</edge>
+<edge id="E106" source="N106" target="N107">
+<data key="endline">236</data>
+<data key="startline">236</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.srcAddr := s1_hdr.ipv4.srcAddr;</data>
+</edge>
+<edge id="E107" source="N107" target="N108">
+<data key="endline">237</data>
+<data key="startline">237</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ipv4_tunnel.dstAddr := 3690098939bv32;</data>
+</edge>
+<edge id="E108" source="N108" target="N109">
+<data key="endline">238</data>
+<data key="startline">238</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.ethernet.dstAddr := 204790950826065bv48;</data>
+</edge>
+<edge id="E109" source="N109" target="N110">
+<data key="endline">239</data>
+<data key="startline">239</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_setValid(s1_hdr.udp_tunnel);</data>
+</edge>
+<edge id="E110" source="N110" target="N111">
+<data key="endline">240</data>
+<data key="startline">240</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.udp_tunnel.srcport := 52910bv16;</data>
+</edge>
+<edge id="E111" source="N111" target="N112">
+<data key="endline">241</data>
+<data key="startline">241</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.udp_tunnel.dstport := 80bv16;</data>
+</edge>
+<edge id="E112" source="N112" target="N113">
+<data key="endline">242</data>
+<data key="startline">242</data>
+<data key="assumption">s1_p4b_recirculate == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__next_write_site == 0 &amp;&amp; s1_pkt_external == true &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; s1_p4b_clone_i2e == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.udp_tunnel.userlength := s1_hdr.ipv4.totalLen;</data>
+</edge>
+<edge id="E113" source="N113" target="N114">
+<data key="endline">243</data>
+<data key="startline">243</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_hdr.udp_tunnel.checksum := 0bv16;</data>
+</edge>
+<edge id="E114" source="N114" target="N115">
+<data key="endline">188</data>
+<data key="startline">188</data>
+<data key="returnFrom">s1_MyIngress_creatmytunnel</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyIngress_creatmytunnel();</data>
+</edge>
+<edge id="E115" source="N115" target="N116">
+<data key="endline">190</data>
+<data key="startline">190</data>
+<data key="assumption">s1_p4b_digest == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; procurator_bad == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_hdr.ethernet.valid == true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__next_write_site := 2;</data>
+</edge>
+<edge id="E116" source="N116" target="N117">
+<data key="endline">191</data>
+<data key="startline">191</data>
+<data key="assumption">s1_count__next_write_site == 2 &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_digest == false &amp;&amp; old(s1_count__wrote_any) == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; procurator_bad == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; s1_count__last_write_site == 0 &amp;&amp; old(s1_count__last_write_site) == 0 &amp;&amp; s1_count__wrote_any == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; procurator_step == 1 &amp;&amp; old(s1_count__wrote_index0) == false &amp;&amp; s1_hdr.tcp.valid == true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assume 0bv32 == 0bv32;</data>
+</edge>
+<edge id="E117" source="N117" target="N118">
+<data key="endline">192</data>
+<data key="enterFunction">s1_count.write</data>
+<data key="startline">192</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_count.write(0bv32, 2bv32);</data>
+</edge>
+<edge id="E118" source="N118" target="N119">
+<data key="endline">354</data>
+<data key="startline">354</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_old_value := s1_count[s1_index];</data>
+</edge>
+<edge id="E119" source="N119" target="N120">
+<data key="endline">355</data>
+<data key="startline">355</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count[s1_index] := s1_value;</data>
+</edge>
+<edge id="E120" source="N120" target="N121">
+<data key="endline">356</data>
+<data key="startline">356</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_index := s1_index;</data>
+</edge>
+<edge id="E121" source="N121" target="N122">
+<data key="endline">357</data>
+<data key="startline">357</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_value := s1_value;</data>
+</edge>
+<edge id="E122" source="N122" target="N123">
+<data key="endline">358</data>
+<data key="startline">358</data>
+<data key="assumption">s1_count__last_write_site == 2 &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; old(s1_count__wrote_index0) == false &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; old(s1_count__wrote_any) == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_count__wrote_index0 == false &amp;&amp; old(s1_count__last_write_site) == 0 &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; procurator_bad == false &amp;&amp; s1_pkt_external == true &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_count__next_write_site == 2</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_write_site := s1_count__next_write_site;</data>
+</edge>
+<edge id="E123" source="N123" target="N124">
+<data key="endline">359</data>
+<data key="startline">359</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__wrote_any := true;</data>
+</edge>
+<edge id="E124" source="N124" target="N125">
+<data key="endline">360</data>
+<data key="startline">360</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[s1_index == 0bv32]</data>
+</edge>
+<edge id="E125" source="N125" target="N126">
+<data key="endline">361</data>
+<data key="startline">361</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__wrote_index0 := true;</data>
+</edge>
+<edge id="E126" source="N126" target="N127">
+<data key="endline">362</data>
+<data key="startline">362</data>
+<data key="assumption">s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; old(s1_count__wrote_index0) == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; old(s1_count__wrote_any) == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_digest == false &amp;&amp; procurator_bad == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; old(s1_count__last_write_site) == 0 &amp;&amp; s1_count__wrote_index0 == true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last0_old_value := s1_count__last_old_value;</data>
+</edge>
+<edge id="E127" source="N127" target="N128">
+<data key="endline">363</data>
+<data key="startline">363</data>
+<data key="assumption">s1_hdr.tcp.valid == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; procurator_bad == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_inbox_count == 0</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last0_value := s1_value;</data>
+</edge>
+<edge id="E128" source="N128" target="N129">
+<data key="endline">192</data>
+<data key="startline">192</data>
+<data key="returnFrom">s1_count.write</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_count.write(0bv32, 2bv32);</data>
+</edge>
+<edge id="E129" source="N129" target="N130">
+<data key="endline">193</data>
+<data key="startline">193</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_standard_metadata.egress_spec := 2bv9;</data>
+</edge>
+<edge id="E130" source="N130" target="N131">
+<data key="endline">194</data>
+<data key="startline">194</data>
+<data key="assumption">s1_count__last_write_site == 2 &amp;&amp; s1_pkt_external == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_count__wrote_any == true &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_p4b_digest == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_forward == true &amp;&amp; s1_hdr.ethernet.valid == true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_standard_metadata.egress_port := 2bv9;</data>
+</edge>
+<edge id="E131" source="N131" target="N132">
+<data key="endline">195</data>
+<data key="startline">195</data>
+<data key="assumption">s1_p4b_digest == false &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_count__wrote_any == true &amp;&amp; procurator_step == 1 &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_forward == true &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_pkt_external == true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_forward := true;</data>
+</edge>
+<edge id="E132" source="N132" target="N133">
+<data key="endline">197</data>
+<data key="startline">197</data>
+<data key="assumption">s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_digest == false &amp;&amp; procurator_bad == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_forward == true &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__last_write_site == 2</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_temp_0 == 2bv32)]</data>
+</edge>
+<edge id="E133" source="N133" target="N134">
+<data key="endline">206</data>
+<data key="startline">206</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assert (s1_standard_metadata.egress_spec == 1bv9 || s1_standard_metadata.egress_spec == 2bv9) || s1_standard_metadata.egress_spec == 3bv9;</data>
+</edge>
+<edge id="E134" source="N134" target="N135">
+<data key="endline">371</data>
+<data key="startline">371</data>
+<data key="returnFrom">s1_MyIngress</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyIngress();</data>
+</edge>
+<edge id="E135" source="N135" target="N136">
+<data key="endline">372</data>
+<data key="startline">372</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyEgress();</data>
+</edge>
+<edge id="E136" source="N136" target="N137">
+<data key="endline">373</data>
+<data key="startline">373</data>
+<data key="assumption">s1_p4b_recirculate == false &amp;&amp; procurator_bad == false &amp;&amp; s1_forward == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_digest == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_MyComputeChecksum();</data>
+</edge>
+<edge id="E137" source="N137" target="N138">
+<data key="endline">374</data>
+<data key="startline">374</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_forward == false)]</data>
+</edge>
+<edge id="E138" source="N138" target="N139">
+<data key="endline">389</data>
+<data key="startline">389</data>
+<data key="returnFrom">s1_main</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_main();</data>
+</edge>
+<edge id="E139" source="N139" target="N140">
+<data key="endline">519</data>
+<data key="startline">519</data>
+<data key="returnFrom">s1_mainProcedure</data>
+<data key="assumption">s1_count__wrote_index0 == true &amp;&amp; s1_p4b_digest == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_forward == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; procurator_bad == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_mainProcedure();</data>
+</edge>
+<edge id="E140" source="N140" target="N141">
+<data key="endline">520</data>
+<data key="startline">520</data>
+<data key="assumption">s1_count__next_write_site == 2 &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_forward == true &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_p4b_recirculate == false</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_p4b_clone_i2e)]</data>
+</edge>
+<edge id="E141" source="N141" target="N142">
+<data key="endline">525</data>
+<data key="startline">525</data>
+<data key="assumption">s1_p4b_clone_i2e == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; procurator_bad == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_pkt_external == true &amp;&amp; procurator_step == 1 &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_forward == true &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_count__last_write_site == 2</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_i2e := false;</data>
+</edge>
+<edge id="E142" source="N142" target="N143">
+<data key="endline">526</data>
+<data key="startline">526</data>
+<data key="assumption">s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_forward == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; procurator_bad == false &amp;&amp; s1_count__wrote_index0 == true</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_p4b_clone_e2e)]</data>
+</edge>
+<edge id="E143" source="N143" target="N144">
+<data key="endline">531</data>
+<data key="startline">531</data>
+<data key="assumption">s1_p4b_checksum_updated == false &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_forward == true &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; procurator_step == 1 &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_hdr.ipv4.valid == true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_e2e := false;</data>
+</edge>
+<edge id="E144" source="N144" target="N145">
+<data key="endline">532</data>
+<data key="startline">532</data>
+<data key="assumption">s1_count__wrote_index0 == true &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_forward == true &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_checksum_error == false</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_p4b_clone_i2i)]</data>
+</edge>
+<edge id="E145" source="N145" target="N146">
+<data key="endline">537</data>
+<data key="startline">537</data>
+<data key="assumption">procurator_step == 1 &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; procurator_bad == false &amp;&amp; s1_forward == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__next_write_site == 2</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_clone_i2i := false;</data>
+</edge>
+<edge id="E146" source="N146" target="N147">
+<data key="endline">538</data>
+<data key="startline">538</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_p4b_recirculate)]</data>
+</edge>
+<edge id="E147" source="N147" target="N148">
+<data key="endline">543</data>
+<data key="startline">543</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_p4b_recirculate := false;</data>
+</edge>
+<edge id="E148" source="N148" target="N149">
+<data key="endline">544</data>
+<data key="enterFunction">s1_Forward</data>
+<data key="startline">544</data>
+<data key="assumption">s1_p4b_recirculate == false &amp;&amp; s1_pkt_external == true &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_forward == true &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; procurator_bad == false &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_hdr.ipv4.valid == true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_Forward();</data>
+</edge>
+<edge id="E149" source="N149" target="N150">
+<data key="endline">431</data>
+<data key="startline">431</data>
+<data key="control">condition-false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[!(s1_standard_metadata.egress_port == 0bv9)]</data>
+</edge>
+<edge id="E150" source="N150" target="N151">
+<data key="endline">544</data>
+<data key="startline">544</data>
+<data key="returnFrom">s1_Forward</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">call s1_Forward();</data>
+</edge>
+<edge id="E151" source="N151" target="N152">
+<data key="endline">546</data>
+<data key="startline">546</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__dbg0 := s1_count[0bv32];</data>
+</edge>
+<edge id="E152" source="N152" target="N153">
+<data key="endline">547</data>
+<data key="startline">547</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_index__dbg := s1_count__last_index;</data>
+</edge>
+<edge id="E153" source="N153" target="N154">
+<data key="endline">548</data>
+<data key="startline">548</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_value__dbg := s1_count__last_value;</data>
+</edge>
+<edge id="E154" source="N154" target="N155">
+<data key="endline">549</data>
+<data key="startline">549</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last_old_value__dbg := s1_count__last_old_value;</data>
+</edge>
+<edge id="E155" source="N155" target="N156">
+<data key="endline">550</data>
+<data key="startline">550</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__wrote_any__dbg := s1_count__wrote_any;</data>
+</edge>
+<edge id="E156" source="N156" target="N157">
+<data key="endline">551</data>
+<data key="startline">551</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__wrote_index0__dbg := s1_count__wrote_index0;</data>
+</edge>
+<edge id="E157" source="N157" target="N158">
+<data key="endline">552</data>
+<data key="startline">552</data>
+<data key="assumption">s1_hdr.ethernet.valid == true &amp;&amp; procurator_bad == false &amp;&amp; s1_inbox_count == 0 &amp;&amp; s1_forward == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; procurator_step == 1 &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_count__wrote_any__dbg == true &amp;&amp; s1_count__wrote_index0__dbg == true &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_clone_i2i == false</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last0_old_value__dbg := s1_count__last0_old_value;</data>
+</edge>
+<edge id="E158" source="N158" target="N159">
+<data key="endline">553</data>
+<data key="startline">553</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">s1_count__last0_value__dbg := s1_count__last0_value;</data>
+</edge>
+<edge id="E159" source="N159" target="N160">
+<data key="endline">555</data>
+<data key="startline">555</data>
+<data key="assumption">s1_count__last_write_site == 2 &amp;&amp; s1_count__wrote_index0__dbg == true &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_count__next_write_site == 2 &amp;&amp; s1_inbox_count == 0 &amp;&amp; procurator_step == 2 &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_count__wrote_any__dbg == true &amp;&amp; s1_p4b_digest == false &amp;&amp; procurator_bad == true &amp;&amp; s1_p4b_checksum_updated == false &amp;&amp; s1_forward == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_pkt_external == true</data>
+<data key="control">condition-true</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">[procurator_bad := true;]</data>
+</edge>
+<edge id="E160" source="N160" target="N161">
+<data key="endline">557</data>
+<data key="startline">557</data>
+<data key="assumption">s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_count__wrote_index0__dbg == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_inbox_count == 0 &amp;&amp; procurator_bad == true &amp;&amp; s1_count__wrote_any__dbg == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_forward == true &amp;&amp; procurator_step == 2 &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__next_write_site == 2</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">procurator_step := procurator_step + 1;</data>
+</edge>
+<edge id="E161" source="N161" target="N162">
+<data key="endline">558</data>
+<data key="startline">558</data>
+<data key="assumption">s1_p4b_checksum_updated == false &amp;&amp; s1_p4b_clone_i2i == false &amp;&amp; s1_count__wrote_index0__dbg == true &amp;&amp; s1_p4b_clone_i2e == false &amp;&amp; s1_p4b_clone_e2e == false &amp;&amp; s1_hdr.ethernet.valid == true &amp;&amp; s1_hdr.tcp.valid == true &amp;&amp; s1_count__last_write_site == 2 &amp;&amp; s1_inbox_count == 0 &amp;&amp; procurator_bad == true &amp;&amp; s1_count__wrote_any__dbg == true &amp;&amp; s1_pkt_external == true &amp;&amp; s1_forward == true &amp;&amp; procurator_step == 2 &amp;&amp; s1_hdr.ipv4.valid == true &amp;&amp; s1_p4b_recirculate == false &amp;&amp; s1_p4b_digest == false &amp;&amp; s1_count__wrote_index0 == true &amp;&amp; s1_count__wrote_any == true &amp;&amp; s1_p4b_checksum_error == false &amp;&amp; s1_p4b_checksum_verified == false &amp;&amp; s1_count__next_write_site == 2</data>
+<data key="originfile">/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4nis_bug2_tunnel_state_leakage/20260704-085429-61ea/p4nis_bug2_tunnel_state_leakage.bpl</data>
+<data key="sourcecode">assert !procurator_bad;</data>
+</edge>
+</graph>
+</graphml>

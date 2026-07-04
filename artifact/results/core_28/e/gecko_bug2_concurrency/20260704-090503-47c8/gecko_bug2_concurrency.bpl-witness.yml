@@ -1,0 +1,1159 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: 6feaf191-7e01-4b46-9e5f-4514e470c79e
+    creation_time: '2026-07-04T09:07:38+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+      input_file_hashes:
+        ? /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+        : UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5602
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 4946
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 4987
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 4998
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5079
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5083
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5086
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5094
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5097
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 829
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 731
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1562
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5097
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5098
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5104
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5110
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5116
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5122
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 4560
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5122
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5124
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5128
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5163
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5204
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5208
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5215
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5296
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5300
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5303
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5311
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5314
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 829
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 731
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1562
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5314
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5315
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5321
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5327
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5333
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5339
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 4560
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5339
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5341
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5345
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5380
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5421
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5425
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5432
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5513
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5517
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5520
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5521
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5524
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5528
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5531
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 949
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1673
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 829
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1674
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1675
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 815
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1676
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 731
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1677
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1678
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1561
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1562
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 1577
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5531
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5532
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5538
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5544
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5550
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5556
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 4560
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5556
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5558
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5562
+          column: 6
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug2_concurrency/20260704-090503-47c8/gecko_bug2_concurrency.bpl
+          line: 5595

@@ -1,0 +1,561 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: ff3bd5d6-10e6-456e-9230-be55a45af52f
+    creation_time: '2026-07-04T08:41:25+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+      input_file_hashes:
+        ? /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+        : UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 788
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 525
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 550
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 598
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 602
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 605
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 391
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 371
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 324
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 324
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 371
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 372
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 372
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 373
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 197
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 373
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 374
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 374
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 375
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 375
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 376
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 391
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 605
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 606
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 612
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 618
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 624
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 630
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 472
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 630
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 649
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 654
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 679
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 727
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 731
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 734
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 391
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 371
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 324
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 324
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 371
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 372
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 372
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 373
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 197
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 373
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 374
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 374
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 375
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 375
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 376
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 391
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 734
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 735
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 741
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 747
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 753
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 759
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 472
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 759
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 778
+          column: 7
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+          line: 781

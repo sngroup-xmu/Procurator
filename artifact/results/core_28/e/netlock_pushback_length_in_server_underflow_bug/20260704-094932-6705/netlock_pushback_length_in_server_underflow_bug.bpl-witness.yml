@@ -1,0 +1,781 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: d65855ab-fd7d-48d7-9404-6b2e59060206
+    creation_time: '2026-07-04T09:50:06+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+      input_file_hashes:
+        ? /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+        : UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2396
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2190
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2291
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2294
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1814
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1798
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1838
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 971
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 971
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1838
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1839
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 758
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 772
+          column: 11
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 773
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1277
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1281
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1281
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 773
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 774
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 775
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1352
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1328
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1328
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1330
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1789
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1352
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 775
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 776
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1405
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1381
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1381
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1383
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1875
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1383
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1405
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 776
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 777
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1429
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1429
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 777
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 778
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1311
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1299
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1299
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1301
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1856
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1301
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1311
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 778
+          column: 16
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 779
+          column: 19
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 780
+          column: 20
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1106
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1112
+          column: 12
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1115
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1133
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1147
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1133
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1135
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1917
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1135
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1115
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 780
+          column: 20
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 781
+          column: 23
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1839
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1840
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1840
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1841
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1841
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1842
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 616
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 743
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 743
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 616
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1842
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1843
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1843
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1798
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1799
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 1814
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2294
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2295
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2301
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2307
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2313
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2319
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2077
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2319
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2386
+          column: 7
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pushback_length_in_server_underflow_bug/20260704-094932-6705/netlock_pushback_length_in_server_underflow_bug.bpl
+          line: 2389

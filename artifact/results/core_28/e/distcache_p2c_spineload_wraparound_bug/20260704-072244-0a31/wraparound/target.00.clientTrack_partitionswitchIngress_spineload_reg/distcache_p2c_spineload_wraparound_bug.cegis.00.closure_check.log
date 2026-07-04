@@ -1,0 +1,1104 @@
+[RUN] taskset -c 0 nice -n 19 ionice -c 3 timeout 960 /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --launcher.ini /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260704-072244-0a31/wraparound/target.00.clientTrack_partitionswitchIngress_spineload_reg/ultimate-home/distcache_p2c_spineload_wraparound_bug.cegis.00/closure/Ultimate.launcher.ini --core.toolchain.timeout.in.seconds=900 -tc /home/smy/p4-verify-camera-ready/src/dslc/toolchain/ultimate/toolchains/ClosureCheck-ReachSafety.xml -s /home/smy/p4-verify-camera-ready/src/dslc/toolchain/ultimate/settings/gemcutter/base/ReachSafety-32bit-GemCutter-ALL-no-por.epf -i /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260704-072244-0a31/wraparound/target.00.clientTrack_partitionswitchIngress_spineload_reg/distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl
+Picked up JAVA_TOOL_OPTIONS: -Duser.home=/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260704-072244-0a31/wraparound/target.00.clientTrack_partitionswitchIngress_spineload_reg/ultimate-home/distcache_p2c_spineload_wraparound_bug.cegis.00/closure
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::staticFieldOffset has been called by org.eclipse.osgi.internal.url.MultiplexingFactory (file:/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/plugins/org.eclipse.osgi_3.20.0.v20240509-1421.jar)
+WARNING: Please consider reporting this to the maintainers of class org.eclipse.osgi.internal.url.MultiplexingFactory
+WARNING: sun.misc.Unsafe::staticFieldOffset will be removed in a future release
+WARNING: A restricted method in java.lang.Runtime has been called
+WARNING: java.lang.Runtime::load has been called by org.eclipse.equinox.launcher.JNIBridge in an unnamed module (file:/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/plugins/org.eclipse.equinox.launcher_1.6.800.v20240513-1750.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+This is Ultimate 0.3.1-dev-35a8436538
+[2026-07-04 07:32:51,073 INFO  L188        SettingsManager]: Resetting all preferences to default values...
+[2026-07-04 07:32:51,168 INFO  L114        SettingsManager]: Loading settings from /home/smy/p4-verify-camera-ready/src/dslc/toolchain/ultimate/settings/gemcutter/base/ReachSafety-32bit-GemCutter-ALL-no-por.epf
+[2026-07-04 07:32:51,177 WARN  L101        SettingsManager]: Preference file contains the following unknown settings:
+[2026-07-04 07:32:51,178 WARN  L103        SettingsManager]:   * de.uni_freiburg.informatik.ultimate.core.Log level for class
+[2026-07-04 07:32:51,204 INFO  L130        SettingsManager]: Preferences different from defaults after loading the file:
+[2026-07-04 07:32:51,204 INFO  L151        SettingsManager]: Preferences of UltimateCore differ from their defaults:
+[2026-07-04 07:32:51,204 INFO  L153        SettingsManager]:  * Log level for class=de.uni_freiburg.informatik.ultimate.lib.smtlibutils.quantifier.QuantifierPusher=ERROR;
+[2026-07-04 07:32:51,205 INFO  L151        SettingsManager]: Preferences of Boogie Procedure Inliner differ from their defaults:
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Ignore calls to procedures called more than once=ONLY_FOR_SEQUENTIAL_PROGRAMS
+[2026-07-04 07:32:51,205 INFO  L151        SettingsManager]: Preferences of BlockEncodingV2 differ from their defaults:
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Create parallel compositions if possible=false
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Use SBE=true
+[2026-07-04 07:32:51,205 INFO  L151        SettingsManager]: Preferences of CACSL2BoogieTranslator differ from their defaults:
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * sizeof long=4
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Overapproximate operations on floating types=true
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * sizeof POINTER=4
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Check division by zero=IGNORE
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * If two pointers are subtracted or compared they have the same base address=IGNORE
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Pointer dereference validity=IGNORE
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * sizeof long double=12
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Check if freed pointer was valid=false
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Use constant arrays=true
+[2026-07-04 07:32:51,205 INFO  L151        SettingsManager]: Preferences of RCFGBuilder differ from their defaults:
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * Size of a code block=SequenceOfStatements
+[2026-07-04 07:32:51,205 INFO  L153        SettingsManager]:  * SMT solver=External_DefaultMode
+[2026-07-04 07:32:51,206 INFO  L153        SettingsManager]:  * Command for external solver=z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000
+[2026-07-04 07:32:51,206 INFO  L151        SettingsManager]: Preferences of TraceAbstraction differ from their defaults:
+[2026-07-04 07:32:51,206 INFO  L153        SettingsManager]:  * Compute Interpolants along a Counterexample=FPandBP
+[2026-07-04 07:32:51,206 INFO  L153        SettingsManager]:  * Positions where we compute the Hoare Annotation=LoopHeads
+[2026-07-04 07:32:51,206 INFO  L153        SettingsManager]:  * DFS Order used in POR=LOOP_LOCKSTEP
+[2026-07-04 07:32:51,207 INFO  L153        SettingsManager]:  * Command for external solver=z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:51,207 INFO  L153        SettingsManager]:  * Automaton type used in concurrency analysis=PARTIAL_ORDER_FA
+[2026-07-04 07:32:51,207 INFO  L153        SettingsManager]:  * CEGAR restart behaviour=ONE_CEGAR_PER_THREAD_INSTANCE
+[2026-07-04 07:32:51,207 INFO  L153        SettingsManager]:  * SMT solver=External_ModelsAndUnsatCoreMode
+Applying setting for plugin de.uni_freiburg.informatik.ultimate.core: Toolchain timeout in seconds -> 900
+[2026-07-04 07:32:51,597 INFO  L75    nceAwareModelManager]: Repository-Root is: /tmp
+[2026-07-04 07:32:51,611 INFO  L261   ainManager$Toolchain]: [Toolchain 1]: Applicable parser(s) successfully (re)initialized
+[2026-07-04 07:32:51,612 INFO  L217   ainManager$Toolchain]: [Toolchain 1]: Toolchain selected.
+[2026-07-04 07:32:51,613 INFO  L270        PluginConnector]: Initializing Boogie PL CUP Parser...
+[2026-07-04 07:32:51,618 INFO  L274        PluginConnector]: Boogie PL CUP Parser initialized
+[2026-07-04 07:32:51,619 INFO  L431   ainManager$Toolchain]: [Toolchain 1]: Parsing single file: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260704-072244-0a31/wraparound/target.00.clientTrack_partitionswitchIngress_spineload_reg/distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl
+[2026-07-04 07:32:51,620 INFO  L110           BoogieParser]: Parsing: '/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260704-072244-0a31/wraparound/target.00.clientTrack_partitionswitchIngress_spineload_reg/distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl'
+[2026-07-04 07:32:51,687 INFO  L299   ainManager$Toolchain]: ####################### [Toolchain 1] #######################
+[2026-07-04 07:32:51,688 INFO  L133        ToolchainWalker]: Walking toolchain with 4 elements.
+[2026-07-04 07:32:51,689 INFO  L112        PluginConnector]: ------------------------Boogie Procedure Inliner----------------------------
+[2026-07-04 07:32:51,689 INFO  L270        PluginConnector]: Initializing Boogie Procedure Inliner...
+[2026-07-04 07:32:51,689 INFO  L274        PluginConnector]: Boogie Procedure Inliner initialized
+[2026-07-04 07:32:51,701 INFO  L184        PluginConnector]: Executing the observer TypeChecker from plugin Boogie Procedure Inliner for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,723 INFO  L184        PluginConnector]: Executing the observer Inliner from plugin Boogie Procedure Inliner for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,783 INFO  L138                Inliner]: procedures = 42, calls = 52, calls flagged for inlining = 27, calls inlined = 27, statements flattened = 754
+[2026-07-04 07:32:51,784 INFO  L131        PluginConnector]: ------------------------ END Boogie Procedure Inliner----------------------------
+[2026-07-04 07:32:51,784 INFO  L112        PluginConnector]: ------------------------Boogie Preprocessor----------------------------
+[2026-07-04 07:32:51,784 INFO  L270        PluginConnector]: Initializing Boogie Preprocessor...
+[2026-07-04 07:32:51,784 INFO  L274        PluginConnector]: Boogie Preprocessor initialized
+[2026-07-04 07:32:51,799 INFO  L184        PluginConnector]: Executing the observer EnsureBoogieModelObserver from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,799 INFO  L184        PluginConnector]: Executing the observer TypeChecker from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,801 INFO  L184        PluginConnector]: Executing the observer ConstExpander from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,802 INFO  L184        PluginConnector]: Executing the observer StructExpander from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,816 INFO  L184        PluginConnector]: Executing the observer ReplaceArrayAssignments from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,817 INFO  L184        PluginConnector]: Executing the observer UnstructureCode from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,828 INFO  L184        PluginConnector]: Executing the observer FunctionInliner from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,838 INFO  L184        PluginConnector]: Executing the observer LTLStepAnnotator from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,840 INFO  L184        PluginConnector]: Executing the observer BoogieSymbolTableConstructor from plugin Boogie Preprocessor for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,854 INFO  L131        PluginConnector]: ------------------------ END Boogie Preprocessor----------------------------
+[2026-07-04 07:32:51,862 INFO  L112        PluginConnector]: ------------------------RCFGBuilder----------------------------
+[2026-07-04 07:32:51,862 INFO  L270        PluginConnector]: Initializing RCFGBuilder...
+[2026-07-04 07:32:51,862 INFO  L274        PluginConnector]: RCFGBuilder initialized
+[2026-07-04 07:32:51,863 INFO  L184        PluginConnector]: Executing the observer RCFGBuilderObserver from plugin RCFGBuilder for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/1) ...
+[2026-07-04 07:32:51,876 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000
+[2026-07-04 07:32:51,887 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:51,904 INFO  L229       MonitoredProcess]: Starting monitored process 1 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000 (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:51,914 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000 (1)] Waiting until timeout for monitored process
+[2026-07-04 07:32:51,975 INFO  L124     BoogieDeclarations]: Specification and implementation of procedure clientTrack_partitionswitchIngress_hash_for_partition given in one single declaration
+[2026-07-04 07:32:51,975 INFO  L130     BoogieDeclarations]: Found specification of procedure clientTrack_partitionswitchIngress_hash_for_partition
+[2026-07-04 07:32:51,975 INFO  L138     BoogieDeclarations]: Found implementation of procedure clientTrack_partitionswitchIngress_hash_for_partition
+[2026-07-04 07:32:51,982 INFO  L130     BoogieDeclarations]: Found specification of procedure clientTrack_reject
+[2026-07-04 07:32:51,982 INFO  L124     BoogieDeclarations]: Specification and implementation of procedure clientTrack_mainProcedure given in one single declaration
+[2026-07-04 07:32:51,982 INFO  L130     BoogieDeclarations]: Found specification of procedure clientTrack_mainProcedure
+[2026-07-04 07:32:51,982 INFO  L138     BoogieDeclarations]: Found implementation of procedure clientTrack_mainProcedure
+[2026-07-04 07:32:51,982 INFO  L130     BoogieDeclarations]: Found specification of procedure clientTrack_packet_in.extract
+[2026-07-04 07:32:51,982 INFO  L124     BoogieDeclarations]: Specification and implementation of procedure ULTIMATE.start given in one single declaration
+[2026-07-04 07:32:51,982 INFO  L130     BoogieDeclarations]: Found specification of procedure ULTIMATE.start
+[2026-07-04 07:32:51,982 INFO  L138     BoogieDeclarations]: Found implementation of procedure ULTIMATE.start
+[2026-07-04 07:32:51,982 INFO  L124     BoogieDeclarations]: Specification and implementation of procedure clientTrack_Forward given in one single declaration
+[2026-07-04 07:32:51,982 INFO  L130     BoogieDeclarations]: Found specification of procedure clientTrack_Forward
+[2026-07-04 07:32:51,983 INFO  L138     BoogieDeclarations]: Found implementation of procedure clientTrack_Forward
+[2026-07-04 07:32:52,207 INFO  L234             CfgBuilder]: Building ICFG
+[2026-07-04 07:32:52,209 INFO  L260             CfgBuilder]: Building CFG for each procedure with an implementation
+[2026-07-04 07:32:53,032 INFO  L?                        ?]: Removed 7 outVars from TransFormulas that were not future-live.
+[2026-07-04 07:32:53,032 INFO  L283             CfgBuilder]: Performing block encoding
+[2026-07-04 07:32:53,049 INFO  L89      LargeBlockEncoding]: Applying CFG Large Block Encoding to ICFG that has 4 procedures, 162 locations, 291 edges, 0 initial locations, 0 loop locations, and 1 error locations.
+[2026-07-04 07:32:53,054 INFO  L139     LargeBlockEncoding]: LargeBlockEncoding completed in 20 ms, with 0 straightline sequential compositions, 0 parallel compositions, 0 1:n/n:1 sequential compositions and 0 complex sequential compositions.
+[2026-07-04 07:32:53,062 INFO  L307             CfgBuilder]: Using the 1 location(s) as analysis (start of procedure ULTIMATE.start)
+[2026-07-04 07:32:53,062 INFO  L312             CfgBuilder]: Removed 2 assume(true) statements.
+[2026-07-04 07:32:53,062 INFO  L314             CfgBuilder]: Constructed ICFG has 4 procedures, 162 locations, 291 edges, 1 initial locations, 0 loop locations, and 1 error locations.
+[2026-07-04 07:32:53,062 INFO  L201        PluginConnector]: Adding new model distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.plugins.generator.rcfgbuilder CFG 04.07 07:32:53 BoogieIcfgContainer
+[2026-07-04 07:32:53,062 INFO  L131        PluginConnector]: ------------------------ END RCFGBuilder----------------------------
+[2026-07-04 07:32:53,064 INFO  L112        PluginConnector]: ------------------------TraceAbstraction----------------------------
+[2026-07-04 07:32:53,064 INFO  L270        PluginConnector]: Initializing TraceAbstraction...
+[2026-07-04 07:32:53,073 INFO  L274        PluginConnector]: TraceAbstraction initialized
+[2026-07-04 07:32:53,073 INFO  L184        PluginConnector]: Executing the observer TraceAbstractionObserver from plugin TraceAbstraction for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 07:32:51" (1/2) ...
+[2026-07-04 07:32:53,074 INFO  L204        PluginConnector]: Invalid model from TraceAbstraction for observer de.uni_freiburg.informatik.ultimate.plugins.generator.traceabstraction.TraceAbstractionObserver@4e651de9 and model type distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.plugins.generator.traceabstraction AST 04.07 07:32:53, skipping insertion in model container
+[2026-07-04 07:32:53,074 INFO  L184        PluginConnector]: Executing the observer TraceAbstractionObserver from plugin TraceAbstraction for "distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.plugins.generator.rcfgbuilder CFG 04.07 07:32:53" (2/2) ...
+[2026-07-04 07:32:53,075 INFO  L128   eAbstractionObserver]: Analyzing ICFG distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl
+[2026-07-04 07:32:53,085 INFO  L217   ceAbstractionStarter]: Automizer settings: Hoare:LoopHeads NWA Interpolation:FPandBP Determinization: PREDICATE_ABSTRACTION
+[2026-07-04 07:32:53,086 INFO  L151   ceAbstractionStarter]: Applying trace abstraction to ICFG distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl that has 4 procedures, 162 locations, 291 edges, 1 initial locations, 0 loop locations, and 1 error locations.
+[2026-07-04 07:32:53,087 WARN  L366   ceAbstractionStarter]: Program is not concurrent. Changing CEGAR restart behaviour to ONLY_ONE_CEGAR
+[2026-07-04 07:32:53,183 INFO  L344      AbstractCegarLoop]: ======== Iteration 0 == of CEGAR loop == AllErrorsAtOnce ========
+[2026-07-04 07:32:53,201 INFO  L345      AbstractCegarLoop]: Settings: SEPARATE_VIOLATION_CHECK=true, mInterprocedural=true, mMaxIterations=1000000, mWatchIteration=1000000, mArtifact=RCFG, mInterpolation=FPandBP, mInterpolantAutomaton=STRAIGHT_LINE, mDumpAutomata=false, mAutomataFormat=ATS_NUMERATE, mDumpPath=., mDeterminiation=PREDICATE_ABSTRACTION, mMinimize=MINIMIZE_SEVPA, mAutomataTypeConcurrency=PARTIAL_ORDER_FA, mHoareTripleChecks=INCREMENTAL, mHoareAnnotationPositions=LoopHeads, mDumpOnlyReuseAutomata=false, mLimitTraceHistogram=0, mErrorLocTimeLimit=0, mLimitPathProgramCount=0, mCollectInterpolantStatistics=true, mHeuristicEmptinessCheck=false, mHeuristicEmptinessCheckAStarHeuristic=ZERO, mHeuristicEmptinessCheckAStarHeuristicRandomSeed=1337, mHeuristicEmptinessCheckSmtFeatureScoringMethod=DAGSIZE, mSMTFeatureExtraction=false, mSMTFeatureExtractionDumpPath=., mOverrideInterpolantAutomaton=false, mMcrInterpolantMethod=WP, mPorIndependenceSettings=[Lde.uni_freiburg.informatik.ultimate.lib.tracecheckerutils.partialorder.independence.IndependenceSettings;@4393fece, mLbeIndependenceSettings=[IndependenceType=SEMANTIC, AbstractionType=NONE, UseConditional=false, UseSemiCommutativity=true, Solver=Z3, SolverTimeout=1000ms]
+[2026-07-04 07:32:53,201 INFO  L346      AbstractCegarLoop]: Starting to check reachability of 1 error locations.
+[2026-07-04 07:32:53,207 INFO  L278                IsEmpty]: Start isEmpty. Operand  has 162 states, 139 states have (on average 1.7050359712230216) internal successors, (237), 156 states have internal predecessors, (237), 18 states have call successors, (18), 3 states have call predecessors, (18), 3 states have return successors, (18), 3 states have call predecessors, (18), 18 states have call successors, (18)
+[2026-07-04 07:32:53,224 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 35
+[2026-07-04 07:32:53,224 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:53,225 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:53,225 INFO  L408      AbstractCegarLoop]: === Iteration 1 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:53,235 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:53,235 INFO  L85        PathProgramCache]: Analyzing trace with hash -1679218134, now seen corresponding path program 1 times
+[2026-07-04 07:32:53,246 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:53,247 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [1354036116]
+[2026-07-04 07:32:53,247 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:53,247 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:53,249 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:53,254 INFO  L229       MonitoredProcess]: Starting monitored process 2 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:53,255 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (2)] Waiting until timeout for monitored process
+[2026-07-04 07:32:53,442 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 34 statements into 1 equivalence classes.
+[2026-07-04 07:32:53,503 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 34 of 34 statements.
+[2026-07-04 07:32:53,503 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:53,503 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:53,512 INFO  L256         TraceCheckSpWp]: Trace formula consists of 307 conjuncts, 1 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:53,523 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:53,550 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:53,551 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:53,607 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:53,608 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:53,608 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [1354036116]
+[2026-07-04 07:32:53,608 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [1354036116] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:53,608 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:53,609 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [2, 2] imperfect sequences [] total 2
+[2026-07-04 07:32:53,612 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [663423566]
+[2026-07-04 07:32:53,612 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:53,615 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 2 states
+[2026-07-04 07:32:53,616 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:53,647 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 2 interpolants.
+[2026-07-04 07:32:53,648 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=1, Invalid=1, Unknown=0, NotChecked=0, Total=2
+[2026-07-04 07:32:53,650 INFO  L87              Difference]: Start difference. First operand  has 162 states, 139 states have (on average 1.7050359712230216) internal successors, (237), 156 states have internal predecessors, (237), 18 states have call successors, (18), 3 states have call predecessors, (18), 3 states have return successors, (18), 3 states have call predecessors, (18), 18 states have call successors, (18) Second operand  has 2 states, 2 states have (on average 26.0) internal successors, (52), 2 states have internal predecessors, (52), 1 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 1 states have call predecessors, (4), 1 states have call successors, (4)
+[2026-07-04 07:32:53,717 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:53,717 INFO  L93              Difference]: Finished difference Result 322 states and 543 transitions.
+[2026-07-04 07:32:53,718 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 2 states. 
+[2026-07-04 07:32:53,718 INFO  L79                 Accepts]: Start accepts. Automaton has  has 2 states, 2 states have (on average 26.0) internal successors, (52), 2 states have internal predecessors, (52), 1 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 1 states have call predecessors, (4), 1 states have call successors, (4) Word has length 34
+[2026-07-04 07:32:53,719 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:53,735 INFO  L225             Difference]: With dead ends: 322
+[2026-07-04 07:32:53,735 INFO  L226             Difference]: Without dead ends: 158
+[2026-07-04 07:32:53,746 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 66 GetRequests, 66 SyntacticMatches, 0 SemanticMatches, 0 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=1, Invalid=1, Unknown=0, NotChecked=0, Total=2
+[2026-07-04 07:32:53,749 INFO  L426           NwaCegarLoop]: 272 mSDtfsCounter, 0 mSDsluCounter, 0 mSDsCounter, 0 mSdLazyCounter, 0 mSolverCounterSat, 0 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.0s Time, 0 mProtectedPredicate, 0 mProtectedAction, 0 SdHoareTripleChecker+Valid, 272 SdHoareTripleChecker+Invalid, 0 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 0 IncrementalHoareTripleChecker+Valid, 0 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.0s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:53,750 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [0 Valid, 272 Invalid, 0 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [0 Valid, 0 Invalid, 0 Unknown, 0 Unchecked, 0.0s Time]
+[2026-07-04 07:32:53,769 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 158 states.
+[2026-07-04 07:32:53,806 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 158 to 158.
+[2026-07-04 07:32:53,814 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 158 states, 136 states have (on average 1.7058823529411764) internal successors, (232), 152 states have internal predecessors, (232), 18 states have call successors, (18), 3 states have call predecessors, (18), 3 states have return successors, (18), 3 states have call predecessors, (18), 18 states have call successors, (18)
+[2026-07-04 07:32:53,817 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 158 states to 158 states and 268 transitions.
+[2026-07-04 07:32:53,820 INFO  L79                 Accepts]: Start accepts. Automaton has 158 states and 268 transitions. Word has length 34
+[2026-07-04 07:32:53,820 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:32:53,820 INFO  L490      AbstractCegarLoop]: Abstraction has 158 states and 268 transitions.
+[2026-07-04 07:32:53,820 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 2 states, 2 states have (on average 26.0) internal successors, (52), 2 states have internal predecessors, (52), 1 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 1 states have call predecessors, (4), 1 states have call successors, (4)
+[2026-07-04 07:32:53,821 INFO  L278                IsEmpty]: Start isEmpty. Operand 158 states and 268 transitions.
+[2026-07-04 07:32:53,822 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 35
+[2026-07-04 07:32:53,822 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:53,823 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:53,844 INFO  L534       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (2)] Forceful destruction successful, exit code 0
+[2026-07-04 07:32:54,032 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 2 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:54,032 INFO  L408      AbstractCegarLoop]: === Iteration 2 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:54,033 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:54,033 INFO  L85        PathProgramCache]: Analyzing trace with hash -1751604692, now seen corresponding path program 1 times
+[2026-07-04 07:32:54,033 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:54,034 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [972962447]
+[2026-07-04 07:32:54,034 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:54,034 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:54,042 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:54,046 INFO  L229       MonitoredProcess]: Starting monitored process 3 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:54,049 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (3)] Waiting until timeout for monitored process
+[2026-07-04 07:32:54,173 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 34 statements into 1 equivalence classes.
+[2026-07-04 07:32:54,230 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 34 of 34 statements.
+[2026-07-04 07:32:54,230 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:54,230 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:54,232 INFO  L256         TraceCheckSpWp]: Trace formula consists of 307 conjuncts, 3 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:54,234 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:54,294 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:54,294 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:54,399 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:54,400 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:54,400 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [972962447]
+[2026-07-04 07:32:54,400 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [972962447] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:54,400 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:54,400 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [4, 5] imperfect sequences [] total 5
+[2026-07-04 07:32:54,400 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [525763829]
+[2026-07-04 07:32:54,400 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:54,401 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 5 states
+[2026-07-04 07:32:54,401 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:54,406 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 5 interpolants.
+[2026-07-04 07:32:54,406 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=7, Invalid=13, Unknown=0, NotChecked=0, Total=20
+[2026-07-04 07:32:54,407 INFO  L87              Difference]: Start difference. First operand 158 states and 268 transitions. Second operand  has 5 states, 5 states have (on average 10.4) internal successors, (52), 5 states have internal predecessors, (52), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:54,647 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:54,647 INFO  L93              Difference]: Finished difference Result 300 states and 512 transitions.
+[2026-07-04 07:32:54,648 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 4 states. 
+[2026-07-04 07:32:54,648 INFO  L79                 Accepts]: Start accepts. Automaton has  has 5 states, 5 states have (on average 10.4) internal successors, (52), 5 states have internal predecessors, (52), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4) Word has length 34
+[2026-07-04 07:32:54,648 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:54,649 INFO  L225             Difference]: With dead ends: 300
+[2026-07-04 07:32:54,649 INFO  L226             Difference]: Without dead ends: 158
+[2026-07-04 07:32:54,650 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 68 GetRequests, 64 SyntacticMatches, 0 SemanticMatches, 4 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=11, Invalid=19, Unknown=0, NotChecked=0, Total=30
+[2026-07-04 07:32:54,650 INFO  L426           NwaCegarLoop]: 265 mSDtfsCounter, 448 mSDsluCounter, 238 mSDsCounter, 0 mSdLazyCounter, 40 mSolverCounterSat, 71 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.1s Time, 0 mProtectedPredicate, 0 mProtectedAction, 448 SdHoareTripleChecker+Valid, 503 SdHoareTripleChecker+Invalid, 111 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 71 IncrementalHoareTripleChecker+Valid, 40 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.2s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:54,650 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [448 Valid, 503 Invalid, 111 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [71 Valid, 40 Invalid, 0 Unknown, 0 Unchecked, 0.2s Time]
+[2026-07-04 07:32:54,651 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 158 states.
+[2026-07-04 07:32:54,677 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 158 to 158.
+[2026-07-04 07:32:54,678 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 158 states, 136 states have (on average 1.6985294117647058) internal successors, (231), 152 states have internal predecessors, (231), 18 states have call successors, (18), 3 states have call predecessors, (18), 3 states have return successors, (18), 3 states have call predecessors, (18), 18 states have call successors, (18)
+[2026-07-04 07:32:54,686 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 158 states to 158 states and 267 transitions.
+[2026-07-04 07:32:54,687 INFO  L79                 Accepts]: Start accepts. Automaton has 158 states and 267 transitions. Word has length 34
+[2026-07-04 07:32:54,687 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:32:54,687 INFO  L490      AbstractCegarLoop]: Abstraction has 158 states and 267 transitions.
+[2026-07-04 07:32:54,687 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 5 states, 5 states have (on average 10.4) internal successors, (52), 5 states have internal predecessors, (52), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:54,687 INFO  L278                IsEmpty]: Start isEmpty. Operand 158 states and 267 transitions.
+[2026-07-04 07:32:54,688 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 37
+[2026-07-04 07:32:54,688 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:54,688 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:54,700 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (3)] Ended with exit code 0
+[2026-07-04 07:32:54,890 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 3 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:54,891 INFO  L408      AbstractCegarLoop]: === Iteration 3 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:54,891 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:54,891 INFO  L85        PathProgramCache]: Analyzing trace with hash 842931753, now seen corresponding path program 1 times
+[2026-07-04 07:32:54,891 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:54,891 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [883452913]
+[2026-07-04 07:32:54,891 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:54,891 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:54,893 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:54,899 INFO  L229       MonitoredProcess]: Starting monitored process 4 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:54,900 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (4)] Waiting until timeout for monitored process
+[2026-07-04 07:32:55,011 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 36 statements into 1 equivalence classes.
+[2026-07-04 07:32:55,048 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 36 of 36 statements.
+[2026-07-04 07:32:55,048 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:55,048 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:55,053 INFO  L256         TraceCheckSpWp]: Trace formula consists of 309 conjuncts, 3 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:55,055 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:55,091 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:55,091 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:55,160 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:55,161 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:55,161 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [883452913]
+[2026-07-04 07:32:55,161 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [883452913] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:55,161 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:55,161 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [4, 5] imperfect sequences [] total 5
+[2026-07-04 07:32:55,161 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [2086030932]
+[2026-07-04 07:32:55,161 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:55,161 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 5 states
+[2026-07-04 07:32:55,161 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:55,166 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 5 interpolants.
+[2026-07-04 07:32:55,166 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=7, Invalid=13, Unknown=0, NotChecked=0, Total=20
+[2026-07-04 07:32:55,167 INFO  L87              Difference]: Start difference. First operand 158 states and 267 transitions. Second operand  has 5 states, 5 states have (on average 11.2) internal successors, (56), 5 states have internal predecessors, (56), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:55,317 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:55,317 INFO  L93              Difference]: Finished difference Result 300 states and 511 transitions.
+[2026-07-04 07:32:55,317 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 4 states. 
+[2026-07-04 07:32:55,318 INFO  L79                 Accepts]: Start accepts. Automaton has  has 5 states, 5 states have (on average 11.2) internal successors, (56), 5 states have internal predecessors, (56), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4) Word has length 36
+[2026-07-04 07:32:55,318 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:55,319 INFO  L225             Difference]: With dead ends: 300
+[2026-07-04 07:32:55,319 INFO  L226             Difference]: Without dead ends: 158
+[2026-07-04 07:32:55,322 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 72 GetRequests, 68 SyntacticMatches, 0 SemanticMatches, 4 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=11, Invalid=19, Unknown=0, NotChecked=0, Total=30
+[2026-07-04 07:32:55,323 INFO  L426           NwaCegarLoop]: 264 mSDtfsCounter, 444 mSDsluCounter, 237 mSDsCounter, 0 mSdLazyCounter, 40 mSolverCounterSat, 71 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.1s Time, 0 mProtectedPredicate, 0 mProtectedAction, 444 SdHoareTripleChecker+Valid, 501 SdHoareTripleChecker+Invalid, 111 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 71 IncrementalHoareTripleChecker+Valid, 40 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.1s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:55,323 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [444 Valid, 501 Invalid, 111 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [71 Valid, 40 Invalid, 0 Unknown, 0 Unchecked, 0.1s Time]
+[2026-07-04 07:32:55,323 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 158 states.
+[2026-07-04 07:32:55,341 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 158 to 158.
+[2026-07-04 07:32:55,341 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 158 states, 136 states have (on average 1.6911764705882353) internal successors, (230), 152 states have internal predecessors, (230), 18 states have call successors, (18), 3 states have call predecessors, (18), 3 states have return successors, (18), 3 states have call predecessors, (18), 18 states have call successors, (18)
+[2026-07-04 07:32:55,343 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 158 states to 158 states and 266 transitions.
+[2026-07-04 07:32:55,350 INFO  L79                 Accepts]: Start accepts. Automaton has 158 states and 266 transitions. Word has length 36
+[2026-07-04 07:32:55,350 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:32:55,350 INFO  L490      AbstractCegarLoop]: Abstraction has 158 states and 266 transitions.
+[2026-07-04 07:32:55,350 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 5 states, 5 states have (on average 11.2) internal successors, (56), 5 states have internal predecessors, (56), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:55,351 INFO  L278                IsEmpty]: Start isEmpty. Operand 158 states and 266 transitions.
+[2026-07-04 07:32:55,351 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 40
+[2026-07-04 07:32:55,351 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:55,351 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:55,364 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (4)] Ended with exit code 0
+[2026-07-04 07:32:55,552 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 4 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:55,552 INFO  L408      AbstractCegarLoop]: === Iteration 4 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:55,553 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:55,554 INFO  L85        PathProgramCache]: Analyzing trace with hash 1518509392, now seen corresponding path program 1 times
+[2026-07-04 07:32:55,554 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:55,554 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [1582948597]
+[2026-07-04 07:32:55,554 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:55,554 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:55,555 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:55,564 INFO  L229       MonitoredProcess]: Starting monitored process 5 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:55,565 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (5)] Waiting until timeout for monitored process
+[2026-07-04 07:32:55,660 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 39 statements into 1 equivalence classes.
+[2026-07-04 07:32:55,698 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 39 of 39 statements.
+[2026-07-04 07:32:55,698 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:55,698 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:55,700 INFO  L256         TraceCheckSpWp]: Trace formula consists of 312 conjuncts, 2 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:55,701 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:55,717 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:55,717 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:55,740 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:55,740 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:55,740 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [1582948597]
+[2026-07-04 07:32:55,740 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [1582948597] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:55,740 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:55,740 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [3, 3] imperfect sequences [] total 3
+[2026-07-04 07:32:55,740 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [1523678330]
+[2026-07-04 07:32:55,740 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:55,740 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 3 states
+[2026-07-04 07:32:55,740 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:55,740 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 3 interpolants.
+[2026-07-04 07:32:55,740 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:32:55,741 INFO  L87              Difference]: Start difference. First operand 158 states and 266 transitions. Second operand  has 3 states, 3 states have (on average 12.333333333333334) internal successors, (37), 3 states have internal predecessors, (37), 2 states have call successors, (3), 2 states have call predecessors, (3), 2 states have return successors, (3), 1 states have call predecessors, (3), 2 states have call successors, (3)
+[2026-07-04 07:32:55,771 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:55,771 INFO  L93              Difference]: Finished difference Result 233 states and 374 transitions.
+[2026-07-04 07:32:55,778 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 3 states. 
+[2026-07-04 07:32:55,778 INFO  L79                 Accepts]: Start accepts. Automaton has  has 3 states, 3 states have (on average 12.333333333333334) internal successors, (37), 3 states have internal predecessors, (37), 2 states have call successors, (3), 2 states have call predecessors, (3), 2 states have return successors, (3), 1 states have call predecessors, (3), 2 states have call successors, (3) Word has length 39
+[2026-07-04 07:32:55,778 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:55,779 INFO  L225             Difference]: With dead ends: 233
+[2026-07-04 07:32:55,779 INFO  L226             Difference]: Without dead ends: 198
+[2026-07-04 07:32:55,779 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 76 GetRequests, 75 SyntacticMatches, 0 SemanticMatches, 1 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:32:55,780 INFO  L426           NwaCegarLoop]: 314 mSDtfsCounter, 239 mSDsluCounter, 71 mSDsCounter, 0 mSdLazyCounter, 9 mSolverCounterSat, 1 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.0s Time, 0 mProtectedPredicate, 0 mProtectedAction, 239 SdHoareTripleChecker+Valid, 385 SdHoareTripleChecker+Invalid, 10 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 1 IncrementalHoareTripleChecker+Valid, 9 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.0s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:55,780 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [239 Valid, 385 Invalid, 10 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [1 Valid, 9 Invalid, 0 Unknown, 0 Unchecked, 0.0s Time]
+[2026-07-04 07:32:55,780 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 198 states.
+[2026-07-04 07:32:55,802 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 198 to 163.
+[2026-07-04 07:32:55,802 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 163 states, 141 states have (on average 1.6666666666666667) internal successors, (235), 157 states have internal predecessors, (235), 18 states have call successors, (18), 3 states have call predecessors, (18), 3 states have return successors, (18), 3 states have call predecessors, (18), 18 states have call successors, (18)
+[2026-07-04 07:32:55,803 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 163 states to 163 states and 271 transitions.
+[2026-07-04 07:32:55,803 INFO  L79                 Accepts]: Start accepts. Automaton has 163 states and 271 transitions. Word has length 39
+[2026-07-04 07:32:55,803 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:32:55,803 INFO  L490      AbstractCegarLoop]: Abstraction has 163 states and 271 transitions.
+[2026-07-04 07:32:55,803 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 3 states, 3 states have (on average 12.333333333333334) internal successors, (37), 3 states have internal predecessors, (37), 2 states have call successors, (3), 2 states have call predecessors, (3), 2 states have return successors, (3), 1 states have call predecessors, (3), 2 states have call successors, (3)
+[2026-07-04 07:32:55,803 INFO  L278                IsEmpty]: Start isEmpty. Operand 163 states and 271 transitions.
+[2026-07-04 07:32:55,804 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 40
+[2026-07-04 07:32:55,814 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:55,814 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:55,819 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (5)] Ended with exit code 0
+[2026-07-04 07:32:56,015 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 5 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:56,015 INFO  L408      AbstractCegarLoop]: === Iteration 5 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:56,015 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:56,015 INFO  L85        PathProgramCache]: Analyzing trace with hash 1007958550, now seen corresponding path program 1 times
+[2026-07-04 07:32:56,015 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:56,015 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [1448813659]
+[2026-07-04 07:32:56,015 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:56,015 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:56,017 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:56,024 INFO  L229       MonitoredProcess]: Starting monitored process 6 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:56,025 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (6)] Waiting until timeout for monitored process
+[2026-07-04 07:32:56,110 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 39 statements into 1 equivalence classes.
+[2026-07-04 07:32:56,146 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 39 of 39 statements.
+[2026-07-04 07:32:56,146 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:56,147 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:56,148 INFO  L256         TraceCheckSpWp]: Trace formula consists of 314 conjuncts, 3 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:56,150 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:56,179 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:56,179 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:56,241 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:56,241 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:56,241 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [1448813659]
+[2026-07-04 07:32:56,241 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [1448813659] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:56,241 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:56,241 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [4, 5] imperfect sequences [] total 5
+[2026-07-04 07:32:56,241 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [721948680]
+[2026-07-04 07:32:56,241 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:56,241 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 5 states
+[2026-07-04 07:32:56,241 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:56,246 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 5 interpolants.
+[2026-07-04 07:32:56,246 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=7, Invalid=13, Unknown=0, NotChecked=0, Total=20
+[2026-07-04 07:32:56,246 INFO  L87              Difference]: Start difference. First operand 163 states and 271 transitions. Second operand  has 5 states, 5 states have (on average 12.4) internal successors, (62), 5 states have internal predecessors, (62), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:56,382 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:56,382 INFO  L93              Difference]: Finished difference Result 306 states and 515 transitions.
+[2026-07-04 07:32:56,383 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 4 states. 
+[2026-07-04 07:32:56,383 INFO  L79                 Accepts]: Start accepts. Automaton has  has 5 states, 5 states have (on average 12.4) internal successors, (62), 5 states have internal predecessors, (62), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4) Word has length 39
+[2026-07-04 07:32:56,383 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:56,384 INFO  L225             Difference]: With dead ends: 306
+[2026-07-04 07:32:56,384 INFO  L226             Difference]: Without dead ends: 157
+[2026-07-04 07:32:56,384 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 78 GetRequests, 74 SyntacticMatches, 0 SemanticMatches, 4 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=11, Invalid=19, Unknown=0, NotChecked=0, Total=30
+[2026-07-04 07:32:56,384 INFO  L426           NwaCegarLoop]: 258 mSDtfsCounter, 430 mSDsluCounter, 231 mSDsCounter, 0 mSdLazyCounter, 40 mSolverCounterSat, 72 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.1s Time, 0 mProtectedPredicate, 0 mProtectedAction, 430 SdHoareTripleChecker+Valid, 489 SdHoareTripleChecker+Invalid, 112 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 72 IncrementalHoareTripleChecker+Valid, 40 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.1s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:56,384 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [430 Valid, 489 Invalid, 112 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [72 Valid, 40 Invalid, 0 Unknown, 0 Unchecked, 0.1s Time]
+[2026-07-04 07:32:56,385 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 157 states.
+[2026-07-04 07:32:56,409 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 157 to 157.
+[2026-07-04 07:32:56,410 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 157 states, 135 states have (on average 1.6592592592592592) internal successors, (224), 151 states have internal predecessors, (224), 18 states have call successors, (18), 3 states have call predecessors, (18), 3 states have return successors, (18), 3 states have call predecessors, (18), 18 states have call successors, (18)
+[2026-07-04 07:32:56,410 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 157 states to 157 states and 260 transitions.
+[2026-07-04 07:32:56,411 INFO  L79                 Accepts]: Start accepts. Automaton has 157 states and 260 transitions. Word has length 39
+[2026-07-04 07:32:56,414 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:32:56,414 INFO  L490      AbstractCegarLoop]: Abstraction has 157 states and 260 transitions.
+[2026-07-04 07:32:56,414 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 5 states, 5 states have (on average 12.4) internal successors, (62), 5 states have internal predecessors, (62), 2 states have call successors, (4), 3 states have call predecessors, (4), 3 states have return successors, (4), 1 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:56,414 INFO  L278                IsEmpty]: Start isEmpty. Operand 157 states and 260 transitions.
+[2026-07-04 07:32:56,415 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 56
+[2026-07-04 07:32:56,415 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:56,415 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:56,426 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (6)] Ended with exit code 0
+[2026-07-04 07:32:56,615 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 6 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:56,616 INFO  L408      AbstractCegarLoop]: === Iteration 6 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:56,616 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:56,616 INFO  L85        PathProgramCache]: Analyzing trace with hash -674169187, now seen corresponding path program 1 times
+[2026-07-04 07:32:56,616 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:56,616 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [531275059]
+[2026-07-04 07:32:56,616 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:56,616 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:56,617 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:56,621 INFO  L229       MonitoredProcess]: Starting monitored process 7 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:56,622 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (7)] Waiting until timeout for monitored process
+[2026-07-04 07:32:56,700 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 55 statements into 1 equivalence classes.
+[2026-07-04 07:32:56,743 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 55 of 55 statements.
+[2026-07-04 07:32:56,743 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:56,743 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:56,752 INFO  L256         TraceCheckSpWp]: Trace formula consists of 371 conjuncts, 6 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:56,753 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:56,871 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:56,871 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:57,131 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:57,131 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:57,131 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [531275059]
+[2026-07-04 07:32:57,131 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [531275059] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:57,131 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:57,131 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [6, 6] imperfect sequences [] total 9
+[2026-07-04 07:32:57,131 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [816185034]
+[2026-07-04 07:32:57,131 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:57,132 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 9 states
+[2026-07-04 07:32:57,132 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:57,132 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 9 interpolants.
+[2026-07-04 07:32:57,132 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=21, Invalid=51, Unknown=0, NotChecked=0, Total=72
+[2026-07-04 07:32:57,132 INFO  L87              Difference]: Start difference. First operand 157 states and 260 transitions. Second operand  has 9 states, 7 states have (on average 9.571428571428571) internal successors, (67), 9 states have internal predecessors, (67), 4 states have call successors, (5), 4 states have call predecessors, (5), 3 states have return successors, (5), 2 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:32:58,317 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:58,317 INFO  L93              Difference]: Finished difference Result 836 states and 1407 transitions.
+[2026-07-04 07:32:58,317 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 17 states. 
+[2026-07-04 07:32:58,318 INFO  L79                 Accepts]: Start accepts. Automaton has  has 9 states, 7 states have (on average 9.571428571428571) internal successors, (67), 9 states have internal predecessors, (67), 4 states have call successors, (5), 4 states have call predecessors, (5), 3 states have return successors, (5), 2 states have call predecessors, (5), 4 states have call successors, (5) Word has length 55
+[2026-07-04 07:32:58,318 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:58,319 INFO  L225             Difference]: With dead ends: 836
+[2026-07-04 07:32:58,320 INFO  L226             Difference]: Without dead ends: 716
+[2026-07-04 07:32:58,320 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 126 GetRequests, 108 SyntacticMatches, 0 SemanticMatches, 18 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 50 ImplicationChecksByTransitivity, 0.2s TimeCoverageRelationStatistics Valid=110, Invalid=270, Unknown=0, NotChecked=0, Total=380
+[2026-07-04 07:32:58,320 INFO  L426           NwaCegarLoop]: 175 mSDtfsCounter, 1462 mSDsluCounter, 614 mSDsCounter, 0 mSdLazyCounter, 2044 mSolverCounterSat, 377 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 2.1s Time, 0 mProtectedPredicate, 0 mProtectedAction, 1463 SdHoareTripleChecker+Valid, 789 SdHoareTripleChecker+Invalid, 2421 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 377 IncrementalHoareTripleChecker+Valid, 2044 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 2.4s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:58,320 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [1463 Valid, 789 Invalid, 2421 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [377 Valid, 2044 Invalid, 0 Unknown, 0 Unchecked, 2.4s Time]
+[2026-07-04 07:32:58,321 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 716 states.
+[2026-07-04 07:32:58,384 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 716 to 574.
+[2026-07-04 07:32:58,385 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 574 states, 527 states have (on average 1.4060721062618595) internal successors, (741), 557 states have internal predecessors, (741), 36 states have call successors, (36), 10 states have call predecessors, (36), 10 states have return successors, (36), 8 states have call predecessors, (36), 36 states have call successors, (36)
+[2026-07-04 07:32:58,386 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 574 states to 574 states and 813 transitions.
+[2026-07-04 07:32:58,387 INFO  L79                 Accepts]: Start accepts. Automaton has 574 states and 813 transitions. Word has length 55
+[2026-07-04 07:32:58,387 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:32:58,387 INFO  L490      AbstractCegarLoop]: Abstraction has 574 states and 813 transitions.
+[2026-07-04 07:32:58,387 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 9 states, 7 states have (on average 9.571428571428571) internal successors, (67), 9 states have internal predecessors, (67), 4 states have call successors, (5), 4 states have call predecessors, (5), 3 states have return successors, (5), 2 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:32:58,387 INFO  L278                IsEmpty]: Start isEmpty. Operand 574 states and 813 transitions.
+[2026-07-04 07:32:58,395 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 61
+[2026-07-04 07:32:58,395 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:58,395 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:58,402 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (7)] Ended with exit code 0
+[2026-07-04 07:32:58,596 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 7 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:58,596 INFO  L408      AbstractCegarLoop]: === Iteration 7 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:58,597 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:58,597 INFO  L85        PathProgramCache]: Analyzing trace with hash -1194727350, now seen corresponding path program 1 times
+[2026-07-04 07:32:58,597 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:58,597 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [1051395499]
+[2026-07-04 07:32:58,598 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:58,598 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:58,600 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:58,601 INFO  L229       MonitoredProcess]: Starting monitored process 8 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:58,604 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (8)] Waiting until timeout for monitored process
+[2026-07-04 07:32:58,734 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 60 statements into 1 equivalence classes.
+[2026-07-04 07:32:58,790 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 60 of 60 statements.
+[2026-07-04 07:32:58,791 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:58,791 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:58,793 INFO  L256         TraceCheckSpWp]: Trace formula consists of 384 conjuncts, 2 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:58,794 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:58,805 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:58,806 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:58,842 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:58,843 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:58,843 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [1051395499]
+[2026-07-04 07:32:58,843 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [1051395499] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:58,843 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:58,843 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [3, 3] imperfect sequences [] total 3
+[2026-07-04 07:32:58,843 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [527208938]
+[2026-07-04 07:32:58,843 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:58,843 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 3 states
+[2026-07-04 07:32:58,843 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:58,844 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 3 interpolants.
+[2026-07-04 07:32:58,844 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:32:58,844 INFO  L87              Difference]: Start difference. First operand 574 states and 813 transitions. Second operand  has 3 states, 3 states have (on average 33.0) internal successors, (99), 3 states have internal predecessors, (99), 2 states have call successors, (6), 2 states have call predecessors, (6), 2 states have return successors, (6), 2 states have call predecessors, (6), 2 states have call successors, (6)
+[2026-07-04 07:32:58,860 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:58,860 INFO  L93              Difference]: Finished difference Result 582 states and 821 transitions.
+[2026-07-04 07:32:58,869 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 3 states. 
+[2026-07-04 07:32:58,869 INFO  L79                 Accepts]: Start accepts. Automaton has  has 3 states, 3 states have (on average 33.0) internal successors, (99), 3 states have internal predecessors, (99), 2 states have call successors, (6), 2 states have call predecessors, (6), 2 states have return successors, (6), 2 states have call predecessors, (6), 2 states have call successors, (6) Word has length 60
+[2026-07-04 07:32:58,869 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:58,870 INFO  L225             Difference]: With dead ends: 582
+[2026-07-04 07:32:58,870 INFO  L226             Difference]: Without dead ends: 131
+[2026-07-04 07:32:58,871 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 118 GetRequests, 117 SyntacticMatches, 0 SemanticMatches, 1 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:32:58,871 INFO  L426           NwaCegarLoop]: 164 mSDtfsCounter, 163 mSDsluCounter, 0 mSDsCounter, 0 mSdLazyCounter, 1 mSolverCounterSat, 1 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.0s Time, 0 mProtectedPredicate, 0 mProtectedAction, 163 SdHoareTripleChecker+Valid, 164 SdHoareTripleChecker+Invalid, 2 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 1 IncrementalHoareTripleChecker+Valid, 1 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.0s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:58,871 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [163 Valid, 164 Invalid, 2 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [1 Valid, 1 Invalid, 0 Unknown, 0 Unchecked, 0.0s Time]
+[2026-07-04 07:32:58,872 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 131 states.
+[2026-07-04 07:32:58,882 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 131 to 131.
+[2026-07-04 07:32:58,885 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 131 states, 124 states have (on average 1.282258064516129) internal successors, (159), 124 states have internal predecessors, (159), 3 states have call successors, (3), 3 states have call predecessors, (3), 3 states have return successors, (3), 3 states have call predecessors, (3), 3 states have call successors, (3)
+[2026-07-04 07:32:58,886 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 131 states to 131 states and 165 transitions.
+[2026-07-04 07:32:58,886 INFO  L79                 Accepts]: Start accepts. Automaton has 131 states and 165 transitions. Word has length 60
+[2026-07-04 07:32:58,887 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:32:58,887 INFO  L490      AbstractCegarLoop]: Abstraction has 131 states and 165 transitions.
+[2026-07-04 07:32:58,887 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 3 states, 3 states have (on average 33.0) internal successors, (99), 3 states have internal predecessors, (99), 2 states have call successors, (6), 2 states have call predecessors, (6), 2 states have return successors, (6), 2 states have call predecessors, (6), 2 states have call successors, (6)
+[2026-07-04 07:32:58,887 INFO  L278                IsEmpty]: Start isEmpty. Operand 131 states and 165 transitions.
+[2026-07-04 07:32:58,890 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 100
+[2026-07-04 07:32:58,890 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:58,890 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:58,899 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (8)] Ended with exit code 0
+[2026-07-04 07:32:59,093 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 8 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:59,093 INFO  L408      AbstractCegarLoop]: === Iteration 8 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:59,094 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:59,094 INFO  L85        PathProgramCache]: Analyzing trace with hash -1278737751, now seen corresponding path program 1 times
+[2026-07-04 07:32:59,094 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:59,094 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [975448771]
+[2026-07-04 07:32:59,094 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:59,094 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:59,096 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:59,097 INFO  L229       MonitoredProcess]: Starting monitored process 9 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:59,100 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (9)] Waiting until timeout for monitored process
+[2026-07-04 07:32:59,190 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 99 statements into 1 equivalence classes.
+[2026-07-04 07:32:59,238 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 99 of 99 statements.
+[2026-07-04 07:32:59,239 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:59,239 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:59,242 INFO  L256         TraceCheckSpWp]: Trace formula consists of 422 conjuncts, 2 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:59,244 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:59,259 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:59,259 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:59,286 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:59,286 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:59,286 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [975448771]
+[2026-07-04 07:32:59,286 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [975448771] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:59,286 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:59,287 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [3, 3] imperfect sequences [] total 3
+[2026-07-04 07:32:59,287 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [1669963447]
+[2026-07-04 07:32:59,287 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:59,287 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 3 states
+[2026-07-04 07:32:59,287 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:59,287 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 3 interpolants.
+[2026-07-04 07:32:59,287 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:32:59,288 INFO  L87              Difference]: Start difference. First operand 131 states and 165 transitions. Second operand  has 3 states, 3 states have (on average 31.666666666666668) internal successors, (95), 3 states have internal predecessors, (95), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:59,297 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:59,297 INFO  L93              Difference]: Finished difference Result 161 states and 209 transitions.
+[2026-07-04 07:32:59,297 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 3 states. 
+[2026-07-04 07:32:59,298 INFO  L79                 Accepts]: Start accepts. Automaton has  has 3 states, 3 states have (on average 31.666666666666668) internal successors, (95), 3 states have internal predecessors, (95), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4) Word has length 99
+[2026-07-04 07:32:59,298 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:59,298 INFO  L225             Difference]: With dead ends: 161
+[2026-07-04 07:32:59,298 INFO  L226             Difference]: Without dead ends: 131
+[2026-07-04 07:32:59,299 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 196 GetRequests, 195 SyntacticMatches, 0 SemanticMatches, 1 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:32:59,299 INFO  L426           NwaCegarLoop]: 163 mSDtfsCounter, 46 mSDsluCounter, 116 mSDsCounter, 0 mSdLazyCounter, 1 mSolverCounterSat, 0 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.0s Time, 0 mProtectedPredicate, 0 mProtectedAction, 46 SdHoareTripleChecker+Valid, 279 SdHoareTripleChecker+Invalid, 1 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 0 IncrementalHoareTripleChecker+Valid, 1 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.0s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:59,299 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [46 Valid, 279 Invalid, 1 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [0 Valid, 1 Invalid, 0 Unknown, 0 Unchecked, 0.0s Time]
+[2026-07-04 07:32:59,299 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 131 states.
+[2026-07-04 07:32:59,301 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 131 to 131.
+[2026-07-04 07:32:59,301 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 131 states, 124 states have (on average 1.2741935483870968) internal successors, (158), 124 states have internal predecessors, (158), 3 states have call successors, (3), 3 states have call predecessors, (3), 3 states have return successors, (3), 3 states have call predecessors, (3), 3 states have call successors, (3)
+[2026-07-04 07:32:59,302 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 131 states to 131 states and 164 transitions.
+[2026-07-04 07:32:59,302 INFO  L79                 Accepts]: Start accepts. Automaton has 131 states and 164 transitions. Word has length 99
+[2026-07-04 07:32:59,302 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:32:59,302 INFO  L490      AbstractCegarLoop]: Abstraction has 131 states and 164 transitions.
+[2026-07-04 07:32:59,302 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 3 states, 3 states have (on average 31.666666666666668) internal successors, (95), 3 states have internal predecessors, (95), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:59,302 INFO  L278                IsEmpty]: Start isEmpty. Operand 131 states and 164 transitions.
+[2026-07-04 07:32:59,311 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 101
+[2026-07-04 07:32:59,311 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:32:59,311 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:32:59,326 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (9)] Ended with exit code 0
+[2026-07-04 07:32:59,512 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 9 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:59,512 INFO  L408      AbstractCegarLoop]: === Iteration 9 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:32:59,512 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:32:59,512 INFO  L85        PathProgramCache]: Analyzing trace with hash -1988808842, now seen corresponding path program 1 times
+[2026-07-04 07:32:59,512 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:32:59,512 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [1163357479]
+[2026-07-04 07:32:59,512 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:32:59,513 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:32:59,514 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:32:59,516 INFO  L229       MonitoredProcess]: Starting monitored process 10 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:32:59,519 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (10)] Waiting until timeout for monitored process
+[2026-07-04 07:32:59,652 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 100 statements into 1 equivalence classes.
+[2026-07-04 07:32:59,703 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 100 of 100 statements.
+[2026-07-04 07:32:59,703 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:32:59,703 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:32:59,706 INFO  L256         TraceCheckSpWp]: Trace formula consists of 424 conjuncts, 3 conjuncts are in the unsatisfiable core
+[2026-07-04 07:32:59,711 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:32:59,734 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:59,734 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:32:59,774 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:32:59,774 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:32:59,774 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [1163357479]
+[2026-07-04 07:32:59,774 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [1163357479] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:32:59,774 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:32:59,774 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [3, 3] imperfect sequences [] total 4
+[2026-07-04 07:32:59,774 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [2085083189]
+[2026-07-04 07:32:59,774 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:32:59,778 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 4 states
+[2026-07-04 07:32:59,778 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:32:59,779 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 4 interpolants.
+[2026-07-04 07:32:59,779 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=6, Invalid=6, Unknown=0, NotChecked=0, Total=12
+[2026-07-04 07:32:59,783 INFO  L87              Difference]: Start difference. First operand 131 states and 164 transitions. Second operand  has 4 states, 4 states have (on average 25.25) internal successors, (101), 4 states have internal predecessors, (101), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:32:59,995 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:32:59,995 INFO  L93              Difference]: Finished difference Result 166 states and 213 transitions.
+[2026-07-04 07:32:59,996 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 4 states. 
+[2026-07-04 07:32:59,996 INFO  L79                 Accepts]: Start accepts. Automaton has  has 4 states, 4 states have (on average 25.25) internal successors, (101), 4 states have internal predecessors, (101), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4) Word has length 100
+[2026-07-04 07:32:59,996 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:32:59,997 INFO  L225             Difference]: With dead ends: 166
+[2026-07-04 07:32:59,997 INFO  L226             Difference]: Without dead ends: 131
+[2026-07-04 07:32:59,997 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 198 GetRequests, 196 SyntacticMatches, 0 SemanticMatches, 2 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=6, Invalid=6, Unknown=0, NotChecked=0, Total=12
+[2026-07-04 07:32:59,997 INFO  L426           NwaCegarLoop]: 75 mSDtfsCounter, 150 mSDsluCounter, 25 mSDsCounter, 0 mSdLazyCounter, 123 mSolverCounterSat, 32 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.2s Time, 0 mProtectedPredicate, 0 mProtectedAction, 150 SdHoareTripleChecker+Valid, 100 SdHoareTripleChecker+Invalid, 155 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 32 IncrementalHoareTripleChecker+Valid, 123 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.2s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:32:59,997 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [150 Valid, 100 Invalid, 155 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [32 Valid, 123 Invalid, 0 Unknown, 0 Unchecked, 0.2s Time]
+[2026-07-04 07:32:59,998 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 131 states.
+[2026-07-04 07:33:00,000 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 131 to 131.
+[2026-07-04 07:33:00,000 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 131 states, 124 states have (on average 1.096774193548387) internal successors, (136), 124 states have internal predecessors, (136), 3 states have call successors, (3), 3 states have call predecessors, (3), 3 states have return successors, (3), 3 states have call predecessors, (3), 3 states have call successors, (3)
+[2026-07-04 07:33:00,001 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 131 states to 131 states and 142 transitions.
+[2026-07-04 07:33:00,001 INFO  L79                 Accepts]: Start accepts. Automaton has 131 states and 142 transitions. Word has length 100
+[2026-07-04 07:33:00,001 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:00,001 INFO  L490      AbstractCegarLoop]: Abstraction has 131 states and 142 transitions.
+[2026-07-04 07:33:00,001 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 4 states, 4 states have (on average 25.25) internal successors, (101), 4 states have internal predecessors, (101), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:33:00,001 INFO  L278                IsEmpty]: Start isEmpty. Operand 131 states and 142 transitions.
+[2026-07-04 07:33:00,001 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 108
+[2026-07-04 07:33:00,001 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:33:00,001 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:00,018 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (10)] Ended with exit code 0
+[2026-07-04 07:33:00,218 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 10 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:00,218 INFO  L408      AbstractCegarLoop]: === Iteration 10 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:33:00,219 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:33:00,219 INFO  L85        PathProgramCache]: Analyzing trace with hash 1268719862, now seen corresponding path program 1 times
+[2026-07-04 07:33:00,219 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:33:00,220 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [1840339780]
+[2026-07-04 07:33:00,220 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:33:00,220 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:00,221 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:33:00,223 INFO  L229       MonitoredProcess]: Starting monitored process 11 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:33:00,235 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (11)] Waiting until timeout for monitored process
+[2026-07-04 07:33:00,307 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 107 statements into 1 equivalence classes.
+[2026-07-04 07:33:00,353 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 107 of 107 statements.
+[2026-07-04 07:33:00,353 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:33:00,353 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:33:00,355 INFO  L256         TraceCheckSpWp]: Trace formula consists of 431 conjuncts, 6 conjuncts are in the unsatisfiable core
+[2026-07-04 07:33:00,357 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:33:00,597 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:00,597 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:33:01,115 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:01,115 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:33:01,115 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [1840339780]
+[2026-07-04 07:33:01,115 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [1840339780] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:33:01,115 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:33:01,115 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [6, 6] imperfect sequences [] total 9
+[2026-07-04 07:33:01,115 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [1697047708]
+[2026-07-04 07:33:01,115 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:33:01,116 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 9 states
+[2026-07-04 07:33:01,116 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:33:01,116 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 9 interpolants.
+[2026-07-04 07:33:01,116 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=21, Invalid=51, Unknown=0, NotChecked=0, Total=72
+[2026-07-04 07:33:01,118 INFO  L87              Difference]: Start difference. First operand 131 states and 142 transitions. Second operand  has 9 states, 7 states have (on average 25.857142857142858) internal successors, (181), 9 states have internal predecessors, (181), 5 states have call successors, (6), 4 states have call predecessors, (6), 3 states have return successors, (6), 3 states have call predecessors, (6), 5 states have call successors, (6)
+[2026-07-04 07:33:01,307 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:33:01,307 INFO  L93              Difference]: Finished difference Result 182 states and 199 transitions.
+[2026-07-04 07:33:01,309 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 6 states. 
+[2026-07-04 07:33:01,309 INFO  L79                 Accepts]: Start accepts. Automaton has  has 9 states, 7 states have (on average 25.857142857142858) internal successors, (181), 9 states have internal predecessors, (181), 5 states have call successors, (6), 4 states have call predecessors, (6), 3 states have return successors, (6), 3 states have call predecessors, (6), 5 states have call successors, (6) Word has length 107
+[2026-07-04 07:33:01,310 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:33:01,310 INFO  L225             Difference]: With dead ends: 182
+[2026-07-04 07:33:01,310 INFO  L226             Difference]: Without dead ends: 147
+[2026-07-04 07:33:01,311 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 217 GetRequests, 207 SyntacticMatches, 0 SemanticMatches, 10 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 4 ImplicationChecksByTransitivity, 0.1s TimeCoverageRelationStatistics Valid=44, Invalid=88, Unknown=0, NotChecked=0, Total=132
+[2026-07-04 07:33:01,311 INFO  L426           NwaCegarLoop]: 132 mSDtfsCounter, 444 mSDsluCounter, 198 mSDsCounter, 0 mSdLazyCounter, 80 mSolverCounterSat, 19 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.1s Time, 0 mProtectedPredicate, 0 mProtectedAction, 445 SdHoareTripleChecker+Valid, 330 SdHoareTripleChecker+Invalid, 99 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 19 IncrementalHoareTripleChecker+Valid, 80 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.2s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:33:01,311 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [445 Valid, 330 Invalid, 99 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [19 Valid, 80 Invalid, 0 Unknown, 0 Unchecked, 0.2s Time]
+[2026-07-04 07:33:01,311 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 147 states.
+[2026-07-04 07:33:01,314 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 147 to 131.
+[2026-07-04 07:33:01,314 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 131 states, 124 states have (on average 1.0887096774193548) internal successors, (135), 124 states have internal predecessors, (135), 3 states have call successors, (3), 3 states have call predecessors, (3), 3 states have return successors, (3), 3 states have call predecessors, (3), 3 states have call successors, (3)
+[2026-07-04 07:33:01,315 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 131 states to 131 states and 141 transitions.
+[2026-07-04 07:33:01,327 INFO  L79                 Accepts]: Start accepts. Automaton has 131 states and 141 transitions. Word has length 107
+[2026-07-04 07:33:01,327 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:01,327 INFO  L490      AbstractCegarLoop]: Abstraction has 131 states and 141 transitions.
+[2026-07-04 07:33:01,327 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 9 states, 7 states have (on average 25.857142857142858) internal successors, (181), 9 states have internal predecessors, (181), 5 states have call successors, (6), 4 states have call predecessors, (6), 3 states have return successors, (6), 3 states have call predecessors, (6), 5 states have call successors, (6)
+[2026-07-04 07:33:01,327 INFO  L278                IsEmpty]: Start isEmpty. Operand 131 states and 141 transitions.
+[2026-07-04 07:33:01,328 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 114
+[2026-07-04 07:33:01,328 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:33:01,328 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:01,338 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (11)] Ended with exit code 0
+[2026-07-04 07:33:01,529 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 11 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:01,529 INFO  L408      AbstractCegarLoop]: === Iteration 11 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:33:01,529 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:33:01,529 INFO  L85        PathProgramCache]: Analyzing trace with hash 2046747721, now seen corresponding path program 1 times
+[2026-07-04 07:33:01,529 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:33:01,529 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [1821764390]
+[2026-07-04 07:33:01,529 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:33:01,529 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:01,531 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:33:01,535 INFO  L229       MonitoredProcess]: Starting monitored process 12 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:33:01,536 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (12)] Waiting until timeout for monitored process
+[2026-07-04 07:33:01,628 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 113 statements into 1 equivalence classes.
+[2026-07-04 07:33:01,684 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 113 of 113 statements.
+[2026-07-04 07:33:01,684 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:33:01,684 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:33:01,686 INFO  L256         TraceCheckSpWp]: Trace formula consists of 433 conjuncts, 2 conjuncts are in the unsatisfiable core
+[2026-07-04 07:33:01,687 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:33:01,723 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:01,723 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:33:01,764 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:01,764 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:33:01,764 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [1821764390]
+[2026-07-04 07:33:01,764 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [1821764390] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:33:01,764 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:33:01,764 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [3, 3] imperfect sequences [] total 3
+[2026-07-04 07:33:01,764 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [1302513107]
+[2026-07-04 07:33:01,764 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:33:01,764 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 3 states
+[2026-07-04 07:33:01,764 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:33:01,765 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 3 interpolants.
+[2026-07-04 07:33:01,765 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:33:01,765 INFO  L87              Difference]: Start difference. First operand 131 states and 141 transitions. Second operand  has 3 states, 3 states have (on average 36.333333333333336) internal successors, (109), 3 states have internal predecessors, (109), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:33:01,773 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:33:01,773 INFO  L93              Difference]: Finished difference Result 166 states and 180 transitions.
+[2026-07-04 07:33:01,774 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 3 states. 
+[2026-07-04 07:33:01,774 INFO  L79                 Accepts]: Start accepts. Automaton has  has 3 states, 3 states have (on average 36.333333333333336) internal successors, (109), 3 states have internal predecessors, (109), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4) Word has length 113
+[2026-07-04 07:33:01,774 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:33:01,783 INFO  L225             Difference]: With dead ends: 166
+[2026-07-04 07:33:01,783 INFO  L226             Difference]: Without dead ends: 131
+[2026-07-04 07:33:01,783 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 224 GetRequests, 223 SyntacticMatches, 0 SemanticMatches, 1 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:33:01,783 INFO  L426           NwaCegarLoop]: 139 mSDtfsCounter, 41 mSDsluCounter, 85 mSDsCounter, 0 mSdLazyCounter, 1 mSolverCounterSat, 0 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.0s Time, 0 mProtectedPredicate, 0 mProtectedAction, 41 SdHoareTripleChecker+Valid, 224 SdHoareTripleChecker+Invalid, 1 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 0 IncrementalHoareTripleChecker+Valid, 1 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.0s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:33:01,784 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [41 Valid, 224 Invalid, 1 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [0 Valid, 1 Invalid, 0 Unknown, 0 Unchecked, 0.0s Time]
+[2026-07-04 07:33:01,784 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 131 states.
+[2026-07-04 07:33:01,789 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 131 to 131.
+[2026-07-04 07:33:01,789 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 131 states, 124 states have (on average 1.0806451612903225) internal successors, (134), 124 states have internal predecessors, (134), 3 states have call successors, (3), 3 states have call predecessors, (3), 3 states have return successors, (3), 3 states have call predecessors, (3), 3 states have call successors, (3)
+[2026-07-04 07:33:01,789 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 131 states to 131 states and 140 transitions.
+[2026-07-04 07:33:01,789 INFO  L79                 Accepts]: Start accepts. Automaton has 131 states and 140 transitions. Word has length 113
+[2026-07-04 07:33:01,789 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:01,790 INFO  L490      AbstractCegarLoop]: Abstraction has 131 states and 140 transitions.
+[2026-07-04 07:33:01,790 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 3 states, 3 states have (on average 36.333333333333336) internal successors, (109), 3 states have internal predecessors, (109), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:33:01,790 INFO  L278                IsEmpty]: Start isEmpty. Operand 131 states and 140 transitions.
+[2026-07-04 07:33:01,790 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 115
+[2026-07-04 07:33:01,790 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:33:01,790 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:01,807 INFO  L534       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (12)] Forceful destruction successful, exit code 0
+[2026-07-04 07:33:01,994 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 12 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:01,994 INFO  L408      AbstractCegarLoop]: === Iteration 12 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:33:01,995 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:33:01,995 INFO  L85        PathProgramCache]: Analyzing trace with hash -478707528, now seen corresponding path program 1 times
+[2026-07-04 07:33:01,995 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:33:01,995 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [130720794]
+[2026-07-04 07:33:01,995 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:33:01,995 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:01,998 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:33:01,999 INFO  L229       MonitoredProcess]: Starting monitored process 13 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:33:02,002 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (13)] Waiting until timeout for monitored process
+[2026-07-04 07:33:02,068 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 114 statements into 1 equivalence classes.
+[2026-07-04 07:33:02,115 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 114 of 114 statements.
+[2026-07-04 07:33:02,115 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:33:02,116 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:33:02,117 INFO  L256         TraceCheckSpWp]: Trace formula consists of 435 conjuncts, 2 conjuncts are in the unsatisfiable core
+[2026-07-04 07:33:02,118 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:33:02,152 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:02,152 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:33:02,206 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:02,206 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:33:02,206 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [130720794]
+[2026-07-04 07:33:02,206 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [130720794] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:33:02,206 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:33:02,207 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [3, 4] imperfect sequences [] total 5
+[2026-07-04 07:33:02,207 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [1566292142]
+[2026-07-04 07:33:02,207 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:33:02,207 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 5 states
+[2026-07-04 07:33:02,207 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:33:02,207 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 5 interpolants.
+[2026-07-04 07:33:02,207 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=8, Invalid=12, Unknown=0, NotChecked=0, Total=20
+[2026-07-04 07:33:02,207 INFO  L87              Difference]: Start difference. First operand 131 states and 140 transitions. Second operand  has 5 states, 5 states have (on average 23.8) internal successors, (119), 5 states have internal predecessors, (119), 3 states have call successors, (4), 2 states have call predecessors, (4), 5 states have return successors, (5), 4 states have call predecessors, (5), 3 states have call successors, (5)
+[2026-07-04 07:33:02,278 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:33:02,279 INFO  L93              Difference]: Finished difference Result 157 states and 166 transitions.
+[2026-07-04 07:33:02,279 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 5 states. 
+[2026-07-04 07:33:02,279 INFO  L79                 Accepts]: Start accepts. Automaton has  has 5 states, 5 states have (on average 23.8) internal successors, (119), 5 states have internal predecessors, (119), 3 states have call successors, (4), 2 states have call predecessors, (4), 5 states have return successors, (5), 4 states have call predecessors, (5), 3 states have call successors, (5) Word has length 114
+[2026-07-04 07:33:02,279 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:33:02,280 INFO  L225             Difference]: With dead ends: 157
+[2026-07-04 07:33:02,280 INFO  L226             Difference]: Without dead ends: 152
+[2026-07-04 07:33:02,280 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 226 GetRequests, 223 SyntacticMatches, 0 SemanticMatches, 3 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 1 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=8, Invalid=12, Unknown=0, NotChecked=0, Total=20
+[2026-07-04 07:33:02,280 INFO  L426           NwaCegarLoop]: 143 mSDtfsCounter, 14 mSDsluCounter, 373 mSDsCounter, 0 mSdLazyCounter, 48 mSolverCounterSat, 1 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.1s Time, 0 mProtectedPredicate, 0 mProtectedAction, 14 SdHoareTripleChecker+Valid, 516 SdHoareTripleChecker+Invalid, 49 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 1 IncrementalHoareTripleChecker+Valid, 48 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.1s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:33:02,280 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [14 Valid, 516 Invalid, 49 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [1 Valid, 48 Invalid, 0 Unknown, 0 Unchecked, 0.1s Time]
+[2026-07-04 07:33:02,280 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 152 states.
+[2026-07-04 07:33:02,292 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 152 to 144.
+[2026-07-04 07:33:02,292 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 144 states, 134 states have (on average 1.0895522388059702) internal successors, (146), 135 states have internal predecessors, (146), 4 states have call successors, (4), 4 states have call predecessors, (4), 5 states have return successors, (5), 4 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:33:02,293 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 144 states to 144 states and 155 transitions.
+[2026-07-04 07:33:02,293 INFO  L79                 Accepts]: Start accepts. Automaton has 144 states and 155 transitions. Word has length 114
+[2026-07-04 07:33:02,293 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:02,293 INFO  L490      AbstractCegarLoop]: Abstraction has 144 states and 155 transitions.
+[2026-07-04 07:33:02,293 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 5 states, 5 states have (on average 23.8) internal successors, (119), 5 states have internal predecessors, (119), 3 states have call successors, (4), 2 states have call predecessors, (4), 5 states have return successors, (5), 4 states have call predecessors, (5), 3 states have call successors, (5)
+[2026-07-04 07:33:02,293 INFO  L278                IsEmpty]: Start isEmpty. Operand 144 states and 155 transitions.
+[2026-07-04 07:33:02,293 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 115
+[2026-07-04 07:33:02,293 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:33:02,293 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:02,308 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (13)] Ended with exit code 0
+[2026-07-04 07:33:02,497 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 13 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:02,497 INFO  L408      AbstractCegarLoop]: === Iteration 13 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:33:02,497 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:33:02,497 INFO  L85        PathProgramCache]: Analyzing trace with hash -477784007, now seen corresponding path program 1 times
+[2026-07-04 07:33:02,497 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:33:02,497 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [604005794]
+[2026-07-04 07:33:02,497 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:33:02,497 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:02,499 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:33:02,504 INFO  L229       MonitoredProcess]: Starting monitored process 14 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:33:02,505 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (14)] Waiting until timeout for monitored process
+[2026-07-04 07:33:02,576 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 114 statements into 1 equivalence classes.
+[2026-07-04 07:33:02,621 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 114 of 114 statements.
+[2026-07-04 07:33:02,622 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:33:02,622 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:33:02,629 INFO  L256         TraceCheckSpWp]: Trace formula consists of 435 conjuncts, 3 conjuncts are in the unsatisfiable core
+[2026-07-04 07:33:02,630 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:33:02,646 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:02,646 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:33:02,676 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:02,677 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:33:02,677 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [604005794]
+[2026-07-04 07:33:02,677 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [604005794] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:33:02,677 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:33:02,677 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [3, 3] imperfect sequences [] total 4
+[2026-07-04 07:33:02,677 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [459456923]
+[2026-07-04 07:33:02,677 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:33:02,677 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 4 states
+[2026-07-04 07:33:02,677 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:33:02,683 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 4 interpolants.
+[2026-07-04 07:33:02,683 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=6, Invalid=6, Unknown=0, NotChecked=0, Total=12
+[2026-07-04 07:33:02,683 INFO  L87              Difference]: Start difference. First operand 144 states and 155 transitions. Second operand  has 4 states, 4 states have (on average 28.75) internal successors, (115), 4 states have internal predecessors, (115), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:33:02,735 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:33:02,735 INFO  L93              Difference]: Finished difference Result 343 states and 373 transitions.
+[2026-07-04 07:33:02,739 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 4 states. 
+[2026-07-04 07:33:02,739 INFO  L79                 Accepts]: Start accepts. Automaton has  has 4 states, 4 states have (on average 28.75) internal successors, (115), 4 states have internal predecessors, (115), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4) Word has length 114
+[2026-07-04 07:33:02,739 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:33:02,740 INFO  L225             Difference]: With dead ends: 343
+[2026-07-04 07:33:02,740 INFO  L226             Difference]: Without dead ends: 278
+[2026-07-04 07:33:02,740 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 226 GetRequests, 224 SyntacticMatches, 0 SemanticMatches, 2 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=6, Invalid=6, Unknown=0, NotChecked=0, Total=12
+[2026-07-04 07:33:02,741 INFO  L426           NwaCegarLoop]: 138 mSDtfsCounter, 113 mSDsluCounter, 323 mSDsCounter, 0 mSdLazyCounter, 12 mSolverCounterSat, 1 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.0s Time, 0 mProtectedPredicate, 0 mProtectedAction, 113 SdHoareTripleChecker+Valid, 461 SdHoareTripleChecker+Invalid, 13 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 1 IncrementalHoareTripleChecker+Valid, 12 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.0s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:33:02,741 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [113 Valid, 461 Invalid, 13 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [1 Valid, 12 Invalid, 0 Unknown, 0 Unchecked, 0.0s Time]
+[2026-07-04 07:33:02,741 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 278 states.
+[2026-07-04 07:33:02,747 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 278 to 148.
+[2026-07-04 07:33:02,755 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 148 states, 138 states have (on average 1.0869565217391304) internal successors, (150), 139 states have internal predecessors, (150), 4 states have call successors, (4), 4 states have call predecessors, (4), 5 states have return successors, (5), 4 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:33:02,755 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 148 states to 148 states and 159 transitions.
+[2026-07-04 07:33:02,755 INFO  L79                 Accepts]: Start accepts. Automaton has 148 states and 159 transitions. Word has length 114
+[2026-07-04 07:33:02,755 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:02,755 INFO  L490      AbstractCegarLoop]: Abstraction has 148 states and 159 transitions.
+[2026-07-04 07:33:02,755 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 4 states, 4 states have (on average 28.75) internal successors, (115), 4 states have internal predecessors, (115), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:33:02,755 INFO  L278                IsEmpty]: Start isEmpty. Operand 148 states and 159 transitions.
+[2026-07-04 07:33:02,756 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 115
+[2026-07-04 07:33:02,756 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:33:02,756 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:02,768 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (14)] Ended with exit code 0
+[2026-07-04 07:33:02,960 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 14 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:02,960 INFO  L408      AbstractCegarLoop]: === Iteration 14 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:33:02,966 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:33:02,966 INFO  L85        PathProgramCache]: Analyzing trace with hash -1849591305, now seen corresponding path program 1 times
+[2026-07-04 07:33:02,966 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:33:02,966 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [303074804]
+[2026-07-04 07:33:02,966 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:33:02,966 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:02,967 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:33:02,973 INFO  L229       MonitoredProcess]: Starting monitored process 15 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:33:02,979 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (15)] Waiting until timeout for monitored process
+[2026-07-04 07:33:03,056 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 114 statements into 1 equivalence classes.
+[2026-07-04 07:33:03,150 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 114 of 114 statements.
+[2026-07-04 07:33:03,151 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:33:03,151 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:33:03,157 INFO  L256         TraceCheckSpWp]: Trace formula consists of 432 conjuncts, 29 conjuncts are in the unsatisfiable core
+[2026-07-04 07:33:03,160 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:33:03,207 INFO  L354             Elim1Store]: Elim1 eliminated variable of array dimension 1, 1 stores, 0 select indices, 0 select index equivalence classes, 0 disjoint index pairs (out of 0 index pairs), introduced 0 new quantified variables, introduced 0 case distinctions, treesize of input 6 treesize of output 5
+[2026-07-04 07:33:03,337 INFO  L354             Elim1Store]: Elim1 eliminated variable of array dimension 1, 0 stores, 1 select indices, 1 select index equivalence classes, 0 disjoint index pairs (out of 0 index pairs), introduced 1 new quantified variables, introduced 0 case distinctions, treesize of input 5 treesize of output 3
+[2026-07-04 07:33:04,820 INFO  L172   IndexEqualityManager]: detected equality via solver
+[2026-07-04 07:33:04,821 INFO  L354             Elim1Store]: Elim1 eliminated variable of array dimension 1, 0 stores, 2 select indices, 2 select index equivalence classes, 0 disjoint index pairs (out of 1 index pairs), introduced 1 new quantified variables, introduced 0 case distinctions, treesize of input 17 treesize of output 9
+[2026-07-04 07:33:05,155 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:05,155 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:33:06,055 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:06,055 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:33:06,055 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [303074804]
+[2026-07-04 07:33:06,055 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [303074804] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:33:06,055 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:33:06,055 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [9, 8] imperfect sequences [] total 17
+[2026-07-04 07:33:06,055 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [670230982]
+[2026-07-04 07:33:06,055 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:33:06,057 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 18 states
+[2026-07-04 07:33:06,058 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:33:06,058 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 18 interpolants.
+[2026-07-04 07:33:06,058 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=52, Invalid=254, Unknown=0, NotChecked=0, Total=306
+[2026-07-04 07:33:06,058 INFO  L87              Difference]: Start difference. First operand 148 states and 159 transitions. Second operand  has 18 states, 17 states have (on average 12.705882352941176) internal successors, (216), 18 states have internal predecessors, (216), 6 states have call successors, (6), 5 states have call predecessors, (6), 5 states have return successors, (6), 4 states have call predecessors, (6), 6 states have call successors, (6)
+[2026-07-04 07:33:06,644 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:33:06,644 INFO  L93              Difference]: Finished difference Result 213 states and 230 transitions.
+[2026-07-04 07:33:06,645 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 12 states. 
+[2026-07-04 07:33:06,645 INFO  L79                 Accepts]: Start accepts. Automaton has  has 18 states, 17 states have (on average 12.705882352941176) internal successors, (216), 18 states have internal predecessors, (216), 6 states have call successors, (6), 5 states have call predecessors, (6), 5 states have return successors, (6), 4 states have call predecessors, (6), 6 states have call successors, (6) Word has length 114
+[2026-07-04 07:33:06,645 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:33:06,645 INFO  L225             Difference]: With dead ends: 213
+[2026-07-04 07:33:06,646 INFO  L226             Difference]: Without dead ends: 144
+[2026-07-04 07:33:06,646 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 230 GetRequests, 211 SyntacticMatches, 0 SemanticMatches, 19 ConstructedPredicates, 0 IntricatePredicates, 1 DeprecatedPredicates, 89 ImplicationChecksByTransitivity, 0.7s TimeCoverageRelationStatistics Valid=71, Invalid=349, Unknown=0, NotChecked=0, Total=420
+[2026-07-04 07:33:06,650 INFO  L426           NwaCegarLoop]: 128 mSDtfsCounter, 108 mSDsluCounter, 1218 mSDsCounter, 0 mSdLazyCounter, 162 mSolverCounterSat, 3 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.4s Time, 0 mProtectedPredicate, 0 mProtectedAction, 109 SdHoareTripleChecker+Valid, 1346 SdHoareTripleChecker+Invalid, 165 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 3 IncrementalHoareTripleChecker+Valid, 162 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.4s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:33:06,651 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [109 Valid, 1346 Invalid, 165 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [3 Valid, 162 Invalid, 0 Unknown, 0 Unchecked, 0.4s Time]
+[2026-07-04 07:33:06,651 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 144 states.
+[2026-07-04 07:33:06,663 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 144 to 144.
+[2026-07-04 07:33:06,663 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 144 states, 134 states have (on average 1.0820895522388059) internal successors, (145), 135 states have internal predecessors, (145), 4 states have call successors, (4), 4 states have call predecessors, (4), 5 states have return successors, (5), 4 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:33:06,663 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 144 states to 144 states and 154 transitions.
+[2026-07-04 07:33:06,663 INFO  L79                 Accepts]: Start accepts. Automaton has 144 states and 154 transitions. Word has length 114
+[2026-07-04 07:33:06,663 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:06,663 INFO  L490      AbstractCegarLoop]: Abstraction has 144 states and 154 transitions.
+[2026-07-04 07:33:06,663 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 18 states, 17 states have (on average 12.705882352941176) internal successors, (216), 18 states have internal predecessors, (216), 6 states have call successors, (6), 5 states have call predecessors, (6), 5 states have return successors, (6), 4 states have call predecessors, (6), 6 states have call successors, (6)
+[2026-07-04 07:33:06,664 INFO  L278                IsEmpty]: Start isEmpty. Operand 144 states and 154 transitions.
+[2026-07-04 07:33:06,664 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 116
+[2026-07-04 07:33:06,664 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:33:06,664 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:06,675 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (15)] Ended with exit code 0
+[2026-07-04 07:33:06,864 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 15 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:06,865 INFO  L408      AbstractCegarLoop]: === Iteration 15 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:33:06,865 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:33:06,865 INFO  L85        PathProgramCache]: Analyzing trace with hash -423261297, now seen corresponding path program 1 times
+[2026-07-04 07:33:06,865 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:33:06,865 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [856863181]
+[2026-07-04 07:33:06,865 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:33:06,865 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:06,867 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:33:06,868 INFO  L229       MonitoredProcess]: Starting monitored process 16 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:33:06,870 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (16)] Waiting until timeout for monitored process
+[2026-07-04 07:33:06,925 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 115 statements into 1 equivalence classes.
+[2026-07-04 07:33:06,952 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 115 of 115 statements.
+[2026-07-04 07:33:06,952 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:33:06,953 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:33:06,954 INFO  L256         TraceCheckSpWp]: Trace formula consists of 430 conjuncts, 2 conjuncts are in the unsatisfiable core
+[2026-07-04 07:33:06,955 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:33:06,983 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:06,983 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:33:07,018 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:07,019 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:33:07,019 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [856863181]
+[2026-07-04 07:33:07,019 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [856863181] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:33:07,019 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:33:07,019 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [3, 3] imperfect sequences [] total 3
+[2026-07-04 07:33:07,019 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [2085602850]
+[2026-07-04 07:33:07,019 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:33:07,019 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 3 states
+[2026-07-04 07:33:07,020 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:33:07,026 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 3 interpolants.
+[2026-07-04 07:33:07,026 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:33:07,027 INFO  L87              Difference]: Start difference. First operand 144 states and 154 transitions. Second operand  has 3 states, 3 states have (on average 37.0) internal successors, (111), 3 states have internal predecessors, (111), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:33:07,032 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:33:07,032 INFO  L93              Difference]: Finished difference Result 213 states and 230 transitions.
+[2026-07-04 07:33:07,032 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 3 states. 
+[2026-07-04 07:33:07,032 INFO  L79                 Accepts]: Start accepts. Automaton has  has 3 states, 3 states have (on average 37.0) internal successors, (111), 3 states have internal predecessors, (111), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4) Word has length 115
+[2026-07-04 07:33:07,032 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:33:07,032 INFO  L225             Difference]: With dead ends: 213
+[2026-07-04 07:33:07,033 INFO  L226             Difference]: Without dead ends: 144
+[2026-07-04 07:33:07,037 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 228 GetRequests, 227 SyntacticMatches, 0 SemanticMatches, 1 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 0 ImplicationChecksByTransitivity, 0.0s TimeCoverageRelationStatistics Valid=3, Invalid=3, Unknown=0, NotChecked=0, Total=6
+[2026-07-04 07:33:07,037 INFO  L426           NwaCegarLoop]: 137 mSDtfsCounter, 63 mSDsluCounter, 59 mSDsCounter, 0 mSdLazyCounter, 1 mSolverCounterSat, 0 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.0s Time, 0 mProtectedPredicate, 0 mProtectedAction, 63 SdHoareTripleChecker+Valid, 196 SdHoareTripleChecker+Invalid, 1 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 0 IncrementalHoareTripleChecker+Valid, 1 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.0s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:33:07,037 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [63 Valid, 196 Invalid, 1 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [0 Valid, 1 Invalid, 0 Unknown, 0 Unchecked, 0.0s Time]
+[2026-07-04 07:33:07,038 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 144 states.
+[2026-07-04 07:33:07,042 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 144 to 144.
+[2026-07-04 07:33:07,042 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 144 states, 134 states have (on average 1.0746268656716418) internal successors, (144), 135 states have internal predecessors, (144), 4 states have call successors, (4), 4 states have call predecessors, (4), 5 states have return successors, (5), 4 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:33:07,051 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 144 states to 144 states and 153 transitions.
+[2026-07-04 07:33:07,051 INFO  L79                 Accepts]: Start accepts. Automaton has 144 states and 153 transitions. Word has length 115
+[2026-07-04 07:33:07,051 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:07,051 INFO  L490      AbstractCegarLoop]: Abstraction has 144 states and 153 transitions.
+[2026-07-04 07:33:07,051 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 3 states, 3 states have (on average 37.0) internal successors, (111), 3 states have internal predecessors, (111), 2 states have call successors, (4), 2 states have call predecessors, (4), 2 states have return successors, (4), 2 states have call predecessors, (4), 2 states have call successors, (4)
+[2026-07-04 07:33:07,051 INFO  L278                IsEmpty]: Start isEmpty. Operand 144 states and 153 transitions.
+[2026-07-04 07:33:07,052 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 117
+[2026-07-04 07:33:07,052 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:33:07,052 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:07,063 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (16)] Ended with exit code 0
+[2026-07-04 07:33:07,252 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 16 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:07,252 INFO  L408      AbstractCegarLoop]: === Iteration 16 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:33:07,253 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:33:07,253 INFO  L85        PathProgramCache]: Analyzing trace with hash 635871541, now seen corresponding path program 1 times
+[2026-07-04 07:33:07,253 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:33:07,253 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [908995867]
+[2026-07-04 07:33:07,253 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:33:07,253 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:07,255 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:33:07,256 INFO  L229       MonitoredProcess]: Starting monitored process 17 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:33:07,262 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (17)] Waiting until timeout for monitored process
+[2026-07-04 07:33:07,318 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 116 statements into 1 equivalence classes.
+[2026-07-04 07:33:07,340 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 116 of 116 statements.
+[2026-07-04 07:33:07,341 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:33:07,341 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:33:07,342 INFO  L256         TraceCheckSpWp]: Trace formula consists of 432 conjuncts, 5 conjuncts are in the unsatisfiable core
+[2026-07-04 07:33:07,350 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:33:07,602 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:07,602 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:33:07,988 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:07,988 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:33:07,988 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [908995867]
+[2026-07-04 07:33:07,988 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [908995867] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:33:07,988 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:33:07,988 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [6, 6] imperfect sequences [] total 10
+[2026-07-04 07:33:07,988 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [165867968]
+[2026-07-04 07:33:07,988 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:33:07,988 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 10 states
+[2026-07-04 07:33:07,988 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:33:07,989 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 10 interpolants.
+[2026-07-04 07:33:07,989 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=26, Invalid=64, Unknown=0, NotChecked=0, Total=90
+[2026-07-04 07:33:07,989 INFO  L87              Difference]: Start difference. First operand 144 states and 153 transitions. Second operand  has 10 states, 8 states have (on average 26.625) internal successors, (213), 10 states have internal predecessors, (213), 5 states have call successors, (6), 4 states have call predecessors, (6), 4 states have return successors, (6), 3 states have call predecessors, (6), 5 states have call successors, (6)
+[2026-07-04 07:33:08,108 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:33:08,108 INFO  L93              Difference]: Finished difference Result 209 states and 224 transitions.
+[2026-07-04 07:33:08,108 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 5 states. 
+[2026-07-04 07:33:08,109 INFO  L79                 Accepts]: Start accepts. Automaton has  has 10 states, 8 states have (on average 26.625) internal successors, (213), 10 states have internal predecessors, (213), 5 states have call successors, (6), 4 states have call predecessors, (6), 4 states have return successors, (6), 3 states have call predecessors, (6), 5 states have call successors, (6) Word has length 116
+[2026-07-04 07:33:08,109 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:33:08,109 INFO  L225             Difference]: With dead ends: 209
+[2026-07-04 07:33:08,109 INFO  L226             Difference]: Without dead ends: 144
+[2026-07-04 07:33:08,109 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 233 GetRequests, 223 SyntacticMatches, 0 SemanticMatches, 10 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 10 ImplicationChecksByTransitivity, 0.1s TimeCoverageRelationStatistics Valid=42, Invalid=90, Unknown=0, NotChecked=0, Total=132
+[2026-07-04 07:33:08,110 INFO  L426           NwaCegarLoop]: 126 mSDtfsCounter, 437 mSDsluCounter, 263 mSDsCounter, 0 mSdLazyCounter, 42 mSolverCounterSat, 21 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.1s Time, 0 mProtectedPredicate, 0 mProtectedAction, 437 SdHoareTripleChecker+Valid, 389 SdHoareTripleChecker+Invalid, 63 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 21 IncrementalHoareTripleChecker+Valid, 42 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.1s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:33:08,110 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [437 Valid, 389 Invalid, 63 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [21 Valid, 42 Invalid, 0 Unknown, 0 Unchecked, 0.1s Time]
+[2026-07-04 07:33:08,110 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 144 states.
+[2026-07-04 07:33:08,114 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 144 to 144.
+[2026-07-04 07:33:08,123 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 144 states, 134 states have (on average 1.0671641791044777) internal successors, (143), 135 states have internal predecessors, (143), 4 states have call successors, (4), 4 states have call predecessors, (4), 5 states have return successors, (5), 4 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:33:08,123 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 144 states to 144 states and 152 transitions.
+[2026-07-04 07:33:08,123 INFO  L79                 Accepts]: Start accepts. Automaton has 144 states and 152 transitions. Word has length 116
+[2026-07-04 07:33:08,123 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:08,123 INFO  L490      AbstractCegarLoop]: Abstraction has 144 states and 152 transitions.
+[2026-07-04 07:33:08,124 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 10 states, 8 states have (on average 26.625) internal successors, (213), 10 states have internal predecessors, (213), 5 states have call successors, (6), 4 states have call predecessors, (6), 4 states have return successors, (6), 3 states have call predecessors, (6), 5 states have call successors, (6)
+[2026-07-04 07:33:08,124 INFO  L278                IsEmpty]: Start isEmpty. Operand 144 states and 152 transitions.
+[2026-07-04 07:33:08,124 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 117
+[2026-07-04 07:33:08,124 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 07:33:08,124 INFO  L207           NwaCegarLoop]: trace histogram [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:08,135 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (17)] Ended with exit code 0
+[2026-07-04 07:33:08,325 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 17 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:08,325 INFO  L408      AbstractCegarLoop]: === Iteration 17 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 07:33:08,326 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 07:33:08,326 INFO  L85        PathProgramCache]: Analyzing trace with hash -735935757, now seen corresponding path program 1 times
+[2026-07-04 07:33:08,326 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 07:33:08,326 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [953596293]
+[2026-07-04 07:33:08,326 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 07:33:08,326 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:08,327 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 07:33:08,329 INFO  L229       MonitoredProcess]: Starting monitored process 18 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 07:33:08,331 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (18)] Waiting until timeout for monitored process
+[2026-07-04 07:33:08,391 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 116 statements into 1 equivalence classes.
+[2026-07-04 07:33:08,435 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 116 of 116 statements.
+[2026-07-04 07:33:08,435 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 07:33:08,435 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is unsat
+[2026-07-04 07:33:08,437 INFO  L256         TraceCheckSpWp]: Trace formula consists of 429 conjuncts, 11 conjuncts are in the unsatisfiable core
+[2026-07-04 07:33:08,446 INFO  L279         TraceCheckSpWp]: Computing forward predicates...
+[2026-07-04 07:33:08,747 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:08,747 INFO  L312         TraceCheckSpWp]: Computing backward predicates...
+[2026-07-04 07:33:09,271 INFO  L134       CoverageAnalysis]: Checked inductivity of 0 backedges. 0 proven. 0 refuted. 0 times theorem prover too weak. 0 trivial. 0 not checked.
+[2026-07-04 07:33:09,271 INFO  L136   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found an infeasible trace
+[2026-07-04 07:33:09,271 INFO  L324   FreeRefinementEngine]: Using interpolant generator IpTcStrategyModulePreferences [953596293]
+[2026-07-04 07:33:09,272 INFO  L158   FreeRefinementEngine]: IpTcStrategyModulePreferences [953596293] provided 2 perfect and 0 imperfect interpolant sequences
+[2026-07-04 07:33:09,272 INFO  L185   FreeRefinementEngine]: Found 2 perfect and 0 imperfect interpolant sequences.
+[2026-07-04 07:33:09,272 INFO  L198   FreeRefinementEngine]: Number of different interpolants: perfect sequences [8, 8] imperfect sequences [] total 11
+[2026-07-04 07:33:09,272 INFO  L121   tionRefinementEngine]: Using interpolant automaton builder IpAbStrategyModuleStraightlineAll [650437332]
+[2026-07-04 07:33:09,272 INFO  L85    oduleStraightlineAll]: Using 2 perfect interpolants to construct interpolant automaton
+[2026-07-04 07:33:09,272 INFO  L567      AbstractCegarLoop]: INTERPOLANT automaton has 11 states
+[2026-07-04 07:33:09,273 INFO  L100   FreeRefinementEngine]: Using predicate unifier PredicateUnifier provided by strategy FIXED_PREFERENCES
+[2026-07-04 07:33:09,273 INFO  L144   InterpolantAutomaton]: Constructing interpolant automaton starting with 11 interpolants.
+[2026-07-04 07:33:09,273 INFO  L146   InterpolantAutomaton]: CoverageRelationStatistics Valid=30, Invalid=80, Unknown=0, NotChecked=0, Total=110
+[2026-07-04 07:33:09,274 INFO  L87              Difference]: Start difference. First operand 144 states and 152 transitions. Second operand  has 11 states, 10 states have (on average 17.5) internal successors, (175), 11 states have internal predecessors, (175), 4 states have call successors, (6), 4 states have call predecessors, (6), 5 states have return successors, (5), 3 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:33:09,412 INFO  L144             Difference]: Subtrahend was deterministic. Have not used determinization.
+[2026-07-04 07:33:09,412 INFO  L93              Difference]: Finished difference Result 144 states and 152 transitions.
+[2026-07-04 07:33:09,412 INFO  L140   InterpolantAutomaton]: Switched to read-only mode: deterministic interpolant automaton has 6 states. 
+[2026-07-04 07:33:09,412 INFO  L79                 Accepts]: Start accepts. Automaton has  has 11 states, 10 states have (on average 17.5) internal successors, (175), 11 states have internal predecessors, (175), 4 states have call successors, (6), 4 states have call predecessors, (6), 5 states have return successors, (5), 3 states have call predecessors, (5), 4 states have call successors, (5) Word has length 116
+[2026-07-04 07:33:09,412 INFO  L85                 Accepts]: Finished accepts. some prefix is accepted.
+[2026-07-04 07:33:09,413 INFO  L225             Difference]: With dead ends: 144
+[2026-07-04 07:33:09,413 INFO  L226             Difference]: Without dead ends: 0
+[2026-07-04 07:33:09,413 INFO  L425           NwaCegarLoop]: 0 DeclaredPredicates, 234 GetRequests, 222 SyntacticMatches, 0 SemanticMatches, 12 ConstructedPredicates, 0 IntricatePredicates, 0 DeprecatedPredicates, 10 ImplicationChecksByTransitivity, 0.1s TimeCoverageRelationStatistics Valid=54, Invalid=128, Unknown=0, NotChecked=0, Total=182
+[2026-07-04 07:33:09,413 INFO  L426           NwaCegarLoop]: 21 mSDtfsCounter, 146 mSDsluCounter, 37 mSDsCounter, 0 mSdLazyCounter, 130 mSolverCounterSat, 14 mSolverCounterUnsat, 0 mSolverCounterUnknown, 0 mSolverCounterNotChecked, 0.1s Time, 0 mProtectedPredicate, 0 mProtectedAction, 146 SdHoareTripleChecker+Valid, 58 SdHoareTripleChecker+Invalid, 144 SdHoareTripleChecker+Unknown, 0 SdHoareTripleChecker+Unchecked, 0.0s SdHoareTripleChecker+Time, 14 IncrementalHoareTripleChecker+Valid, 130 IncrementalHoareTripleChecker+Invalid, 0 IncrementalHoareTripleChecker+Unknown, 0 IncrementalHoareTripleChecker+Unchecked, 0.1s IncrementalHoareTripleChecker+Time
+[2026-07-04 07:33:09,414 INFO  L427           NwaCegarLoop]: SdHoareTripleChecker [146 Valid, 58 Invalid, 144 Unknown, 0 Unchecked, 0.0s Time], IncrementalHoareTripleChecker [14 Valid, 130 Invalid, 0 Unknown, 0 Unchecked, 0.1s Time]
+[2026-07-04 07:33:09,414 INFO  L82        GeneralOperation]: Start minimizeSevpa. Operand 0 states.
+[2026-07-04 07:33:09,414 INFO  L88        GeneralOperation]: Finished minimizeSevpa. Reduced states from 0 to 0.
+[2026-07-04 07:33:09,415 INFO  L82        GeneralOperation]: Start removeUnreachable. Operand  has 0 states, 0 states have (on average 0.0) internal successors, (0), 0 states have internal predecessors, (0), 0 states have call successors, (0), 0 states have call predecessors, (0), 0 states have return successors, (0), 0 states have call predecessors, (0), 0 states have call successors, (0)
+[2026-07-04 07:33:09,415 INFO  L88        GeneralOperation]: Finished removeUnreachable. Reduced from 0 states to 0 states and 0 transitions.
+[2026-07-04 07:33:09,415 INFO  L79                 Accepts]: Start accepts. Automaton has 0 states and 0 transitions. Word has length 116
+[2026-07-04 07:33:09,415 INFO  L85                 Accepts]: Finished accepts. word is rejected.
+[2026-07-04 07:33:09,415 INFO  L490      AbstractCegarLoop]: Abstraction has 0 states and 0 transitions.
+[2026-07-04 07:33:09,415 INFO  L491      AbstractCegarLoop]: INTERPOLANT automaton has  has 11 states, 10 states have (on average 17.5) internal successors, (175), 11 states have internal predecessors, (175), 4 states have call successors, (6), 4 states have call predecessors, (6), 5 states have return successors, (5), 3 states have call predecessors, (5), 4 states have call successors, (5)
+[2026-07-04 07:33:09,415 INFO  L278                IsEmpty]: Start isEmpty. Operand 0 states and 0 transitions.
+[2026-07-04 07:33:09,415 INFO  L284                IsEmpty]: Finished isEmpty. No accepting run.
+[2026-07-04 07:33:09,417 INFO  L795   garLoopResultBuilder]: Registering result SAFE for location ULTIMATE.startErr0ASSERT_VIOLATIONASSERT (0 of 1 remaining)
+[2026-07-04 07:33:09,423 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (18)] Ended with exit code 0
+[2026-07-04 07:33:09,619 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 18 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 07:33:09,622 INFO  L424         BasicCegarLoop]: Path program histogram: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+[2026-07-04 07:33:09,623 INFO  L312    DoubleDeckerVisitor]: Before removal of dead ends 0 states and 0 transitions.
+[2026-07-04 07:33:12,459 INFO  L171   ceAbstractionStarter]: Computing trace abstraction results
+[2026-07-04 07:33:12,498 WARN  L161        FloydHoareUtils]: Requires clause for clientTrack_mainProcedure contained old-variable. Original clause: (and (= (_ bv4105 16) clientTrack_hdr.op_hdr.optype) (= (_ bv4105 16) |old(clientTrack_hdr.op_hdr.optype)|) dsl_pump_mode (= (_ bv5008 16) clientTrack_hdr.udp_hdr.dstPort) (= (_ bv4105 16) io_hdr.op_hdr.optype) (= clientTrack_partitionswitchIngress_spineload_reg |old(clientTrack_partitionswitchIngress_spineload_reg)|) (= clientTrack_inbox_count 0) (= clientTrack_hdr.ethernet_hdr.etherType (_ bv2048 16)) (= io_hdr.ipv4_hdr.protocol (_ bv17 8)) (= (_ bv3 16) clientTrack_meta.spineswitchidx) (= (_ bv3 16) |old(clientTrack_meta.spineswitchidx)|) (= (_ bv5008 16) io_hdr.udp_hdr.dstPort) (= |old(clientTrack_hdr.ipv4_hdr.dstAddr)| (_ bv0 32)) (= (_ bv3 16) io_meta.spineswitchidx) (= (_ bv17 8) clientTrack_hdr.ipv4_hdr.protocol) (= (_ bv0 32) clientTrack_hdr.ipv4_hdr.dstAddr) (= io_hdr.ipv4_hdr.dstAddr (_ bv0 32)) (= io_hdr.ethernet_hdr.etherType (_ bv2048 16)))  Eliminated clause: (and (= (_ bv4105 16) clientTrack_hdr.op_hdr.optype) dsl_pump_mode (= (_ bv5008 16) clientTrack_hdr.udp_hdr.dstPort) (= (_ bv4105 16) io_hdr.op_hdr.optype) (= clientTrack_inbox_count 0) (= clientTrack_hdr.ethernet_hdr.etherType (_ bv2048 16)) (= io_hdr.ipv4_hdr.protocol (_ bv17 8)) (= (_ bv3 16) clientTrack_meta.spineswitchidx) (= (_ bv5008 16) io_hdr.udp_hdr.dstPort) (= (_ bv3 16) io_meta.spineswitchidx) (= (_ bv17 8) clientTrack_hdr.ipv4_hdr.protocol) (= (_ bv0 32) clientTrack_hdr.ipv4_hdr.dstAddr) (= io_hdr.ipv4_hdr.dstAddr (_ bv0 32)) (= io_hdr.ethernet_hdr.etherType (_ bv2048 16)))
+[2026-07-04 07:33:12,512 INFO  L201        PluginConnector]: Adding new model distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl de.uni_freiburg.informatik.ultimate.plugins.generator.traceabstraction CFG 04.07 07:33:12 BoogieIcfgContainer
+[2026-07-04 07:33:12,512 INFO  L131        PluginConnector]: ------------------------ END TraceAbstraction----------------------------
+[2026-07-04 07:33:12,513 INFO  L158              Benchmark]: Toolchain (without parser) took 22252.51ms. Allocated memory is still 519.1MB. Free memory was 484.5MB in the beginning and 455.6MB in the end (delta: 28.9MB). Peak memory consumption was 136.4MB. Max. memory is 4.2GB.
+[2026-07-04 07:33:12,513 INFO  L158              Benchmark]: Boogie PL CUP Parser took 0.19ms. Allocated memory is still 519.1MB. Free memory is still 488.8MB. There was no memory consumed. Max. memory is 4.2GB.
+[2026-07-04 07:33:12,515 INFO  L158              Benchmark]: Boogie Procedure Inliner took 94.99ms. Allocated memory is still 519.1MB. Free memory was 484.5MB in the beginning and 480.2MB in the end (delta: 4.3MB). Peak memory consumption was 4.3MB. Max. memory is 4.2GB.
+[2026-07-04 07:33:12,515 INFO  L158              Benchmark]: Boogie Preprocessor took 69.31ms. Allocated memory is still 519.1MB. Free memory was 480.2MB in the beginning and 477.3MB in the end (delta: 2.9MB). Peak memory consumption was 2.9MB. Max. memory is 4.2GB.
+[2026-07-04 07:33:12,515 INFO  L158              Benchmark]: RCFGBuilder took 1200.29ms. Allocated memory is still 519.1MB. Free memory was 477.3MB in the beginning and 428.7MB in the end (delta: 48.6MB). Peak memory consumption was 48.6MB. Max. memory is 4.2GB.
+[2026-07-04 07:33:12,515 INFO  L158              Benchmark]: TraceAbstraction took 20876.18ms. Allocated memory is still 519.1MB. Free memory was 428.7MB in the beginning and 455.6MB in the end (delta: -27.0MB). Peak memory consumption was 80.6MB. Max. memory is 4.2GB.
+[2026-07-04 07:33:12,517 INFO  L338   ainManager$Toolchain]: #######################  End [Toolchain 1] #######################
+ --- Results ---
+ * Results from de.uni_freiburg.informatik.ultimate.core:
+  - StatisticsResult: Toolchain Benchmarks
+    Benchmark results are:
+ * Boogie PL CUP Parser took 0.19ms. Allocated memory is still 519.1MB. Free memory is still 488.8MB. There was no memory consumed. Max. memory is 4.2GB.
+ * Boogie Procedure Inliner took 94.99ms. Allocated memory is still 519.1MB. Free memory was 484.5MB in the beginning and 480.2MB in the end (delta: 4.3MB). Peak memory consumption was 4.3MB. Max. memory is 4.2GB.
+ * Boogie Preprocessor took 69.31ms. Allocated memory is still 519.1MB. Free memory was 480.2MB in the beginning and 477.3MB in the end (delta: 2.9MB). Peak memory consumption was 2.9MB. Max. memory is 4.2GB.
+ * RCFGBuilder took 1200.29ms. Allocated memory is still 519.1MB. Free memory was 477.3MB in the beginning and 428.7MB in the end (delta: 48.6MB). Peak memory consumption was 48.6MB. Max. memory is 4.2GB.
+ * TraceAbstraction took 20876.18ms. Allocated memory is still 519.1MB. Free memory was 428.7MB in the beginning and 455.6MB in the end (delta: -27.0MB). Peak memory consumption was 80.6MB. Max. memory is 4.2GB.
+ * Results from de.uni_freiburg.informatik.ultimate.plugins.generator.traceabstraction:
+  - StatisticsResult: ErrorAutomatonStatistics
+    NumberErrorTraces: 0, NumberStatementsAllTraces: 0, NumberRelevantStatements: 0, 0.0s ErrorAutomatonConstructionTimeTotal, 0.0s FaulLocalizationTime, NumberStatementsFirstTrace: -1, TraceLengthAvg: 0, 0.0s ErrorAutomatonConstructionTimeAvg, 0.0s ErrorAutomatonDifferenceTimeAvg, 0.0s ErrorAutomatonDifferenceTimeTotal, NumberOfNoEnhancement: 0, NumberOfFiniteEnhancement: 0, NumberOfInfiniteEnhancement: 0
+  - PositiveResult [Line: 1567]: assertion always holds
+    For all program executions holds that assertion always holds at this location
+  - StatisticsResult: Ultimate Automizer benchmark data
+    CFG has 4 procedures, 162 locations, 291 edges, 1 error locations. Started 1 CEGAR loops. OverallTime: 17.9s, OverallIterations: 17, TraceHistogramMax: 1, PathProgramHistogramMax: 1, EmptinessCheckTime: 0.1s, AutomataDifference: 4.8s, DeadEndRemovalTime: 0.0s, HoareAnnotationTime: 0.0s, InitialAbstractionConstructionTime: 0.0s, HoareTripleCheckerStatistics: 0 mSolverCounterUnknown, 4751 SdHoareTripleChecker+Valid, 3.9s IncrementalHoareTripleChecker+Time, 0 mSdLazyCounter, 4748 mSDsluCounter, 7002 SdHoareTripleChecker+Invalid, 3.3s Time, 0 mProtectedAction, 0 SdHoareTripleChecker+Unchecked, 0 IncrementalHoareTripleChecker+Unchecked, 4088 mSDsCounter, 684 IncrementalHoareTripleChecker+Valid, 0 mProtectedPredicate, 2774 IncrementalHoareTripleChecker+Invalid, 3458 SdHoareTripleChecker+Unknown, 0 mSolverCounterNotChecked, 684 mSolverCounterUnsat, 2914 mSDtfsCounter, 2774 mSolverCounterSat, 0.1s SdHoareTripleChecker+Time, 0 IncrementalHoareTripleChecker+Unknown, PredicateUnifierStatistics: 0 DeclaredPredicates, 2816 GetRequests, 2723 SyntacticMatches, 0 SemanticMatches, 93 ConstructedPredicates, 0 IntricatePredicates, 1 DeprecatedPredicates, 164 ImplicationChecksByTransitivity, 1.2s Time, 0.0s BasicInterpolantAutomatonTime, BiggestAbstraction: size=574occurred in iteration=6, InterpolantAutomatonStates: 88, traceCheckStatistics: No data available, InterpolantConsolidationStatistics: No data available, PathInvariantsStatistics: No data available, 0/0 InterpolantCoveringCapability, TotalInterpolationStatistics: No data available, 0.0s DumpTime, AutomataMinimizationStatistics: 0.3s AutomataMinimizationTime, 17 MinimizatonAttempts, 331 StatesRemovedByMinimization, 5 NontrivialMinimizations, HoareAnnotationStatistics: No data available, RefinementEngineStatistics: TRACE_CHECK: 0.6s SsaConstructionTime, 0.8s SatisfiabilityAnalysisTime, 6.5s InterpolantComputationTime, 1405 NumberOfCodeBlocks, 1405 NumberOfCodeBlocksAsserted, 17 NumberOfCheckSat, 2776 ConstructedInterpolants, 108 QuantifiedInterpolants, 9607 SizeOfPredicates, 23 NumberOfNonLiveVariables, 6607 ConjunctsInSsa, 85 ConjunctsInUnsatCore, 34 InterpolantComputations, 34 PerfectInterpolantSequences, 0/0 InterpolantCoveringCapability, INVARIANT_SYNTHESIS: No data available, INTERPOLANT_CONSOLIDATION: No data available, ABSTRACT_INTERPRETATION: No data available, PDR: No data available, ACCELERATED_INTERPOLATION: No data available, SIFA: No data available, ReuseStatistics: No data available, ConComCheckerStatistics: No data available
+  - AllSpecificationsHoldResult: All specifications hold
+    1 specifications checked. All of them hold
+  - ProcedureContractResult [Line: 507]: Procedure Contract for clientTrack_partitionswitchIngress_hash_for_partition
+    Derived contract for procedure clientTrack_partitionswitchIngress_hash_for_partition. Requires: (((((((((((((4105bv16 == clientTrack_hdr.op_hdr.optype && dsl_pump_mode) && 5008bv16 == clientTrack_hdr.udp_hdr.dstPort) && 4105bv16 == io_hdr.op_hdr.optype) && clientTrack_inbox_count == 0) && clientTrack_hdr.ethernet_hdr.etherType == 2048bv16) && clientTrack_isValid[clientTrack_hdr.op_hdr]) && io_hdr.ipv4_hdr.protocol == 17bv8) && 3bv16 == clientTrack_meta.spineswitchidx) && 5008bv16 == io_hdr.udp_hdr.dstPort) && 3bv16 == io_meta.spineswitchidx) && 17bv8 == clientTrack_hdr.ipv4_hdr.protocol) && 0bv32 == clientTrack_hdr.ipv4_hdr.dstAddr) && io_hdr.ipv4_hdr.dstAddr == 0bv32) && io_hdr.ethernet_hdr.etherType == 2048bv16. Ensures: ((((((((((((((4105bv16 == clientTrack_hdr.op_hdr.optype && dsl_pump_mode) && 5008bv16 == clientTrack_hdr.udp_hdr.dstPort) && bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16)) && 4105bv16 == io_hdr.op_hdr.optype) && clientTrack_inbox_count == 0) && clientTrack_hdr.ethernet_hdr.etherType == 2048bv16) && clientTrack_isValid[clientTrack_hdr.op_hdr]) && io_hdr.ipv4_hdr.protocol == 17bv8) && 3bv16 == clientTrack_meta.spineswitchidx) && 5008bv16 == io_hdr.udp_hdr.dstPort) && 3bv16 == io_meta.spineswitchidx) && 17bv8 == clientTrack_hdr.ipv4_hdr.protocol) && 0bv32 == clientTrack_hdr.ipv4_hdr.dstAddr) && io_hdr.ipv4_hdr.dstAddr == 0bv32) && io_hdr.ethernet_hdr.etherType == 2048bv16. Modifies: [clientTrack_meta.hashval_for_spine_partition, clientTrack_meta.hashval_for_partition].
+  - ProcedureContractResult [Line: 1266]: Procedure Contract for clientTrack_Forward
+    Derived contract for procedure clientTrack_Forward. Requires: (((((((((((((bvule.bv32(add.bv32(4294967295bv32, clientTrack_partitionswitchIngress_spineload_reg__last_value), 4294967294bv32) && !clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit) && dsl_pump_mode) && 5008bv16 == clientTrack_hdr.udp_hdr.dstPort) && clientTrack_partitionswitchIngress_spineload_reg__wrote_any) && clientTrack_inbox_count == 0) && clientTrack_hdr.ethernet_hdr.etherType == 2048bv16) && io_hdr.ipv4_hdr.protocol == 17bv8) && 0bv16 ++ (0bv7 ++ 3bv9) == clientTrack_partitionswitchIngress_spineload_reg__last_index) && 9bv16 == clientTrack_hdr.op_hdr.optype) && 5008bv16 == io_hdr.udp_hdr.dstPort) && 17bv8 == clientTrack_hdr.ipv4_hdr.protocol) && !clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit) && io_hdr.ipv4_hdr.dstAddr == 0bv32) && io_hdr.ethernet_hdr.etherType == 2048bv16. Ensures: (((((((((((((bvule.bv32(add.bv32(4294967295bv32, clientTrack_partitionswitchIngress_spineload_reg__last_value), 4294967294bv32) && !clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit) && dsl_pump_mode) && 5008bv16 == clientTrack_hdr.udp_hdr.dstPort) && clientTrack_partitionswitchIngress_spineload_reg__wrote_any) && clientTrack_inbox_count == 0) && clientTrack_hdr.ethernet_hdr.etherType == 2048bv16) && io_hdr.ipv4_hdr.protocol == 17bv8) && 0bv16 ++ (0bv7 ++ 3bv9) == clientTrack_partitionswitchIngress_spineload_reg__last_index) && 9bv16 == clientTrack_hdr.op_hdr.optype) && 5008bv16 == io_hdr.udp_hdr.dstPort) && 17bv8 == clientTrack_hdr.ipv4_hdr.protocol) && !clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit) && io_hdr.ipv4_hdr.dstAddr == 0bv32) && io_hdr.ethernet_hdr.etherType == 2048bv16. Modifies: [].
+  - ProcedureContractResult [Line: 271]: Procedure Contract for clientTrack_mainProcedure
+    Derived contract for procedure clientTrack_mainProcedure. Requires: ((((((((((((4105bv16 == clientTrack_hdr.op_hdr.optype && dsl_pump_mode) && 5008bv16 == clientTrack_hdr.udp_hdr.dstPort) && 4105bv16 == io_hdr.op_hdr.optype) && clientTrack_inbox_count == 0) && clientTrack_hdr.ethernet_hdr.etherType == 2048bv16) && io_hdr.ipv4_hdr.protocol == 17bv8) && 3bv16 == clientTrack_meta.spineswitchidx) && 5008bv16 == io_hdr.udp_hdr.dstPort) && 3bv16 == io_meta.spineswitchidx) && 17bv8 == clientTrack_hdr.ipv4_hdr.protocol) && 0bv32 == clientTrack_hdr.ipv4_hdr.dstAddr) && io_hdr.ipv4_hdr.dstAddr == 0bv32) && io_hdr.ethernet_hdr.etherType == 2048bv16. Ensures: ((((((((((((((((((4105bv16 == old(clientTrack_hdr.op_hdr.optype) && !clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit) && dsl_pump_mode) && 5008bv16 == clientTrack_hdr.udp_hdr.dstPort) && clientTrack_partitionswitchIngress_spineload_reg__wrote_any) && 4105bv16 == io_hdr.op_hdr.optype) && clientTrack_inbox_count == 0) && add.bv32(1bv32, old(clientTrack_partitionswitchIngress_spineload_reg)[0bv16 ++ (0bv7 ++ 3bv9)]) == clientTrack_partitionswitchIngress_spineload_reg__last_value) && clientTrack_hdr.ethernet_hdr.etherType == 2048bv16) && io_hdr.ipv4_hdr.protocol == 17bv8) && 0bv16 ++ (0bv7 ++ 3bv9) == clientTrack_partitionswitchIngress_spineload_reg__last_index) && 9bv16 == clientTrack_hdr.op_hdr.optype) && 3bv16 == old(clientTrack_meta.spineswitchidx)) && 5008bv16 == io_hdr.udp_hdr.dstPort) && old(clientTrack_hdr.ipv4_hdr.dstAddr) == 0bv32) && 3bv16 == io_meta.spineswitchidx) && 17bv8 == clientTrack_hdr.ipv4_hdr.protocol) && !clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit) && io_hdr.ipv4_hdr.dstAddr == 0bv32) && io_hdr.ethernet_hdr.etherType == 2048bv16. Modifies: [clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_p4b_clone_e2e, clientTrack_meta.hashval_for_partition, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_drop, clientTrack_p4b_clone_i2i, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_p4b_clone_i2e, clientTrack_p4b_checksum_error, clientTrack_meta.leafswitchidx, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port, clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run, clientTrack_p4b_checksum_updated, clientTrack_meta.hashval_for_spine_partition, clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_isValid, clientTrack_meta.spineswitchidx, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_meta.is_spine, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid, clientTrack_p4b_checksum_verified, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_hdr.op_hdr.optype, clientTrack_p4b_digest, clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run, clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit, clientTrack_leafload_0, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit, clientTrack_standard_metadata.egress_port, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_spineload_0, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_p4b_recirculate, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_hdr.udp_hdr.checksum].
+RESULT: Ultimate proved your program to be correct!
+[2026-07-04 07:33:12,585 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000 (1)] Ended with exit code 0
+Received shutdown request...

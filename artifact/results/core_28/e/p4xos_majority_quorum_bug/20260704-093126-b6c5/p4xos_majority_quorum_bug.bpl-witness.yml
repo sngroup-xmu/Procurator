@@ -1,0 +1,2169 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: 077385e7-57b3-4b33-88e9-b284fec09e3f
+    creation_time: '2026-07-04T09:47:08+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+      input_file_hashes:
+        ? /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+        : UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2422
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 778
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 846
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 940
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 944
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 951
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 952
+          column: 9
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 967
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 342
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 311
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 546
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 967
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 968
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 974
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 980
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 986
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 992
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 707
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 992
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1019
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1024
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1092
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1097
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1186
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1190
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1197
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1198
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1202
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1206
+          column: 13
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1213
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 342
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 311
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 546
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1213
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1214
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1220
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1226
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1232
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1238
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 707
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1238
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1265
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1270
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1338
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1343
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1348
+          column: 13
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1432
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1436
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1443
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1459
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 342
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 311
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 546
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1459
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1460
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1466
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1472
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1478
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1484
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 707
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1484
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1511
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1516
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1584
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1589
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1594
+          column: 13
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1678
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1682
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1689
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1690
+          column: 9
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1705
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 342
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 311
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 546
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1705
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1706
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1712
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1718
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1724
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1730
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 707
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1730
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1757
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1762
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1830
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1835
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1840
+          column: 13
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1924
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1928
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1935
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1936
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1940
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1944
+          column: 13
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1951
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 342
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 311
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 546
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1951
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1952
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1958
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1964
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1970
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1976
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 707
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 1976
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2003
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2008
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2076
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2081
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2086
+          column: 13
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2170
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2174
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2181
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2182
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2186
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2190
+          column: 13
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2197
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 294
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 541
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 542
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 342
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 543
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 330
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 321
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 544
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 311
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 545
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 546
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 561
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2197
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2198
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2204
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2210
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2216
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2222
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 707
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2222
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2249
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2254
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2322
+          column: 9
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2327
+          column: 11
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2332
+          column: 13
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4xos_majority_quorum_bug/20260704-093126-b6c5/p4xos_majority_quorum_bug.bpl
+          line: 2415

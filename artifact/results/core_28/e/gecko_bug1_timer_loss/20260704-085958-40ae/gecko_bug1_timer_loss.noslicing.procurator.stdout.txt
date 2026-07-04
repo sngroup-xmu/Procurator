@@ -1,0 +1,6 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gecko_bug1_timer_loss.bpl
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gemcutter.log
+[RESULT] RESULT: UNSAFE (witness rerun)
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug1_timer_loss/20260704-085958-40ae/gemcutter.witness.log
+[CEX] dsl_assert: DSL global assertion violated (accumulator flag set; gecko_bug1_timer_loss.bpl-witness.graphml)

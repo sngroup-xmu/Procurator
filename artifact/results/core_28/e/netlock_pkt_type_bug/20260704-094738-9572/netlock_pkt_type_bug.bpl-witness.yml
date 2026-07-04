@@ -1,0 +1,444 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: c74c80b1-e5e6-48d3-93d9-fad840e2bf0b
+    creation_time: '2026-07-04T09:48:27+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+      input_file_hashes:
+        /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl: UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 3110
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 3101
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2715
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2718
+          column: 8
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2953
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 3101
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 3101
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2715
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2825
+          column: 13
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2953
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 3101
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 3101
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2715
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2825
+          column: 13
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2827
+          column: 13
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2829
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2832
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2395
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2379
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2419
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2419
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2420
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 918
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 933
+          column: 11
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2420
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2421
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2421
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2422
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2422
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2423
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 775
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 908
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 908
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 775
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2423
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2424
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2424
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2379
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2380
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2395
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2832
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2833
+          column: 8
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2839
+          column: 8
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2845
+          column: 8
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2851
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2857
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2701
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2857
+          column: 4
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+          line: 2948

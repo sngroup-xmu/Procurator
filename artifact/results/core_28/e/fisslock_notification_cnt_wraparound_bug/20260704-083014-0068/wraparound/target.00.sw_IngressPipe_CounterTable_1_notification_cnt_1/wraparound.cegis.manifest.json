@@ -1,0 +1,282 @@
+{
+  "attempts": [
+    {
+      "artifacts": {
+        "closure_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.closure_check.bpl",
+        "closure_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.closure_check.log",
+        "closure_log_retry": "",
+        "confirm_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.confirm.unroll3.bpl",
+        "confirm_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.confirm.unroll3.log",
+        "enable_bpl": "",
+        "enable_log": "",
+        "entry_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.entry_check.bpl",
+        "entry_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.entry_check.log",
+        "source_confirm_bpl": "",
+        "source_confirm_log": ""
+      },
+      "certified": false,
+      "cfg": {
+        "accel_regs": [
+          "sw_IngressPipe_CounterTable_1_notification_cnt_1"
+        ],
+        "attempt": 0,
+        "closure_assumes": [],
+        "cutpoint_cond": null,
+        "env_shape_assumes": [],
+        "index_expr": null,
+        "index_value": 0,
+        "notes": [
+          "deterministic_scheduler_period=3",
+          "closure_timeout=900"
+        ],
+        "proj_exprs": [],
+        "proj_predicate_sources": [],
+        "proj_predicates": [],
+        "proj_vars": [
+          "client_inbox_count",
+          "procurator_phase",
+          "sw_inbox_count"
+        ],
+        "projection_complete": true,
+        "pump_reg": "sw_IngressPipe_CounterTable_1_notification_cnt_1",
+        "step_delta": 1,
+        "step_op": "add"
+      },
+      "closure": null,
+      "closure_retry": null,
+      "confirm": null,
+      "diagnostic": "",
+      "entry": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "entry_check",
+        "wall_time_s": 5.239202499389648
+      },
+      "near_wrap": null,
+      "schedule": null
+    },
+    {
+      "artifacts": {
+        "closure_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.closure_check.bpl",
+        "closure_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.closure_check.log",
+        "closure_log_retry": "",
+        "confirm_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.confirm.unroll1.bpl",
+        "confirm_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.confirm.unroll1.log",
+        "enable_bpl": "",
+        "enable_log": "",
+        "entry_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.entry_check.bpl",
+        "entry_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.entry_check.log",
+        "source_confirm_bpl": "",
+        "source_confirm_log": ""
+      },
+      "certified": false,
+      "cfg": {
+        "accel_regs": [
+          "sw_IngressPipe_CounterTable_1_notification_cnt_1"
+        ],
+        "attempt": 0,
+        "closure_assumes": [],
+        "cutpoint_cond": null,
+        "env_shape_assumes": [],
+        "index_expr": null,
+        "index_value": 0,
+        "notes": [
+          "deterministic_scheduler_period=3",
+          "closure_timeout=900",
+          "confirm_unroll=1",
+          "confirm_steps=3"
+        ],
+        "proj_exprs": [],
+        "proj_predicate_sources": [],
+        "proj_predicates": [],
+        "proj_vars": [
+          "client_inbox_count",
+          "procurator_phase",
+          "sw_inbox_count"
+        ],
+        "projection_complete": true,
+        "pump_reg": "sw_IngressPipe_CounterTable_1_notification_cnt_1",
+        "step_delta": 1,
+        "step_op": "add"
+      },
+      "closure": null,
+      "closure_retry": null,
+      "confirm": {
+        "result_line": "RESULT: Ultimate proved your program to be correct!",
+        "returncode": 0,
+        "stage": "confirm",
+        "wall_time_s": 20.09512758255005
+      },
+      "diagnostic": "",
+      "entry": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "entry_check",
+        "wall_time_s": 5.239202499389648
+      },
+      "near_wrap": null,
+      "schedule": null
+    },
+    {
+      "artifacts": {
+        "closure_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.closure_check.bpl",
+        "closure_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.closure_check.log",
+        "closure_log_retry": "",
+        "confirm_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.confirm.unroll2.bpl",
+        "confirm_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.confirm.unroll2.log",
+        "enable_bpl": "",
+        "enable_log": "",
+        "entry_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.entry_check.bpl",
+        "entry_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.entry_check.log",
+        "source_confirm_bpl": "",
+        "source_confirm_log": ""
+      },
+      "certified": false,
+      "cfg": {
+        "accel_regs": [
+          "sw_IngressPipe_CounterTable_1_notification_cnt_1"
+        ],
+        "attempt": 0,
+        "closure_assumes": [],
+        "cutpoint_cond": null,
+        "env_shape_assumes": [],
+        "index_expr": null,
+        "index_value": 0,
+        "notes": [
+          "deterministic_scheduler_period=3",
+          "closure_timeout=900",
+          "confirm_unroll=2",
+          "confirm_steps=6"
+        ],
+        "proj_exprs": [],
+        "proj_predicate_sources": [],
+        "proj_predicates": [],
+        "proj_vars": [
+          "client_inbox_count",
+          "procurator_phase",
+          "sw_inbox_count"
+        ],
+        "projection_complete": true,
+        "pump_reg": "sw_IngressPipe_CounterTable_1_notification_cnt_1",
+        "step_delta": 1,
+        "step_op": "add"
+      },
+      "closure": null,
+      "closure_retry": null,
+      "confirm": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "confirm",
+        "wall_time_s": 75.58223271369934
+      },
+      "diagnostic": "",
+      "entry": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "entry_check",
+        "wall_time_s": 5.239202499389648
+      },
+      "near_wrap": null,
+      "schedule": null
+    },
+    {
+      "artifacts": {
+        "closure_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.closure_check.bpl",
+        "closure_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.closure_check.log",
+        "closure_log_retry": "",
+        "confirm_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.confirm.unroll2.bpl",
+        "confirm_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.confirm.unroll2.log",
+        "enable_bpl": "",
+        "enable_log": "",
+        "entry_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.entry_check.bpl",
+        "entry_log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/target.00.sw_IngressPipe_CounterTable_1_notification_cnt_1/fisslock_notification_cnt_wraparound_bug.cegis.00.entry_check.log",
+        "source_confirm_bpl": "",
+        "source_confirm_log": ""
+      },
+      "certified": false,
+      "cfg": {
+        "accel_regs": [
+          "sw_IngressPipe_CounterTable_1_notification_cnt_1"
+        ],
+        "attempt": 0,
+        "closure_assumes": [],
+        "cutpoint_cond": null,
+        "env_shape_assumes": [],
+        "index_expr": null,
+        "index_value": 0,
+        "notes": [
+          "deterministic_scheduler_period=3",
+          "closure_timeout=900",
+          "confirm_unroll=2",
+          "confirm_steps=6"
+        ],
+        "proj_exprs": [],
+        "proj_predicate_sources": [],
+        "proj_predicates": [],
+        "proj_vars": [
+          "client_inbox_count",
+          "procurator_phase",
+          "sw_inbox_count"
+        ],
+        "projection_complete": true,
+        "pump_reg": "sw_IngressPipe_CounterTable_1_notification_cnt_1",
+        "step_delta": 1,
+        "step_op": "add"
+      },
+      "closure": {
+        "result_line": "RESULT: Ultimate proved your program to be correct!",
+        "returncode": 0,
+        "stage": "closure_check",
+        "wall_time_s": 40.33614444732666
+      },
+      "closure_retry": null,
+      "confirm": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "confirm",
+        "wall_time_s": 75.58223271369934
+      },
+      "diagnostic": "",
+      "entry": {
+        "result_line": "RESULT: UNSAFE",
+        "returncode": 0,
+        "stage": "entry_check",
+        "wall_time_s": 5.239202499389648
+      },
+      "near_wrap": null,
+      "schedule": null
+    }
+  ],
+  "base_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/fisslock_notification_cnt_wraparound_bug.base.bpl",
+  "base_bpl_sha256": "",
+  "blockers": [],
+  "candidate": {
+    "accel_regs": [
+      "sw_IngressPipe_CounterTable_1_notification_cnt_1"
+    ],
+    "cutpoint_cond": null,
+    "index_expr": null,
+    "index_value": 0,
+    "proj_vars": [
+      "client_inbox_count",
+      "procurator_phase",
+      "sw_inbox_count"
+    ],
+    "pump_reg": "sw_IngressPipe_CounterTable_1_notification_cnt_1",
+    "reason": "global_asserts",
+    "stable_substitutions": [],
+    "step_delta": 1,
+    "step_op": "add"
+  },
+  "candidate_reason": "global_asserts",
+  "cegar_mode": "legacy_closure_assumes",
+  "certified": false,
+  "diagnostic": "",
+  "paper_stages": {
+    "stage1": "ENTRY_CHECK",
+    "stage2": "NEAR_WRAP",
+    "stage3": "CLOSURE_CHECK"
+  },
+  "spec": "/home/smy/p4-verify-camera-ready/benchmarks/specs/bench/fisslock_notification_cnt_wraparound_bug.prop",
+  "work_dir": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/fisslock_notification_cnt_wraparound_bug/20260704-083014-0068/wraparound/work"
+}

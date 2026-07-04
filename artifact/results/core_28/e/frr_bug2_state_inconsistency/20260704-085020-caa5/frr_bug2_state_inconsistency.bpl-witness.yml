@@ -1,0 +1,967 @@
+- entry_type: violation_sequence
+  metadata:
+    format_version: '2.0'
+    uuid: fab98337-9f61-44bd-bf17-935b07567dd0
+    creation_time: '2026-07-04T08:51:09+08:00'
+    producer:
+      name: UNUSED
+      version: 0.3.1-dev-35a8436538
+    task:
+      input_files:
+      - /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+      input_file_hashes:
+        ? /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+        : UNUSED
+      specification: UNUSED
+      data_model: UNUSED
+      language: C
+  content:
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1293
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1023
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1052
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1055
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 648
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 628
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 288
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 288
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 628
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 629
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 629
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 630
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 560
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 561
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 568
+          column: 15
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 569
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 418
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 818
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 707
+          column: 8
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 818
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 418
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 569
+          column: 16
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 630
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 631
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 631
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 632
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 632
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 633
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 648
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1055
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1056
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1062
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1068
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1074
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1080
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 964
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1080
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1107
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1111
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1140
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1143
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 648
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 628
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 288
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 288
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 628
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 629
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 629
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 630
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 560
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 561
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 568
+          column: 15
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 572
+          column: 19
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 573
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 430
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 430
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 573
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 630
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 631
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 631
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 632
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 632
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 633
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 648
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1143
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1144
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1150
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1156
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1162
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1168
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 964
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1168
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1195
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1199
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1228
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1231
+          column: 2
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 648
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 628
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 288
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 288
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 628
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 629
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 629
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 630
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 560
+          column: 7
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 561
+          column: 12
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 568
+          column: 15
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 572
+          column: 19
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 573
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 430
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 430
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 573
+          column: 20
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 630
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 631
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 631
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 632
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 632
+          column: 4
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 633
+          column: 7
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 648
+          column: 4
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1231
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1232
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1238
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1244
+          column: 6
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'false'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1250
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_enter
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1256
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 964
+          column: 6
+  - segment:
+    - waypoint:
+        type: function_return
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1256
+          column: 2
+  - segment:
+    - waypoint:
+        type: branching
+        action: follow
+        constraint:
+          value: 'true'
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1283
+          column: 7
+  - segment:
+    - waypoint:
+        type: target
+        action: follow
+        location:
+          file_name: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/frr_bug2_state_inconsistency/20260704-085020-caa5/frr_bug2_state_inconsistency.bpl
+          line: 1286

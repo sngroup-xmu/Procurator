@@ -1,0 +1,6 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/netlock_pkt_type_bug.bpl
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/gemcutter.log
+[RESULT] RESULT: UNSAFE (witness rerun)
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_pkt_type_bug/20260704-094738-9572/gemcutter.witness.log
+[CEX] dsl_assert: witness hits DSL global assert (netlock_pkt_type_bug.bpl-witness.graphml)

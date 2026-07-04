@@ -1,0 +1,6 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_release_empty_slots_overflow_bug/20260704-071239-ef78/netlock_release_empty_slots_overflow_bug.bpl
+[OPT] forall-init elimination: 16 -> 15 (netlock_release_empty_slots_overflow_bug.bpl)
+[FOCUS] bounded DSL replay found deterministic procurator_bad violation; original run skipped.
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_release_empty_slots_overflow_bug/20260704-071239-ef78/netlock_release_empty_slots_overflow_bug.bounded-dsl-replay.textual.log
+[CEX] bounded_dsl_replay_under_approx: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/netlock_release_empty_slots_overflow_bug/20260704-071239-ef78/netlock_release_empty_slots_overflow_bug.bounded-dsl-replay.unsafe.json

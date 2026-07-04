@@ -1,0 +1,5 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_cm34_write_bug/20260704-084427-4de3/distcache_cm34_write_bug.bpl
+[FOCUS] bounded DSL replay found deterministic procurator_bad violation; original run skipped.
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_cm34_write_bug/20260704-084427-4de3/distcache_cm34_write_bug.bounded-dsl-replay.textual.log
+[CEX] bounded_dsl_replay_under_approx: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_cm34_write_bug/20260704-084427-4de3/distcache_cm34_write_bug.bounded-dsl-replay.unsafe.json

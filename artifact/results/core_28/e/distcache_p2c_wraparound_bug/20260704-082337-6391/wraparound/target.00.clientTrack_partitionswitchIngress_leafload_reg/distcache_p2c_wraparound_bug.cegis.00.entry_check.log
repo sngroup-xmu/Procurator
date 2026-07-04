@@ -1,0 +1,209 @@
+[RUN] taskset -c 0 nice -n 19 ionice -c 3 timeout 960 /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --launcher.ini /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260704-082337-6391/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/ultimate-home/distcache_p2c_wraparound_bug.cegis.00/entry/Ultimate.launcher.ini --core.toolchain.timeout.in.seconds=900 -tc /home/smy/p4-verify-camera-ready/src/dslc/toolchain/ultimate/toolchains/ReachSafety.xml -s /home/smy/p4-verify-camera-ready/src/dslc/toolchain/ultimate/settings/gemcutter/base/ReachSafety-32bit-GemCutter-ALL.epf -i /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260704-082337-6391/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl
+Picked up JAVA_TOOL_OPTIONS: -Duser.home=/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260704-082337-6391/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/ultimate-home/distcache_p2c_wraparound_bug.cegis.00/entry
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::staticFieldOffset has been called by org.eclipse.osgi.internal.url.MultiplexingFactory (file:/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/plugins/org.eclipse.osgi_3.20.0.v20240509-1421.jar)
+WARNING: Please consider reporting this to the maintainers of class org.eclipse.osgi.internal.url.MultiplexingFactory
+WARNING: sun.misc.Unsafe::staticFieldOffset will be removed in a future release
+WARNING: A restricted method in java.lang.Runtime has been called
+WARNING: java.lang.Runtime::load has been called by org.eclipse.equinox.launcher.JNIBridge in an unnamed module (file:/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/plugins/org.eclipse.equinox.launcher_1.6.800.v20240513-1750.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+This is Ultimate 0.3.1-dev-35a8436538
+[2026-07-04 08:23:40,391 INFO  L188        SettingsManager]: Resetting all preferences to default values...
+[2026-07-04 08:23:40,499 INFO  L114        SettingsManager]: Loading settings from /home/smy/p4-verify-camera-ready/src/dslc/toolchain/ultimate/settings/gemcutter/base/ReachSafety-32bit-GemCutter-ALL.epf
+[2026-07-04 08:23:40,504 WARN  L101        SettingsManager]: Preference file contains the following unknown settings:
+[2026-07-04 08:23:40,504 WARN  L103        SettingsManager]:   * de.uni_freiburg.informatik.ultimate.core.Log level for class
+[2026-07-04 08:23:40,536 INFO  L130        SettingsManager]: Preferences different from defaults after loading the file:
+[2026-07-04 08:23:40,536 INFO  L151        SettingsManager]: Preferences of UltimateCore differ from their defaults:
+[2026-07-04 08:23:40,536 INFO  L153        SettingsManager]:  * Log level for class=de.uni_freiburg.informatik.ultimate.lib.smtlibutils.quantifier.QuantifierPusher=ERROR;
+[2026-07-04 08:23:40,536 INFO  L151        SettingsManager]: Preferences of Boogie Procedure Inliner differ from their defaults:
+[2026-07-04 08:23:40,536 INFO  L153        SettingsManager]:  * Ignore calls to procedures called more than once=ONLY_FOR_SEQUENTIAL_PROGRAMS
+[2026-07-04 08:23:40,537 INFO  L151        SettingsManager]: Preferences of BlockEncodingV2 differ from their defaults:
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Create parallel compositions if possible=false
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Use SBE=true
+[2026-07-04 08:23:40,537 INFO  L151        SettingsManager]: Preferences of CACSL2BoogieTranslator differ from their defaults:
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * sizeof long=4
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Overapproximate operations on floating types=true
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * sizeof POINTER=4
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Check division by zero=IGNORE
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * If two pointers are subtracted or compared they have the same base address=IGNORE
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Pointer dereference validity=IGNORE
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * sizeof long double=12
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Check if freed pointer was valid=false
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Use constant arrays=true
+[2026-07-04 08:23:40,537 INFO  L151        SettingsManager]: Preferences of RCFGBuilder differ from their defaults:
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Size of a code block=SequenceOfStatements
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * SMT solver=External_DefaultMode
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Command for external solver=z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000
+[2026-07-04 08:23:40,537 INFO  L151        SettingsManager]: Preferences of TraceAbstraction differ from their defaults:
+[2026-07-04 08:23:40,537 INFO  L153        SettingsManager]:  * Compute Interpolants along a Counterexample=FPandBP
+[2026-07-04 08:23:40,538 INFO  L153        SettingsManager]:  * Positions where we compute the Hoare Annotation=LoopHeads
+[2026-07-04 08:23:40,538 INFO  L153        SettingsManager]:  * DFS Order used in POR=LOOP_LOCKSTEP
+[2026-07-04 08:23:40,538 INFO  L153        SettingsManager]:  * Command for external solver=z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 08:23:40,538 INFO  L153        SettingsManager]:  * Automaton type used in concurrency analysis=PARTIAL_ORDER_FA
+[2026-07-04 08:23:40,538 INFO  L153        SettingsManager]:  * CEGAR restart behaviour=ONE_CEGAR_PER_THREAD_INSTANCE
+[2026-07-04 08:23:40,538 INFO  L153        SettingsManager]:  * Partial Order Reduction in concurrent analysis=PERSISTENT_SLEEP_NEW_STATES_FIXEDORDER
+[2026-07-04 08:23:40,538 INFO  L153        SettingsManager]:  * SMT solver=External_ModelsAndUnsatCoreMode
+Applying setting for plugin de.uni_freiburg.informatik.ultimate.core: Toolchain timeout in seconds -> 900
+[2026-07-04 08:23:40,942 INFO  L75    nceAwareModelManager]: Repository-Root is: /tmp
+[2026-07-04 08:23:40,951 INFO  L261   ainManager$Toolchain]: [Toolchain 1]: Applicable parser(s) successfully (re)initialized
+[2026-07-04 08:23:40,960 INFO  L217   ainManager$Toolchain]: [Toolchain 1]: Toolchain selected.
+[2026-07-04 08:23:40,961 INFO  L270        PluginConnector]: Initializing Boogie PL CUP Parser...
+[2026-07-04 08:23:40,962 INFO  L274        PluginConnector]: Boogie PL CUP Parser initialized
+[2026-07-04 08:23:40,962 INFO  L431   ainManager$Toolchain]: [Toolchain 1]: Parsing single file: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260704-082337-6391/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl
+[2026-07-04 08:23:40,963 INFO  L110           BoogieParser]: Parsing: '/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_wraparound_bug/20260704-082337-6391/wraparound/target.00.clientTrack_partitionswitchIngress_leafload_reg/distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl'
+[2026-07-04 08:23:41,022 INFO  L299   ainManager$Toolchain]: ####################### [Toolchain 1] #######################
+[2026-07-04 08:23:41,023 INFO  L133        ToolchainWalker]: Walking toolchain with 4 elements.
+[2026-07-04 08:23:41,023 INFO  L112        PluginConnector]: ------------------------Boogie Procedure Inliner----------------------------
+[2026-07-04 08:23:41,023 INFO  L270        PluginConnector]: Initializing Boogie Procedure Inliner...
+[2026-07-04 08:23:41,024 INFO  L274        PluginConnector]: Boogie Procedure Inliner initialized
+[2026-07-04 08:23:41,039 INFO  L184        PluginConnector]: Executing the observer TypeChecker from plugin Boogie Procedure Inliner for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,063 INFO  L184        PluginConnector]: Executing the observer Inliner from plugin Boogie Procedure Inliner for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,091 INFO  L138                Inliner]: procedures = 41, calls = 106, calls flagged for inlining = 31, calls inlined = 2, statements flattened = 37
+[2026-07-04 08:23:41,093 INFO  L131        PluginConnector]: ------------------------ END Boogie Procedure Inliner----------------------------
+[2026-07-04 08:23:41,094 INFO  L112        PluginConnector]: ------------------------Boogie Preprocessor----------------------------
+[2026-07-04 08:23:41,094 INFO  L270        PluginConnector]: Initializing Boogie Preprocessor...
+[2026-07-04 08:23:41,094 INFO  L274        PluginConnector]: Boogie Preprocessor initialized
+[2026-07-04 08:23:41,097 INFO  L184        PluginConnector]: Executing the observer EnsureBoogieModelObserver from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,097 INFO  L184        PluginConnector]: Executing the observer TypeChecker from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,098 INFO  L184        PluginConnector]: Executing the observer ConstExpander from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,099 INFO  L184        PluginConnector]: Executing the observer StructExpander from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,109 INFO  L184        PluginConnector]: Executing the observer ReplaceArrayAssignments from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,110 INFO  L184        PluginConnector]: Executing the observer UnstructureCode from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,110 INFO  L184        PluginConnector]: Executing the observer FunctionInliner from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,111 INFO  L184        PluginConnector]: Executing the observer LTLStepAnnotator from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,119 INFO  L184        PluginConnector]: Executing the observer BoogieSymbolTableConstructor from plugin Boogie Preprocessor for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,122 INFO  L131        PluginConnector]: ------------------------ END Boogie Preprocessor----------------------------
+[2026-07-04 08:23:41,122 INFO  L112        PluginConnector]: ------------------------RCFGBuilder----------------------------
+[2026-07-04 08:23:41,122 INFO  L270        PluginConnector]: Initializing RCFGBuilder...
+[2026-07-04 08:23:41,122 INFO  L274        PluginConnector]: RCFGBuilder initialized
+[2026-07-04 08:23:41,128 INFO  L184        PluginConnector]: Executing the observer RCFGBuilderObserver from plugin RCFGBuilder for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/1) ...
+[2026-07-04 08:23:41,136 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000
+[2026-07-04 08:23:41,150 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 08:23:41,169 INFO  L229       MonitoredProcess]: Starting monitored process 1 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000 (exit command is (exit), workingDir is null)
+[2026-07-04 08:23:41,178 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000 (1)] Waiting until timeout for monitored process
+[2026-07-04 08:23:41,229 INFO  L124     BoogieDeclarations]: Specification and implementation of procedure ULTIMATE.start given in one single declaration
+[2026-07-04 08:23:41,229 INFO  L130     BoogieDeclarations]: Found specification of procedure ULTIMATE.start
+[2026-07-04 08:23:41,230 INFO  L138     BoogieDeclarations]: Found implementation of procedure ULTIMATE.start
+[2026-07-04 08:23:41,462 INFO  L234             CfgBuilder]: Building ICFG
+[2026-07-04 08:23:41,468 INFO  L260             CfgBuilder]: Building CFG for each procedure with an implementation
+[2026-07-04 08:23:41,547 INFO  L?                        ?]: Removed 0 outVars from TransFormulas that were not future-live.
+[2026-07-04 08:23:41,548 INFO  L283             CfgBuilder]: Performing block encoding
+[2026-07-04 08:23:41,557 INFO  L89      LargeBlockEncoding]: Applying CFG Large Block Encoding to ICFG that has 1 procedures, 7 locations, 6 edges, 0 initial locations, 0 loop locations, and 1 error locations.
+[2026-07-04 08:23:41,563 INFO  L139     LargeBlockEncoding]: LargeBlockEncoding completed in 14 ms, with 0 straightline sequential compositions, 0 parallel compositions, 0 1:n/n:1 sequential compositions and 0 complex sequential compositions.
+[2026-07-04 08:23:41,564 INFO  L307             CfgBuilder]: Using the 1 location(s) as analysis (start of procedure ULTIMATE.start)
+[2026-07-04 08:23:41,565 INFO  L312             CfgBuilder]: Removed 0 assume(true) statements.
+[2026-07-04 08:23:41,565 INFO  L314             CfgBuilder]: Constructed ICFG has 1 procedures, 7 locations, 6 edges, 1 initial locations, 0 loop locations, and 1 error locations.
+[2026-07-04 08:23:41,565 INFO  L201        PluginConnector]: Adding new model distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.plugins.generator.rcfgbuilder CFG 04.07 08:23:41 BoogieIcfgContainer
+[2026-07-04 08:23:41,565 INFO  L131        PluginConnector]: ------------------------ END RCFGBuilder----------------------------
+[2026-07-04 08:23:41,567 INFO  L112        PluginConnector]: ------------------------TraceAbstraction----------------------------
+[2026-07-04 08:23:41,567 INFO  L270        PluginConnector]: Initializing TraceAbstraction...
+[2026-07-04 08:23:41,578 INFO  L274        PluginConnector]: TraceAbstraction initialized
+[2026-07-04 08:23:41,578 INFO  L184        PluginConnector]: Executing the observer TraceAbstractionObserver from plugin TraceAbstraction for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.boogie.parser AST 04.07 08:23:41" (1/2) ...
+[2026-07-04 08:23:41,579 INFO  L204        PluginConnector]: Invalid model from TraceAbstraction for observer de.uni_freiburg.informatik.ultimate.plugins.generator.traceabstraction.TraceAbstractionObserver@591cfe29 and model type distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.plugins.generator.traceabstraction AST 04.07 08:23:41, skipping insertion in model container
+[2026-07-04 08:23:41,579 INFO  L184        PluginConnector]: Executing the observer TraceAbstractionObserver from plugin TraceAbstraction for "distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.plugins.generator.rcfgbuilder CFG 04.07 08:23:41" (2/2) ...
+[2026-07-04 08:23:41,584 INFO  L128   eAbstractionObserver]: Analyzing ICFG distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl
+[2026-07-04 08:23:41,600 INFO  L217   ceAbstractionStarter]: Automizer settings: Hoare:LoopHeads NWA Interpolation:FPandBP Determinization: PREDICATE_ABSTRACTION
+[2026-07-04 08:23:41,601 INFO  L151   ceAbstractionStarter]: Applying trace abstraction to ICFG distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl that has 1 procedures, 7 locations, 6 edges, 1 initial locations, 0 loop locations, and 1 error locations.
+[2026-07-04 08:23:41,601 WARN  L366   ceAbstractionStarter]: Program is not concurrent. Changing CEGAR restart behaviour to ONLY_ONE_CEGAR
+[2026-07-04 08:23:41,721 INFO  L344      AbstractCegarLoop]: ======== Iteration 0 == of CEGAR loop == AllErrorsAtOnce ========
+[2026-07-04 08:23:41,744 INFO  L345      AbstractCegarLoop]: Settings: SEPARATE_VIOLATION_CHECK=true, mInterprocedural=true, mMaxIterations=1000000, mWatchIteration=1000000, mArtifact=RCFG, mInterpolation=FPandBP, mInterpolantAutomaton=STRAIGHT_LINE, mDumpAutomata=false, mAutomataFormat=ATS_NUMERATE, mDumpPath=., mDeterminiation=PREDICATE_ABSTRACTION, mMinimize=MINIMIZE_SEVPA, mAutomataTypeConcurrency=PARTIAL_ORDER_FA, mHoareTripleChecks=INCREMENTAL, mHoareAnnotationPositions=LoopHeads, mDumpOnlyReuseAutomata=false, mLimitTraceHistogram=0, mErrorLocTimeLimit=0, mLimitPathProgramCount=0, mCollectInterpolantStatistics=true, mHeuristicEmptinessCheck=false, mHeuristicEmptinessCheckAStarHeuristic=ZERO, mHeuristicEmptinessCheckAStarHeuristicRandomSeed=1337, mHeuristicEmptinessCheckSmtFeatureScoringMethod=DAGSIZE, mSMTFeatureExtraction=false, mSMTFeatureExtractionDumpPath=., mOverrideInterpolantAutomaton=false, mMcrInterpolantMethod=WP, mPorIndependenceSettings=[Lde.uni_freiburg.informatik.ultimate.lib.tracecheckerutils.partialorder.independence.IndependenceSettings;@5b07d09d, mLbeIndependenceSettings=[IndependenceType=SEMANTIC, AbstractionType=NONE, UseConditional=false, UseSemiCommutativity=true, Solver=Z3, SolverTimeout=1000ms]
+[2026-07-04 08:23:41,744 INFO  L346      AbstractCegarLoop]: Starting to check reachability of 1 error locations.
+[2026-07-04 08:23:41,747 INFO  L278                IsEmpty]: Start isEmpty. Operand  has 7 states, 5 states have (on average 1.2) internal successors, (6), 6 states have internal predecessors, (6), 0 states have call successors, (0), 0 states have call predecessors, (0), 0 states have return successors, (0), 0 states have call predecessors, (0), 0 states have call successors, (0)
+[2026-07-04 08:23:41,754 INFO  L284                IsEmpty]: Finished isEmpty. Found accepting run of length 3
+[2026-07-04 08:23:41,754 INFO  L199           NwaCegarLoop]: Found error trace
+[2026-07-04 08:23:41,760 INFO  L207           NwaCegarLoop]: trace histogram [1, 1]
+[2026-07-04 08:23:41,760 INFO  L408      AbstractCegarLoop]: === Iteration 1 === Targeting ULTIMATE.startErr0ASSERT_VIOLATIONASSERT === [ULTIMATE.startErr0ASSERT_VIOLATIONASSERT] ===
+[2026-07-04 08:23:41,763 INFO  L156       PredicateUnifier]: Initialized classic predicate unifier
+[2026-07-04 08:23:41,763 INFO  L85        PathProgramCache]: Analyzing trace with hash 962, now seen corresponding path program 1 times
+[2026-07-04 08:23:41,774 INFO  L118   FreeRefinementEngine]: Executing refinement strategy FIXED_PREFERENCES
+[2026-07-04 08:23:41,776 INFO  L324   FreeRefinementEngine]: Using trace check IpTcStrategyModulePreferences [940478910]
+[2026-07-04 08:23:41,776 INFO  L97    rtionOrderModulation]: Keeping assertion order NOT_INCREMENTALLY
+[2026-07-04 08:23:41,776 INFO  L173          SolverBuilder]: Constructing external solver with command: z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 08:23:41,778 INFO  L189       MonitoredProcess]: No working directory specified, using /usr/bin/z3
+[2026-07-04 08:23:41,789 INFO  L229       MonitoredProcess]: Starting monitored process 2 with /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (exit command is (exit), workingDir is null)
+[2026-07-04 08:23:41,791 INFO  L327       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (2)] Waiting until timeout for monitored process
+[2026-07-04 08:23:41,958 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 2 statements into 1 equivalence classes.
+[2026-07-04 08:23:41,969 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 2 of 2 statements.
+[2026-07-04 08:23:41,969 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 08:23:41,969 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is sat
+[2026-07-04 08:23:41,970 INFO  L348             TraceCheck]: Trace is feasible, we will do another trace check, this time with branch encoders.
+[2026-07-04 08:23:42,004 INFO  L108    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY partitioned 2 statements into 1 equivalence classes.
+[2026-07-04 08:23:42,010 INFO  L111    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s) and asserted 2 of 2 statements.
+[2026-07-04 08:23:42,011 INFO  L114    AnnotateAndAsserter]: Assert order NOT_INCREMENTALLY issued 1 check-sat command(s)
+[2026-07-04 08:23:42,011 INFO  L115    AnnotateAndAsserter]: Conjunction of SSA is sat
+[2026-07-04 08:23:42,113 INFO  L130   FreeRefinementEngine]: Strategy FIXED_PREFERENCES found a feasible trace
+[2026-07-04 08:23:42,114 INFO  L342         BasicCegarLoop]: Counterexample is feasible
+[2026-07-04 08:23:42,114 INFO  L795   garLoopResultBuilder]: Registering result UNSAFE for location ULTIMATE.startErr0ASSERT_VIOLATIONASSERT (0 of 1 remaining)
+[2026-07-04 08:23:42,137 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in (2)] Ended with exit code 0
+[2026-07-04 08:23:42,326 WARN  L471      AbstractCegarLoop]: Destroyed unattended storables created during the last iteration: 2 /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in
+[2026-07-04 08:23:42,331 INFO  L424         BasicCegarLoop]: Path program histogram: [1]
+[2026-07-04 08:23:42,340 INFO  L171   ceAbstractionStarter]: Computing trace abstraction results
+[2026-07-04 08:23:42,352 INFO  L201        PluginConnector]: Adding new model distcache_p2c_wraparound_bug.cegis.00.entry_check.bpl de.uni_freiburg.informatik.ultimate.plugins.generator.traceabstraction CFG 04.07 08:23:42 BoogieIcfgContainer
+[2026-07-04 08:23:42,352 INFO  L131        PluginConnector]: ------------------------ END TraceAbstraction----------------------------
+[2026-07-04 08:23:42,352 INFO  L158              Benchmark]: Toolchain (without parser) took 1329.74ms. Allocated memory is still 519.1MB. Free memory was 484.5MB in the beginning and 442.3MB in the end (delta: 42.2MB). Peak memory consumption was 42.2MB. Max. memory is 4.2GB.
+[2026-07-04 08:23:42,352 INFO  L158              Benchmark]: Boogie PL CUP Parser took 0.09ms. Allocated memory is still 519.1MB. Free memory is still 488.8MB. There was no memory consumed. Max. memory is 4.2GB.
+[2026-07-04 08:23:42,352 INFO  L158              Benchmark]: Boogie Procedure Inliner took 70.23ms. Allocated memory is still 519.1MB. Free memory was 484.5MB in the beginning and 481.7MB in the end (delta: 2.9MB). Peak memory consumption was 2.9MB. Max. memory is 4.2GB.
+[2026-07-04 08:23:42,352 INFO  L158              Benchmark]: Boogie Preprocessor took 28.22ms. Allocated memory is still 519.1MB. Free memory was 481.7MB in the beginning and 480.2MB in the end (delta: 1.4MB). Peak memory consumption was 1.4MB. Max. memory is 4.2GB.
+[2026-07-04 08:23:42,352 INFO  L158              Benchmark]: RCFGBuilder took 442.92ms. Allocated memory is still 519.1MB. Free memory was 480.2MB in the beginning and 463.8MB in the end (delta: 16.4MB). Peak memory consumption was 16.4MB. Max. memory is 4.2GB.
+[2026-07-04 08:23:42,353 INFO  L158              Benchmark]: TraceAbstraction took 784.80ms. Allocated memory is still 519.1MB. Free memory was 463.8MB in the beginning and 442.3MB in the end (delta: 21.5MB). Peak memory consumption was 21.5MB. Max. memory is 4.2GB.
+[2026-07-04 08:23:42,353 INFO  L338   ainManager$Toolchain]: #######################  End [Toolchain 1] #######################
+ --- Results ---
+ * Results from de.uni_freiburg.informatik.ultimate.core:
+  - StatisticsResult: Toolchain Benchmarks
+    Benchmark results are:
+ * Boogie PL CUP Parser took 0.09ms. Allocated memory is still 519.1MB. Free memory is still 488.8MB. There was no memory consumed. Max. memory is 4.2GB.
+ * Boogie Procedure Inliner took 70.23ms. Allocated memory is still 519.1MB. Free memory was 484.5MB in the beginning and 481.7MB in the end (delta: 2.9MB). Peak memory consumption was 2.9MB. Max. memory is 4.2GB.
+ * Boogie Preprocessor took 28.22ms. Allocated memory is still 519.1MB. Free memory was 481.7MB in the beginning and 480.2MB in the end (delta: 1.4MB). Peak memory consumption was 1.4MB. Max. memory is 4.2GB.
+ * RCFGBuilder took 442.92ms. Allocated memory is still 519.1MB. Free memory was 480.2MB in the beginning and 463.8MB in the end (delta: 16.4MB). Peak memory consumption was 16.4MB. Max. memory is 4.2GB.
+ * TraceAbstraction took 784.80ms. Allocated memory is still 519.1MB. Free memory was 463.8MB in the beginning and 442.3MB in the end (delta: 21.5MB). Peak memory consumption was 21.5MB. Max. memory is 4.2GB.
+ * Results from de.uni_freiburg.informatik.ultimate.plugins.generator.traceabstraction:
+  - StatisticsResult: ErrorAutomatonStatistics
+    NumberErrorTraces: 0, NumberStatementsAllTraces: 0, NumberRelevantStatements: 0, 0.0s ErrorAutomatonConstructionTimeTotal, 0.0s FaulLocalizationTime, NumberStatementsFirstTrace: -1, TraceLengthAvg: 0, 0.0s ErrorAutomatonConstructionTimeAvg, 0.0s ErrorAutomatonDifferenceTimeAvg, 0.0s ErrorAutomatonDifferenceTimeTotal, NumberOfNoEnhancement: 0, NumberOfFiniteEnhancement: 0, NumberOfInfiniteEnhancement: 0
+  - CounterExampleResult [Line: 1430]: assertion can be violated
+    assertion can be violated
+We found a FailurePath: 
+[L1424]  CALL  call mainProcedure();
+[L1377]        clientTrack_inbox_count := 0;
+[L1378]        clientTrack_pkt_external := false;
+[L1379]        io_inbox_count := 0;
+[L1380]        io_pkt_external := false;
+[L1382]        clientTrack_p4b_clone_i2e := false;
+[L1383]        clientTrack_p4b_clone_e2e := false;
+[L1384]        clientTrack_p4b_clone_i2i := false;
+[L1385]        clientTrack_p4b_recirculate := false;
+[L1388]        dsl_pump_mode := true;
+[L1390]        assume (forall i : bv32 :: clientTrack_partitionswitchIngress_leafload_reg[i] == 0bv32);
+[L1391]        assume clientTrack_partitionswitchIngress_leafload_reg[0bv32] == 0bv32;
+[L1392]        assume (forall i : bv32 :: clientTrack_partitionswitchIngress_spineload_reg[i] == 0bv32);
+[L1393]        assume clientTrack_partitionswitchIngress_spineload_reg[0bv32] == 0bv32;
+[L1395]        clientTrack_partitionswitchIngress_leafload_reg__last_index := 0bv32;
+[L1396]        clientTrack_partitionswitchIngress_leafload_reg__last_value := 0bv32;
+[L1397]        clientTrack_partitionswitchIngress_leafload_reg__last_old_value := 0bv32;
+[L1398]        clientTrack_partitionswitchIngress_leafload_reg__wrote_any := false;
+[L1399]        clientTrack_partitionswitchIngress_leafload_reg__wrote_index0 := false;
+[L1400]        clientTrack_partitionswitchIngress_leafload_reg__next_write_site := 0;
+[L1401]        clientTrack_partitionswitchIngress_leafload_reg__last_write_site := 0;
+[L1402]        clientTrack_partitionswitchIngress_leafload_reg__last0_old_value := 0bv32;
+[L1403]        clientTrack_partitionswitchIngress_leafload_reg__last0_value := 0bv32;
+[L1404]        clientTrack_partitionswitchIngress_spineload_reg__last_index := 0bv32;
+[L1405]        clientTrack_partitionswitchIngress_spineload_reg__last_value := 0bv32;
+[L1406]        clientTrack_partitionswitchIngress_spineload_reg__last_old_value := 0bv32;
+[L1407]        clientTrack_partitionswitchIngress_spineload_reg__wrote_any := false;
+[L1408]        clientTrack_partitionswitchIngress_spineload_reg__wrote_index0 := false;
+[L1409]        clientTrack_partitionswitchIngress_spineload_reg__next_write_site := 0;
+[L1410]        clientTrack_partitionswitchIngress_spineload_reg__last_write_site := 0;
+[L1411]        clientTrack_partitionswitchIngress_spineload_reg__last0_old_value := 0bv32;
+[L1412]        clientTrack_partitionswitchIngress_spineload_reg__last0_value := 0bv32;
+[L1414]        procurator_step := 0;
+[L1415]        procurator_phase := 0;
+[L1416]  CALL  call __wraparound_entry_error();
+[L1430]        assert false;
+         VAL   [clientTrack_inbox_count=0, clientTrack_p4b_clone_e2e=false, clientTrack_p4b_clone_i2e=false, clientTrack_p4b_clone_i2i=false, clientTrack_p4b_recirculate=false, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value=0bv32, clientTrack_partitionswitchIngress_leafload_reg__last0_value=0bv32, clientTrack_partitionswitchIngress_leafload_reg__last_index=0bv32, clientTrack_partitionswitchIngress_leafload_reg__last_old_value=0bv32, clientTrack_partitionswitchIngress_leafload_reg__last_value=0bv32, clientTrack_partitionswitchIngress_leafload_reg__last_write_site=0, clientTrack_partitionswitchIngress_leafload_reg__next_write_site=0, clientTrack_partitionswitchIngress_leafload_reg__wrote_any=false, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0=false, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value=0bv32, clientTrack_partitionswitchIngress_spineload_reg__last0_value=0bv32, clientTrack_partitionswitchIngress_spineload_reg__last_index=0bv32, clientTrack_partitionswitchIngress_spineload_reg__last_old_value=0bv32, clientTrack_partitionswitchIngress_spineload_reg__last_value=0bv32, clientTrack_partitionswitchIngress_spineload_reg__last_write_site=0, clientTrack_partitionswitchIngress_spineload_reg__next_write_site=0, clientTrack_partitionswitchIngress_spineload_reg__wrote_any=false, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0=false, clientTrack_pkt_external=false, dsl_pump_mode=true, io_inbox_count=0, io_pkt_external=false, procurator_phase=0, procurator_step=0]
+
+  - StatisticsResult: Ultimate Automizer benchmark data
+    CFG has 1 procedures, 7 locations, 6 edges, 1 error locations. Started 1 CEGAR loops. OverallTime: 0.6s, OverallIterations: 1, TraceHistogramMax: 1, PathProgramHistogramMax: 1, EmptinessCheckTime: 0.0s, AutomataDifference: 0.0s, DeadEndRemovalTime: 0.0s, HoareAnnotationTime: 0.0s, InitialAbstractionConstructionTime: 0.0s, HoareTripleCheckerStatistics: , PredicateUnifierStatistics: No data available, 0.0s BasicInterpolantAutomatonTime, BiggestAbstraction: size=7occurred in iteration=0, InterpolantAutomatonStates: 0, traceCheckStatistics: No data available, InterpolantConsolidationStatistics: No data available, PathInvariantsStatistics: No data available, 0/0 InterpolantCoveringCapability, TotalInterpolationStatistics: No data available, 0.0s DumpTime, AutomataMinimizationStatistics: No data available, HoareAnnotationStatistics: No data available, RefinementEngineStatistics: TRACE_CHECK: 0.0s SsaConstructionTime, 0.0s SatisfiabilityAnalysisTime, 0.0s InterpolantComputationTime, 2 NumberOfCodeBlocks, 2 NumberOfCodeBlocksAsserted, 1 NumberOfCheckSat, 0 ConstructedInterpolants, 0 QuantifiedInterpolants, 0 SizeOfPredicates, 0 NumberOfNonLiveVariables, 0 ConjunctsInSsa, 0 ConjunctsInUnsatCore, 0 InterpolantComputations, 0 PerfectInterpolantSequences, 0/0 InterpolantCoveringCapability, INVARIANT_SYNTHESIS: No data available, INTERPOLANT_CONSOLIDATION: No data available, ABSTRACT_INTERPRETATION: No data available, PDR: No data available, ACCELERATED_INTERPOLATION: No data available, SIFA: No data available, ReuseStatistics: No data available, ConComCheckerStatistics: No data available
+RESULT: Ultimate proved your program to be incorrect!
+[2026-07-04 08:23:42,372 INFO  L546       MonitoredProcess]: [MP /usr/bin/z3 SMTLIB2_COMPLIANT=true -memory:2024 -smt2 -in -t:2000 (1)] Ended with exit code 0
+Received shutdown request...

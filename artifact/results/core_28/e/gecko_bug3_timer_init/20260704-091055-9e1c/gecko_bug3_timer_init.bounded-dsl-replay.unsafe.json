@@ -1,0 +1,14 @@
+{
+  "assert_line": 5151,
+  "assert_lines": [
+    5151
+  ],
+  "bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug3_timer_init/20260704-091055-9e1c/gecko_bug3_timer_init.bpl",
+  "focused_bpl_sha256": "cc9d5efa0d8ae03a43ef9f83fb7765299b36a0ccc266ddff6256bfda0a7ba6b0",
+  "kind": "bounded_dsl_replay_under_approx",
+  "log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug3_timer_init/20260704-091055-9e1c/gecko_bug3_timer_init.bounded-dsl-replay.textual.log",
+  "note": "UNSAFE by deterministic bounded DSL replay of procurator_bad. This is an UNSAFE-only under-approximation; unsupported, SAFE, UNKNOWN, TIMEOUT, or missing replay evidence falls back to the solver.",
+  "result_line": "RESULT: UNSAFE",
+  "source_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/gecko_bug3_timer_init/20260704-091055-9e1c/gecko_bug3_timer_init.bpl",
+  "source_bpl_sha256": "cc9d5efa0d8ae03a43ef9f83fb7765299b36a0ccc266ddff6256bfda0a7ba6b0"
+}

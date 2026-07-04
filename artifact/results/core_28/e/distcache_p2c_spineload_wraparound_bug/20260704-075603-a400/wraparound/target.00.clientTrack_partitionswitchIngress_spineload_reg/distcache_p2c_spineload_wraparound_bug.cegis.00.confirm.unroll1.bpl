@@ -1,0 +1,1835 @@
+// ===== BEGIN PREAMBLE =====
+function bvule.bv16(left:bv16, right:bv16) returns(bool);
+function {:builtin "bvule"} bvule.bv16$builtin(left:bv16, right:bv16) returns(bool);
+axiom (forall left:bv16, right:bv16 :: bvule.bv16(left, right) <==> bvule.bv16$builtin(left, right));
+function bvule.bv32(left:bv32, right:bv32) returns(bool);
+function {:builtin "bvule"} bvule.bv32$builtin(left:bv32, right:bv32) returns(bool);
+axiom (forall left:bv32, right:bv32 :: bvule.bv32(left, right) <==> bvule.bv32$builtin(left, right));
+// ===== END PREAMBLE =====
+
+// ===== BEGIN NODE clientTrack (prefixed) =====
+type clientTrack_Ref;
+type clientTrack_error=bv1;
+type clientTrack_HeaderStack = [int]clientTrack_Ref;
+var clientTrack_last:[clientTrack_HeaderStack]clientTrack_Ref;
+var clientTrack_forward:bool;
+var clientTrack_isValid:[clientTrack_Ref]bool;
+var clientTrack_emit:[clientTrack_Ref]bool;
+var clientTrack_stack.index:[clientTrack_HeaderStack]int;
+var clientTrack_size:[clientTrack_HeaderStack]int;
+var clientTrack_drop:bool;
+var clientTrack_p4b_clone_i2e:bool;
+var clientTrack_p4b_clone_e2e:bool;
+var clientTrack_p4b_clone_i2i:bool;
+var clientTrack_p4b_recirculate:bool;
+var clientTrack_p4b_digest:bool;
+var clientTrack_p4b_checksum_verified:bool;
+var clientTrack_p4b_checksum_updated:bool;
+var clientTrack_p4b_checksum_error:bool;
+
+// clientTrack_Struct clientTrack_standard_metadata_t
+type clientTrack_standard_metadata_t;
+var clientTrack_standard_metadata.ingress_port:bv9;
+var clientTrack_standard_metadata.egress_spec:bv9;
+var clientTrack_standard_metadata.egress_port:bv9;
+var clientTrack_standard_metadata.instance_type:bv32;
+var clientTrack_standard_metadata.packet_length:bv32;
+var clientTrack_standard_metadata.enq_timestamp:bv32;
+var clientTrack_standard_metadata.enq_qdepth:bv19;
+var clientTrack_standard_metadata.deq_timedelta:bv32;
+var clientTrack_standard_metadata.deq_qdepth:bv19;
+var clientTrack_standard_metadata.ingress_global_timestamp:bv48;
+var clientTrack_standard_metadata.egress_global_timestamp:bv48;
+var clientTrack_standard_metadata.mcast_grp:bv16;
+var clientTrack_standard_metadata.egress_rid:bv16;
+var clientTrack_standard_metadata.checksum_error:bv1;
+var clientTrack_standard_metadata.parser_error:clientTrack_error;
+var clientTrack_standard_metadata.priority:bv3;
+type clientTrack_CounterType = int;
+type clientTrack_MeterType = int;
+type clientTrack_HashAlgorithm = int;
+type clientTrack_CloneType = int;
+type clientTrack_ethernet_t;
+type clientTrack_ipv4_t;
+type clientTrack_udp_t;
+type clientTrack_op_t;
+type clientTrack_vallen_t;
+type clientTrack_val_t;
+
+// clientTrack_Struct clientTrack_headers
+var clientTrack_hdr:clientTrack_Ref;
+
+// clientTrack_Header clientTrack_ethernet_t
+var clientTrack_hdr.ethernet_hdr:clientTrack_Ref;
+var clientTrack_hdr.ethernet_hdr.valid:bool;
+var clientTrack_hdr.ethernet_hdr.dstAddr:bv48;
+var clientTrack_hdr.ethernet_hdr.srcAddr:bv48;
+var clientTrack_hdr.ethernet_hdr.etherType:bv16;
+
+// clientTrack_Header clientTrack_ipv4_t
+var clientTrack_hdr.ipv4_hdr:clientTrack_Ref;
+var clientTrack_hdr.ipv4_hdr.valid:bool;
+var clientTrack_hdr.ipv4_hdr.version:bv4;
+var clientTrack_hdr.ipv4_hdr.ihl:bv4;
+var clientTrack_hdr.ipv4_hdr.diffserv:bv8;
+var clientTrack_hdr.ipv4_hdr.totalLen:bv16;
+var clientTrack_hdr.ipv4_hdr.identification:bv16;
+var clientTrack_hdr.ipv4_hdr.flags:bv3;
+var clientTrack_hdr.ipv4_hdr.fragOffset:bv13;
+var clientTrack_hdr.ipv4_hdr.ttl:bv8;
+var clientTrack_hdr.ipv4_hdr.protocol:bv8;
+var clientTrack_hdr.ipv4_hdr.hdrChecksum:bv16;
+var clientTrack_hdr.ipv4_hdr.srcAddr:bv32;
+var clientTrack_hdr.ipv4_hdr.dstAddr:bv32;
+
+// clientTrack_Header clientTrack_udp_t
+var clientTrack_hdr.udp_hdr:clientTrack_Ref;
+var clientTrack_hdr.udp_hdr.valid:bool;
+var clientTrack_hdr.udp_hdr.srcPort:bv16;
+var clientTrack_hdr.udp_hdr.dstPort:bv16;
+var clientTrack_hdr.udp_hdr.hdrlen:bv16;
+var clientTrack_hdr.udp_hdr.checksum:bv16;
+
+// clientTrack_Header clientTrack_op_t
+var clientTrack_hdr.op_hdr:clientTrack_Ref;
+var clientTrack_hdr.op_hdr.valid:bool;
+var clientTrack_hdr.op_hdr.optype:bv16;
+var clientTrack_hdr.op_hdr.keylolo:bv32;
+var clientTrack_hdr.op_hdr.keylohi:bv32;
+var clientTrack_hdr.op_hdr.keyhilo:bv32;
+var clientTrack_hdr.op_hdr.keyhihilo:bv16;
+var clientTrack_hdr.op_hdr.keyhihihi:bv16;
+
+// clientTrack_Struct clientTrack_metadata
+type clientTrack_metadata;
+var clientTrack_meta.hashval_for_partition:bv16;
+var clientTrack_meta.hashval_for_spine_partition:bv16;
+var clientTrack_meta.spineswitchidx:bv16;
+var clientTrack_meta.leafswitchidx:bv16;
+var clientTrack_meta.is_spine:bv1;
+var clientTrack_meta:clientTrack_metadata;
+var clientTrack_standard_metadata:clientTrack_standard_metadata_t;
+
+function {:builtin "bvand"} band.bv16(clientTrack_left:bv16, clientTrack_right:bv16) returns(bv16);
+type clientTrack_egressSpec_t = bv9;
+var clientTrack_spineload_0:bv32;
+var clientTrack_leafload_0:bv32;
+
+// clientTrack_Register clientTrack_partitionswitchIngress_spineload_reg
+var clientTrack_partitionswitchIngress_spineload_reg:[bv32]bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__last_index:bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__last_value:bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__last_old_value:bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__wrote_any:bool;
+var clientTrack_partitionswitchIngress_spineload_reg__wrote_index0:bool;
+var clientTrack_partitionswitchIngress_spineload_reg__last0_old_value:bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__last0_value:bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__next_write_site:int;
+var clientTrack_partitionswitchIngress_spineload_reg__last_write_site:int;
+const clientTrack_partitionswitchIngress_spineload_reg.size:bv32;
+axiom clientTrack_partitionswitchIngress_spineload_reg.size == 128bv32;
+
+// clientTrack_Register clientTrack_partitionswitchIngress_leafload_reg
+var clientTrack_partitionswitchIngress_leafload_reg:[bv32]bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__last_index:bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__last_value:bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__last_old_value:bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__wrote_any:bool;
+var clientTrack_partitionswitchIngress_leafload_reg__wrote_index0:bool;
+var clientTrack_partitionswitchIngress_leafload_reg__last0_old_value:bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__last0_value:bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__next_write_site:int;
+var clientTrack_partitionswitchIngress_leafload_reg__last_write_site:int;
+const clientTrack_partitionswitchIngress_leafload_reg.size:bv32;
+axiom clientTrack_partitionswitchIngress_leafload_reg.size == 128bv32;
+
+function {:builtin "bvugt"} bugt.bv32(clientTrack_left:bv32, clientTrack_right:bv32) returns(bool);
+
+function {:builtin "bvadd"} add.bv32(clientTrack_left:bv32, clientTrack_right:bv32) returns(bv32);
+
+// clientTrack_Table clientTrack_partitionswitchIngress_poweroftwochoice_tbl clientTrack_Actionlist clientTrack_Declaration
+type clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action;
+const unique clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_poweroftwochoice : clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action;
+const unique clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_update_spine_load : clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action;
+const unique clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_update_leaf_load : clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action;
+const unique clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.NoAction : clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action;
+var clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run : clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action;
+var clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit : bool;
+
+// clientTrack_Table clientTrack_partitionswitchIngress_l2l3_forward_tbl clientTrack_Actionlist clientTrack_Declaration
+type clientTrack_partitionswitchIngress_l2l3_forward_tbl.action;
+var clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport:clientTrack_egressSpec_t;
+
+function {:builtin "bvand"} band.bv32(clientTrack_left:bv32, clientTrack_right:bv32) returns(bv32);
+const unique clientTrack_partitionswitchIngress_l2l3_forward_tbl.action.partitionswitchIngress_l2l3_forward : clientTrack_partitionswitchIngress_l2l3_forward_tbl.action;
+const unique clientTrack_partitionswitchIngress_l2l3_forward_tbl.action.NoAction_3 : clientTrack_partitionswitchIngress_l2l3_forward_tbl.action;
+var clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run : clientTrack_partitionswitchIngress_l2l3_forward_tbl.action;
+var clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit : bool;
+
+function {:builtin "bvlshr"} shr.bv32(clientTrack_left:bv32, clientTrack_right:bv32) returns(bv32);
+
+function {:builtin "bvxor"} bxor.bv32(clientTrack_left:bv32, clientTrack_right:bv32) returns(bv32);
+function {:inline true} clientTrack___p4b_crc32_bmv2_bit(clientTrack_crc:bv32) returns(bv32) { (if (clientTrack_crc)[1:0] == 1bv1 then bxor.bv32(shr.bv32(clientTrack_crc, 1bv32), 3988292384bv32) else shr.bv32(clientTrack_crc, 1bv32)) }
+function {:inline true} clientTrack___p4b_crc32_bmv2_byte(clientTrack_crc:bv32, clientTrack_byte:bv8) returns(bv32) { clientTrack___p4b_crc32_bmv2_bit(clientTrack___p4b_crc32_bmv2_bit(clientTrack___p4b_crc32_bmv2_bit(clientTrack___p4b_crc32_bmv2_bit(clientTrack___p4b_crc32_bmv2_bit(clientTrack___p4b_crc32_bmv2_bit(clientTrack___p4b_crc32_bmv2_bit(clientTrack___p4b_crc32_bmv2_bit(bxor.bv32(clientTrack_crc, 0bv24++(clientTrack_byte)))))))))) }
+
+function {:builtin "bvadd"} add.bv16(clientTrack_left:bv16, clientTrack_right:bv16) returns(bv16);
+
+function {:builtin "bvurem"} urem.bv16(clientTrack_left:bv16, clientTrack_right:bv16) returns(bv16);
+
+function {:builtin "bvuge"} buge.bv16(clientTrack_left:bv16, clientTrack_right:bv16) returns(bool);
+
+function {:builtin "bvule"} bule.bv16(clientTrack_left:bv16, clientTrack_right:bv16) returns(bool);
+function clientTrack_hash_csum16$bv16$bv32$bv32$bv32$bv16$bv16$bv16(clientTrack_arg0:bv16, clientTrack_arg1:bv32, clientTrack_arg2:bv32, clientTrack_arg3:bv32, clientTrack_arg4:bv16, clientTrack_arg5:bv16, clientTrack_arg6:bv16) returns(bv16);
+
+// clientTrack_Table clientTrack_partitionswitchIngress_hash_for_partition_tbl clientTrack_Actionlist clientTrack_Declaration
+type clientTrack_partitionswitchIngress_hash_for_partition_tbl.action;
+const unique clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition : clientTrack_partitionswitchIngress_hash_for_partition_tbl.action;
+const unique clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.NoAction_4 : clientTrack_partitionswitchIngress_hash_for_partition_tbl.action;
+var clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run : clientTrack_partitionswitchIngress_hash_for_partition_tbl.action;
+var clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit : bool;
+
+// clientTrack_Table clientTrack_partitionswitchIngress_hash_spine_partition_tbl clientTrack_Actionlist clientTrack_Declaration
+type clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action;
+var clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4:clientTrack_egressSpec_t;
+const unique clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition : clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action;
+const unique clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.NoAction_5 : clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action;
+var clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run : clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action;
+var clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit : bool;
+
+// clientTrack_Table clientTrack_partitionswitchIngress_hash_leaf_partition_tbl clientTrack_Actionlist clientTrack_Declaration
+type clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action;
+var clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5:clientTrack_egressSpec_t;
+const unique clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition : clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action;
+const unique clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.NoAction_6 : clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action;
+var clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run : clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action;
+var clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit : bool;
+
+// clientTrack_Table clientTrack_partitionswitchIngress_ipv4_forward_tbl clientTrack_Actionlist clientTrack_Declaration
+type clientTrack_partitionswitchIngress_ipv4_forward_tbl.action;
+var clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6:clientTrack_egressSpec_t;
+var clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid:bv10;
+const unique clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response : clientTrack_partitionswitchIngress_ipv4_forward_tbl.action;
+const unique clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_special_get_response : clientTrack_partitionswitchIngress_ipv4_forward_tbl.action;
+const unique clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.NoAction_7 : clientTrack_partitionswitchIngress_ipv4_forward_tbl.action;
+var clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run : clientTrack_partitionswitchIngress_ipv4_forward_tbl.action;
+var clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit : bool;
+
+// clientTrack_Table clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl clientTrack_Actionlist clientTrack_Declaration
+type clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac:bv48;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac:bv48;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip:bv32;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip:bv32;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port:bv16;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_dstipmac_client2server.server_mac_2:bv48;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_dstipmac_client2server.server_ip_2:bv32;
+const unique clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client : clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action;
+const unique clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_dstipmac_client2server : clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action;
+const unique clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.NoAction_8 : clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run : clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action;
+var clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit : bool;
+
+// clientTrack_Table clientTrack_partitionswitchEgress_eg_port_forward_tbl clientTrack_Actionlist clientTrack_Declaration
+type clientTrack_partitionswitchEgress_eg_port_forward_tbl.action;
+const unique clientTrack_partitionswitchEgress_eg_port_forward_tbl.action.partitionswitchEgress_update_netcache_getreq_to_getreq_spine : clientTrack_partitionswitchEgress_eg_port_forward_tbl.action;
+const unique clientTrack_partitionswitchEgress_eg_port_forward_tbl.action.NoAction_9 : clientTrack_partitionswitchEgress_eg_port_forward_tbl.action;
+var clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run : clientTrack_partitionswitchEgress_eg_port_forward_tbl.action;
+var clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit : bool;
+
+function {:builtin "bvsub"} sub.bv17(clientTrack_left:bv17, clientTrack_right:bv17) returns(bv17);
+
+function {:builtin "bvsub"} sub.bv33(clientTrack_left:bv33, clientTrack_right:bv33) returns(bv33);
+
+// clientTrack_Action clientTrack_NoAction
+procedure {:inline 1} clientTrack_NoAction()
+{
+}
+
+// clientTrack_Action clientTrack_NoAction_3
+procedure {:inline 1} clientTrack_NoAction_3()
+{
+}
+
+// clientTrack_Action clientTrack_NoAction_4
+procedure {:inline 1} clientTrack_NoAction_4()
+{
+}
+
+// clientTrack_Action clientTrack_NoAction_5
+procedure {:inline 1} clientTrack_NoAction_5()
+{
+}
+
+// clientTrack_Action clientTrack_NoAction_6
+procedure {:inline 1} clientTrack_NoAction_6()
+{
+}
+
+// clientTrack_Action clientTrack_NoAction_7
+procedure {:inline 1} clientTrack_NoAction_7()
+{
+}
+
+// clientTrack_Action clientTrack_NoAction_8
+procedure {:inline 1} clientTrack_NoAction_8()
+{
+}
+
+// clientTrack_Action clientTrack_NoAction_9
+procedure {:inline 1} clientTrack_NoAction_9()
+{
+}
+procedure {:inline 1} clientTrack_accept()
+{
+}
+procedure {:inline 1} clientTrack_main()
+	modifies clientTrack_drop, clientTrack_forward, clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ethernet_hdr.srcAddr, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.hdrChecksum, clientTrack_hdr.ipv4_hdr.srcAddr, clientTrack_hdr.op_hdr.optype, clientTrack_hdr.udp_hdr.checksum, clientTrack_hdr.udp_hdr.srcPort, clientTrack_isValid, clientTrack_leafload_0, clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition, clientTrack_meta.is_spine, clientTrack_meta.leafswitchidx, clientTrack_meta.spineswitchidx, clientTrack_p4b_checksum_updated, clientTrack_p4b_clone_i2e, clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run, clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port, clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4, clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run, clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid, clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run, clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit, clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_spineload_0, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+    call clientTrack_partitionswitchParser();
+    call clientTrack_partitionswitchVerifyChecksum();
+    call clientTrack_partitionswitchIngress();
+    call clientTrack_partitionswitchEgress();
+    call clientTrack_partitionswitchComputeChecksum();
+    if(clientTrack_forward == false){
+        clientTrack_drop := true;
+    }
+}
+procedure clientTrack_mainProcedure()
+	modifies clientTrack_drop, clientTrack_forward, clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ethernet_hdr.srcAddr, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.hdrChecksum, clientTrack_hdr.ipv4_hdr.srcAddr, clientTrack_hdr.op_hdr.optype, clientTrack_hdr.udp_hdr.checksum, clientTrack_hdr.udp_hdr.srcPort, clientTrack_isValid, clientTrack_leafload_0, clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition, clientTrack_meta.is_spine, clientTrack_meta.leafswitchidx, clientTrack_meta.spineswitchidx, clientTrack_p4b_checksum_error, clientTrack_p4b_checksum_updated, clientTrack_p4b_checksum_verified, clientTrack_p4b_clone_e2e, clientTrack_p4b_clone_i2e, clientTrack_p4b_clone_i2i, clientTrack_p4b_digest, clientTrack_p4b_recirculate, clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run, clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port, clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4, clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run, clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid, clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run, clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit, clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_spineload_0, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+    clientTrack_p4b_checksum_error := false;
+    clientTrack_p4b_checksum_updated := false;
+    clientTrack_p4b_checksum_verified := false;
+    clientTrack_p4b_digest := false;
+    clientTrack_p4b_recirculate := false;
+    clientTrack_p4b_clone_i2i := false;
+    clientTrack_p4b_clone_e2e := false;
+    clientTrack_p4b_clone_i2e := false;
+    call clientTrack_main();
+}
+procedure clientTrack_mark_to_drop();
+    ensures clientTrack_drop==true;
+	modifies clientTrack_drop;
+procedure clientTrack_packet.emit(clientTrack_arg0:clientTrack_Ref);
+procedure clientTrack_packet_in.extract(clientTrack_header:clientTrack_Ref);
+    ensures (clientTrack_isValid[clientTrack_header] == true);
+	modifies clientTrack_isValid;
+
+// clientTrack_Control clientTrack_partitionswitchComputeChecksum
+procedure {:inline 1} clientTrack_partitionswitchComputeChecksum()
+	modifies clientTrack_hdr.ipv4_hdr.hdrChecksum, clientTrack_hdr.udp_hdr.checksum, clientTrack_p4b_checksum_updated;
+{
+    if (clientTrack_isValid[clientTrack_hdr.ipv4_hdr]) {
+        clientTrack_p4b_checksum_updated := true;
+        havoc clientTrack_hdr.ipv4_hdr.hdrChecksum;
+    }
+    if (clientTrack_isValid[clientTrack_hdr.udp_hdr]) {
+        clientTrack_p4b_checksum_updated := true;
+        havoc clientTrack_hdr.udp_hdr.checksum;
+    }
+}
+
+// clientTrack_Control clientTrack_partitionswitchEgress
+procedure {:inline 1} clientTrack_partitionswitchEgress()
+	modifies clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ethernet_hdr.srcAddr, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.srcAddr, clientTrack_hdr.op_hdr.optype, clientTrack_hdr.udp_hdr.srcPort, clientTrack_meta.is_spine, clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run, clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port, clientTrack_standard_metadata.egress_port;
+{
+    call clientTrack_partitionswitchEgress_eg_port_forward_tbl.apply();
+    call clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.apply();
+}
+
+// clientTrack_Table clientTrack_partitionswitchEgress_eg_port_forward_tbl
+procedure {:inline 1} clientTrack_partitionswitchEgress_eg_port_forward_tbl.apply()
+	modifies clientTrack_hdr.op_hdr.optype, clientTrack_meta.is_spine, clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run, clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit;
+{
+    clientTrack_hdr.op_hdr.optype := clientTrack_hdr.op_hdr.optype;
+    clientTrack_meta.is_spine := clientTrack_meta.is_spine;
+    clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit := false;
+    if(clientTrack_hdr.op_hdr.optype == 48bv16 && clientTrack_meta.is_spine == 1bv1){
+        clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit := true;
+        clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run := clientTrack_partitionswitchEgress_eg_port_forward_tbl.action.partitionswitchEgress_update_netcache_getreq_to_getreq_spine;
+        call clientTrack_partitionswitchEgress_update_netcache_getreq_to_getreq_spine();
+        goto clientTrack_Exit;
+    }
+    if(!clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit){
+        clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run := clientTrack_partitionswitchEgress_eg_port_forward_tbl.action.NoAction_9;
+        call clientTrack_NoAction_9();
+        goto clientTrack_Exit;
+    }
+
+    clientTrack_Exit:
+}
+
+// clientTrack_Action clientTrack_partitionswitchEgress_update_dstipmac_client2server
+procedure {:inline 1} clientTrack_partitionswitchEgress_update_dstipmac_client2server(clientTrack_server_mac_2:bv48, clientTrack_server_ip_2:bv32)
+	modifies clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.dstAddr;
+{
+    clientTrack_hdr.ethernet_hdr.dstAddr := clientTrack_server_mac_2;
+    clientTrack_hdr.ipv4_hdr.dstAddr := clientTrack_server_ip_2;
+}
+
+// clientTrack_Action clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client
+procedure {:inline 1} clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_client_mac:bv48, clientTrack_server_mac:bv48, clientTrack_client_ip:bv32, clientTrack_server_ip:bv32, clientTrack_server_port:bv16)
+	modifies clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ethernet_hdr.srcAddr, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.srcAddr, clientTrack_hdr.udp_hdr.srcPort;
+{
+    clientTrack_hdr.ethernet_hdr.srcAddr := clientTrack_server_mac;
+    clientTrack_hdr.ethernet_hdr.dstAddr := clientTrack_client_mac;
+    clientTrack_hdr.ipv4_hdr.srcAddr := clientTrack_server_ip;
+    clientTrack_hdr.ipv4_hdr.dstAddr := clientTrack_client_ip;
+    clientTrack_hdr.udp_hdr.srcPort := clientTrack_server_port;
+}
+
+// clientTrack_Table clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl
+procedure {:inline 1} clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.apply()
+	modifies clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ethernet_hdr.srcAddr, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.srcAddr, clientTrack_hdr.op_hdr.optype, clientTrack_hdr.udp_hdr.srcPort, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port, clientTrack_standard_metadata.egress_port;
+{
+    clientTrack_hdr.op_hdr.optype := clientTrack_hdr.op_hdr.optype;
+    clientTrack_standard_metadata.egress_port := clientTrack_standard_metadata.egress_port;
+    clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := false;
+    if(clientTrack_hdr.op_hdr.optype == 9bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 8bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 24bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 128bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 224bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 768bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 107bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 10bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 26bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 208bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 848bv16 && clientTrack_standard_metadata.egress_port == 1bv9){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit := true;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.partitionswitchEgress_update_ipmac_srcport_server2client;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac := 2bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac := 3bv48;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip := 167772162bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip := 167773186bv32;
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port := 1152bv16;
+        call clientTrack_partitionswitchEgress_update_ipmac_srcport_server2client(clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port);
+        goto clientTrack_Exit;
+    }
+    if(!clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit){
+        clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run := clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action.NoAction_8;
+        call clientTrack_NoAction_8();
+        goto clientTrack_Exit;
+    }
+
+    clientTrack_Exit:
+}
+
+// clientTrack_Action clientTrack_partitionswitchEgress_update_netcache_getreq_to_getreq_spine
+procedure {:inline 1} clientTrack_partitionswitchEgress_update_netcache_getreq_to_getreq_spine()
+	modifies clientTrack_hdr.op_hdr.optype;
+{
+    clientTrack_hdr.op_hdr.optype := 512bv16;
+}
+
+// clientTrack_Control clientTrack_partitionswitchIngress
+procedure {:inline 1} clientTrack_partitionswitchIngress()
+	modifies clientTrack_forward, clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.op_hdr.optype, clientTrack_leafload_0, clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition, clientTrack_meta.is_spine, clientTrack_meta.leafswitchidx, clientTrack_meta.spineswitchidx, clientTrack_p4b_clone_i2e, clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4, clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run, clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid, clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run, clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit, clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_spineload_0, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+havoc clientTrack_spineload_0;
+havoc clientTrack_leafload_0;
+    if(clientTrack_isValid[clientTrack_hdr.op_hdr]){
+        call clientTrack_partitionswitchIngress_hash_for_partition_tbl.apply();
+        call clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.apply();
+        call clientTrack_partitionswitchIngress_hash_spine_partition_tbl.apply();
+        call clientTrack_partitionswitchIngress_poweroftwochoice_tbl.apply();
+        call clientTrack_partitionswitchIngress_ipv4_forward_tbl.apply();
+    }
+    else{
+        call clientTrack_partitionswitchIngress_l2l3_forward_tbl.apply();
+    }
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_forward_normal_response
+procedure {:inline 1} clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_eport_6:clientTrack_egressSpec_t)
+	modifies clientTrack_forward, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+    clientTrack_standard_metadata.egress_spec := clientTrack_eport_6;
+    clientTrack_standard_metadata.egress_port := clientTrack_eport_6;
+    clientTrack_forward := true;
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_forward_special_get_response
+procedure {:inline 1} clientTrack_partitionswitchIngress_forward_special_get_response(clientTrack_client_sid:bv10)
+	modifies clientTrack_p4b_clone_i2e;
+{
+    clientTrack_p4b_clone_i2e := true;
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_hash_for_partition
+procedure {:inline 1} clientTrack_partitionswitchIngress_hash_for_partition()
+	modifies clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition;
+{
+    // clientTrack_p4b_hash_model: clientTrack_builtin clientTrack_algorithm=clientTrack_HashAlgorithm.crc32 clientTrack_model=clientTrack_crc32_bmv2 clientTrack_precision=clientTrack_precise
+    havoc clientTrack_meta.hashval_for_partition;
+    assume(buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16));
+    assume(bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16));
+    assume(buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16) && bule.bv16(clientTrack_meta.hashval_for_partition, 32767bv16));
+    // clientTrack_p4b_hash_model: clientTrack_builtin clientTrack_algorithm=clientTrack_HashAlgorithm.csum16 clientTrack_model=clientTrack_checksum16_uf clientTrack_precision=clientTrack_deterministic_uninterpreted
+    havoc clientTrack_meta.hashval_for_spine_partition;
+    assume(buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16));
+    assume(bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16));
+    assume(buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16) && bule.bv16(clientTrack_meta.hashval_for_spine_partition, 32767bv16));
+}
+
+// clientTrack_Table clientTrack_partitionswitchIngress_hash_for_partition_tbl
+procedure {:inline 1} clientTrack_partitionswitchIngress_hash_for_partition_tbl.apply()
+	modifies clientTrack_hdr.op_hdr.optype, clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition, clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit;
+{
+    clientTrack_hdr.op_hdr.optype := clientTrack_hdr.op_hdr.optype;
+    clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := false;
+    if(clientTrack_hdr.op_hdr.optype == 48bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 1bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 64bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 784bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 720bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 127bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 0bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 36bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 84bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 351bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 52bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 68bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 11bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 27bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 8201bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 4105bv16){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.partitionswitchIngress_hash_for_partition;
+        call clientTrack_partitionswitchIngress_hash_for_partition();
+        goto clientTrack_Exit;
+    }
+    if(!clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit){
+        clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_for_partition_tbl.action.NoAction_4;
+        call clientTrack_NoAction_4();
+        goto clientTrack_Exit;
+    }
+
+    clientTrack_Exit:
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_hash_leaf_partition
+procedure {:inline 1} clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_eport_5:clientTrack_egressSpec_t)
+	modifies clientTrack_meta.leafswitchidx;
+{
+    clientTrack_meta.leafswitchidx := 0bv7++clientTrack_eport_5;
+}
+
+// clientTrack_Table clientTrack_partitionswitchIngress_hash_leaf_partition_tbl
+procedure {:inline 1} clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.apply()
+	modifies clientTrack_hdr.op_hdr.optype, clientTrack_meta.hashval_for_partition, clientTrack_meta.leafswitchidx, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5;
+{
+    clientTrack_hdr.op_hdr.optype := clientTrack_hdr.op_hdr.optype;
+    clientTrack_meta.hashval_for_partition := clientTrack_meta.hashval_for_partition;
+    clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := false;
+    if(clientTrack_hdr.op_hdr.optype == 48bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 1bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 64bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 784bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 720bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 127bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 0bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 36bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 52bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 68bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 84bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 11bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 351bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 8201bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 4105bv16 && (buge.bv16(clientTrack_meta.hashval_for_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.partitionswitchIngress_hash_leaf_partition;
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5 := 2bv9;
+        call clientTrack_partitionswitchIngress_hash_leaf_partition(clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5);
+        goto clientTrack_Exit;
+    }
+    if(!clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit){
+        clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action.NoAction_6;
+        call clientTrack_NoAction_6();
+        goto clientTrack_Exit;
+    }
+
+    clientTrack_Exit:
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_hash_spine_partition
+procedure {:inline 1} clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_eport_4:clientTrack_egressSpec_t)
+	modifies clientTrack_forward, clientTrack_meta.spineswitchidx, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+    clientTrack_standard_metadata.egress_spec := clientTrack_eport_4;
+    clientTrack_standard_metadata.egress_port := clientTrack_eport_4;
+    clientTrack_forward := true;
+    clientTrack_meta.spineswitchidx := 0bv7++clientTrack_eport_4;
+}
+
+// clientTrack_Table clientTrack_partitionswitchIngress_hash_spine_partition_tbl
+procedure {:inline 1} clientTrack_partitionswitchIngress_hash_spine_partition_tbl.apply()
+	modifies clientTrack_forward, clientTrack_hdr.op_hdr.optype, clientTrack_meta.hashval_for_spine_partition, clientTrack_meta.spineswitchidx, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+    clientTrack_hdr.op_hdr.optype := clientTrack_hdr.op_hdr.optype;
+    clientTrack_meta.hashval_for_spine_partition := clientTrack_meta.hashval_for_spine_partition;
+    clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := false;
+    if(clientTrack_hdr.op_hdr.optype == 48bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 1bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 64bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 784bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 720bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 127bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 0bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 36bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 52bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 68bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 84bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 11bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 351bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 8201bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 4105bv16 && (buge.bv16(clientTrack_meta.hashval_for_spine_partition, 0bv16)) && (bule.bv16(clientTrack_meta.hashval_for_spine_partition, 15bv16))){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit := true;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.partitionswitchIngress_hash_spine_partition;
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4 := 3bv9;
+        call clientTrack_partitionswitchIngress_hash_spine_partition(clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4);
+        goto clientTrack_Exit;
+    }
+    if(!clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit){
+        clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run := clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action.NoAction_5;
+        call clientTrack_NoAction_5();
+        goto clientTrack_Exit;
+    }
+
+    clientTrack_Exit:
+}
+
+// clientTrack_Table clientTrack_partitionswitchIngress_ipv4_forward_tbl
+procedure {:inline 1} clientTrack_partitionswitchIngress_ipv4_forward_tbl.apply()
+	modifies clientTrack_forward, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.op_hdr.optype, clientTrack_p4b_clone_i2e, clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run, clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+    clientTrack_hdr.op_hdr.optype := clientTrack_hdr.op_hdr.optype;
+    clientTrack_hdr.ipv4_hdr.dstAddr := clientTrack_hdr.ipv4_hdr.dstAddr;
+    clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := false;
+    if(clientTrack_hdr.op_hdr.optype == 107bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 10bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 26bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 208bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 128bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 224bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 848bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 9bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 8bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 24bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 768bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_normal_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6 := 1bv9;
+        call clientTrack_partitionswitchIngress_forward_normal_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 11bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_special_get_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid := 10bv10;
+        call clientTrack_partitionswitchIngress_forward_special_get_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 27bv16 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.partitionswitchIngress_forward_special_get_response;
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid := 10bv10;
+        call clientTrack_partitionswitchIngress_forward_special_get_response(clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid);
+        goto clientTrack_Exit;
+    }
+    if(!clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit){
+        clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run := clientTrack_partitionswitchIngress_ipv4_forward_tbl.action.NoAction_7;
+        call clientTrack_NoAction_7();
+        goto clientTrack_Exit;
+    }
+
+    clientTrack_Exit:
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_l2l3_forward
+procedure {:inline 1} clientTrack_partitionswitchIngress_l2l3_forward(clientTrack_eport:clientTrack_egressSpec_t)
+	modifies clientTrack_forward, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+    clientTrack_standard_metadata.egress_spec := clientTrack_eport;
+    clientTrack_standard_metadata.egress_port := clientTrack_eport;
+    clientTrack_forward := true;
+}
+
+// clientTrack_Table clientTrack_partitionswitchIngress_l2l3_forward_tbl
+procedure {:inline 1} clientTrack_partitionswitchIngress_l2l3_forward_tbl.apply()
+	modifies clientTrack_forward, clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run, clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit, clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_spec;
+{
+    clientTrack_hdr.ethernet_hdr.dstAddr := clientTrack_hdr.ethernet_hdr.dstAddr;
+    clientTrack_hdr.ipv4_hdr.dstAddr := clientTrack_hdr.ipv4_hdr.dstAddr;
+    clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit := false;
+    if(clientTrack_hdr.ethernet_hdr.dstAddr == 2bv48 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167772162bv32){
+        clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run := clientTrack_partitionswitchIngress_l2l3_forward_tbl.action.partitionswitchIngress_l2l3_forward;
+        clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport := 1bv9;
+        call clientTrack_partitionswitchIngress_l2l3_forward(clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport);
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.ethernet_hdr.dstAddr == 3bv48 && band.bv32(clientTrack_hdr.ipv4_hdr.dstAddr, 4294967295bv32) == 167773186bv32){
+        clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit := true;
+        clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run := clientTrack_partitionswitchIngress_l2l3_forward_tbl.action.partitionswitchIngress_l2l3_forward;
+        clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport := 3bv9;
+        call clientTrack_partitionswitchIngress_l2l3_forward(clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport);
+        goto clientTrack_Exit;
+    }
+    if(!clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit){
+        clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run := clientTrack_partitionswitchIngress_l2l3_forward_tbl.action.NoAction_3;
+        call clientTrack_NoAction_3();
+        goto clientTrack_Exit;
+    }
+
+    clientTrack_Exit:
+}
+function {:inline true}clientTrack_partitionswitchIngress_leafload_reg.read(clientTrack_reg:[bv32]bv32, clientTrack_index:bv32)returns (bv32) {clientTrack_reg[clientTrack_index]}
+procedure {:inline 1} clientTrack_partitionswitchIngress_leafload_reg.write(clientTrack_index:bv32, clientTrack_value:bv32)
+	modifies clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0;
+{
+    clientTrack_partitionswitchIngress_leafload_reg__last_old_value := clientTrack_partitionswitchIngress_leafload_reg[clientTrack_index];
+    clientTrack_partitionswitchIngress_leafload_reg[clientTrack_index] := clientTrack_value;
+    clientTrack_partitionswitchIngress_leafload_reg__last_index := clientTrack_index;
+    clientTrack_partitionswitchIngress_leafload_reg__last_value := clientTrack_value;
+    clientTrack_partitionswitchIngress_leafload_reg__last_write_site := clientTrack_partitionswitchIngress_leafload_reg__next_write_site;
+    clientTrack_partitionswitchIngress_leafload_reg__wrote_any := true;
+    if (clientTrack_index == 0bv32) {
+        clientTrack_partitionswitchIngress_leafload_reg__wrote_index0 := true;
+        clientTrack_partitionswitchIngress_leafload_reg__last0_old_value := clientTrack_partitionswitchIngress_leafload_reg__last_old_value;
+        clientTrack_partitionswitchIngress_leafload_reg__last0_value := clientTrack_value;
+    }
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_poweroftwochoice
+procedure {:inline 1} clientTrack_partitionswitchIngress_poweroftwochoice()
+	modifies clientTrack_leafload_0, clientTrack_meta.is_spine, clientTrack_spineload_0;
+{
+    // clientTrack_read
+    clientTrack_spineload_0 := clientTrack_partitionswitchIngress_spineload_reg.read(clientTrack_partitionswitchIngress_spineload_reg, 0bv16++clientTrack_meta.spineswitchidx);
+    // clientTrack_read
+    clientTrack_leafload_0 := clientTrack_partitionswitchIngress_leafload_reg.read(clientTrack_partitionswitchIngress_leafload_reg, 0bv16++clientTrack_meta.leafswitchidx);
+    if(bugt.bv32(clientTrack_leafload_0, clientTrack_spineload_0)){
+        clientTrack_meta.is_spine := 1bv1;
+    }
+    else{
+        clientTrack_meta.is_spine := 0bv1;
+    }
+}
+
+// clientTrack_Table clientTrack_partitionswitchIngress_poweroftwochoice_tbl
+procedure {:inline 1} clientTrack_partitionswitchIngress_poweroftwochoice_tbl.apply()
+	modifies clientTrack_hdr.op_hdr.optype, clientTrack_leafload_0, clientTrack_meta.is_spine, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_spineload_0;
+{
+    clientTrack_hdr.op_hdr.optype := clientTrack_hdr.op_hdr.optype;
+    clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit := false;
+    if(clientTrack_hdr.op_hdr.optype == 48bv16){
+        clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit := true;
+        clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run := clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_poweroftwochoice;
+        call clientTrack_partitionswitchIngress_poweroftwochoice();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 4105bv16){
+        clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit := true;
+        clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run := clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_update_spine_load;
+        call clientTrack_partitionswitchIngress_update_spine_load();
+        goto clientTrack_Exit;
+    }
+    else if(clientTrack_hdr.op_hdr.optype == 8201bv16){
+        clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit := true;
+        clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run := clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_update_leaf_load;
+        call clientTrack_partitionswitchIngress_update_leaf_load();
+        goto clientTrack_Exit;
+    }
+    if(!clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit){
+        clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run := clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.NoAction;
+        call clientTrack_NoAction();
+        goto clientTrack_Exit;
+    }
+
+    clientTrack_Exit:
+}
+function {:inline true}clientTrack_partitionswitchIngress_spineload_reg.read(clientTrack_reg:[bv32]bv32, clientTrack_index:bv32)returns (bv32) {clientTrack_reg[clientTrack_index]}
+procedure {:inline 1} clientTrack_partitionswitchIngress_spineload_reg.write(clientTrack_index:bv32, clientTrack_value:bv32)
+	modifies clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0;
+{
+    clientTrack_partitionswitchIngress_spineload_reg__last_old_value := clientTrack_partitionswitchIngress_spineload_reg[clientTrack_index];
+    clientTrack_partitionswitchIngress_spineload_reg[clientTrack_index] := clientTrack_value;
+    clientTrack_partitionswitchIngress_spineload_reg__last_index := clientTrack_index;
+    clientTrack_partitionswitchIngress_spineload_reg__last_value := clientTrack_value;
+    clientTrack_partitionswitchIngress_spineload_reg__last_write_site := clientTrack_partitionswitchIngress_spineload_reg__next_write_site;
+    clientTrack_partitionswitchIngress_spineload_reg__wrote_any := true;
+    if (clientTrack_index == 0bv32) {
+        clientTrack_partitionswitchIngress_spineload_reg__wrote_index0 := true;
+        clientTrack_partitionswitchIngress_spineload_reg__last0_old_value := clientTrack_partitionswitchIngress_spineload_reg__last_old_value;
+        clientTrack_partitionswitchIngress_spineload_reg__last0_value := clientTrack_value;
+    }
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_update_leaf_load
+procedure {:inline 1} clientTrack_partitionswitchIngress_update_leaf_load()
+	modifies clientTrack_hdr.op_hdr.optype, clientTrack_leafload_0, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0;
+{
+    clientTrack_hdr.op_hdr.optype := 9bv16;
+    // clientTrack_read
+    clientTrack_leafload_0 := clientTrack_partitionswitchIngress_leafload_reg.read(clientTrack_partitionswitchIngress_leafload_reg, 0bv16++clientTrack_meta.leafswitchidx);
+    clientTrack_leafload_0 := add.bv32(clientTrack_leafload_0, 1bv32);
+    // clientTrack_write
+    clientTrack_partitionswitchIngress_leafload_reg__next_write_site := 1;
+    call clientTrack_partitionswitchIngress_leafload_reg.write(0bv16++clientTrack_meta.leafswitchidx, clientTrack_leafload_0);
+}
+
+// clientTrack_Action clientTrack_partitionswitchIngress_update_spine_load
+procedure {:inline 1} clientTrack_partitionswitchIngress_update_spine_load()
+	modifies clientTrack_hdr.op_hdr.optype, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_spineload_0;
+{
+    clientTrack_hdr.op_hdr.optype := 9bv16;
+    // clientTrack_read
+    clientTrack_spineload_0 := clientTrack_partitionswitchIngress_spineload_reg.read(clientTrack_partitionswitchIngress_spineload_reg, 0bv16++clientTrack_meta.spineswitchidx);
+    clientTrack_spineload_0 := add.bv32(clientTrack_spineload_0, 1bv32);
+    // clientTrack_write
+    clientTrack_partitionswitchIngress_spineload_reg__next_write_site := 1;
+    call clientTrack_partitionswitchIngress_spineload_reg.write(0bv16++clientTrack_meta.spineswitchidx, clientTrack_spineload_0);
+}
+
+// clientTrack_Parser clientTrack_partitionswitchParser
+procedure {:inline 1} clientTrack_partitionswitchParser()
+	modifies clientTrack_drop, clientTrack_isValid;
+{
+    goto clientTrack_State$partitionswitchParser$start;
+
+        clientTrack_State$partitionswitchParser$start:
+    call clientTrack_packet_in.extract(clientTrack_hdr.ethernet_hdr);
+    goto clientTrack_State$partitionswitchParser$start$parse_ipv4_2, clientTrack_State$partitionswitchParser$start$DEFAULT;
+    
+clientTrack_State$partitionswitchParser$start$parse_ipv4_2:
+    assume (clientTrack_hdr.ethernet_hdr.etherType == 2048bv16);
+    goto clientTrack_State$partitionswitchParser$parse_ipv4;
+
+    clientTrack_State$partitionswitchParser$start$DEFAULT:
+    assume(!(clientTrack_hdr.ethernet_hdr.etherType == 2048bv16));
+    goto clientTrack_State$accept;
+
+        clientTrack_State$partitionswitchParser$parse_ipv4:
+    call clientTrack_packet_in.extract(clientTrack_hdr.ipv4_hdr);
+    goto clientTrack_State$partitionswitchParser$parse_ipv4$parse_udp_dstport_2, clientTrack_State$partitionswitchParser$parse_ipv4$DEFAULT;
+    
+clientTrack_State$partitionswitchParser$parse_ipv4$parse_udp_dstport_2:
+    assume (clientTrack_hdr.ipv4_hdr.protocol == 17bv8);
+    goto clientTrack_State$partitionswitchParser$parse_udp_dstport;
+
+    clientTrack_State$partitionswitchParser$parse_ipv4$DEFAULT:
+    assume(!(clientTrack_hdr.ipv4_hdr.protocol == 17bv8));
+    goto clientTrack_State$accept;
+
+        clientTrack_State$partitionswitchParser$parse_udp_dstport:
+    call clientTrack_packet_in.extract(clientTrack_hdr.udp_hdr);
+    goto clientTrack_State$partitionswitchParser$parse_udp_dstport$parse_op_3, clientTrack_State$partitionswitchParser$parse_udp_dstport$parse_op_2, clientTrack_State$partitionswitchParser$parse_udp_dstport$DEFAULT;
+    
+clientTrack_State$partitionswitchParser$parse_udp_dstport$parse_op_3:
+    assume (band.bv16(clientTrack_hdr.udp_hdr.dstPort, 65408bv16) == band.bv16(1152bv16, 65408bv16));
+    goto clientTrack_State$partitionswitchParser$parse_op;
+    
+clientTrack_State$partitionswitchParser$parse_udp_dstport$parse_op_2:
+    assume (clientTrack_hdr.udp_hdr.dstPort == 5008bv16);
+    goto clientTrack_State$partitionswitchParser$parse_op;
+
+    clientTrack_State$partitionswitchParser$parse_udp_dstport$DEFAULT:
+    assume(!(band.bv16(clientTrack_hdr.udp_hdr.dstPort, 65408bv16) == band.bv16(1152bv16, 65408bv16))&&!(clientTrack_hdr.udp_hdr.dstPort == 5008bv16));
+    goto clientTrack_State$partitionswitchParser$parse_udp_srcport;
+
+        clientTrack_State$partitionswitchParser$parse_udp_srcport:
+    goto clientTrack_State$partitionswitchParser$parse_udp_srcport$parse_op_3, clientTrack_State$partitionswitchParser$parse_udp_srcport$parse_op_2, clientTrack_State$partitionswitchParser$parse_udp_srcport$DEFAULT;
+    
+clientTrack_State$partitionswitchParser$parse_udp_srcport$parse_op_3:
+    assume (band.bv16(clientTrack_hdr.udp_hdr.srcPort, 65408bv16) == band.bv16(1152bv16, 65408bv16));
+    goto clientTrack_State$partitionswitchParser$parse_op;
+    
+clientTrack_State$partitionswitchParser$parse_udp_srcport$parse_op_2:
+    assume (clientTrack_hdr.udp_hdr.srcPort == 5009bv16);
+    goto clientTrack_State$partitionswitchParser$parse_op;
+
+    clientTrack_State$partitionswitchParser$parse_udp_srcport$DEFAULT:
+    assume(!(band.bv16(clientTrack_hdr.udp_hdr.srcPort, 65408bv16) == band.bv16(1152bv16, 65408bv16))&&!(clientTrack_hdr.udp_hdr.srcPort == 5009bv16));
+    goto clientTrack_State$accept;
+
+        clientTrack_State$partitionswitchParser$parse_op:
+    call clientTrack_packet_in.extract(clientTrack_hdr.op_hdr);
+    goto clientTrack_State$partitionswitchParser$parse_op$DEFAULT;
+
+    clientTrack_State$partitionswitchParser$parse_op$DEFAULT:
+    assume(true);
+    goto clientTrack_State$accept;
+
+    clientTrack_State$accept:
+    call clientTrack_accept();
+    goto clientTrack_Exit;
+
+    clientTrack_State$reject:
+    call clientTrack_reject();
+    goto clientTrack_Exit;
+
+    clientTrack_Exit:
+}
+
+// clientTrack_Control clientTrack_partitionswitchVerifyChecksum
+procedure {:inline 1} clientTrack_partitionswitchVerifyChecksum()
+{
+}
+procedure clientTrack_reject();
+    ensures clientTrack_drop==true;
+	modifies clientTrack_drop;
+procedure {:inline 1} clientTrack_setInvalid(clientTrack_header:clientTrack_Ref);
+    ensures (clientTrack_isValid[clientTrack_header] == false);
+	modifies clientTrack_isValid;
+procedure {:inline 1} clientTrack_setValid(clientTrack_header:clientTrack_Ref);
+// ===== END NODE clientTrack =====
+
+// ===== BEGIN ENQUEUE PROCEDURES =====
+// ===== END ENQUEUE PROCEDURES =====
+
+// ===== BEGIN HARNESS =====
+// Auto-generated by Procurator (DSL -> Boogie harness: sequential scheduler)
+// Message abstraction: Bag(K=1) using inbox_count per node; single-slot mailbox for packet fields
+
+var procurator_step: int;
+var procurator_phase: int;
+
+// DSL state variables (modeled as Boogie globals)
+var dsl_pump_mode: bool;
+var dsl_suffix_sent: bool;
+
+// Register debug snapshots (for trace inspection)
+var clientTrack_partitionswitchIngress_leafload_reg__dbg0: bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__last_index__dbg: bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__last_value__dbg: bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__last_old_value__dbg: bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__wrote_any__dbg: bool;
+var clientTrack_partitionswitchIngress_leafload_reg__wrote_index0__dbg: bool;
+var clientTrack_partitionswitchIngress_leafload_reg__last0_old_value__dbg: bv32;
+var clientTrack_partitionswitchIngress_leafload_reg__last0_value__dbg: bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__dbg0: bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__last_index__dbg: bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__last_value__dbg: bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__last_old_value__dbg: bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__wrote_any__dbg: bool;
+var clientTrack_partitionswitchIngress_spineload_reg__wrote_index0__dbg: bool;
+var clientTrack_partitionswitchIngress_spineload_reg__last0_old_value__dbg: bv32;
+var clientTrack_partitionswitchIngress_spineload_reg__last0_value__dbg: bv32;
+
+var clientTrack_inbox_count: int;
+var io_inbox_count: int;
+
+var clientTrack_pkt_external: bool;
+var io_pkt_external: bool;
+
+// Host packet fields (mirrors connected node symbols)
+var io_standard_metadata.ingress_port: bv9;
+var io_standard_metadata.instance_type: bv32;
+var io_standard_metadata.packet_length: bv32;
+var io_standard_metadata.enq_timestamp: bv32;
+var io_standard_metadata.enq_qdepth: bv19;
+var io_standard_metadata.deq_timedelta: bv32;
+var io_standard_metadata.deq_qdepth: bv19;
+var io_standard_metadata.ingress_global_timestamp: bv48;
+var io_standard_metadata.egress_global_timestamp: bv48;
+var io_standard_metadata.mcast_grp: bv16;
+var io_standard_metadata.egress_rid: bv16;
+var io_standard_metadata.checksum_error: bv1;
+var io_standard_metadata.parser_error: clientTrack_error;
+var io_standard_metadata.priority: bv3;
+var io_hdr.ethernet_hdr.valid: bool;
+var io_hdr.ethernet_hdr.dstAddr: bv48;
+var io_hdr.ethernet_hdr.srcAddr: bv48;
+var io_hdr.ethernet_hdr.etherType: bv16;
+var io_hdr.ipv4_hdr.valid: bool;
+var io_hdr.ipv4_hdr.version: bv4;
+var io_hdr.ipv4_hdr.ihl: bv4;
+var io_hdr.ipv4_hdr.diffserv: bv8;
+var io_hdr.ipv4_hdr.totalLen: bv16;
+var io_hdr.ipv4_hdr.identification: bv16;
+var io_hdr.ipv4_hdr.flags: bv3;
+var io_hdr.ipv4_hdr.fragOffset: bv13;
+var io_hdr.ipv4_hdr.ttl: bv8;
+var io_hdr.ipv4_hdr.protocol: bv8;
+var io_hdr.ipv4_hdr.hdrChecksum: bv16;
+var io_hdr.ipv4_hdr.srcAddr: bv32;
+var io_hdr.ipv4_hdr.dstAddr: bv32;
+var io_hdr.udp_hdr.valid: bool;
+var io_hdr.udp_hdr.srcPort: bv16;
+var io_hdr.udp_hdr.dstPort: bv16;
+var io_hdr.udp_hdr.hdrlen: bv16;
+var io_hdr.udp_hdr.checksum: bv16;
+var io_hdr.op_hdr.valid: bool;
+var io_hdr.op_hdr.optype: bv16;
+var io_hdr.op_hdr.keylolo: bv32;
+var io_hdr.op_hdr.keylohi: bv32;
+var io_hdr.op_hdr.keyhilo: bv32;
+var io_hdr.op_hdr.keyhihilo: bv16;
+var io_hdr.op_hdr.keyhihihi: bv16;
+var io_meta.hashval_for_partition: bv16;
+var io_meta.hashval_for_spine_partition: bv16;
+var io_meta.spineswitchidx: bv16;
+var io_meta.leafswitchidx: bv16;
+var io_meta.is_spine: bv1;
+
+// Forwarding (derived from DSL topology)
+procedure clientTrack_Forward() returns()
+{
+  // If no forwarding decision was made, do nothing.
+  if (clientTrack_standard_metadata.egress_port == 0bv9) {
+    return;
+  }
+
+  // port-specific forwarding
+  // unknown port -> drop
+  return;
+}
+
+procedure main() returns()
+  modifies clientTrack_drop, clientTrack_forward, clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ethernet_hdr.etherType, clientTrack_hdr.ethernet_hdr.srcAddr, clientTrack_hdr.ethernet_hdr.valid, clientTrack_hdr.ipv4_hdr.diffserv, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.flags, clientTrack_hdr.ipv4_hdr.fragOffset, clientTrack_hdr.ipv4_hdr.hdrChecksum, clientTrack_hdr.ipv4_hdr.identification, clientTrack_hdr.ipv4_hdr.ihl, clientTrack_hdr.ipv4_hdr.protocol, clientTrack_hdr.ipv4_hdr.srcAddr, clientTrack_hdr.ipv4_hdr.totalLen, clientTrack_hdr.ipv4_hdr.ttl, clientTrack_hdr.ipv4_hdr.valid, clientTrack_hdr.ipv4_hdr.version, clientTrack_hdr.op_hdr.keyhihihi, clientTrack_hdr.op_hdr.keyhihilo, clientTrack_hdr.op_hdr.keyhilo, clientTrack_hdr.op_hdr.keylohi, clientTrack_hdr.op_hdr.keylolo, clientTrack_hdr.op_hdr.optype, clientTrack_hdr.op_hdr.valid, clientTrack_hdr.udp_hdr.checksum, clientTrack_hdr.udp_hdr.dstPort, clientTrack_hdr.udp_hdr.hdrlen, clientTrack_hdr.udp_hdr.srcPort, clientTrack_hdr.udp_hdr.valid, clientTrack_inbox_count, clientTrack_isValid, clientTrack_leafload_0, clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition, clientTrack_meta.is_spine, clientTrack_meta.leafswitchidx, clientTrack_meta.spineswitchidx, clientTrack_p4b_checksum_error, clientTrack_p4b_checksum_updated, clientTrack_p4b_checksum_verified, clientTrack_p4b_clone_e2e, clientTrack_p4b_clone_i2e, clientTrack_p4b_clone_i2i, clientTrack_p4b_digest, clientTrack_p4b_recirculate, clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run, clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port, clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4, clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run, clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid, clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run, clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit, clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__dbg0, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_index__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_old_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_any__dbg, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0__dbg, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__dbg0, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_index__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_old_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_any__dbg, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0__dbg, clientTrack_pkt_external, clientTrack_spineload_0, clientTrack_standard_metadata.checksum_error, clientTrack_standard_metadata.deq_qdepth, clientTrack_standard_metadata.deq_timedelta, clientTrack_standard_metadata.egress_global_timestamp, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_rid, clientTrack_standard_metadata.egress_spec, clientTrack_standard_metadata.enq_qdepth, clientTrack_standard_metadata.enq_timestamp, clientTrack_standard_metadata.ingress_global_timestamp, clientTrack_standard_metadata.ingress_port, clientTrack_standard_metadata.instance_type, clientTrack_standard_metadata.mcast_grp, clientTrack_standard_metadata.packet_length, clientTrack_standard_metadata.parser_error, clientTrack_standard_metadata.priority, dsl_pump_mode, dsl_suffix_sent, io_hdr.ethernet_hdr.dstAddr, io_hdr.ethernet_hdr.etherType, io_hdr.ethernet_hdr.srcAddr, io_hdr.ethernet_hdr.valid, io_hdr.ipv4_hdr.diffserv, io_hdr.ipv4_hdr.dstAddr, io_hdr.ipv4_hdr.flags, io_hdr.ipv4_hdr.fragOffset, io_hdr.ipv4_hdr.hdrChecksum, io_hdr.ipv4_hdr.identification, io_hdr.ipv4_hdr.ihl, io_hdr.ipv4_hdr.protocol, io_hdr.ipv4_hdr.srcAddr, io_hdr.ipv4_hdr.totalLen, io_hdr.ipv4_hdr.ttl, io_hdr.ipv4_hdr.valid, io_hdr.ipv4_hdr.version, io_hdr.op_hdr.keyhihihi, io_hdr.op_hdr.keyhihilo, io_hdr.op_hdr.keyhilo, io_hdr.op_hdr.keylohi, io_hdr.op_hdr.keylolo, io_hdr.op_hdr.optype, io_hdr.op_hdr.valid, io_hdr.udp_hdr.checksum, io_hdr.udp_hdr.dstPort, io_hdr.udp_hdr.hdrlen, io_hdr.udp_hdr.srcPort, io_hdr.udp_hdr.valid, io_inbox_count, io_meta.hashval_for_partition, io_meta.hashval_for_spine_partition, io_meta.is_spine, io_meta.leafswitchidx, io_meta.spineswitchidx, io_pkt_external, io_standard_metadata.checksum_error, io_standard_metadata.deq_qdepth, io_standard_metadata.deq_timedelta, io_standard_metadata.egress_global_timestamp, io_standard_metadata.egress_rid, io_standard_metadata.enq_qdepth, io_standard_metadata.enq_timestamp, io_standard_metadata.ingress_global_timestamp, io_standard_metadata.ingress_port, io_standard_metadata.instance_type, io_standard_metadata.mcast_grp, io_standard_metadata.packet_length, io_standard_metadata.parser_error, io_standard_metadata.priority, procurator_phase, procurator_step;
+{
+  // One scheduler step: pick exactly one action.
+  // Scheduler: deterministic round-robin over the action list.
+  if (procurator_phase == 0) {
+    dsl_pump_mode := (clientTrack_partitionswitchIngress_spineload_reg[3bv32] == 4294967295bv32);
+    // host send -> io
+    // inject packet into connected node (host -> node)
+    if (clientTrack_inbox_count < 1) {
+      assume clientTrack_inbox_count < 1;
+      havoc io_standard_metadata.ingress_port;
+      havoc io_standard_metadata.instance_type;
+      havoc io_standard_metadata.packet_length;
+      havoc io_standard_metadata.enq_timestamp;
+      havoc io_standard_metadata.enq_qdepth;
+      havoc io_standard_metadata.deq_timedelta;
+      havoc io_standard_metadata.deq_qdepth;
+      havoc io_standard_metadata.ingress_global_timestamp;
+      havoc io_standard_metadata.egress_global_timestamp;
+      havoc io_standard_metadata.mcast_grp;
+      havoc io_standard_metadata.egress_rid;
+      havoc io_standard_metadata.checksum_error;
+      havoc io_standard_metadata.parser_error;
+      havoc io_standard_metadata.priority;
+      havoc io_hdr.ethernet_hdr.dstAddr;
+      havoc io_hdr.ethernet_hdr.srcAddr;
+      havoc io_hdr.ipv4_hdr.version;
+      havoc io_hdr.ipv4_hdr.ihl;
+      havoc io_hdr.ipv4_hdr.diffserv;
+      havoc io_hdr.ipv4_hdr.totalLen;
+      havoc io_hdr.ipv4_hdr.identification;
+      havoc io_hdr.ipv4_hdr.flags;
+      havoc io_hdr.ipv4_hdr.fragOffset;
+      havoc io_hdr.ipv4_hdr.ttl;
+      havoc io_hdr.ipv4_hdr.hdrChecksum;
+      havoc io_hdr.ipv4_hdr.srcAddr;
+      havoc io_hdr.udp_hdr.srcPort;
+      havoc io_hdr.udp_hdr.hdrlen;
+      havoc io_hdr.udp_hdr.checksum;
+      havoc io_hdr.op_hdr.optype;
+      havoc io_meta.is_spine;
+      io_hdr.ethernet_hdr.valid := true;
+      io_hdr.ipv4_hdr.valid := true;
+      io_hdr.udp_hdr.valid := true;
+      io_hdr.op_hdr.valid := true;
+      io_hdr.ethernet_hdr.etherType := 2048bv16;
+      io_hdr.ipv4_hdr.protocol := 17bv8;
+      io_hdr.udp_hdr.dstPort := 5008bv16;
+      io_hdr.op_hdr.keylolo := 0bv32;
+      io_hdr.op_hdr.keylohi := 0bv32;
+      io_hdr.op_hdr.keyhilo := 0bv32;
+      io_hdr.op_hdr.keyhihilo := 0bv16;
+      io_hdr.op_hdr.keyhihihi := 0bv16;
+      io_meta.hashval_for_partition := 0bv16;
+      io_meta.hashval_for_spine_partition := 0bv16;
+      io_meta.leafswitchidx := 2bv16;
+      io_meta.spineswitchidx := 3bv16;
+      io_hdr.ipv4_hdr.dstAddr := 0bv32;
+      if (dsl_pump_mode) {
+        io_hdr.op_hdr.optype := 4105bv16;
+      } else {
+        if (!(dsl_suffix_sent)) {
+          io_hdr.op_hdr.optype := 8201bv16;
+          dsl_suffix_sent := true;
+        } else {
+          io_hdr.op_hdr.optype := 48bv16;
+        }
+      }
+      clientTrack_standard_metadata.ingress_port := io_standard_metadata.ingress_port;
+      clientTrack_standard_metadata.instance_type := io_standard_metadata.instance_type;
+      clientTrack_standard_metadata.packet_length := io_standard_metadata.packet_length;
+      clientTrack_standard_metadata.enq_timestamp := io_standard_metadata.enq_timestamp;
+      clientTrack_standard_metadata.enq_qdepth := io_standard_metadata.enq_qdepth;
+      clientTrack_standard_metadata.deq_timedelta := io_standard_metadata.deq_timedelta;
+      clientTrack_standard_metadata.deq_qdepth := io_standard_metadata.deq_qdepth;
+      clientTrack_standard_metadata.ingress_global_timestamp := io_standard_metadata.ingress_global_timestamp;
+      clientTrack_standard_metadata.egress_global_timestamp := io_standard_metadata.egress_global_timestamp;
+      clientTrack_standard_metadata.mcast_grp := io_standard_metadata.mcast_grp;
+      clientTrack_standard_metadata.egress_rid := io_standard_metadata.egress_rid;
+      clientTrack_standard_metadata.checksum_error := io_standard_metadata.checksum_error;
+      clientTrack_standard_metadata.parser_error := io_standard_metadata.parser_error;
+      clientTrack_standard_metadata.priority := io_standard_metadata.priority;
+      clientTrack_hdr.ethernet_hdr.valid := io_hdr.ethernet_hdr.valid;
+      clientTrack_hdr.ethernet_hdr.dstAddr := io_hdr.ethernet_hdr.dstAddr;
+      clientTrack_hdr.ethernet_hdr.srcAddr := io_hdr.ethernet_hdr.srcAddr;
+      clientTrack_hdr.ethernet_hdr.etherType := io_hdr.ethernet_hdr.etherType;
+      clientTrack_hdr.ipv4_hdr.valid := io_hdr.ipv4_hdr.valid;
+      clientTrack_hdr.ipv4_hdr.version := io_hdr.ipv4_hdr.version;
+      clientTrack_hdr.ipv4_hdr.ihl := io_hdr.ipv4_hdr.ihl;
+      clientTrack_hdr.ipv4_hdr.diffserv := io_hdr.ipv4_hdr.diffserv;
+      clientTrack_hdr.ipv4_hdr.totalLen := io_hdr.ipv4_hdr.totalLen;
+      clientTrack_hdr.ipv4_hdr.identification := io_hdr.ipv4_hdr.identification;
+      clientTrack_hdr.ipv4_hdr.flags := io_hdr.ipv4_hdr.flags;
+      clientTrack_hdr.ipv4_hdr.fragOffset := io_hdr.ipv4_hdr.fragOffset;
+      clientTrack_hdr.ipv4_hdr.ttl := io_hdr.ipv4_hdr.ttl;
+      clientTrack_hdr.ipv4_hdr.protocol := io_hdr.ipv4_hdr.protocol;
+      clientTrack_hdr.ipv4_hdr.hdrChecksum := io_hdr.ipv4_hdr.hdrChecksum;
+      clientTrack_hdr.ipv4_hdr.srcAddr := io_hdr.ipv4_hdr.srcAddr;
+      clientTrack_hdr.ipv4_hdr.dstAddr := io_hdr.ipv4_hdr.dstAddr;
+      clientTrack_hdr.udp_hdr.valid := io_hdr.udp_hdr.valid;
+      clientTrack_hdr.udp_hdr.srcPort := io_hdr.udp_hdr.srcPort;
+      clientTrack_hdr.udp_hdr.dstPort := io_hdr.udp_hdr.dstPort;
+      clientTrack_hdr.udp_hdr.hdrlen := io_hdr.udp_hdr.hdrlen;
+      clientTrack_hdr.udp_hdr.checksum := io_hdr.udp_hdr.checksum;
+      clientTrack_hdr.op_hdr.valid := io_hdr.op_hdr.valid;
+      clientTrack_hdr.op_hdr.optype := io_hdr.op_hdr.optype;
+      clientTrack_hdr.op_hdr.keylolo := io_hdr.op_hdr.keylolo;
+      clientTrack_hdr.op_hdr.keylohi := io_hdr.op_hdr.keylohi;
+      clientTrack_hdr.op_hdr.keyhilo := io_hdr.op_hdr.keyhilo;
+      clientTrack_hdr.op_hdr.keyhihilo := io_hdr.op_hdr.keyhihilo;
+      clientTrack_hdr.op_hdr.keyhihihi := io_hdr.op_hdr.keyhihihi;
+      clientTrack_meta.hashval_for_partition := io_meta.hashval_for_partition;
+      clientTrack_meta.hashval_for_spine_partition := io_meta.hashval_for_spine_partition;
+      clientTrack_meta.spineswitchidx := io_meta.spineswitchidx;
+      clientTrack_meta.leafswitchidx := io_meta.leafswitchidx;
+      clientTrack_meta.is_spine := io_meta.is_spine;
+      clientTrack_pkt_external := true;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+  } else if (procurator_phase == 1) {
+    // host recv -> io
+  } else if (procurator_phase == 2) {
+    // node pass -> clientTrack
+    if (clientTrack_inbox_count > 0) {
+    assume clientTrack_inbox_count > 0;
+    clientTrack_inbox_count := clientTrack_inbox_count - 1;
+    call clientTrack_mainProcedure();
+    if (clientTrack_p4b_clone_i2e) {
+      assume clientTrack_inbox_count < 1;
+      clientTrack_pkt_external := false;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    clientTrack_p4b_clone_i2e := false;
+    if (clientTrack_p4b_clone_e2e) {
+      assume clientTrack_inbox_count < 1;
+      clientTrack_pkt_external := false;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    clientTrack_p4b_clone_e2e := false;
+    if (clientTrack_p4b_clone_i2i) {
+      assume clientTrack_inbox_count < 1;
+      clientTrack_pkt_external := false;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    clientTrack_p4b_clone_i2i := false;
+    if (clientTrack_p4b_recirculate) {
+      assume clientTrack_inbox_count < 1;
+      clientTrack_pkt_external := false;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    clientTrack_p4b_recirculate := false;
+    call clientTrack_Forward();
+    // Register debug snapshot
+    clientTrack_partitionswitchIngress_leafload_reg__dbg0 := clientTrack_partitionswitchIngress_leafload_reg[0bv32];
+    clientTrack_partitionswitchIngress_leafload_reg__last_index__dbg := clientTrack_partitionswitchIngress_leafload_reg__last_index;
+    clientTrack_partitionswitchIngress_leafload_reg__last_value__dbg := clientTrack_partitionswitchIngress_leafload_reg__last_value;
+    clientTrack_partitionswitchIngress_leafload_reg__last_old_value__dbg := clientTrack_partitionswitchIngress_leafload_reg__last_old_value;
+    clientTrack_partitionswitchIngress_leafload_reg__wrote_any__dbg := clientTrack_partitionswitchIngress_leafload_reg__wrote_any;
+    clientTrack_partitionswitchIngress_leafload_reg__wrote_index0__dbg := clientTrack_partitionswitchIngress_leafload_reg__wrote_index0;
+    clientTrack_partitionswitchIngress_leafload_reg__last0_old_value__dbg := clientTrack_partitionswitchIngress_leafload_reg__last0_old_value;
+    clientTrack_partitionswitchIngress_leafload_reg__last0_value__dbg := clientTrack_partitionswitchIngress_leafload_reg__last0_value;
+    clientTrack_partitionswitchIngress_spineload_reg__dbg0 := clientTrack_partitionswitchIngress_spineload_reg[0bv32];
+    clientTrack_partitionswitchIngress_spineload_reg__last_index__dbg := clientTrack_partitionswitchIngress_spineload_reg__last_index;
+    clientTrack_partitionswitchIngress_spineload_reg__last_value__dbg := clientTrack_partitionswitchIngress_spineload_reg__last_value;
+    clientTrack_partitionswitchIngress_spineload_reg__last_old_value__dbg := clientTrack_partitionswitchIngress_spineload_reg__last_old_value;
+    clientTrack_partitionswitchIngress_spineload_reg__wrote_any__dbg := clientTrack_partitionswitchIngress_spineload_reg__wrote_any;
+    clientTrack_partitionswitchIngress_spineload_reg__wrote_index0__dbg := clientTrack_partitionswitchIngress_spineload_reg__wrote_index0;
+    clientTrack_partitionswitchIngress_spineload_reg__last0_old_value__dbg := clientTrack_partitionswitchIngress_spineload_reg__last0_old_value;
+    clientTrack_partitionswitchIngress_spineload_reg__last0_value__dbg := clientTrack_partitionswitchIngress_spineload_reg__last0_value;
+    // Global assertions
+    call __wraparound_assert((!((clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit && (clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run == clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_poweroftwochoice))) || (clientTrack_partitionswitchIngress_spineload_reg[3bv32] != 0bv32) || (clientTrack_partitionswitchIngress_leafload_reg[2bv32] == 0bv32) || (clientTrack_meta.is_spine == 0bv1)));
+    }
+  } else {
+    assume false;
+  }
+    if (procurator_phase == 2) {
+      procurator_phase := 0;
+    } else {
+      procurator_phase := procurator_phase + 1;
+    }
+}
+
+procedure mainProcedure() returns()
+  modifies clientTrack_drop, clientTrack_forward, clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ethernet_hdr.etherType, clientTrack_hdr.ethernet_hdr.srcAddr, clientTrack_hdr.ethernet_hdr.valid, clientTrack_hdr.ipv4_hdr.diffserv, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.flags, clientTrack_hdr.ipv4_hdr.fragOffset, clientTrack_hdr.ipv4_hdr.hdrChecksum, clientTrack_hdr.ipv4_hdr.identification, clientTrack_hdr.ipv4_hdr.ihl, clientTrack_hdr.ipv4_hdr.protocol, clientTrack_hdr.ipv4_hdr.srcAddr, clientTrack_hdr.ipv4_hdr.totalLen, clientTrack_hdr.ipv4_hdr.ttl, clientTrack_hdr.ipv4_hdr.valid, clientTrack_hdr.ipv4_hdr.version, clientTrack_hdr.op_hdr.keyhihihi, clientTrack_hdr.op_hdr.keyhihilo, clientTrack_hdr.op_hdr.keyhilo, clientTrack_hdr.op_hdr.keylohi, clientTrack_hdr.op_hdr.keylolo, clientTrack_hdr.op_hdr.optype, clientTrack_hdr.op_hdr.valid, clientTrack_hdr.udp_hdr.checksum, clientTrack_hdr.udp_hdr.dstPort, clientTrack_hdr.udp_hdr.hdrlen, clientTrack_hdr.udp_hdr.srcPort, clientTrack_hdr.udp_hdr.valid, clientTrack_inbox_count, clientTrack_isValid, clientTrack_leafload_0, clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition, clientTrack_meta.is_spine, clientTrack_meta.leafswitchidx, clientTrack_meta.spineswitchidx, clientTrack_p4b_checksum_error, clientTrack_p4b_checksum_updated, clientTrack_p4b_checksum_verified, clientTrack_p4b_clone_e2e, clientTrack_p4b_clone_i2e, clientTrack_p4b_clone_i2i, clientTrack_p4b_digest, clientTrack_p4b_recirculate, clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run, clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port, clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4, clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run, clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid, clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run, clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit, clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__dbg0, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_index__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_old_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_any__dbg, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0__dbg, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__dbg0, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_index__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_old_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_any__dbg, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0__dbg, clientTrack_pkt_external, clientTrack_spineload_0, clientTrack_standard_metadata.checksum_error, clientTrack_standard_metadata.deq_qdepth, clientTrack_standard_metadata.deq_timedelta, clientTrack_standard_metadata.egress_global_timestamp, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_rid, clientTrack_standard_metadata.egress_spec, clientTrack_standard_metadata.enq_qdepth, clientTrack_standard_metadata.enq_timestamp, clientTrack_standard_metadata.ingress_global_timestamp, clientTrack_standard_metadata.ingress_port, clientTrack_standard_metadata.instance_type, clientTrack_standard_metadata.mcast_grp, clientTrack_standard_metadata.packet_length, clientTrack_standard_metadata.parser_error, clientTrack_standard_metadata.priority, dsl_pump_mode, dsl_suffix_sent, io_hdr.ethernet_hdr.dstAddr, io_hdr.ethernet_hdr.etherType, io_hdr.ethernet_hdr.srcAddr, io_hdr.ethernet_hdr.valid, io_hdr.ipv4_hdr.diffserv, io_hdr.ipv4_hdr.dstAddr, io_hdr.ipv4_hdr.flags, io_hdr.ipv4_hdr.fragOffset, io_hdr.ipv4_hdr.hdrChecksum, io_hdr.ipv4_hdr.identification, io_hdr.ipv4_hdr.ihl, io_hdr.ipv4_hdr.protocol, io_hdr.ipv4_hdr.srcAddr, io_hdr.ipv4_hdr.totalLen, io_hdr.ipv4_hdr.ttl, io_hdr.ipv4_hdr.valid, io_hdr.ipv4_hdr.version, io_hdr.op_hdr.keyhihihi, io_hdr.op_hdr.keyhihilo, io_hdr.op_hdr.keyhilo, io_hdr.op_hdr.keylohi, io_hdr.op_hdr.keylolo, io_hdr.op_hdr.optype, io_hdr.op_hdr.valid, io_hdr.udp_hdr.checksum, io_hdr.udp_hdr.dstPort, io_hdr.udp_hdr.hdrlen, io_hdr.udp_hdr.srcPort, io_hdr.udp_hdr.valid, io_inbox_count, io_meta.hashval_for_partition, io_meta.hashval_for_spine_partition, io_meta.is_spine, io_meta.leafswitchidx, io_meta.spineswitchidx, io_pkt_external, io_standard_metadata.checksum_error, io_standard_metadata.deq_qdepth, io_standard_metadata.deq_timedelta, io_standard_metadata.egress_global_timestamp, io_standard_metadata.egress_rid, io_standard_metadata.enq_qdepth, io_standard_metadata.enq_timestamp, io_standard_metadata.ingress_global_timestamp, io_standard_metadata.ingress_port, io_standard_metadata.instance_type, io_standard_metadata.mcast_grp, io_standard_metadata.packet_length, io_standard_metadata.parser_error, io_standard_metadata.priority, procurator_phase, procurator_step;
+{
+  // initialize inboxes
+  clientTrack_inbox_count := 0;
+  clientTrack_pkt_external := false;
+  io_inbox_count := 0;
+  io_pkt_external := false;
+  // initialize P4B event flags (clone/recirculate)
+  clientTrack_p4b_clone_i2e := false;
+  clientTrack_p4b_clone_e2e := false;
+  clientTrack_p4b_clone_i2i := false;
+  clientTrack_p4b_recirculate := false;
+
+  // initialize DSL state
+  dsl_pump_mode := true;
+  dsl_suffix_sent := false;
+  // initialize P4 registers (default 0)
+  assume (forall i:bv32 :: clientTrack_partitionswitchIngress_leafload_reg[i] == 0bv32);
+  assume clientTrack_partitionswitchIngress_leafload_reg[0bv32] == 0bv32;
+  assume (forall i:bv32 :: clientTrack_partitionswitchIngress_spineload_reg[i] == 0bv32);
+  assume clientTrack_partitionswitchIngress_spineload_reg[0bv32] == 0bv32;
+  // initialize register write tracking (debug)
+  clientTrack_partitionswitchIngress_leafload_reg__last_index := 0bv32;
+  clientTrack_partitionswitchIngress_leafload_reg__last_value := 0bv32;
+  clientTrack_partitionswitchIngress_leafload_reg__last_old_value := 0bv32;
+  clientTrack_partitionswitchIngress_leafload_reg__wrote_any := false;
+  clientTrack_partitionswitchIngress_leafload_reg__wrote_index0 := false;
+  clientTrack_partitionswitchIngress_leafload_reg__next_write_site := 0;
+  clientTrack_partitionswitchIngress_leafload_reg__last_write_site := 0;
+  clientTrack_partitionswitchIngress_leafload_reg__last0_old_value := 0bv32;
+  clientTrack_partitionswitchIngress_leafload_reg__last0_value := 0bv32;
+  clientTrack_partitionswitchIngress_spineload_reg__last_index := 0bv32;
+  clientTrack_partitionswitchIngress_spineload_reg__last_value := 0bv32;
+  clientTrack_partitionswitchIngress_spineload_reg__last_old_value := 0bv32;
+  clientTrack_partitionswitchIngress_spineload_reg__wrote_any := false;
+  clientTrack_partitionswitchIngress_spineload_reg__wrote_index0 := false;
+  clientTrack_partitionswitchIngress_spineload_reg__next_write_site := 0;
+  clientTrack_partitionswitchIngress_spineload_reg__last_write_site := 0;
+  clientTrack_partitionswitchIngress_spineload_reg__last0_old_value := 0bv32;
+  clientTrack_partitionswitchIngress_spineload_reg__last0_value := 0bv32;
+
+  procurator_step := 0;
+  procurator_phase := 0;
+  // wraparound confirm fast-forward (generated)
+  clientTrack_partitionswitchIngress_spineload_reg[3bv32] := 4294967295bv32;
+
+  clientTrack_partitionswitchIngress_spineload_reg__last_index := 3bv32;
+
+  clientTrack_partitionswitchIngress_spineload_reg__last_value := 4294967295bv32;
+
+  clientTrack_partitionswitchIngress_spineload_reg__wrote_any := true;
+
+  if (3bv32 == 0bv32) {
+
+    clientTrack_partitionswitchIngress_spineload_reg__wrote_index0 := true;
+
+    clientTrack_partitionswitchIngress_spineload_reg__last0_value := 4294967295bv32;
+
+  }
+  // wraparound dynamic-index slot defaults (generated)
+  assume clientTrack_partitionswitchIngress_leafload_reg[3bv32] == 0bv32;
+
+
+  // UNROLLED 3 steps (wraparound)
+    // wraparound inlined phase 0 (generated)
+    assume procurator_phase == 0;
+    dsl_pump_mode := (clientTrack_partitionswitchIngress_spineload_reg[3bv32] == 4294967295bv32);
+    // host send -> io
+    // inject packet into connected node (host -> node)
+    if (clientTrack_inbox_count < 1) {
+      assume clientTrack_inbox_count < 1;
+      havoc io_standard_metadata.ingress_port;
+      havoc io_standard_metadata.instance_type;
+      havoc io_standard_metadata.packet_length;
+      havoc io_standard_metadata.enq_timestamp;
+      havoc io_standard_metadata.enq_qdepth;
+      havoc io_standard_metadata.deq_timedelta;
+      havoc io_standard_metadata.deq_qdepth;
+      havoc io_standard_metadata.ingress_global_timestamp;
+      havoc io_standard_metadata.egress_global_timestamp;
+      havoc io_standard_metadata.mcast_grp;
+      havoc io_standard_metadata.egress_rid;
+      havoc io_standard_metadata.checksum_error;
+      havoc io_standard_metadata.parser_error;
+      havoc io_standard_metadata.priority;
+      havoc io_hdr.ethernet_hdr.dstAddr;
+      havoc io_hdr.ethernet_hdr.srcAddr;
+      havoc io_hdr.ipv4_hdr.version;
+      havoc io_hdr.ipv4_hdr.ihl;
+      havoc io_hdr.ipv4_hdr.diffserv;
+      havoc io_hdr.ipv4_hdr.totalLen;
+      havoc io_hdr.ipv4_hdr.identification;
+      havoc io_hdr.ipv4_hdr.flags;
+      havoc io_hdr.ipv4_hdr.fragOffset;
+      havoc io_hdr.ipv4_hdr.ttl;
+      havoc io_hdr.ipv4_hdr.hdrChecksum;
+      havoc io_hdr.ipv4_hdr.srcAddr;
+      havoc io_hdr.udp_hdr.srcPort;
+      havoc io_hdr.udp_hdr.hdrlen;
+      havoc io_hdr.udp_hdr.checksum;
+      havoc io_hdr.op_hdr.optype;
+      havoc io_meta.is_spine;
+      io_hdr.ethernet_hdr.valid := true;
+      io_hdr.ipv4_hdr.valid := true;
+      io_hdr.udp_hdr.valid := true;
+      io_hdr.op_hdr.valid := true;
+      io_hdr.ethernet_hdr.etherType := 2048bv16;
+      io_hdr.ipv4_hdr.protocol := 17bv8;
+      io_hdr.udp_hdr.dstPort := 5008bv16;
+      io_hdr.op_hdr.keylolo := 0bv32;
+      io_hdr.op_hdr.keylohi := 0bv32;
+      io_hdr.op_hdr.keyhilo := 0bv32;
+      io_hdr.op_hdr.keyhihilo := 0bv16;
+      io_hdr.op_hdr.keyhihihi := 0bv16;
+      io_meta.hashval_for_partition := 0bv16;
+      io_meta.hashval_for_spine_partition := 0bv16;
+      io_meta.leafswitchidx := 2bv16;
+      io_meta.spineswitchidx := 3bv16;
+      io_hdr.ipv4_hdr.dstAddr := 0bv32;
+      if (dsl_pump_mode) {
+        io_hdr.op_hdr.optype := 4105bv16;
+      } else {
+        if (!(dsl_suffix_sent)) {
+          io_hdr.op_hdr.optype := 8201bv16;
+          dsl_suffix_sent := true;
+        } else {
+          io_hdr.op_hdr.optype := 48bv16;
+        }
+      }
+      clientTrack_standard_metadata.ingress_port := io_standard_metadata.ingress_port;
+      clientTrack_standard_metadata.instance_type := io_standard_metadata.instance_type;
+      clientTrack_standard_metadata.packet_length := io_standard_metadata.packet_length;
+      clientTrack_standard_metadata.enq_timestamp := io_standard_metadata.enq_timestamp;
+      clientTrack_standard_metadata.enq_qdepth := io_standard_metadata.enq_qdepth;
+      clientTrack_standard_metadata.deq_timedelta := io_standard_metadata.deq_timedelta;
+      clientTrack_standard_metadata.deq_qdepth := io_standard_metadata.deq_qdepth;
+      clientTrack_standard_metadata.ingress_global_timestamp := io_standard_metadata.ingress_global_timestamp;
+      clientTrack_standard_metadata.egress_global_timestamp := io_standard_metadata.egress_global_timestamp;
+      clientTrack_standard_metadata.mcast_grp := io_standard_metadata.mcast_grp;
+      clientTrack_standard_metadata.egress_rid := io_standard_metadata.egress_rid;
+      clientTrack_standard_metadata.checksum_error := io_standard_metadata.checksum_error;
+      clientTrack_standard_metadata.parser_error := io_standard_metadata.parser_error;
+      clientTrack_standard_metadata.priority := io_standard_metadata.priority;
+      clientTrack_hdr.ethernet_hdr.valid := io_hdr.ethernet_hdr.valid;
+      clientTrack_hdr.ethernet_hdr.dstAddr := io_hdr.ethernet_hdr.dstAddr;
+      clientTrack_hdr.ethernet_hdr.srcAddr := io_hdr.ethernet_hdr.srcAddr;
+      clientTrack_hdr.ethernet_hdr.etherType := io_hdr.ethernet_hdr.etherType;
+      clientTrack_hdr.ipv4_hdr.valid := io_hdr.ipv4_hdr.valid;
+      clientTrack_hdr.ipv4_hdr.version := io_hdr.ipv4_hdr.version;
+      clientTrack_hdr.ipv4_hdr.ihl := io_hdr.ipv4_hdr.ihl;
+      clientTrack_hdr.ipv4_hdr.diffserv := io_hdr.ipv4_hdr.diffserv;
+      clientTrack_hdr.ipv4_hdr.totalLen := io_hdr.ipv4_hdr.totalLen;
+      clientTrack_hdr.ipv4_hdr.identification := io_hdr.ipv4_hdr.identification;
+      clientTrack_hdr.ipv4_hdr.flags := io_hdr.ipv4_hdr.flags;
+      clientTrack_hdr.ipv4_hdr.fragOffset := io_hdr.ipv4_hdr.fragOffset;
+      clientTrack_hdr.ipv4_hdr.ttl := io_hdr.ipv4_hdr.ttl;
+      clientTrack_hdr.ipv4_hdr.protocol := io_hdr.ipv4_hdr.protocol;
+      clientTrack_hdr.ipv4_hdr.hdrChecksum := io_hdr.ipv4_hdr.hdrChecksum;
+      clientTrack_hdr.ipv4_hdr.srcAddr := io_hdr.ipv4_hdr.srcAddr;
+      clientTrack_hdr.ipv4_hdr.dstAddr := io_hdr.ipv4_hdr.dstAddr;
+      clientTrack_hdr.udp_hdr.valid := io_hdr.udp_hdr.valid;
+      clientTrack_hdr.udp_hdr.srcPort := io_hdr.udp_hdr.srcPort;
+      clientTrack_hdr.udp_hdr.dstPort := io_hdr.udp_hdr.dstPort;
+      clientTrack_hdr.udp_hdr.hdrlen := io_hdr.udp_hdr.hdrlen;
+      clientTrack_hdr.udp_hdr.checksum := io_hdr.udp_hdr.checksum;
+      clientTrack_hdr.op_hdr.valid := io_hdr.op_hdr.valid;
+      clientTrack_hdr.op_hdr.optype := io_hdr.op_hdr.optype;
+      clientTrack_hdr.op_hdr.keylolo := io_hdr.op_hdr.keylolo;
+      clientTrack_hdr.op_hdr.keylohi := io_hdr.op_hdr.keylohi;
+      clientTrack_hdr.op_hdr.keyhilo := io_hdr.op_hdr.keyhilo;
+      clientTrack_hdr.op_hdr.keyhihilo := io_hdr.op_hdr.keyhihilo;
+      clientTrack_hdr.op_hdr.keyhihihi := io_hdr.op_hdr.keyhihihi;
+      clientTrack_meta.hashval_for_partition := io_meta.hashval_for_partition;
+      clientTrack_meta.hashval_for_spine_partition := io_meta.hashval_for_spine_partition;
+      clientTrack_meta.spineswitchidx := io_meta.spineswitchidx;
+      clientTrack_meta.leafswitchidx := io_meta.leafswitchidx;
+      clientTrack_meta.is_spine := io_meta.is_spine;
+      clientTrack_pkt_external := true;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    procurator_phase := 1;
+    procurator_step := procurator_step + 1;
+    // wraparound inlined phase 1 (generated)
+    assume procurator_phase == 1;
+    // host recv -> io
+    procurator_phase := 2;
+    procurator_step := procurator_step + 1;
+    // wraparound inlined phase 2 (generated)
+    assume procurator_phase == 2;
+    // node pass -> clientTrack
+    if (clientTrack_inbox_count > 0) {
+    assume clientTrack_inbox_count > 0;
+    clientTrack_inbox_count := clientTrack_inbox_count - 1;
+    call clientTrack_mainProcedure();
+    if (clientTrack_p4b_clone_i2e) {
+      assume clientTrack_inbox_count < 1;
+      clientTrack_pkt_external := false;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    clientTrack_p4b_clone_i2e := false;
+    if (clientTrack_p4b_clone_e2e) {
+      assume clientTrack_inbox_count < 1;
+      clientTrack_pkt_external := false;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    clientTrack_p4b_clone_e2e := false;
+    if (clientTrack_p4b_clone_i2i) {
+      assume clientTrack_inbox_count < 1;
+      clientTrack_pkt_external := false;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    clientTrack_p4b_clone_i2i := false;
+    if (clientTrack_p4b_recirculate) {
+      assume clientTrack_inbox_count < 1;
+      clientTrack_pkt_external := false;
+      clientTrack_inbox_count := clientTrack_inbox_count + 1;
+    }
+    clientTrack_p4b_recirculate := false;
+    call clientTrack_Forward();
+    // Register debug snapshot
+    clientTrack_partitionswitchIngress_leafload_reg__dbg0 := clientTrack_partitionswitchIngress_leafload_reg[0bv32];
+    clientTrack_partitionswitchIngress_leafload_reg__last_index__dbg := clientTrack_partitionswitchIngress_leafload_reg__last_index;
+    clientTrack_partitionswitchIngress_leafload_reg__last_value__dbg := clientTrack_partitionswitchIngress_leafload_reg__last_value;
+    clientTrack_partitionswitchIngress_leafload_reg__last_old_value__dbg := clientTrack_partitionswitchIngress_leafload_reg__last_old_value;
+    clientTrack_partitionswitchIngress_leafload_reg__wrote_any__dbg := clientTrack_partitionswitchIngress_leafload_reg__wrote_any;
+    clientTrack_partitionswitchIngress_leafload_reg__wrote_index0__dbg := clientTrack_partitionswitchIngress_leafload_reg__wrote_index0;
+    clientTrack_partitionswitchIngress_leafload_reg__last0_old_value__dbg := clientTrack_partitionswitchIngress_leafload_reg__last0_old_value;
+    clientTrack_partitionswitchIngress_leafload_reg__last0_value__dbg := clientTrack_partitionswitchIngress_leafload_reg__last0_value;
+    clientTrack_partitionswitchIngress_spineload_reg__dbg0 := clientTrack_partitionswitchIngress_spineload_reg[0bv32];
+    clientTrack_partitionswitchIngress_spineload_reg__last_index__dbg := clientTrack_partitionswitchIngress_spineload_reg__last_index;
+    clientTrack_partitionswitchIngress_spineload_reg__last_value__dbg := clientTrack_partitionswitchIngress_spineload_reg__last_value;
+    clientTrack_partitionswitchIngress_spineload_reg__last_old_value__dbg := clientTrack_partitionswitchIngress_spineload_reg__last_old_value;
+    clientTrack_partitionswitchIngress_spineload_reg__wrote_any__dbg := clientTrack_partitionswitchIngress_spineload_reg__wrote_any;
+    clientTrack_partitionswitchIngress_spineload_reg__wrote_index0__dbg := clientTrack_partitionswitchIngress_spineload_reg__wrote_index0;
+    clientTrack_partitionswitchIngress_spineload_reg__last0_old_value__dbg := clientTrack_partitionswitchIngress_spineload_reg__last0_old_value;
+    clientTrack_partitionswitchIngress_spineload_reg__last0_value__dbg := clientTrack_partitionswitchIngress_spineload_reg__last0_value;
+    // Global assertions
+    call __wraparound_assert((!((clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit && (clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run == clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action.partitionswitchIngress_poweroftwochoice))) || (clientTrack_partitionswitchIngress_spineload_reg[3bv32] != 0bv32) || (clientTrack_partitionswitchIngress_leafload_reg[2bv32] == 0bv32) || (clientTrack_meta.is_spine == 0bv1)));
+    }
+    procurator_phase := 0;
+    procurator_step := procurator_step + 1;
+}
+
+
+procedure ULTIMATE.start() returns()
+  modifies clientTrack_drop, clientTrack_forward, clientTrack_hdr.ethernet_hdr.dstAddr, clientTrack_hdr.ethernet_hdr.etherType, clientTrack_hdr.ethernet_hdr.srcAddr, clientTrack_hdr.ethernet_hdr.valid, clientTrack_hdr.ipv4_hdr.diffserv, clientTrack_hdr.ipv4_hdr.dstAddr, clientTrack_hdr.ipv4_hdr.flags, clientTrack_hdr.ipv4_hdr.fragOffset, clientTrack_hdr.ipv4_hdr.hdrChecksum, clientTrack_hdr.ipv4_hdr.identification, clientTrack_hdr.ipv4_hdr.ihl, clientTrack_hdr.ipv4_hdr.protocol, clientTrack_hdr.ipv4_hdr.srcAddr, clientTrack_hdr.ipv4_hdr.totalLen, clientTrack_hdr.ipv4_hdr.ttl, clientTrack_hdr.ipv4_hdr.valid, clientTrack_hdr.ipv4_hdr.version, clientTrack_hdr.op_hdr.keyhihihi, clientTrack_hdr.op_hdr.keyhihilo, clientTrack_hdr.op_hdr.keyhilo, clientTrack_hdr.op_hdr.keylohi, clientTrack_hdr.op_hdr.keylolo, clientTrack_hdr.op_hdr.optype, clientTrack_hdr.op_hdr.valid, clientTrack_hdr.udp_hdr.checksum, clientTrack_hdr.udp_hdr.dstPort, clientTrack_hdr.udp_hdr.hdrlen, clientTrack_hdr.udp_hdr.srcPort, clientTrack_hdr.udp_hdr.valid, clientTrack_inbox_count, clientTrack_isValid, clientTrack_leafload_0, clientTrack_meta.hashval_for_partition, clientTrack_meta.hashval_for_spine_partition, clientTrack_meta.is_spine, clientTrack_meta.leafswitchidx, clientTrack_meta.spineswitchidx, clientTrack_p4b_checksum_error, clientTrack_p4b_checksum_updated, clientTrack_p4b_checksum_verified, clientTrack_p4b_clone_e2e, clientTrack_p4b_clone_i2e, clientTrack_p4b_clone_i2i, clientTrack_p4b_digest, clientTrack_p4b_recirculate, clientTrack_partitionswitchEgress_eg_port_forward_tbl.action_run, clientTrack_partitionswitchEgress_eg_port_forward_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.action_run, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.hit, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.client_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_ip, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_mac, clientTrack_partitionswitchEgress_update_ipmac_srcport_tbl.partitionswitchEgress_update_ipmac_srcport_server2client.server_port, clientTrack_partitionswitchIngress_hash_for_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_for_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_leaf_partition_tbl.partitionswitchIngress_hash_leaf_partition.eport_5, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.action_run, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.hit, clientTrack_partitionswitchIngress_hash_spine_partition_tbl.partitionswitchIngress_hash_spine_partition.eport_4, clientTrack_partitionswitchIngress_ipv4_forward_tbl.action_run, clientTrack_partitionswitchIngress_ipv4_forward_tbl.hit, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_normal_response.eport_6, clientTrack_partitionswitchIngress_ipv4_forward_tbl.partitionswitchIngress_forward_special_get_response.client_sid, clientTrack_partitionswitchIngress_l2l3_forward_tbl.action_run, clientTrack_partitionswitchIngress_l2l3_forward_tbl.hit, clientTrack_partitionswitchIngress_l2l3_forward_tbl.partitionswitchIngress_l2l3_forward.eport, clientTrack_partitionswitchIngress_leafload_reg, clientTrack_partitionswitchIngress_leafload_reg__dbg0, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value, clientTrack_partitionswitchIngress_leafload_reg__last0_old_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last0_value, clientTrack_partitionswitchIngress_leafload_reg__last0_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_index, clientTrack_partitionswitchIngress_leafload_reg__last_index__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_old_value, clientTrack_partitionswitchIngress_leafload_reg__last_old_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_value, clientTrack_partitionswitchIngress_leafload_reg__last_value__dbg, clientTrack_partitionswitchIngress_leafload_reg__last_write_site, clientTrack_partitionswitchIngress_leafload_reg__next_write_site, clientTrack_partitionswitchIngress_leafload_reg__wrote_any, clientTrack_partitionswitchIngress_leafload_reg__wrote_any__dbg, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0, clientTrack_partitionswitchIngress_leafload_reg__wrote_index0__dbg, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.action_run, clientTrack_partitionswitchIngress_poweroftwochoice_tbl.hit, clientTrack_partitionswitchIngress_spineload_reg, clientTrack_partitionswitchIngress_spineload_reg__dbg0, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value, clientTrack_partitionswitchIngress_spineload_reg__last0_old_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last0_value, clientTrack_partitionswitchIngress_spineload_reg__last0_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_index, clientTrack_partitionswitchIngress_spineload_reg__last_index__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_old_value, clientTrack_partitionswitchIngress_spineload_reg__last_old_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_value, clientTrack_partitionswitchIngress_spineload_reg__last_value__dbg, clientTrack_partitionswitchIngress_spineload_reg__last_write_site, clientTrack_partitionswitchIngress_spineload_reg__next_write_site, clientTrack_partitionswitchIngress_spineload_reg__wrote_any, clientTrack_partitionswitchIngress_spineload_reg__wrote_any__dbg, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0, clientTrack_partitionswitchIngress_spineload_reg__wrote_index0__dbg, clientTrack_pkt_external, clientTrack_spineload_0, clientTrack_standard_metadata.checksum_error, clientTrack_standard_metadata.deq_qdepth, clientTrack_standard_metadata.deq_timedelta, clientTrack_standard_metadata.egress_global_timestamp, clientTrack_standard_metadata.egress_port, clientTrack_standard_metadata.egress_rid, clientTrack_standard_metadata.egress_spec, clientTrack_standard_metadata.enq_qdepth, clientTrack_standard_metadata.enq_timestamp, clientTrack_standard_metadata.ingress_global_timestamp, clientTrack_standard_metadata.ingress_port, clientTrack_standard_metadata.instance_type, clientTrack_standard_metadata.mcast_grp, clientTrack_standard_metadata.packet_length, clientTrack_standard_metadata.parser_error, clientTrack_standard_metadata.priority, dsl_pump_mode, dsl_suffix_sent, io_hdr.ethernet_hdr.dstAddr, io_hdr.ethernet_hdr.etherType, io_hdr.ethernet_hdr.srcAddr, io_hdr.ethernet_hdr.valid, io_hdr.ipv4_hdr.diffserv, io_hdr.ipv4_hdr.dstAddr, io_hdr.ipv4_hdr.flags, io_hdr.ipv4_hdr.fragOffset, io_hdr.ipv4_hdr.hdrChecksum, io_hdr.ipv4_hdr.identification, io_hdr.ipv4_hdr.ihl, io_hdr.ipv4_hdr.protocol, io_hdr.ipv4_hdr.srcAddr, io_hdr.ipv4_hdr.totalLen, io_hdr.ipv4_hdr.ttl, io_hdr.ipv4_hdr.valid, io_hdr.ipv4_hdr.version, io_hdr.op_hdr.keyhihihi, io_hdr.op_hdr.keyhihilo, io_hdr.op_hdr.keyhilo, io_hdr.op_hdr.keylohi, io_hdr.op_hdr.keylolo, io_hdr.op_hdr.optype, io_hdr.op_hdr.valid, io_hdr.udp_hdr.checksum, io_hdr.udp_hdr.dstPort, io_hdr.udp_hdr.hdrlen, io_hdr.udp_hdr.srcPort, io_hdr.udp_hdr.valid, io_inbox_count, io_meta.hashval_for_partition, io_meta.hashval_for_spine_partition, io_meta.is_spine, io_meta.leafswitchidx, io_meta.spineswitchidx, io_pkt_external, io_standard_metadata.checksum_error, io_standard_metadata.deq_qdepth, io_standard_metadata.deq_timedelta, io_standard_metadata.egress_global_timestamp, io_standard_metadata.egress_rid, io_standard_metadata.enq_qdepth, io_standard_metadata.enq_timestamp, io_standard_metadata.ingress_global_timestamp, io_standard_metadata.ingress_port, io_standard_metadata.instance_type, io_standard_metadata.mcast_grp, io_standard_metadata.packet_length, io_standard_metadata.parser_error, io_standard_metadata.priority, procurator_phase, procurator_step;
+{
+  call mainProcedure();
+}
+
+// ===== END HARNESS =====
+procedure {:inline 1} __wraparound_assert(cond: bool) returns()
+{
+  if (((clientTrack_partitionswitchIngress_spineload_reg[3bv32] != 4294967295bv32) || (clientTrack_partitionswitchIngress_spineload_reg__wrote_any && clientTrack_partitionswitchIngress_spineload_reg__last_index == 3bv32 && clientTrack_partitionswitchIngress_spineload_reg__last_value != 4294967295bv32))) {
+    assert cond;
+  } else {
+    assume true;
+  }
+}
+

@@ -1,0 +1,6 @@
+[OK] bpl: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/atp_count_mismatch_bug.bpl
+[RESULT] RESULT: UNSAFE
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/gemcutter.log
+[RESULT] RESULT: UNSAFE (witness rerun)
+[LOG] /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/atp_count_mismatch_bug/20260704-084101-c6ef/gemcutter.witness.log
+[CEX] dsl_assert: DSL global assertion violated (accumulator flag set; atp_count_mismatch_bug.bpl-witness.graphml)

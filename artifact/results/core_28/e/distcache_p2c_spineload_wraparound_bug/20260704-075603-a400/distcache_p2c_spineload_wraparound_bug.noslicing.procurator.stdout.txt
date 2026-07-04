@@ -1,0 +1,14 @@
+[WRAP] stage=entry_check input=distcache_p2c_spineload_wraparound_bug.cegis.00.entry_check.bpl timeout_s=900 toolchain=ReachSafety.xml settings=ReachSafety-32bit-GemCutter-ALL.epf
+[WRAP] stage=entry_check rc=0 early_stop=true result=RESULT: UNSAFE wall_s=8.6
+[WRAP] stage=confirm input=distcache_p2c_spineload_wraparound_bug.cegis.00.confirm.unroll1.bpl timeout_s=900 toolchain=ReachSafety.xml settings=ReachSafety-32bit-GemCutter-ALL.epf
+[WRAP] stage=confirm rc=0 early_stop=false result=RESULT: Ultimate could not prove your program: Timeout wall_s=905.0
+[WRAP] stage=confirm input=distcache_p2c_spineload_wraparound_bug.cegis.00.confirm.unroll2.bpl timeout_s=900 toolchain=ReachSafety.xml settings=ReachSafety-32bit-GemCutter-ALL.epf
+[WRAP] stage=confirm rc=0 early_stop=false result=RESULT: Ultimate proved your program to be correct! wall_s=535.7
+[WRAP] stage=confirm input=distcache_p2c_spineload_wraparound_bug.cegis.00.confirm.unroll3.bpl timeout_s=900 toolchain=ReachSafety.xml settings=ReachSafety-32bit-GemCutter-ALL.epf
+[WRAP] stage=confirm rc=0 early_stop=false result=RESULT: UNSAFE wall_s=79.0
+[WRAP] stage=closure_check input=distcache_p2c_spineload_wraparound_bug.cegis.00.closure_check.bpl timeout_s=900 toolchain=ClosureCheck-ReachSafety.xml settings=ReachSafety-32bit-GemCutter-ALL-no-por.epf
+[WRAP] stage=closure_check rc=0 early_stop=false result=RESULT: Ultimate proved your program to be correct! wall_s=25.8
+[WRAP] stage=confirm.witness.unroll3 input=distcache_p2c_spineload_wraparound_bug.cegis.00.confirm.unroll3.bpl timeout_s=300 toolchain=ReachSafety-Witness.xml settings=ReachSafety-32bit-GemCutter-ALL-witness.epf
+[WRAP] stage=confirm.witness.unroll3 rc=0 early_stop=false result=RESULT: UNSAFE wall_s=81.3
+[WRAP] CERTIFIED UNSAFE: /home/smy/p4-verify-camera-ready/.tmp/procurator/verify/distcache_p2c_spineload_wraparound_bug/20260704-075603-a400/wraparound/target.00.clientTrack_partitionswitchIngress_spineload_reg/wraparound.cegis.manifest.json
+[CEX] certified: ENTRY+CONFIRM UNSAFE and CLOSURE SAFE

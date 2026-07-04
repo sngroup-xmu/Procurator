@@ -1,0 +1,14 @@
+{
+  "assert_line": 344,
+  "assert_lines": [
+    344
+  ],
+  "bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_router_ttl_expiry_bug/20260704-071254-01c5/p4db_router_ttl_expiry_bug.bpl",
+  "focused_bpl_sha256": "1d20557e4f919f2018ec1982fb75f4a949f2ee8cafbd35b2c0210a52639b3d80",
+  "kind": "bounded_dsl_replay_under_approx",
+  "log": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_router_ttl_expiry_bug/20260704-071254-01c5/p4db_router_ttl_expiry_bug.bounded-dsl-replay.textual.log",
+  "note": "UNSAFE by deterministic bounded DSL replay of procurator_bad. This is an UNSAFE-only under-approximation; unsupported, SAFE, UNKNOWN, TIMEOUT, or missing replay evidence falls back to the solver.",
+  "result_line": "RESULT: UNSAFE",
+  "source_bpl": "/home/smy/p4-verify-camera-ready/.tmp/procurator/verify/p4db_router_ttl_expiry_bug/20260704-071254-01c5/p4db_router_ttl_expiry_bug.bpl",
+  "source_bpl_sha256": "1d20557e4f919f2018ec1982fb75f4a949f2ee8cafbd35b2c0210a52639b3d80"
+}

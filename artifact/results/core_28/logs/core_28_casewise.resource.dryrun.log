@@ -1,0 +1,841 @@
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound auto --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --spec benchmarks/specs/bench/netchain_wraparound_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetChain wrap-around bug (NSDI) | `benchmarks/specs/bench/netchain_wraparound_bug.prop` | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-slicing --no-env-prune` | - | N/A |  | wraparound |
+
+benchmark case dry-run: netchain_wraparound_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound auto --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --spec benchmarks/specs/bench/netchain_wraparound_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetChain wrap-around bug (NSDI) | `benchmarks/specs/bench/netchain_wraparound_bug.prop` | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds` | - | N/A | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-slicing --no-env-prune` | 0.0 | DRY |  | wraparound |
+
+benchmark case dry-run: netchain_wraparound_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound auto --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --spec benchmarks/specs/bench/distcache_p2c_spineload_wraparound_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache P2C spineload wrap-around bug | `benchmarks/specs/bench/distcache_p2c_spineload_wraparound_bug.prop` | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0` | 0.0 | DRY | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing --no-env-prune` | - | N/A |  | wraparound |
+
+benchmark case dry-run: distcache_p2c_spineload_wraparound_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound auto --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --spec benchmarks/specs/bench/distcache_p2c_spineload_wraparound_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache P2C spineload wrap-around bug | `benchmarks/specs/bench/distcache_p2c_spineload_wraparound_bug.prop` | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0` | - | N/A | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing --no-env-prune` | 0.0 | DRY |  | wraparound |
+
+benchmark case dry-run: distcache_p2c_spineload_wraparound_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound auto --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --spec benchmarks/specs/bench/distcache_p2c_wraparound_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache P2C wrong-choice after overflow | `benchmarks/specs/bench/distcache_p2c_wraparound_bug.prop` | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-slicing --no-env-prune` | - | N/A |  | wraparound |
+
+benchmark case dry-run: distcache_p2c_wraparound_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound auto --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --spec benchmarks/specs/bench/distcache_p2c_wraparound_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache P2C wrong-choice after overflow | `benchmarks/specs/bench/distcache_p2c_wraparound_bug.prop` | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds` | - | N/A | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-slicing --no-env-prune` | 0.0 | DRY |  | wraparound |
+
+benchmark case dry-run: distcache_p2c_wraparound_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound auto --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-reg-debug --spec benchmarks/specs/bench/fisslock_notification_cnt_wraparound_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| FissLock: premature TRANSFER after notification_cnt wrap-around | `benchmarks/specs/bench/fisslock_notification_cnt_wraparound_bug.prop` | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-reg-debug` | 0.0 | DRY | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-reg-debug --no-slicing --no-env-prune` | - | N/A |  | wraparound |
+
+benchmark case dry-run: fisslock_notification_cnt_wraparound_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound auto --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-reg-debug --spec benchmarks/specs/bench/fisslock_notification_cnt_wraparound_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| FissLock: premature TRANSFER after notification_cnt wrap-around | `benchmarks/specs/bench/fisslock_notification_cnt_wraparound_bug.prop` | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-reg-debug` | - | N/A | `verify --wraparound auto --wraparound-stage-order entry_confirm_closure --wraparound-max-targets 1 --wraparound-confirm-unroll 3 --wraparound-max-confirm-unroll 0 --wraparound-closure-timeout-cap 0 --no-slicing-control-seeds --no-reg-debug --no-slicing --no-env-prune` | 0.0 | DRY |  | wraparound |
+
+benchmark case dry-run: fisslock_notification_cnt_wraparound_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-slicing-control-seeds --spec benchmarks/specs/bench/atp_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| ATP bound bug | `benchmarks/specs/bench/atp_bug.prop` | `verify --wraparound off --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound off --no-slicing-control-seeds --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: atp_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-slicing-control-seeds --spec benchmarks/specs/bench/atp_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| ATP bound bug | `benchmarks/specs/bench/atp_bug.prop` | `verify --wraparound off --no-slicing-control-seeds` | - | N/A | `verify --wraparound off --no-slicing-control-seeds --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: atp_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-slicing-control-seeds --spec benchmarks/specs/bench/atp_count_mismatch_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| ATP count mismatch bug | `benchmarks/specs/bench/atp_count_mismatch_bug.prop` | `verify --wraparound off --use-spec-max-steps --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing-control-seeds --no-slicing --no-env-prune` | - | N/A |  | functional |
+
+benchmark case dry-run: atp_count_mismatch_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-slicing-control-seeds --spec benchmarks/specs/bench/atp_count_mismatch_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| ATP count mismatch bug | `benchmarks/specs/bench/atp_count_mismatch_bug.prop` | `verify --wraparound off --use-spec-max-steps --no-slicing-control-seeds` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing-control-seeds --no-slicing --no-env-prune` | 0.0 | DRY |  | functional |
+
+benchmark case dry-run: atp_count_mismatch_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/distcache_leaf_pktloss_clone_drop_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache leaf pktloss clone/drop | `benchmarks/specs/bench/distcache_leaf_pktloss_clone_drop_bug.prop` | `verify --wraparound off --use-spec-max-steps` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-no-por.epf` | - | N/A |  | functional |
+
+benchmark case dry-run: distcache_leaf_pktloss_clone_drop_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-no-por.epf --spec benchmarks/specs/bench/distcache_leaf_pktloss_clone_drop_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache leaf pktloss clone/drop | `benchmarks/specs/bench/distcache_leaf_pktloss_clone_drop_bug.prop` | `verify --wraparound off --use-spec-max-steps` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-no-por.epf` | 0.0 | DRY | base settings override: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal-no-por.epf` | functional |
+
+benchmark case dry-run: distcache_leaf_pktloss_clone_drop_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-reg-debug --no-slicing-control-seeds --spec benchmarks/specs/bench/distcache_cm34_write_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache CM3/CM4 write wiring | `benchmarks/specs/bench/distcache_cm34_write_bug.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing-control-seeds --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A |  | implementation |
+
+benchmark case dry-run: distcache_cm34_write_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-reg-debug --no-slicing-control-seeds --spec benchmarks/specs/bench/distcache_cm34_write_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache CM3/CM4 write wiring | `benchmarks/specs/bench/distcache_cm34_write_bug.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing-control-seeds` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing-control-seeds --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | base settings override: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | implementation |
+
+benchmark case dry-run: distcache_cm34_write_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/distcache_spine_cache_frequency_idx_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache spine cache_frequency idx | `benchmarks/specs/bench/distcache_spine_cache_frequency_idx_bug.prop` | `verify --wraparound off --use-spec-max-steps` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A |  | implementation |
+
+benchmark case dry-run: distcache_spine_cache_frequency_idx_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --spec benchmarks/specs/bench/distcache_spine_cache_frequency_idx_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DistCache spine cache_frequency idx | `benchmarks/specs/bench/distcache_spine_cache_frequency_idx_bug.prop` | `verify --wraparound off --use-spec-max-steps` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | base settings override: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | implementation |
+
+benchmark case dry-run: distcache_spine_cache_frequency_idx_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-reg-debug --spec benchmarks/specs/bench/ddosd_window_label_collision_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DDOSD: window label collision (NSDI) | `benchmarks/specs/bench/ddosd_window_label_collision_bug.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A |  | implementation |
+
+benchmark case dry-run: ddosd_window_label_collision_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-reg-debug --spec benchmarks/specs/bench/ddosd_window_label_collision_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| DDOSD: window label collision (NSDI) | `benchmarks/specs/bench/ddosd_window_label_collision_bug.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | base settings override: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | implementation |
+
+benchmark case dry-run: ddosd_window_label_collision_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-slicing-control-seeds --spec benchmarks/specs/bench/frr_bug1_unexpected_mirror.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| FRR bug1: unexpected mirror (NSDI) | `benchmarks/specs/bench/frr_bug1_unexpected_mirror.prop` | `verify --wraparound off --use-spec-max-steps --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing-control-seeds --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: frr_bug1_unexpected_mirror (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-slicing-control-seeds --spec benchmarks/specs/bench/frr_bug1_unexpected_mirror.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| FRR bug1: unexpected mirror (NSDI) | `benchmarks/specs/bench/frr_bug1_unexpected_mirror.prop` | `verify --wraparound off --use-spec-max-steps --no-slicing-control-seeds` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing-control-seeds --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: frr_bug1_unexpected_mirror (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/frr_bug2_state_inconsistency.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| FRR bug2: state inconsistency (NSDI) | `benchmarks/specs/bench/frr_bug2_state_inconsistency.prop` | `verify --wraparound off --use-spec-max-steps` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | - | N/A |  | interleaving |
+
+benchmark case dry-run: frr_bug2_state_inconsistency (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/frr_bug2_state_inconsistency.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| FRR bug2: state inconsistency (NSDI) | `benchmarks/specs/bench/frr_bug2_state_inconsistency.prop` | `verify --wraparound off --use-spec-max-steps` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | 0.0 | DRY |  | interleaving |
+
+benchmark case dry-run: frr_bug2_state_inconsistency (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/p4nis_bug1_forwarding_sequence_desync.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4NIS bug1: forwarding sequence desync (NSDI) | `benchmarks/specs/bench/p4nis_bug1_forwarding_sequence_desync.prop` | `verify --wraparound off --use-spec-max-steps` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | - | N/A |  | interleaving |
+
+benchmark case dry-run: p4nis_bug1_forwarding_sequence_desync (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/p4nis_bug1_forwarding_sequence_desync.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4NIS bug1: forwarding sequence desync (NSDI) | `benchmarks/specs/bench/p4nis_bug1_forwarding_sequence_desync.prop` | `verify --wraparound off --use-spec-max-steps` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | 0.0 | DRY |  | interleaving |
+
+benchmark case dry-run: p4nis_bug1_forwarding_sequence_desync (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/p4nis_bug2_tunnel_state_leakage.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4NIS bug2: tunnel state leakage (NSDI) | `benchmarks/specs/bench/p4nis_bug2_tunnel_state_leakage.prop` | `verify --wraparound off --use-spec-max-steps` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | - | N/A |  | functional |
+
+benchmark case dry-run: p4nis_bug2_tunnel_state_leakage (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/p4nis_bug2_tunnel_state_leakage.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4NIS bug2: tunnel state leakage (NSDI) | `benchmarks/specs/bench/p4nis_bug2_tunnel_state_leakage.prop` | `verify --wraparound off --use-spec-max-steps` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | 0.0 | DRY |  | functional |
+
+benchmark case dry-run: p4nis_bug2_tunnel_state_leakage (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --spec benchmarks/specs/bench/gecko_bug1_timer_loss.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| Gecko bug1: Timer Loss (NSDI) | `benchmarks/specs/bench/gecko_bug1_timer_loss.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-slicing --no-env-prune` | - | N/A |  | functional |
+
+benchmark case dry-run: gecko_bug1_timer_loss (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --spec benchmarks/specs/bench/gecko_bug1_timer_loss.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| Gecko bug1: Timer Loss (NSDI) | `benchmarks/specs/bench/gecko_bug1_timer_loss.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-slicing --no-env-prune` | 0.0 | DRY |  | functional |
+
+benchmark case dry-run: gecko_bug1_timer_loss (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-reg-debug --spec benchmarks/specs/bench/gecko_bug2_concurrency.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| Gecko bug2: Limited Concurrency Handling (NSDI) | `benchmarks/specs/bench/gecko_bug2_concurrency.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A |  | interleaving |
+
+benchmark case dry-run: gecko_bug2_concurrency (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-reg-debug --spec benchmarks/specs/bench/gecko_bug2_concurrency.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| Gecko bug2: Limited Concurrency Handling (NSDI) | `benchmarks/specs/bench/gecko_bug2_concurrency.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | base settings override: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | interleaving |
+
+benchmark case dry-run: gecko_bug2_concurrency (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-reg-debug --spec benchmarks/specs/bench/gecko_bug3_timer_init.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| Gecko bug3: Improper Timer Initialization (NSDI) | `benchmarks/specs/bench/gecko_bug3_timer_init.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: gecko_bug3_timer_init (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-reg-debug --spec benchmarks/specs/bench/gecko_bug3_timer_init.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| Gecko bug3: Improper Timer Initialization (NSDI) | `benchmarks/specs/bench/gecko_bug3_timer_init.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: gecko_bug3_timer_init (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env max --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/p4xos_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4xos: register access safety (NSDI) | `benchmarks/specs/bench/p4xos_bug.prop` | `verify --env max --wraparound off` | 0.0 | DRY | `verify --env max --wraparound off --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf` | - | N/A |  | implementation |
+
+benchmark case dry-run: p4xos_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env max --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf --spec benchmarks/specs/bench/p4xos_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4xos: register access safety (NSDI) | `benchmarks/specs/bench/p4xos_bug.prop` | `verify --env max --wraparound off` | - | N/A | `verify --env max --wraparound off --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf` | 0.0 | DRY | base settings override: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g.epf` | implementation |
+
+benchmark case dry-run: p4xos_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-reg-debug --spec benchmarks/specs/bench/p4xos_dropflag_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4xos: forwarding correctness drop_flag (NSDI, old) | `benchmarks/specs/bench/p4xos_dropflag_bug.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: p4xos_dropflag_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-reg-debug --spec benchmarks/specs/bench/p4xos_dropflag_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4xos: forwarding correctness drop_flag (NSDI, old) | `benchmarks/specs/bench/p4xos_dropflag_bug.prop` | `verify --wraparound off --use-spec-max-steps --no-reg-debug` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-reg-debug --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: p4xos_dropflag_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/p4xos_majority_quorum_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4xos: majority quorum (NSDI) | `benchmarks/specs/bench/p4xos_majority_quorum_bug.prop` | `verify --wraparound off --use-spec-max-steps` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | - | N/A |  | interleaving |
+
+benchmark case dry-run: p4xos_majority_quorum_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/p4xos_majority_quorum_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4xos: majority quorum (NSDI) | `benchmarks/specs/bench/p4xos_majority_quorum_bug.prop` | `verify --wraparound off --use-spec-max-steps` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | 0.0 | DRY |  | interleaving |
+
+benchmark case dry-run: p4xos_majority_quorum_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1800 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/cheetah_slot_index_collision_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| Cheetah: slot index collision (NSDI) | `benchmarks/specs/bench/cheetah_slot_index_collision_bug.prop` | `verify --wraparound off --use-spec-max-steps` | 0.0 | DRY | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: cheetah_slot_index_collision_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --use-spec-max-steps --env spec --wraparound off --ultimate-timeout-seconds 1800 --ultimate-xmx-gb 7 --spec benchmarks/specs/bench/cheetah_slot_index_collision_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| Cheetah: slot index collision (NSDI) | `benchmarks/specs/bench/cheetah_slot_index_collision_bug.prop` | `verify --wraparound off --use-spec-max-steps` | - | N/A | `verify --wraparound off --use-spec-max-steps --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: cheetah_slot_index_collision_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --no-slicing-control-seeds --spec benchmarks/specs/bench/netlock_pkt_type_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: pkt_type domain | `benchmarks/specs/bench/netlock_pkt_type_bug.prop` | `verify --wraparound off --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound off --no-slicing-control-seeds --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A |  | implementation |
+
+benchmark case dry-run: netlock_pkt_type_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-slicing-control-seeds --spec benchmarks/specs/bench/netlock_pkt_type_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: pkt_type domain | `benchmarks/specs/bench/netlock_pkt_type_bug.prop` | `verify --wraparound off --no-slicing-control-seeds` | - | N/A | `verify --wraparound off --no-slicing-control-seeds --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | base settings override: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | implementation |
+
+benchmark case dry-run: netlock_pkt_type_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --spec benchmarks/specs/bench/netlock_pushback_length_in_server_underflow_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: push_back length_in_server underflow | `benchmarks/specs/bench/netlock_pushback_length_in_server_underflow_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A |  | implementation |
+
+benchmark case dry-run: netlock_pushback_length_in_server_underflow_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --max-steps 3 --no-slicing-control-seeds --spec benchmarks/specs/bench/netlock_pushback_length_in_server_underflow_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: push_back length_in_server underflow | `benchmarks/specs/bench/netlock_pushback_length_in_server_underflow_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds` | - | N/A | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-slicing --no-env-prune --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | base settings override: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | implementation |
+
+benchmark case dry-run: netlock_pushback_length_in_server_underflow_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --spec benchmarks/specs/bench/netlock_release_counter_underflow_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: release counter underflow | `benchmarks/specs/bench/netlock_release_counter_underflow_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: netlock_release_counter_underflow_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --spec benchmarks/specs/bench/netlock_release_counter_underflow_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: release counter underflow | `benchmarks/specs/bench/netlock_release_counter_underflow_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds` | - | N/A | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: netlock_release_counter_underflow_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --spec benchmarks/specs/bench/netlock_release_empty_queue_head_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: release empty-queue head corruption | `benchmarks/specs/bench/netlock_release_empty_queue_head_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds` | 0.0 | DRY | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-slicing --no-env-prune` | - | N/A |  | functional |
+
+benchmark case dry-run: netlock_release_empty_queue_head_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --spec benchmarks/specs/bench/netlock_release_empty_queue_head_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: release empty-queue head corruption | `benchmarks/specs/bench/netlock_release_empty_queue_head_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds` | - | N/A | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-slicing --no-env-prune` | 0.0 | DRY |  | functional |
+
+benchmark case dry-run: netlock_release_empty_queue_head_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --spec benchmarks/specs/bench/netlock_release_empty_slots_overflow_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: release empty_slots overflow | `benchmarks/specs/bench/netlock_release_empty_slots_overflow_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | 0.0 | DRY | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: netlock_release_empty_slots_overflow_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --spec benchmarks/specs/bench/netlock_release_empty_slots_overflow_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| NetLock: release empty_slots overflow | `benchmarks/specs/bench/netlock_release_empty_slots_overflow_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf` | - | N/A | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL-8g-smallblocks.epf --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: netlock_release_empty_slots_overflow_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --no-reg-debug --spec benchmarks/specs/bench/p4db_router_ttl_expiry_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4DB router: TTL expiry | `benchmarks/specs/bench/p4db_router_ttl_expiry_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug` | 0.0 | DRY | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: p4db_router_ttl_expiry_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --no-reg-debug --spec benchmarks/specs/bench/p4db_router_ttl_expiry_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4DB router: TTL expiry | `benchmarks/specs/bench/p4db_router_ttl_expiry_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug` | - | N/A | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: p4db_router_ttl_expiry_bug (noslicing)
+[DRY] ./src/bin/procurator verify --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --no-reg-debug --spec benchmarks/specs/bench/p4db_damper_threshold_off_by_one_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4DB router+damper: threshold off-by-one | `benchmarks/specs/bench/p4db_damper_threshold_off_by_one_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug` | 0.0 | DRY | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --no-slicing --no-env-prune` | - | N/A |  | implementation |
+
+benchmark case dry-run: p4db_damper_threshold_off_by_one_bug (slicing)
+[DRY] ./src/bin/procurator verify --no-slicing --no-env-prune --boogie-harness sequential --no-two-stage --ultimate /home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate --toolchain src/dslc/toolchain/ultimate/ReachSafety.xml --settings src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf --env spec --wraparound off --ultimate-timeout-seconds 1234 --ultimate-xmx-gb 7 --max-steps 3 --no-slicing-control-seeds --no-reg-debug --spec benchmarks/specs/bench/p4db_damper_threshold_off_by_one_bug.prop
+## E2E Ablations (Auto-Generated)
+Updated on 2026-07-04 with the latest E2E runs using Ultimate `/home/smy/p4-verify-camera-ready/.tmp/orphan-worktree-20260703-gemcutter/UGemCutter-linux/Ultimate`.
+Category legend:
+- `functional`: 功能类（功能/一致性性质被违反）
+- `implementation`: 实现类（实现细节/边界处理错误；包含因缺少 guard/clamp 导致的溢出/下溢）
+- `wraparound`: 变量翻转类（需要 wraparound 加速/证书的溢出相关 bug：ENTRY/CONFIRM=UNSAFE 且 CLOSURE=SAFE）
+- `interleaving`: 交错类（并发/交错导致性质被违反）
+- Note: 单步算术溢出/下溢（bitvector wrap）可在很短前缀内出现，通常不需要 wraparound 管线；此类按实现类统计。
+
+| bug / benchmark | spec | opt cmd | opt time (s) | opt result | base cmd | base time (s) | base result | notes | category |
+|---|---|---|---|---|---|---|---|---|---|
+| P4DB router+damper: threshold off-by-one | `benchmarks/specs/bench/p4db_damper_threshold_off_by_one_bug.prop` | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug` | - | N/A | `verify --wraparound off --max-steps 3 --no-slicing-control-seeds --no-reg-debug --no-slicing --no-env-prune` | 0.0 | DRY |  | implementation |
+
+benchmark case dry-run: p4db_damper_threshold_off_by_one_bug (noslicing)
+core_28 casewise dry-run: skipped merge/check after printing per-case commands

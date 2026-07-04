@@ -23,6 +23,20 @@ Entrypoints:
 - `scripts/make_tables.py`: regenerate paper-facing tables from raw evidence.
 - `scripts/check_expected.py`: fail-closed checker for expected/actual JSON.
 
+Archived results included in this repository:
+
+- `results/core_28/core_28.casewise.actual.json`: normalized checker input
+  for the 2026-07-04 casewise reproduction of all 28 curated benchmarks.
+- `results/core_28/cases/`: the 56 per-benchmark/per-mode actual JSON files
+  used to assemble the combined checker input.
+- `results/core_28/e/`: archived evidence directories for each reproduced
+  benchmark/mode run. `result.out_dir` and `result.log_path` in the archived
+  JSON point here; the original WSL `.tmp` paths are preserved separately as
+  `original_out_dir` and `original_log_path`.
+- `results/core_28/logs/`: wrapper provenance logs for the casewise runner.
+  Files named `dryrun` are retained as command/provenance records only; they
+  are not solver certification by themselves.
+
 Typical local setup:
 
 ```bash
@@ -82,3 +96,11 @@ Each script writes an actual JSON under `.tmp/procurator/artifact/` and then
 checks it against `artifact/expected/`. The checkers fail closed: focused
 diagnostics are not accepted as wraparound certification, and a missing witness
 or manifest is a failed artifact check.
+
+To re-check the archived core-28 result included with the repository:
+
+```bash
+artifact/scripts/check_expected.py \
+  --expected artifact/expected/core_28.expected.json \
+  --actual artifact/results/core_28/core_28.casewise.actual.json
+```
