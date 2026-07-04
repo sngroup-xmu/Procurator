@@ -49,6 +49,9 @@ class ArtifactEntrypointTests(unittest.TestCase):
                     self.assertIn("run_benchmark_case.sh", text)
                     self.assertIn("merge_case_results.py", text)
                     self.assertNotIn("run_core_28.sh", text)
+                if name == "run_compile_runtime.sh":
+                    self.assertIn("core_28.casewise.actual.json", text)
+                    self.assertIn("run_core_28_casewise.sh", text)
 
     def test_check_expected_rejects_pending_profiles(self) -> None:
         mod = _load_script("check_expected.py")

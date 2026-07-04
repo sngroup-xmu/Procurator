@@ -56,6 +56,9 @@ the curated benchmark list, runs each benchmark in `slicing` and then
 `noslicing` mode through `run_benchmark_case.sh`, merges the resulting per-case
 JSON files into `.tmp/procurator/artifact/core_28.casewise.actual.json`, and
 checks that combined file against `artifact/expected/core_28.expected.json`.
+`run_compile_runtime.sh` uses that casewise JSON by default when it exists; set
+`RESULTS_JSON=<path>` only when you intentionally want a different E2E result
+file.
 
 Full profiles may take hours and should be run in WSL or Linux:
 
