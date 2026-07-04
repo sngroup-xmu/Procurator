@@ -16,6 +16,13 @@ if str(SRC) not in sys.path:
 from dslc.bench.validate_counterexample import summarize_witness
 
 
+def _default_results_json(out_dir: Path = Path(".tmp/procurator/artifact")) -> Path:
+    casewise = out_dir / "core_28.casewise.actual.json"
+    if casewise.exists():
+        return casewise
+    return out_dir / "core_28.actual.json"
+
+
 def _iter_unsafe_out_dirs(results_json: Path):
     data = json.loads(results_json.read_text(encoding="utf-8"))
     results = data.get("results", {})
@@ -43,7 +50,7 @@ def main() -> int:
     parser.add_argument(
         "--results-json",
         type=Path,
-        default=Path(".tmp/procurator/artifact/core_28.actual.json"),
+        default=_default_results_json(),
     )
     args = parser.parse_args()
 

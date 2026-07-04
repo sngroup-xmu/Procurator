@@ -14,6 +14,13 @@ def _load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _default_results_json(out_dir: Path = Path(".tmp/procurator/artifact")) -> Path:
+    casewise = out_dir / "core_28.casewise.actual.json"
+    if casewise.exists():
+        return casewise
+    return out_dir / "core_28.actual.json"
+
+
 def _status_for_mode(rec: dict[str, Any], mode: str) -> str:
     mode_rec = rec.get(mode)
     if not isinstance(mode_rec, dict):
@@ -53,7 +60,7 @@ def main() -> int:
     parser.add_argument(
         "--results-json",
         type=Path,
-        default=Path(".tmp/procurator/artifact/core_28.actual.json"),
+        default=_default_results_json(),
     )
     parser.add_argument(
         "--out-csv",

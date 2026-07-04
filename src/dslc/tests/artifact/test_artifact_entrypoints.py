@@ -110,6 +110,21 @@ class ArtifactEntrypointTests(unittest.TestCase):
         self.assertIn("core_28 casewise dry-run", combined)
         self.assertEqual(56, combined.count("[DRY]"), combined)
 
+    def test_artifact_consumers_prefer_casewise_results_when_present(self) -> None:
+        for script in ("make_tables.py", "validate_witnesses.py"):
+            with self.subTest(script=script):
+                mod = _load_script(script)
+                with tempfile.TemporaryDirectory() as td:
+                    out_dir = Path(td)
+                    legacy = out_dir / "core_28.actual.json"
+                    casewise = out_dir / "core_28.casewise.actual.json"
+
+                    legacy.write_text(json.dumps({"results": {}}) + "\n", encoding="utf-8")
+                    self.assertEqual(legacy, mod._default_results_json(out_dir))
+
+                    casewise.write_text(json.dumps({"results": {}}) + "\n", encoding="utf-8")
+                    self.assertEqual(casewise, mod._default_results_json(out_dir))
+
     def test_check_expected_rejects_pending_profiles(self) -> None:
         mod = _load_script("check_expected.py")
         with tempfile.TemporaryDirectory() as td:
