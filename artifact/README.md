@@ -11,8 +11,13 @@ Entrypoints:
 - `scripts/run_smoke.sh`: short CLI, P4B compile, and optional solver smoke.
 - `scripts/run_benchmark_case.sh`: run and check one benchmark selector at a
   time, optionally for only `slicing` or `noslicing`.
+- `scripts/run_core_28_casewise.sh`: run the curated 28-case experiment one
+  benchmark/mode at a time, merge the per-case JSON files, and check the
+  combined result fail-closed.
 - `scripts/run_core_28.sh`: curated 28-case experiment runner.
 - `scripts/run_wraparound_4.sh`: wraparound certification runner.
+- `scripts/merge_case_results.py`: merge `.tmp/procurator/artifact/cases/*.actual.json`
+  files into a combined `core_28` checker input.
 - `scripts/make_tables.py`: regenerate paper-facing tables from raw evidence.
 - `scripts/check_expected.py`: fail-closed checker for expected/actual JSON.
 
@@ -39,10 +44,23 @@ Single-case runs write `.tmp/procurator/artifact/cases/*.actual.json` and then
 validate that case fail-closed. After tuning one case, re-run previously passed
 case JSONs with the same script before moving on.
 
+For a complete core-28 reproduction that keeps this case-by-case discipline,
+use:
+
+```bash
+artifact/scripts/run_core_28_casewise.sh
+```
+
+This wrapper does not launch all 28 cases as one solver campaign. It discovers
+the curated benchmark list, runs each benchmark in `slicing` and then
+`noslicing` mode through `run_benchmark_case.sh`, merges the resulting per-case
+JSON files into `.tmp/procurator/artifact/core_28.casewise.actual.json`, and
+checks that combined file against `artifact/expected/core_28.expected.json`.
+
 Full profiles may take hours and should be run in WSL or Linux:
 
 ```bash
-artifact/scripts/run_core_28.sh
+artifact/scripts/run_core_28_casewise.sh
 artifact/scripts/run_wraparound_4.sh
 artifact/scripts/run_compile_runtime.sh
 ```
