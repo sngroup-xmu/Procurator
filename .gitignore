@@ -2,6 +2,7 @@
 .vscode
 log/
 Tmp
+*.tmp
 _spin_nvr.tmp
 pan*
 **/test_spin/**/*.log
@@ -9,6 +10,16 @@ pan*
 .idea
 cmake-build-debug/
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.cache/
 meeting/
 Procurator/argo/code/run_*
 # Generated verification artifacts / tool workspaces (huge, not source)
