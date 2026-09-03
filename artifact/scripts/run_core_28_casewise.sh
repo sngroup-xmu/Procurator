@@ -41,7 +41,7 @@ for bench in "${BENCHES[@]}"; do
       "${ROOT}/artifact/scripts/run_benchmark_case.sh" \
       --bench "${bench}" \
       --only "${mode}" \
-      --timeout "${TIMEOUT_SECONDS:-3600}" \
+      --timeout "${TIMEOUT_SECONDS:-900}" \
       --ultimate-xmx-gb "${ULTIMATE_XMX_GB:-4}" \
       "$@"
   done

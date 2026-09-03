@@ -79,7 +79,7 @@ class ArtifactEntrypointTests(unittest.TestCase):
                 if name == "run_core_28_casewise.sh":
                     self.assertIn("run_benchmark_case.sh", text)
                     self.assertIn("merge_case_results.py", text)
-                    self.assertIn("--timeout \"${TIMEOUT_SECONDS:-3600}\"", text)
+                    self.assertIn("--timeout \"${TIMEOUT_SECONDS:-900}\"", text)
                     self.assertIn("--ultimate-xmx-gb \"${ULTIMATE_XMX_GB:-4}\"", text)
                     self.assertNotIn("run_core_28.sh", text)
                 if name == "run_core_28.sh":

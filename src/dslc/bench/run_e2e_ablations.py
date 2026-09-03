@@ -381,8 +381,10 @@ def main(argv: list[str]) -> int:
     # regressions we want a stable result classification; we re-run UNSAFE cases with
     # witness enabled for auditability.
     verify_toolchain = "src/dslc/toolchain/ultimate/ReachSafety.xml"
-    # WSL safety: prefer the default low-memory internal profile.
-    verify_settings = "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-internal.epf"
+    # Pinned solver profile for the archived core_28 dataset: -ALL (external Z3).
+    # The -internal profile (SMTInterpol only) returns UNKNOWN/TIMEOUT on
+    # several implementation/functional cases; do not switch the default.
+    verify_settings = "src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf"
 
     witness_toolchain = "src/dslc/toolchain/ultimate/ReachSafety-Witness.xml"
 

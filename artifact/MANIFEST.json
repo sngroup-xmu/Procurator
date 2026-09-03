@@ -47,6 +47,7 @@
     },
     {
       "entrypoints": [
+        "artifact/scripts/run_all.sh",
         "artifact/scripts/run_core_28_casewise.sh",
         "artifact/scripts/run_wraparound_4.sh",
         "artifact/scripts/run_compile_runtime.sh"
