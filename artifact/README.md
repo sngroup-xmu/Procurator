@@ -1,37 +1,21 @@
-# Artifact: reproducible workflows and archived results
+# Artifact: run instructions and archived results
 
-`artifact/` contains everything needed to reproduce the evaluation of
-Procurator (SIGCOMM'26): environment setup, pinned solver toolchain, the
-curated 28-bug suite, the wraparound certificate audit, and the archived
-2026-07-04 result dataset.
+This artifact reproduces the Procurator evaluation: 28 curated bug-finding
+tasks, each run in `slicing` and `noslicing` mode (56 solver runs), plus a
+certificate audit for the four wraparound tasks and a compile/runtime table.
 
-## One-shot reproduction
+All commands below run from the repository root on Linux or WSL2
+(Ubuntu 24.04 recommended).
 
-```bash
-artifact/scripts/run_all.sh
-```
+## 1. Requirements
 
-This runs every step below in order and stops at the first failed
-expected-profile check. Expect about 2-4 hours of total wall time on a
-16-core Linux/WSL host. All transient output lands under
-`.tmp/procurator/artifact/`; nothing under `artifact/` is modified.
+- Ubuntu 24.04 (native, WSL2, or Docker), 16 GB RAM, 20 GB free disk
+- Internet access during setup (apt packages + one pinned solver download)
 
-Paper-claim map:
-
-| Paper claim | Script | Output |
-|---|---|---|
-| §8.1: 28 bugs across 12 systems (Table 1) | `run_core_28_casewise.sh` | all 28 x {slicing, noslicing} `UNSAFE` |
-| §8.3: slicing ablation (Table 3) | `run_core_28_casewise.sh` then `run_compile_runtime.sh` | per-mode wall times |
-| §8.3: wraparound acceleration (Figure 13) | `run_wraparound_4.sh` | 4 tasks, ENTRY/CONFIRM/CLOSURE certificates |
-
-§8.2 (comparison against p4tv) is not part of this artifact because p4tv is
-not publicly distributable.
-
-## 0. Environment setup (run once, in order)
-
-Use Linux or WSL2. On Ubuntu 24.04 (see `docker/Dockerfile`):
+## 2. One-time setup
 
 ```bash
+# system packages
 sudo apt-get update && sudo apt-get install -y --no-install-recommends \
   git ca-certificates curl wget unzip python3 python3-venv \
   build-essential cmake pkg-config bison flex libfl-dev \
@@ -39,96 +23,129 @@ sudo apt-get update && sudo apt-get install -y --no-install-recommends \
   libboost-dev libboost-iostreams-dev libboost-graph-dev \
   openjdk-21-jre-headless z3
 
+# python environment
 python3 -m venv .venv-wsl
 .venv-wsl/bin/pip install -r src/dslc/requirements.txt
 
-# P4B translator (P4 -> Boogie frontend), about 10-30 min:
+# P4 -> Boogie translator (10-30 min build)
 mkdir -p src/p4b/source/build-host && cd src/p4b/source/build-host
 cmake -DP4C_USE_GOLD=OFF -DENABLE_GTESTS=OFF ..
 cmake --build . --target p4c-translator -j"$(nproc)"
 cd -
 
-# Pinned Ultimate/GemCutter solver (version + sha256 are fixed in the script):
+# pinned Ultimate/GemCutter solver (downloads ~160 MB, sha256-checked)
 artifact/scripts/setup_gemcutter.sh
 ```
 
-`setup_gemcutter.sh` is the only network-dependent step after `apt`. If the
-bdwgc FetchContent clone of the P4B build is blocked, use the system package
-instead: `cmake -DP4C_USE_PREINSTALLED_BDWGC=ON ...` (requires `libgc-dev`).
+If the cmake configure step hangs while cloning `bdwgc` from GitHub, add
+`-DP4C_USE_PREINSTALLED_BDWGC=ON` to the cmake command (uses the system
+`libgc-dev` package instead).
 
-## 1. Smoke test (about 1 min)
-
-```bash
-artifact/scripts/run_smoke.sh
-```
-
-Checks the CLI, the P4B-to-Boogie compile path, and (if the solver is
-installed) one solver run. Writes `.tmp/procurator/artifact/smoke.actual.json`
-and validates it against `expected/smoke.expected.json`.
-
-## 2. Core 28-bug suite (2-4 h; the main experiment)
+## 3. Run everything
 
 ```bash
-artifact/scripts/run_core_28_casewise.sh
+artifact/scripts/run_all.sh
 ```
 
-Discovers the 28 curated benchmarks, runs each in `slicing` and `noslicing`
-mode (56 solver runs), merges the per-case JSON files, and checks the combined
-profile against `expected/core_28.expected.json`. The slicing/noslicing pair
-per benchmark is also the §8.3 slicing ablation data.
+Runs the toolchain check, smoke test, the full 28-bug suite in both modes,
+the wraparound certificate audit, and the compile/runtime table, in order.
+Stops at the first failed check. Total wall time: about 2-4 hours on a
+16-core machine. All output lands under `.tmp/procurator/artifact/`.
 
-A single case (useful for inspection or resuming):
+## 4. Run individual steps
 
 ```bash
-artifact/scripts/run_benchmark_case.sh --bench netchain_wraparound_bug --only slicing
+artifact/scripts/run_smoke.sh              # ~1 min: CLI + compile + solver sanity
+artifact/scripts/run_core_28_casewise.sh   # 2-4 h: 28 benchmarks x {slicing, noslicing}
+artifact/scripts/run_wraparound_4.sh       # 4 wraparound tasks + certificate validation
+artifact/scripts/run_compile_runtime.sh    # per-stage wall-time table (needs step results)
+artifact/scripts/make_tables.py            # CSV summary of all verdicts
 ```
 
-`--only` accepts `slicing`, `noslicing`, or `all`. `--dry-run` prints the
-exact commands without executing them.
-
-## 3. Wraparound certificate audit (4 tasks)
+Run a single benchmark in a single mode:
 
 ```bash
-artifact/scripts/run_wraparound_4.sh
+artifact/scripts/run_benchmark_case.sh --bench atp_bug --only slicing
 ```
 
-Re-runs the four wraparound-required benchmarks (NetChain, two DistCache P2C
-cases, FissLock) and validates the ENTRY/CONFIRM/CLOSURE certificates via
-`validate_wraparound_manifests.py`.
+`--only` accepts `slicing`, `noslicing`, or `all`. Add `--dry-run` to any
+suite script to print the exact commands without executing them.
 
-## 4. Compile/runtime table and CSV summary
+## 5. How to read the results
 
-```bash
-artifact/scripts/run_compile_runtime.sh   # from the core_28 records
-artifact/scripts/make_tables.py           # CSV summary
-```
+### What success looks like
 
-## Pinned hyperparameters
+Every script ends with the line `expected check passed` and exit code 0.
+On failure the checker prints one line per problem (which case, which mode,
+what is wrong) and exits 1.
 
-These are fixed in the scripts and match the archived dataset exactly:
-
-- solver: Ultimate/GemCutter `v0.3.1` (sha256-pinned in `setup_gemcutter.sh`)
-- solver settings profile: `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf`
-  (external Z3). Do not switch to the `-internal` (SMTInterpol) profile: it
-  returns `UNKNOWN`/`TIMEOUT` on several implementation/functional cases.
-- solver timeout: 900 s per task (1800 s for two tasks); override with
-  `TIMEOUT_SECONDS`
-- solver heap: 4 GB per run; override with `ULTIMATE_XMX_GB`
-- harness: sequential Boogie harness, no two-stage encoding; `--wraparound auto`
-  for wraparound-class benchmarks, `--wraparound off` otherwise
-
-## Archived 2026-07-04 dataset (inspect without rerunning)
+### Where the files are
 
 ```text
-results/core_28/core_28.casewise.actual.json   combined checker input
-results/core_28/cases/                         56 per-benchmark/per-mode JSON files
-results/core_28/e/                             BPL, witnesses, logs, replay records, manifests
-results/core_28/MANIFEST.json                  machine-readable inventory
-evidence/core_28_casewise_reproduction_20260704.md
-evidence/actor_wraparound_audit_28_cases.md
+.tmp/procurator/artifact/
+  smoke.actual.json                     smoke test verdict
+  cases/<bench>.<mode>.actual.json      one file per benchmark per mode (56 total)
+  core_28.casewise.actual.json          merged suite result (input to the checker)
+  wraparound_4.actual.json              merged wraparound audit result
+  core_28_summary.csv                   verdict table from make_tables.py
+  compile_runtime.actual.json / .md     per-stage wall times
 ```
 
-Every archived mode record is `UNSAFE` with sanity `OK`. Check it in place:
+### The verdict fields
+
+Each per-case JSON records, per mode (`slicing` / `noslicing`):
+
+- `status`: `UNSAFE` / `SAFE` / `TIMEOUT` / `UNKNOWN` / `ERROR`
+- `sanity`: `OK` means the verdict was double-checked (the witness rerun hits
+  the violated assertion; wraparound tasks additionally carry a closure
+  certificate)
+- `wall_s`: wall-clock seconds
+- `cmd`: the exact command that produced the result
+- `out_dir`: directory with all raw artifacts of the run
+
+How to interpret:
+
+- `UNSAFE` + sanity `OK` — the bug reproduced. This is the expected verdict
+  for all 28 benchmarks in both modes.
+- `SAFE` — verified safe (only accepted where the expected profile allows it).
+- `TIMEOUT` / `UNKNOWN` / `ERROR` — inconclusive. These never count as
+  "no bug"; the checker rejects them.
+
+`check_expected.py` enforces this policy against
+`artifact/expected/<profile>.expected.json`. You can re-run the check on any
+produced JSON:
+
+```bash
+artifact/scripts/check_expected.py \
+  --expected artifact/expected/core_28.expected.json \
+  --actual .tmp/procurator/artifact/core_28.casewise.actual.json
+```
+
+### Looking at a counterexample
+
+For an `UNSAFE` case, open its `out_dir`, e.g.
+`.tmp/procurator/verify/atp_bug/<run-id>/`:
+
+- `<name>.bpl` — the Boogie program that was checked
+- `<name>.bpl-witness.yml` / `.graphml` — the counterexample witness
+- `gemcutter.log`, `gemcutter.witness.log` — solver logs
+- `wraparound/` — for wraparound tasks only: ENTRY / CONFIRM / CLOSURE
+  manifests certifying the deep-overflow trace
+
+Bulk-validate all evidence files referenced by a results JSON:
+
+```bash
+PYTHONPATH=src:src/p4b/python artifact/scripts/validate_witnesses.py \
+  --results-json .tmp/procurator/artifact/core_28.casewise.actual.json
+PYTHONPATH=src:src/p4b/python artifact/scripts/validate_wraparound_manifests.py \
+  --results-json .tmp/procurator/artifact/wraparound_4.actual.json
+```
+
+### Inspecting the archived results without rerunning
+
+The repository ships the archived 2026-07-04 dataset under
+`artifact/results/core_28/` (56 records, all `UNSAFE` with sanity `OK`),
+plus human-readable tables in `artifact/evidence/`. Check it in place:
 
 ```bash
 artifact/scripts/check_expected.py \
@@ -136,18 +153,21 @@ artifact/scripts/check_expected.py \
   --actual artifact/results/core_28/core_28.casewise.actual.json
 ```
 
-Validate UNSAFE evidence paths and wraparound certificates:
+## 6. Fixed settings
 
-```bash
-PYTHONPATH=src:src/p4b/python artifact/scripts/validate_witnesses.py \
-  --results-json artifact/results/core_28/core_28.casewise.actual.json
-PYTHONPATH=src:src/p4b/python artifact/scripts/validate_wraparound_manifests.py \
-  --results-json artifact/results/core_28/core_28.casewise.actual.json
-```
+The scripts pin the following so that fresh runs are comparable to the
+archived dataset (each case JSON records its full command for auditing):
 
-## Result policy
+- solver: Ultimate/GemCutter `v0.3.1`, sha256-pinned in `setup_gemcutter.sh`
+- solver settings profile:
+  `src/dslc/toolchain/ultimate/ReachSafety-32bit-GemCutter-ALL.epf`
+  (external Z3). Do not switch to the `-internal` (SMTInterpol-only) profile:
+  it returns `UNKNOWN`/`TIMEOUT` on several tasks.
+- solver timeout: 900 s per task (1800 s for two tasks);
+  override with `TIMEOUT_SECONDS=<seconds>`
+- solver heap: 4 GB per run; override with `ULTIMATE_XMX_GB=<gb>`
 
-The checkers are conservative.
+## 7. Result policy
 
 ```text
 UNSAFE   accepted when the required witness or manifest exists
