@@ -7,6 +7,11 @@ certificate audit for the four wraparound tasks and a compile/runtime table.
 All commands below run from the repository root on Linux or WSL2
 (Ubuntu 24.04 recommended).
 
+**Docker alternative:** a self-contained image with the whole toolchain
+(translator, solver, specs) can be built with `docker build -t procurator .`
+using the root `Dockerfile`; see `artifact/docker/README.md`. With the image
+built, `artifact/docker/run.sh ae` runs this whole document in one command.
+
 ## 1. Requirements
 
 - Ubuntu 24.04 (native, WSL2, or Docker), 16 GB RAM, 20 GB free disk

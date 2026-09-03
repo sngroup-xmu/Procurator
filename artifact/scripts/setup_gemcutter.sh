@@ -12,7 +12,14 @@ ZIP="${DOWNLOAD_DIR}/UltimateGemCutter-linux-${VERSION}.zip"
 mkdir -p "${DOWNLOAD_DIR}" "${INSTALL_ROOT}"
 
 if [[ ! -s "${ZIP}" ]]; then
-  curl -L --fail --show-error --progress-bar -o "${ZIP}" "${URL}"
+  for attempt in 1 2 3 4 5; do
+    # Stall watchdog: abort if below 10 KB/s for 30 s, then resume with -C -.
+    curl -L --fail --show-error --progress-bar \
+      --speed-limit 10240 --speed-time 30 \
+      -C - -o "${ZIP}" "${URL}" && break
+    echo "download attempt ${attempt} failed; retrying" >&2
+    sleep 3
+  done
 fi
 
 actual_sha="$(sha256sum "${ZIP}" | awk '{print $1}')"

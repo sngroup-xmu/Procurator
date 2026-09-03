@@ -30,6 +30,17 @@ New here? Start with the [tutorial](docs/tutorial.md), then keep
 
 Use Linux or WSL for P4B-dependent and solver-heavy runs.
 
+**Docker (zero host setup):** the root `Dockerfile` builds a self-contained
+image with the translator, the pinned solver, and all benchmark specs:
+
+```bash
+docker build -t procurator .
+docker run --rm procurator verify --spec benchmarks/specs/bench/atp_bug.prop
+```
+
+See `artifact/docker/README.md` for details. To install natively instead,
+read on.
+
 On a minimal Ubuntu 20.04/22.04 machine, install system packages first:
 
 ```bash

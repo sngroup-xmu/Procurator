@@ -80,6 +80,9 @@ def _repo_root() -> Path:
 
 
 def _find_default_ultimate(root: Path) -> Optional[Path]:
+    env_path = os.environ.get("ULTIMATE", "").strip()
+    if env_path and Path(env_path).exists():
+        return Path(env_path)
     candidates = [
         root / ".tmp" / "procurator" / "toolchains" / "gemcutter" / "UGemCutter-linux" / "Ultimate",
     ] + sorted(root.glob(".tmp/orphan-worktree-*/UGemCutter-linux/Ultimate")) + [
