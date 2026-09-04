@@ -30,16 +30,64 @@ New here? Start with the [tutorial](docs/tutorial.md), then keep
 
 Use Linux or WSL for P4B-dependent and solver-heavy runs.
 
-**Docker (zero host setup):** the root `Dockerfile` builds a self-contained
-image with the translator, the pinned solver, and all benchmark specs:
+### Docker (recommended; zero host setup)
+
+The root `Dockerfile` packages the whole toolchain — the P4B translator, the
+pinned Ultimate/GemCutter solver, the Python CLI, and all 28 benchmark
+specs — into one image. Nothing needs to be downloaded or installed at run
+time.
+
+**Step 1 — build the image** (20-40 min, ~1.1 GB, needs internet for apt and
+one pinned solver download):
 
 ```bash
 docker build -t procurator .
-docker run --rm procurator verify --spec benchmarks/specs/bench/atp_bug.prop
 ```
 
-See `artifact/docker/README.md` for details. To install natively instead,
-read on.
+On low-memory machines, cap build parallelism with
+`docker build --build-arg JOBS=4 -t procurator .`
+If Docker Hub is unreachable from your network, pull the `ubuntu:24.04`
+base image through a registry mirror first, e.g.
+`docker pull docker.1ms.run/library/ubuntu:24.04` followed by
+`docker tag docker.1ms.run/library/ubuntu:24.04 ubuntu:24.04`, then build.
+
+**Step 2 — verify a spec.** Bundled benchmark specs live under
+`benchmarks/specs/`:
+
+```bash
+docker run --rm -v "$PWD/ae-out:/procurator/.tmp/procurator" \
+  procurator verify --spec benchmarks/specs/bench/atp_bug.prop
+```
+
+A successful bug-finding run prints `RESULT: UNSAFE` and writes the Boogie
+file, solver logs, and counterexample witness under `ae-out/verify/`.
+For a wraparound task (`benchmarks/specs/bench/netchain_wraparound_bug.prop`)
+expect `[WRAP] CERTIFIED UNSAFE` with a certificate manifest.
+
+To check your own spec, mount it into the container:
+
+```bash
+docker run --rm -v "$PWD/my.prop:/work/my.prop" \
+  -v "$PWD/ae-out:/procurator/.tmp/procurator" \
+  procurator verify --spec /work/my.prop
+```
+
+**Step 3 — reproduce the full evaluation** (28 bug-finding tasks in slicing
+and noslicing modes, wraparound certificate audit, wall-time table; about
+2-4 h):
+
+```bash
+docker run --rm -v "$PWD/ae-out:/procurator/.tmp/procurator" procurator ae
+```
+
+The run ends with `expected check passed` when every task reproduces.
+Verdicts and evidence land in `ae-out/` (`ae-out/artifact/` for the JSON
+verdicts, `ae-out/verify/` for per-run artifacts); see the section
+"How to read the results" in `artifact/README.md` for the verdict fields and
+the pass/fail policy. Give Docker at least 8 GB of memory (Docker Desktop:
+Settings -> Resources).
+
+To install natively instead, read on.
 
 On a minimal Ubuntu 20.04/22.04 machine, install system packages first:
 

@@ -13,7 +13,11 @@ from typing import Any, Dict, List, Optional
 
 
 def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "src" / "dslc").is_dir() and (parent / "artifact").is_dir():
+            return parent
+    return here.parents[3]
 
 
 def _load_json(path: Path, default: Any) -> Any:

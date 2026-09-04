@@ -12,13 +12,23 @@ ZIP="${DOWNLOAD_DIR}/UltimateGemCutter-linux-${VERSION}.zip"
 mkdir -p "${DOWNLOAD_DIR}" "${INSTALL_ROOT}"
 
 if [[ ! -s "${ZIP}" ]]; then
-  for attempt in 1 2 3 4 5; do
-    # Stall watchdog: abort if below 10 KB/s for 30 s, then resume with -C -.
-    curl -L --fail --show-error --progress-bar \
-      --speed-limit 10240 --speed-time 30 \
-      -C - -o "${ZIP}" "${URL}" && break
-    echo "download attempt ${attempt} failed; retrying" >&2
-    sleep 3
+  # Try a direct download first; if it crawls below 200 KB/s for 20 s,
+  # abort and resume through public GitHub mirror prefixes. The sha256
+  # check below pins the content regardless of the source.
+  MIRROR_PREFIXES=("" "https://gh-proxy.com/" "https://ghfast.top/" "https://ghproxy.net/")
+  downloaded=0
+  for prefix in "${MIRROR_PREFIXES[@]}"; do
+    for attempt in 1 2; do
+      if curl -L --fail --show-error --progress-bar \
+          --speed-limit 204800 --speed-time 20 \
+          -C - -o "${ZIP}" "${prefix}${URL}"; then
+        downloaded=1
+        break
+      fi
+      echo "download via '${prefix:-direct}' failed or too slow; trying next source" >&2
+      sleep 2
+    done
+    [[ "${downloaded}" -eq 1 ]] && break
   done
 fi
 

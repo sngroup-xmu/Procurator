@@ -7,13 +7,21 @@ Nothing is downloaded at run time.
 
 ## Build
 
-From the repository root (20-40 min; ~3 GB image):
+From the repository root (20-40 min; ~1.1 GB image):
 
 ```bash
 docker build -t procurator .
 ```
 
 (`artifact/docker/build.sh` does exactly this.)
+
+If Docker Hub is unreachable from your network, pull the base image through
+a registry mirror first, then build:
+
+```bash
+docker pull docker.1ms.run/library/ubuntu:24.04
+docker tag docker.1ms.run/library/ubuntu:24.04 ubuntu:24.04
+```
 
 ## Run
 
