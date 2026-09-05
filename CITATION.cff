@@ -2,3 +2,46 @@ cff-version: 1.2.0
 title: "Procurator"
 message: "Please cite the SIGCOMM 2026 Procurator paper and this artifact release."
 type: software
+url: "https://github.com/sngroup-xmu/Procurator"
+preferred-citation:
+  type: conference-paper
+  title: "Towards Efficient Verification of Distributed In-Network Computing Programs"
+  year: 2026
+  authors:
+    - family-names: Song
+      given-names: Mingyuan
+    - family-names: Shen
+      given-names: Huan
+    - family-names: Jiang
+      given-names: Jinghui
+    - family-names: Su
+      given-names: Qiang
+    - family-names: Zhang
+      given-names: Ziheng
+    - family-names: Song
+      given-names: Qingyu
+    - family-names: Zhang
+      given-names: Yuchao
+    - family-names: Feng
+      given-names: Wanjian
+    - family-names: Yuan
+      given-names: Fei
+    - family-names: Xing
+      given-names: Yitao
+    - family-names: Wei
+      given-names: Wenjia
+    - family-names: Xiang
+      given-names: Qiao
+    - family-names: Shu
+      given-names: Jiwu
+  conference:
+    name: "ACM SIGCOMM 2026 Conference"
+    date-start: "2026-08-17"
+    date-end: "2026-08-21"
+    address: "Denver, CO, USA"
+  collection-title: "Proceedings of the ACM SIGCOMM 2026 Conference"
+  publisher: "ACM"
+  start: 74
+  end: 91
+  doi: "10.1145/3789240.3829122"
+  url: "https://doi.org/10.1145/3789240.3829122"

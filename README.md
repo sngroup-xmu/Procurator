@@ -242,3 +242,27 @@ tools/release/            source-tree checks and packaging helpers
 
 Generated files belong under `.tmp/procurator/` or an explicit output
 directory. They are not source.
+
+## Citation
+
+If you use Procurator, please cite the SIGCOMM 2026 paper
+([DOI 10.1145/3789240.3829122](https://doi.org/10.1145/3789240.3829122)):
+
+```bibtex
+@inproceedings{song2026procurator,
+  author    = {Song, Mingyuan and Shen, Huan and Jiang, Jinghui and Su, Qiang
+               and Zhang, Ziheng and Song, Qingyu and Zhang, Yuchao
+               and Feng, Wanjian and Yuan, Fei and Xing, Yitao
+               and Wei, Wenjia and Xiang, Qiao and Shu, Jiwu},
+  title     = {Towards Efficient Verification of Distributed In-Network
+               Computing Programs},
+  booktitle = {Proceedings of the ACM SIGCOMM 2026 Conference},
+  series    = {SIGCOMM '26},
+  pages     = {74--91},
+  year      = {2026},
+  address   = {Denver, CO, USA},
+  publisher = {ACM},
+  doi       = {10.1145/3789240.3829122},
+  url       = {https://doi.org/10.1145/3789240.3829122},
+}
+```
